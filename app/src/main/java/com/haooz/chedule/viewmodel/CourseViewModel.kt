@@ -1,5 +1,11 @@
 package com.haooz.chedule.viewmodel
 
+import com.haooz.chedule.data.formatSlashDate
+
+import com.haooz.chedule.data.minusDays
+import com.haooz.chedule.data.todayLocalDate
+import kotlinx.datetime.isoDayNumber
+
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,8 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import kotlinx.datetime.LocalDate
 
 class CourseViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -192,7 +197,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
      * 正好和主界面 resume 后的重组撞在一起。跨天仍会刷，不会漏掉日期滚动。
      */
     private fun updateWidgetsIfNeeded(contentChanged: Boolean) {
-        val today = LocalDate.now()
+        val today = todayLocalDate()
         if (!contentChanged && lastWidgetRefreshDate == today) return
         lastWidgetRefreshDate = today
         updateWidgets()
@@ -237,7 +242,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
                 val semesterStartDate = LocalDate.parse(_classStartTime.value.replace("/", "-"))
                 TeachingWeekReorganization.semesterStartDateForTeachingWeekOnDate(
                     semesterStartDate = semesterStartDate,
-                    date = LocalDate.now(),
+                    date = todayLocalDate(),
                     teachingWeek = week.toLong(),
                     rules = repository.getTeachingWeekReorganizations(),
                 ) ?: return
@@ -247,7 +252,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
             _isHoliday.value = isWeekHoliday(week)
 
             if (newStartDate != null) {
-                val newStartDateStr = newStartDate.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"))
+                val newStartDateStr = newStartDate.formatSlashDate()
                 _classStartTime.value = newStartDateStr
                 repository.setClassStartTime(newStartDateStr)
                 updateWidgets()
@@ -283,10 +288,10 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     // 周次 = (今天 - 开学周一) / 7 + 1；开学周一为开始上课日期所在周的周一
     private fun calculateCurrentWeekFromDate(startDate: String): Int {
         return try {
-            val today = LocalDate.now()
+            val today = todayLocalDate()
             val start = LocalDate.parse(startDate.replace("/", "-"))
-            val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
-            _isSemesterStarted.value = !today.isBefore(startMonday)
+            val startMonday = start.minusDays((start.dayOfWeek.isoDayNumber - 1).toLong())
+            _isSemesterStarted.value = today >= startMonday
             val week = TeachingWeekReorganization.mapDate(
                 semesterStartDate = start,
                 date = today,

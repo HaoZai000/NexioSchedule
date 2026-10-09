@@ -1,5 +1,7 @@
 package com.haooz.chedule.ui.screens
 
+import com.haooz.chedule.data.todayLocalDate
+
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -118,7 +120,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.net.HttpURLConnection
 import java.net.URL
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 import kotlin.time.Duration.Companion.milliseconds
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 
@@ -1593,7 +1595,7 @@ private fun TabletHolidayPane(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val currentDate = remember { LocalDate.now() }
+    val currentDate = remember { todayLocalDate() }
     var year by remember { mutableIntStateOf(currentDate.year) }
     var entries by remember { mutableStateOf(HolidayManager.load(context, year)) }
     var loading by remember { mutableStateOf(false) }

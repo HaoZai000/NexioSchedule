@@ -1,4 +1,11 @@
 package com.haooz.chedule.ui.screens
+
+import com.haooz.chedule.data.minusDays
+import com.haooz.chedule.data.nowLocalTime
+import com.haooz.chedule.data.plusDays
+import com.haooz.chedule.data.plusWeeks
+import com.haooz.chedule.data.todayLocalDate
+import kotlinx.datetime.isoDayNumber
 import com.haooz.chedule.ui.utils.ApiCompat
 
 import android.annotation.SuppressLint
@@ -133,7 +140,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
@@ -357,7 +364,7 @@ fun MainScheduleScreen(
     var currentSection by remember { mutableIntStateOf(-1) }
     LaunchedEffect(sectionTimes, totalSections) {
         while (true) {
-            val now = java.time.LocalTime.now()
+            val now = nowLocalTime()
             val currentMinutes = now.hour * 60 + now.minute
             var result = -1
             var nextTransition = Int.MAX_VALUE
@@ -416,9 +423,9 @@ fun MainScheduleScreen(
     val semesterStartDate = remember(scheduleContext, dataVersion, classStartTime) {
         runCatching {
             LocalDate.parse(classStartTime.replace("/", "-"))
-        }.getOrNull() ?: LocalDate.now()
+        }.getOrNull() ?: todayLocalDate()
     }
-    val semesterStartMonday = semesterStartDate.minusDays((semesterStartDate.dayOfWeek.value - 1).toLong())
+    val semesterStartMonday = semesterStartDate.minusDays((semesterStartDate.dayOfWeek.isoDayNumber - 1).toLong())
     val teachingWeekReorganizations = remember(
         scheduleRepository,
         currentScheduleId,

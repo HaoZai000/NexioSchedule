@@ -77,7 +77,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.text.SimpleDateFormat
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -1169,7 +1169,7 @@ private fun buildExportIcs(
             )) {
                 val targetDate = Calendar.getInstance().apply {
                     clear()
-                    set(actualDate.year, actualDate.monthValue - 1, actualDate.dayOfMonth)
+                    set(actualDate.year, actualDate.monthNumber - 1, actualDate.dayOfMonth)
                 }
 
                 targetDate.set(Calendar.HOUR_OF_DAY, startHour)

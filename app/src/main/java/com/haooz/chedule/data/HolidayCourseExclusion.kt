@@ -1,7 +1,7 @@
 package com.haooz.chedule.data
 
-import java.time.LocalDate
-import java.time.LocalTime
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 
 // ── 节假日与调休 · 假期课程剔除与逐日裁决 ────────────────
 //
@@ -78,7 +78,7 @@ fun isBeforeHolidayDate(
         date: LocalDate,
     ): Boolean {
         if (HolidayManager.entriesForDate(entriesByYear, date)
-                .any { it.type == HolidayManager.TYPE_HOLIDAY } || date == LocalDate.MAX
+                .any { it.type == HolidayManager.TYPE_HOLIDAY } || date == LOCAL_DATE_MAX
         ) return false
 
         return HolidayManager.entriesForDate(entriesByYear, date.plusDays(1))
@@ -104,7 +104,7 @@ fun isBeforeHolidayDate(
         val isHoliday = HolidayManager.entriesForDate(entriesByYear, date)
             .any { it.type == HolidayManager.TYPE_HOLIDAY }
         if (!isHoliday) return false
-        if (date == LocalDate.MAX) return true
+        if (date == LOCAL_DATE_MAX) return true
 
         return HolidayManager.entriesForDate(entriesByYear, date.plusDays(1))
             .none { it.type == HolidayManager.TYPE_HOLIDAY }
@@ -156,11 +156,11 @@ fun isBeforeHolidayDate(
             if (!course.hasValidCustomTime()) return false
             val courseStart = parseTime(course.customStartTime) ?: return false
             val courseEnd = parseTime(course.customEndTime) ?: return false
-            if (!courseStart.isBefore(courseEnd)) return false
+            if (courseStart >= courseEnd) return false
 
             return selectedRange.any { section ->
                 val (sectionStart, sectionEnd) = parseSectionTime(sectionTimes[section]) ?: return@any false
-                courseStart.isBefore(sectionEnd) && courseEnd.isAfter(sectionStart)
+                courseStart < sectionEnd && courseEnd > sectionStart
             }
         }
 
@@ -222,7 +222,7 @@ fun isBeforeHolidayDate(
         if (parts.size != 2) return null
         val start = parseTime(parts[0]) ?: return null
         val end = parseTime(parts[1]) ?: return null
-        return (start to end).takeIf { start.isBefore(end) }
+        return (start to end).takeIf { start < end }
     }
 
     private fun parseTime(value: String?): LocalTime? {
@@ -231,6 +231,6 @@ fun isBeforeHolidayDate(
         val hour = parts[0].toIntOrNull() ?: return null
         val minute = parts[1].toIntOrNull() ?: return null
         if (hour !in 0..23 || minute !in 0..59) return null
-        return runCatching { LocalTime.of(hour, minute) }.getOrNull()
+        return runCatching { LocalTime(hour, minute) }.getOrNull()
     }
 }

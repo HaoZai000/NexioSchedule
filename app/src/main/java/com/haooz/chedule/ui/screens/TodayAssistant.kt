@@ -1,5 +1,10 @@
 package com.haooz.chedule.ui.screens
 
+import com.haooz.chedule.data.millisBetween
+import com.haooz.chedule.data.parseHourMinute
+
+import com.haooz.chedule.data.nowLocalTime
+
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -57,8 +62,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
+import kotlinx.datetime.LocalTime
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
@@ -151,11 +155,10 @@ fun invalidateWeatherCache() {
     cachedWeather = null
 }
 
-private val TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")
 
 private fun parseTime(timeStr: String): LocalTime? {
     return try {
-        LocalTime.parse(timeStr, TIME_FORMATTER)
+        parseHourMinute(timeStr)
     } catch (_: Exception) {
         null
     }
@@ -212,10 +215,10 @@ private data class WeatherData(
 ) {
     fun isNight(): Boolean {
         if (sunset.isBlank() || sunrise.isBlank()) return false
-        val now = LocalTime.now()
+        val now = nowLocalTime()
         val sunsetTime = parseTime(sunset.substringAfter("T")) ?: return false
         val sunriseTime = parseTime(sunrise.substringAfter("T")) ?: return false
-        return now.isAfter(sunsetTime) || now.isBefore(sunriseTime)
+        return now > sunsetTime || now < sunriseTime
     }
 }
 
@@ -484,10 +487,10 @@ private fun rememberCourseStatus(
     }
     LaunchedEffect(ranges) {
         while (true) {
-            val now = LocalTime.now()
+            val now = nowLocalTime()
             // 与 generateSmartTip 同一判定：开始含、结束不含，避免整点卡在「正在上课」
-            val current = ranges.find { !now.isBefore(it.start) && now.isBefore(it.end) }
-            val next = ranges.find { now.isBefore(it.start) }
+            val current = ranges.find { now >= it.start && now < it.end }
+            val next = ranges.find { now < it.start }
             val message = when {
                 current != null -> formatRemainingUntil(now, current.end, isCountdownToStart = false)
                 next != null -> formatRemainingUntil(now, next.start, isCountdownToStart = true)
@@ -509,7 +512,7 @@ private fun formatRemainingUntil(
     to: LocalTime,
     isCountdownToStart: Boolean
 ): String {
-    val remainMillis = java.time.Duration.between(from, to).toMillis()
+    val remainMillis = millisBetween(from, to)
     if (remainMillis < 0L) return if (isCountdownToStart) "已开始" else "已结束"
     if (remainMillis < 60_000L) {
         val seconds = ((remainMillis + 999L) / 1000L).toInt().coerceIn(1, 60)
@@ -543,7 +546,7 @@ private fun buildCourseTimeRanges(
 
 // 向上取整，与顶部倒计时、系统岛倒计时共用同一套「剩余分钟」口径
 private fun ceilMinutesUntil(from: LocalTime, to: LocalTime): Int {
-    val remain = java.time.Duration.between(from, to).toMillis()
+    val remain = millisBetween(from, to)
     if (remain <= 0L) return 0
     return ((remain + 59_999L) / 60_000L).toInt()
 }
@@ -573,7 +576,7 @@ private fun generateSmartTip(
     morningSections: Int,
     afternoonSections: Int
 ): String? {
-    val now = LocalTime.now()
+    val now = nowLocalTime()
     val ranges = buildCourseTimeRanges(courses, sectionTimes)
     val tomorrowRanges = buildCourseTimeRanges(tomorrowCourses, sectionTimes)
 
@@ -641,8 +644,8 @@ private fun generateSmartTip(
     }
 
     val ongoing = ranges.find { now >= it.start && now < it.end }
-    val next = ranges.find { now.isBefore(it.start) }
-    val prev = ranges.lastOrNull { now.isAfter(it.end) }
+    val next = ranges.find { now < it.start }
+    val prev = ranges.lastOrNull { now > it.end }
 
     val eveningCount = courses.count {
         it.periodIndex(sectionTimes, morningSections, afternoonSections) == Course.PERIOD_EVENING
@@ -651,7 +654,7 @@ private fun generateSmartTip(
         it.periodIndex(sectionTimes, morningSections, afternoonSections) == Course.PERIOD_AFTERNOON
     }
     val totalCount = courses.size
-    val completedCount = ranges.count { now.isAfter(it.end) }
+    val completedCount = ranges.count { now > it.end }
 
     return when {
         // 正在上课：剩余 + 连堂，多套冷静说法
@@ -873,7 +876,7 @@ fun TodayAssistantCard(
         lastCurrentEnd = courseStatus.currentEnd
         if (prevEnd == null) return@LaunchedEffect
         if (courseStatus.currentEnd == prevEnd) return@LaunchedEffect
-        val justEndedMillis = java.time.Duration.between(prevEnd, LocalTime.now()).toMillis()
+        val justEndedMillis = millisBetween(prevEnd, nowLocalTime())
         if (justEndedMillis !in 0L..2500L) return@LaunchedEffect
         // 最后一节结束后：无当前课、也无下一节
         val isLastOfDay = courseStatus.currentCourse == null && courseStatus.nextCourse == null

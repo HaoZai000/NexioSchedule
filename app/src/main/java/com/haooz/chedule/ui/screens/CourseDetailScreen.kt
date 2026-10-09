@@ -1,6 +1,11 @@
 /** 课程详情页面 */
 package com.haooz.chedule.ui.screens
 
+import com.haooz.chedule.data.formatMonthDayShort
+
+import com.haooz.chedule.data.todayLocalDate
+import kotlinx.datetime.LocalDate
+
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import androidx.compose.animation.core.Animatable
@@ -82,7 +87,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-private val DATE_FORMATTER = java.time.format.DateTimeFormatter.ofPattern("M/d")
+
 
 private data class AnimState(
     val bgAlpha: Float,
@@ -182,9 +187,9 @@ fun CourseDetailScreen(
 
     val semesterStartDate = remember(classStartTime) {
         try {
-            java.time.LocalDate.parse(classStartTime.replace("/", "-"))
+            LocalDate.parse(classStartTime.replace("/", "-"))
         } catch (_: Exception) {
-            java.time.LocalDate.now()
+            todayLocalDate()
         }
     }
 
@@ -596,7 +601,7 @@ fun CourseDetailScreen(
                                                             val courseDate = com.haooz.chedule.data.TeachingWeekReorganization.dateForPosition(
                                                                 semesterStartDate, week, course.dayOfWeek, teachingWeekReorganizations,
                                                             ) ?: return@forEachIndexed
-                                                            val dateStr = courseDate.format(DATE_FORMATTER)
+                                                            val dateStr = courseDate.formatMonthDayShort()
                                                             val sectionText = course.getTimeDisplayText()
                                                             val timeStart = sectionTimes[course.startSection]?.split("-")?.firstOrNull() ?: ""
                                                             val timeEnd = sectionTimes[course.endSection]?.split("-")?.lastOrNull() ?: ""

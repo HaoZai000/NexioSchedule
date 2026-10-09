@@ -1,5 +1,17 @@
 package com.haooz.chedule.ui.screens
 
+import com.haooz.chedule.data.formatChineseDate
+import com.haooz.chedule.data.millisBetween
+import com.haooz.chedule.data.parseHourMinute
+
+import com.haooz.chedule.data.lengthOfMonth
+import com.haooz.chedule.data.localDateTimeAt
+import com.haooz.chedule.data.nowLocalTime
+import com.haooz.chedule.data.plusDays
+import com.haooz.chedule.data.todayLocalDate
+import kotlinx.datetime.daysUntil
+import kotlinx.datetime.isoDayNumber
+
 import com.haooz.chedule.ui.utils.ApiCompat
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
@@ -88,23 +100,16 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalTime
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
 
 // 有壁纸 backdrop 才走毛玻璃半透明路径，与模糊半径无关（blur=0 仍采样壁纸）
-private val TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")
-private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy年M月d日")
-
-private fun localDateTimeAt(epochMillis: Long): LocalDateTime =
-    java.time.Instant.ofEpochMilli(epochMillis)
-        .atZone(java.time.ZoneId.systemDefault())
-        .toLocalDateTime()
+// 原 TIME_FORMATTER("HH:mm") / DATE_FORMATTER("yyyy年M月d日") 是 java.time 的 DateTimeFormatter，
+// 已换成 :core 的 parseHourMinute() / formatChineseDate()；localDateTimeAt() 也改用 :core 的同名函数。
 
 // 由 BlurCard 统一应用折射档位
 val LocalCardRefraction = staticCompositionLocalOf { CardRefractionLevel.DEFAULT }
@@ -183,7 +188,7 @@ fun BlurCard(
 
 
 @Composable
-private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pageDate: LocalDate = LocalDate.now(), showClassroom: Boolean = true, showTeacher: Boolean = true) {
+private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pageDate: LocalDate = todayLocalDate(), showClassroom: Boolean = true, showTeacher: Boolean = true) {
     fun getSectionTimeRange(startSection: Int, endSection: Int): String {
         val startTime = sectionTimes[startSection]?.split("-")?.firstOrNull() ?: ""
         val endTime = sectionTimes[endSection]?.split("-")?.lastOrNull() ?: ""
@@ -196,7 +201,7 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
 
     fun parseTime(timeStr: String): LocalTime? {
         return try {
-            LocalTime.parse(timeStr.trim(), TIME_FORMATTER)
+            parseHourMinute(timeStr)
         } catch (_: Exception) {
             null
         }
@@ -221,16 +226,16 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
     val endTime = parseTime(endTimeStr)
 
     val initialStatus = remember(pageDate, startTime, endTime) {
-        val today = LocalDate.now()
+        val today = todayLocalDate()
         when {
-            !pageDate.isEqual(today) ->
-                if (pageDate.isBefore(today)) "已结束" else "未开始"
+            pageDate != today ->
+                if (pageDate < today) "已结束" else "未开始"
             startTime == null || endTime == null -> "未知"
             else -> {
-                val now = LocalTime.now()
+                val now = nowLocalTime()
                 when {
-                    now.isBefore(startTime) -> "未开始"
-                    now.isAfter(endTime) -> "已结束"
+                    now < startTime -> "未开始"
+                    now > endTime -> "已结束"
                     else -> "进行中"
                 }
             }
@@ -239,23 +244,23 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
     var courseStatus by remember { mutableStateOf(initialStatus) }
 
     LaunchedEffect(startTime, endTime, pageDate) {
-        val today = LocalDate.now()
-        if (!pageDate.isEqual(today)) {
-            courseStatus = if (pageDate.isBefore(today)) "已结束" else "未开始"
+        val today = todayLocalDate()
+        if (pageDate != today) {
+            courseStatus = if (pageDate < today) "已结束" else "未开始"
             return@LaunchedEffect
         }
         while (true) {
-            val now = LocalTime.now()
+            val now = nowLocalTime()
             when {
                 startTime == null || endTime == null -> {
                     if (courseStatus != "未知") courseStatus = "未知"
                     // 本组合内时间来源固定，未知状态不会自行变化
                     return@LaunchedEffect
                 }
-                now.isBefore(startTime) -> {
+                now < startTime -> {
                     if (courseStatus != "未开始") courseStatus = "未开始"
                 }
-                now.isAfter(endTime) -> {
+                now > endTime -> {
                     if (courseStatus != "已结束") courseStatus = "已结束"
                     // 当天内状态不会再变
                     return@LaunchedEffect
@@ -383,7 +388,7 @@ fun TodayScreen(
     var currentLocalDateTime by remember {
         mutableStateOf(localDateTimeAt(System.currentTimeMillis()))
     }
-    val currentLocalDate = currentLocalDateTime.toLocalDate()
+    val currentLocalDate = currentLocalDateTime.date
     val initialDaysOffset = pagerState.currentPage - MAX_DATE_OFFSET
     val initialDate = currentLocalDate.plusDays(initialDaysOffset.toLong())
     var selectedDate by remember { mutableStateOf(initialDate) }
@@ -391,9 +396,9 @@ fun TodayScreen(
     val scope = rememberCoroutineScope()
 
     var showDatePicker by remember { mutableStateOf(false) }
-    var datePickerYear by remember { mutableIntStateOf(LocalDate.now().year) }
-    var datePickerMonth by remember { mutableIntStateOf(LocalDate.now().monthValue - 1) }
-    var datePickerDay by remember { mutableIntStateOf(LocalDate.now().dayOfMonth) }
+    var datePickerYear by remember { mutableIntStateOf(todayLocalDate().year) }
+    var datePickerMonth by remember { mutableIntStateOf(todayLocalDate().monthNumber - 1) }
+    var datePickerDay by remember { mutableIntStateOf(todayLocalDate().dayOfMonth) }
 
     LaunchedEffect(scrollToTodayTrigger) {
         if (scrollToTodayTrigger > 0 && pagerState.currentPage != MAX_DATE_OFFSET) {
@@ -403,9 +408,9 @@ fun TodayScreen(
 
     LaunchedEffect(jumpToDateTrigger) {
         if (jumpToDateTrigger > 0) {
-            val now = LocalDate.now()
+            val now = todayLocalDate()
             datePickerYear = now.year
-            datePickerMonth = now.monthValue - 1
+            datePickerMonth = now.monthNumber - 1
             datePickerDay = now.dayOfMonth
             showDatePicker = true
             onJumpToDateProcessed()
@@ -417,7 +422,7 @@ fun TodayScreen(
         while (true) {
             val sampledAtMillis = System.currentTimeMillis()
             val sampledNow = localDateTimeAt(sampledAtMillis)
-            val today = sampledNow.toLocalDate()
+            val today = sampledNow.date
             currentLocalDateTime = sampledNow
             val daysOffset = pagerState.currentPage - MAX_DATE_OFFSET
             val newDate = today.plusDays(daysOffset.toLong())
@@ -431,7 +436,7 @@ fun TodayScreen(
                     isToday = nowToday
                     onSelectedDateChanged(nowToday)
                 }
-                onSelectedDayChanged(newDate.dayOfWeek.value)
+                onSelectedDayChanged(newDate.dayOfWeek.isoDayNumber)
                 lastReportedDate = newDate
             }
 
@@ -613,7 +618,7 @@ fun TodayScreen(
 
                 val holidayCountdownSnapshot = remember(
                     isPageToday,
-                    countdownNow.toLocalDate(),
+                    countdownNow.date,
                     holidayVersion,
                     dataVersion,
                     classStartTime,
@@ -642,9 +647,9 @@ fun TodayScreen(
                                 repository.getClassStartTime().replace('/', '-')
                             )
                             CourseScheduleDateBounds.calculate(
-                                today = countdownNow.toLocalDate(),
+                                today = countdownNow.date,
                                 semesterStartDate = semesterStartDate,
-                                currentWeek = repository.getLiveTeachingWeek(countdownNow.toLocalDate()),
+                                currentWeek = repository.getLiveTeachingWeek(countdownNow.date),
                                 totalWeeks = totalWeeks,
                                 lastWeekWithCourses = repository.getLastWeekWithCourses(),
                                 courses = courses,
@@ -657,7 +662,7 @@ fun TodayScreen(
                         }
 
                         HolidayCountdown.createSnapshotWithCourseBoundsResult(
-                            today = countdownNow.toLocalDate(),
+                            today = countdownNow.date,
                             holidays = holidayPeriods,
                             courseDateBounds = courseDateBoundsResult,
                             lastClassEndAt = { date ->
@@ -665,7 +670,7 @@ fun TodayScreen(
                                     registeredEntriesByYear,
                                     date,
                                 )
-                                val hasPotentialCourse = date.dayOfWeek.value in regularCourseDays ||
+                                val hasPotentialCourse = date.dayOfWeek.isoDayNumber in regularCourseDays ||
                                     entriesForDate.any { entry ->
                                         entry.type == HolidayManager.TYPE_WORKSWAP &&
                                             entry.matches(date.toString()) &&
@@ -696,7 +701,7 @@ fun TodayScreen(
 
                                     effectiveCourses.mapNotNull { course ->
                                         course.getEffectiveEndTime(sectionTimes)?.let { endTime ->
-                                            runCatching { LocalTime.parse(endTime, TIME_FORMATTER) }
+                                            runCatching { parseHourMinute(endTime) }
                                                 .getOrNull()
                                         }
                                     }.maxOrNull()
@@ -720,7 +725,7 @@ fun TodayScreen(
                         .resolveDaySchedule(appContext, forTomorrow = true).courses
                 }
 
-                val dateText = pageDate.format(DATE_FORMATTER)
+                val dateText = pageDate.formatChineseDate()
 
                 if (isTablet) {
                     Row(
@@ -923,7 +928,7 @@ fun TodayScreen(
                         modifier = Modifier.weight(1f)
                     )
                     val maxDay = try {
-                        LocalDate.of(datePickerYear, datePickerMonth + 1, 1).lengthOfMonth()
+                        LocalDate(datePickerYear, datePickerMonth + 1, 1).lengthOfMonth()
                     } catch (_: Exception) {
                         31
                     }
@@ -958,9 +963,9 @@ fun TodayScreen(
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             val target =
-                                LocalDate.of(datePickerYear, datePickerMonth + 1, datePickerDay)
-                            val now = LocalDate.now()
-                            val days = ChronoUnit.DAYS.between(now, target)
+                                LocalDate(datePickerYear, datePickerMonth + 1, datePickerDay)
+                            val now = todayLocalDate()
+                            val days = now.daysUntil(target)
                             val targetPage = MAX_DATE_OFFSET + days.toInt()
                             scope.launch {
                                 pagerState.animateScrollToPage(targetPage)
@@ -993,14 +998,14 @@ private enum class QuoteScene {
 
 private fun parseQuoteTime(timeStr: String): LocalTime? {
     return try {
-        LocalTime.parse(timeStr.trim(), TIME_FORMATTER)
+        parseHourMinute(timeStr)
     } catch (_: Exception) {
         null
     }
 }
 
 private fun ceilQuoteMinutes(from: LocalTime, to: LocalTime): Int {
-    val remain = java.time.Duration.between(from, to).toMillis()
+    val remain = millisBetween(from, to)
     if (remain <= 0L) return 0
     return ((remain + 59_999L) / 60_000L).toInt()
 }
@@ -1019,7 +1024,7 @@ private fun buildQuoteRanges(
         val end = parseQuoteTime(course.getEffectiveEndTime(sectionTimes) ?: return@mapNotNull null)
         if (start == null || end == null) return@mapNotNull null
         // 结束不晚于开始：脏数据，丢掉，避免永远匹配不到
-        if (!end.isAfter(start)) return@mapNotNull null
+        if (end <= start) return@mapNotNull null
         QuoteTimeRange(start, end)
     }.sortedBy { it.start }
 }
@@ -1028,7 +1033,7 @@ private fun computeQuoteScene(
     isPageToday: Boolean,
     courses: List<Course>,
     sectionTimes: Map<Int, String>,
-    now: LocalTime = LocalTime.now()
+    now: LocalTime = nowLocalTime()
 ): QuoteScene {
     if (!isPageToday) return QuoteScene.OTHER_DAY
 
@@ -1038,7 +1043,7 @@ private fun computeQuoteScene(
         return if (courses.isEmpty()) QuoteScene.NO_CLASS else QuoteScene.SCHEDULE_BROKEN
     }
 
-    val ongoing = ranges.find { !now.isBefore(it.start) && now.isBefore(it.end) }
+    val ongoing = ranges.find { now >= it.start && now < it.end }
     // 深夜优先让给「没在上课」的状态；晚课拖到 23 点仍按上课中
     if (ongoing == null && now.hour in 23..4) return QuoteScene.DEEP_NIGHT
 
@@ -1051,10 +1056,10 @@ private fun computeQuoteScene(
         }
     }
 
-    val next = ranges.find { now.isBefore(it.start) }
+    val next = ranges.find { now < it.start }
     if (next != null) {
         val remain = ceilQuoteMinutes(now, next.start)
-        val prev = ranges.lastOrNull { !now.isBefore(it.end) }
+        val prev = ranges.lastOrNull { now >= it.end }
         // 当天还没上过任何课 → 课前；否则是课间
         if (prev == null) return QuoteScene.BEFORE_FIRST
         return if (remain <= 15) QuoteScene.SHORT_BREAK else QuoteScene.LONG_BREAK
@@ -1502,13 +1507,13 @@ private fun QuoteCard(
             computeQuoteScene(isPageToday, todayCourses, sectionTimes)
         )
     }
-    var hour by remember { mutableIntStateOf(LocalTime.now().hour) }
+    var hour by remember { mutableIntStateOf(nowLocalTime().hour) }
     // 与助手同频：场景/整点切换时立刻换池
     LaunchedEffect(isPageToday, todayCourses, sectionTimes) {
         while (true) {
             val nextScene = computeQuoteScene(isPageToday, todayCourses, sectionTimes)
             if (nextScene != scene) scene = nextScene
-            val nextHour = LocalTime.now().hour
+            val nextHour = nowLocalTime().hour
             if (nextHour != hour) hour = nextHour
             delay(1_000L.milliseconds)
         }

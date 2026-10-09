@@ -1,5 +1,11 @@
 package com.haooz.chedule.ui.activities
 
+import com.haooz.chedule.data.lengthOfMonth
+import com.haooz.chedule.data.minusDays
+import com.haooz.chedule.data.plusDays
+import com.haooz.chedule.data.todayLocalDate
+import kotlinx.datetime.isoDayNumber
+
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -112,7 +118,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 import kotlin.math.floor
 
 private val YEAR_RANGE = 2024..2035
@@ -148,7 +154,7 @@ fun HolidaySettingsScreen(
     val semesterStartDate = remember(currentScheduleId) {
         runCatching {
             LocalDate.parse(repository.getClassStartTime(currentScheduleId).replace("/", "-"))
-        }.getOrElse { LocalDate.now() }
+        }.getOrElse { todayLocalDate() }
     }
     var teachingWeekReorganizations by remember(currentScheduleId) {
         mutableStateOf(repository.getTeachingWeekReorganizations(currentScheduleId))
@@ -200,7 +206,7 @@ fun HolidaySettingsScreen(
     // 根据开始日期计算其对应课表的默认周次
     fun weekOfDate(year: Int, month: Int, day: Int): String {
         return try {
-            val date = LocalDate.of(year, month, day)
+            val date = LocalDate(year, month, day)
             TeachingWeekReorganization.mapDate(
                 semesterStartDate,
                 date,
@@ -347,7 +353,7 @@ fun HolidaySettingsScreen(
 
     fun startEditing(entry: HolidayManager.Entry) {
         val start = runCatching { LocalDate.parse(entry.date) }.getOrNull()
-            ?: LocalDate.of(year, 1, 1)
+            ?: LocalDate(year, 1, 1)
         val end = runCatching { LocalDate.parse(entry.endDate.ifBlank { entry.date }) }.getOrNull()
             ?: start
         dialogType = entry.type
@@ -355,10 +361,10 @@ fun HolidaySettingsScreen(
         editingEntryStorageYear = year
         name = entry.name
         startYear = start.year
-        startMonth = start.monthValue
+        startMonth = start.monthNumber
         startDay = start.dayOfMonth
         endYear = end.year
-        endMonth = end.monthValue
+        endMonth = end.monthNumber
         endDay = end.dayOfMonth
         // 调休日还没配映射时，按「补班日倒序、从假期最后一个工作日往前拿」预填一个建议值。
         // 只填进弹窗不落库：用户点保存才生效，没配过的条目库里保持 -1（不会擅自改课表）。
@@ -376,7 +382,7 @@ fun HolidaySettingsScreen(
                 semesterStartDate, initialFollow, teachingWeekReorganizations
             )
             followWeek = position.week.coerceIn(1L, currentTotalWeeks.toLong()).toString()
-            followWeekday = (position.weekday ?: initialFollow.dayOfWeek.value).toString()
+            followWeekday = (position.weekday ?: initialFollow.dayOfWeek.isoDayNumber).toString()
         } else {
             followWeek = weekOfDate(startYear, startMonth, startDay)
             followWeekday = "1"
@@ -906,7 +912,7 @@ fun HolidaySettingsScreen(
 }
 
 private fun formatTeachingDate(date: LocalDate): String =
-    "${date.year}/${date.monthValue.toString().padStart(2, '0')}/${date.dayOfMonth.toString().padStart(2, '0')}"
+    "${date.year}/${date.monthNumber.toString().padStart(2, '0')}/${date.dayOfMonth.toString().padStart(2, '0')}"
 
 internal data class TeachingWeekRulePreview(
     val firstPartDateRange: String?,
@@ -937,9 +943,9 @@ internal fun buildTeachingWeekRulePreview(
 )
 
 private fun formatTeachingDateRange(startDate: LocalDate?, endDate: LocalDate?): String? {
-    if (startDate == null || endDate == null || endDate.isBefore(startDate)) return null
+    if (startDate == null || endDate == null || endDate < startDate) return null
     val endLabel = if (startDate.year == endDate.year) {
-        "${endDate.monthValue.toString().padStart(2, '0')}/${endDate.dayOfMonth.toString().padStart(2, '0')}"
+        "${endDate.monthNumber.toString().padStart(2, '0')}/${endDate.dayOfMonth.toString().padStart(2, '0')}"
     } else {
         formatTeachingDate(endDate)
     }
@@ -1893,7 +1899,7 @@ private fun entrySummary(entry: HolidayManager.Entry): String {
         val mapping = when {
             entry.followLocalDate() != null -> {
                 val date = entry.followLocalDate()!!
-                "上 ${date.monthValue}月${date.dayOfMonth}日 的课"
+                "上 ${date.monthNumber}月${date.dayOfMonth}日 的课"
             }
             entry.followWeek > 0 && entry.followWeekday in 1..7 ->
                 "第${entry.followWeek}周${WEEKDAYS[entry.followWeekday - 1]}"
@@ -2006,7 +2012,7 @@ private fun EntryEditDialog(
                     )
                     if (date != null) {
                         Text(
-                            "${date.year}/${date.monthValue}/${date.dayOfMonth}",
+                            "${date.year}/${date.monthNumber}/${date.dayOfMonth}",
                             style = MiuixTheme.textStyles.body1.copy(
                                 fontSize = 15.sp,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -2120,8 +2126,8 @@ private fun LabeledDatePickerRow(
         style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Normal),
         modifier = Modifier.padding(start = 16.dp),
     )
-    val maxDay = LocalDate.of(year, month, 1).lengthOfMonth()
-    val currentYear = remember { LocalDate.now().year }
+    val maxDay = LocalDate(year, month, 1).lengthOfMonth()
+    val currentYear = remember { todayLocalDate().year }
     val yearRange = (currentYear - 1)..(currentYear + 1)
     Row(
         Modifier.fillMaxWidth(),
@@ -2132,7 +2138,7 @@ private fun LabeledDatePickerRow(
             year,
             { newYear ->
                 onYearChange(newYear)
-                onDayChange(day.coerceAtMost(LocalDate.of(newYear, month, 1).lengthOfMonth()))
+                onDayChange(day.coerceAtMost(LocalDate(newYear, month, 1).lengthOfMonth()))
             },
             range = yearRange,
             visibleItemCount = 3,
@@ -2144,7 +2150,7 @@ private fun LabeledDatePickerRow(
             month,
             { newMonth ->
                 onMonthChange(newMonth)
-                onDayChange(day.coerceAtMost(LocalDate.of(year, newMonth, 1).lengthOfMonth()))
+                onDayChange(day.coerceAtMost(LocalDate(year, newMonth, 1).lengthOfMonth()))
             },
             range = 1..12,
             visibleItemCount = 3,

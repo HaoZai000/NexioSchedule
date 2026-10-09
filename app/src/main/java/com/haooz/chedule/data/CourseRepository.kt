@@ -1,5 +1,7 @@
 package com.haooz.chedule.data
 
+import kotlinx.datetime.isoDayNumber
+
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
@@ -7,7 +9,7 @@ import androidx.core.content.edit
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 import java.util.Locale
 import com.haooz.chedule.data.NexioLog
 
@@ -178,7 +180,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
 
         /** 开学日规范格式 yyyy/MM/dd */
         fun formatClassStartDate(date: LocalDate): String =
-            String.format(Locale.ROOT, "%04d/%02d/%02d", date.year, date.monthValue, date.dayOfMonth)
+            String.format(Locale.ROOT, "%04d/%02d/%02d", date.year, date.monthNumber, date.dayOfMonth)
 
         /**
          * 解析教务/设置/备份里各种开学日写法。
@@ -201,7 +203,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                     val m = parts[1].toIntOrNull()
                     val d = parts[2].toIntOrNull()
                     if (y != null && m != null && d != null && validYear(y)) {
-                        return runCatching { LocalDate.of(y, m, d) }.getOrNull()
+                        return runCatching { LocalDate(y, m, d) }.getOrNull()
                     }
                 }
             }
@@ -210,7 +212,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                 val y = digits.substring(0, 4).toInt()
                 if (!validYear(y)) return null
                 return runCatching {
-                    LocalDate.of(
+                    LocalDate(
                         y,
                         digits.substring(4, 6).toInt(),
                         digits.substring(6, 8).toInt()
@@ -758,7 +760,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     }
 
     /** Background readers cannot assume the persisted UI week was refreshed after midnight. */
-    fun getLiveTeachingWeek(date: LocalDate = LocalDate.now(), scheduleId: String = getCurrentScheduleId()): Int =
+    fun getLiveTeachingWeek(date: LocalDate = todayLocalDate(), scheduleId: String = getCurrentScheduleId()): Int =
         teachingWeekPositionForDate(date, scheduleId).week
             .coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
 
@@ -946,7 +948,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     }
 
     /** 调休跟随解析结果：绝对日期 + 该日期在**当前课表**下对应的 (周次, 星期) */
-    data class WorkSwapFollow(val date: java.time.LocalDate, val week: Int, val weekday: Int)
+    data class WorkSwapFollow(val date: LocalDate, val week: Int, val weekday: Int)
 
     /**
      * 把调休条目的「跟随绝对日期」换算成当前课表的 (周次, 星期)。
@@ -969,7 +971,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             ?: return null
         val position = teachingWeekPositionForDate(date, scheduleId)
         // 教学周重组把这天标成休课日时拿不到 weekday，退回日历星期
-        val weekday = position.weekday ?: date.dayOfWeek.value
+        val weekday = position.weekday ?: date.dayOfWeek.isoDayNumber
         return WorkSwapFollow(date, position.week.toInt(), weekday)
     }
 
@@ -1424,9 +1426,9 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             }
             // 新学期要的是独立副本（含全部作息方案），沿用旧绑定会让两个课表互相影响
             putLong("$SCHEDULE_TIME_CONFIG_PREFIX$name", duplicatedTimeConfigId)
-            val today = LocalDate.now()
+            val today = todayLocalDate()
             val todayStr =
-                String.format(Locale.ROOT, "%04d/%02d/%02d", today.year, today.monthValue, today.dayOfMonth)
+                String.format(Locale.ROOT, "%04d/%02d/%02d", today.year, today.monthNumber, today.dayOfMonth)
             putString("$newPrefix$KEY_CLASS_START_TIME", todayStr)
             putInt("$newPrefix$KEY_CURRENT_WEEK", 1)
             remove("$newPrefix$KEY_TEACHING_WEEK_REORGANIZATIONS")

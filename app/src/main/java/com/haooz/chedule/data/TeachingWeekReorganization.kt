@@ -1,9 +1,11 @@
 package com.haooz.chedule.data
 
+import kotlinx.datetime.daysUntil
+import kotlinx.datetime.isoDayNumber
+
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
 
 // ── 节假日与调休 · 调休改周规则 ──────────────────────────
 //
@@ -107,7 +109,7 @@ object TeachingWeekReorganization {
         rules: List<TeachingWeekReorganizationRule>,
     ): TeachingWeekPosition {
         val monday = semesterMonday(semesterStartDate)
-        val daysFromMonday = ChronoUnit.DAYS.between(monday, date)
+        val daysFromMonday = monday.daysUntil(date).toLong()
         var compressedWeeks = 0L
         for (rule in rules.sortedBy { it.firstOriginalWeek }) {
             val firstStart = (rule.firstOriginalWeek.toLong() - 1L) * 7L + rule.firstStartWeekday - 1L
@@ -118,19 +120,19 @@ object TeachingWeekReorganization {
 
             val targetWeek = rule.firstOriginalWeek.toLong() - compressedWeeks
             when {
-                daysFromMonday <= firstEnd -> return TeachingWeekPosition(targetWeek, date.dayOfWeek.value)
+                daysFromMonday <= firstEnd -> return TeachingWeekPosition(targetWeek, date.dayOfWeek.isoDayNumber)
                 daysFromMonday < secondStart -> return TeachingWeekPosition(
                     week = targetWeek,
                     weekday = null,
                     isReorganizationPause = true,
                 )
-                daysFromMonday <= secondEnd -> return TeachingWeekPosition(targetWeek, date.dayOfWeek.value)
+                daysFromMonday <= secondEnd -> return TeachingWeekPosition(targetWeek, date.dayOfWeek.isoDayNumber)
                 else -> compressedWeeks += rule.secondOriginalWeek.toLong() - rule.firstOriginalWeek.toLong()
             }
         }
 
         val rawWeek = daysFromMonday.floorDiv(7L) + 1L
-        return TeachingWeekPosition(rawWeek - compressedWeeks, date.dayOfWeek.value)
+        return TeachingWeekPosition(rawWeek - compressedWeeks, date.dayOfWeek.isoDayNumber)
     }
 
     /** Teaching week/day -> actual calendar date; returns null for invalid positions or overflow. */
@@ -158,7 +160,7 @@ object TeachingWeekReorganization {
         if (rules.isEmpty()) return false
         val position = mapDate(semesterStartDate, date, rules)
         return (1..7).any { weekday ->
-            dateForPosition(semesterStartDate, position.week, weekday, rules)?.isAfter(date) == true
+            dateForPosition(semesterStartDate, position.week, weekday, rules)?.let { it > date } == true
         }
     }
 
@@ -173,9 +175,11 @@ object TeachingWeekReorganization {
         // Current-week alignment can legitimately shift a candidate before original week one.
         // Reorganization rules begin at week one, so such positions retain the linear baseline.
         if (teachingWeek < 1L) {
-            return runCatching {
-                monday.plusWeeks(Math.subtractExact(teachingWeek, 1L)).plusDays((weekday - 1).toLong())
-            }.getOrNull()
+            // Math.subtractExact 是 java.lang.Math（Kotlin/Native 没有），换成 addExactOrNull/
+            // subtractExactOrNull：溢出返回 null，与原来「抛异常被 runCatching 吃掉」等价。
+            return subtractExactOrNull(teachingWeek, 1L)?.let {
+                runCatching { monday.plusWeeks(it).plusDays((weekday - 1).toLong()) }.getOrNull()
+            }
         }
         var compressedWeeks = 0L
         for (rule in rules.sortedBy { it.firstOriginalWeek }) {
@@ -194,8 +198,7 @@ object TeachingWeekReorganization {
                 break
             }
         }
-        val originalWeek = runCatching { Math.addExact(teachingWeek, compressedWeeks) }
-            .getOrNull() ?: return null
+        val originalWeek = addExactOrNull(teachingWeek, compressedWeeks) ?: return null
         return runCatching { monday.plusWeeks(originalWeek - 1L).plusDays((weekday - 1).toLong()) }
             .getOrNull()
     }
@@ -210,13 +213,13 @@ object TeachingWeekReorganization {
         val targetPositionDate = dateForPosition(
             semesterStartDate = semesterStartDate,
             teachingWeek = teachingWeek,
-            weekday = date.dayOfWeek.value,
+            weekday = date.dayOfWeek.isoDayNumber,
             rules = rules,
         ) ?: return null
-        val targetOffsetDays = ChronoUnit.DAYS.between(semesterMonday(semesterStartDate), targetPositionDate)
+        val targetOffsetDays = semesterMonday(semesterStartDate).daysUntil(targetPositionDate).toLong()
         return runCatching {
             date.minusDays(targetOffsetDays)
-                .plusDays((semesterStartDate.dayOfWeek.value - 1).toLong())
+                .plusDays((semesterStartDate.dayOfWeek.isoDayNumber - 1).toLong())
         }.getOrNull()
     }
 
@@ -246,7 +249,7 @@ object TeachingWeekReorganization {
                 break
             }
         }
-        return runCatching { Math.addExact(teachingWeek, compressedWeeks) }.getOrNull()
+        return addExactOrNull(teachingWeek, compressedWeeks)
     }
 
     /** Week picker ceiling follows the active instructional horizon and existing raw-week entries. */
@@ -372,7 +375,7 @@ object TeachingWeekReorganization {
     }
 
     private fun semesterMonday(date: LocalDate): LocalDate =
-        date.minusDays((date.dayOfWeek.value - 1).toLong())
+        date.minusDays((date.dayOfWeek.isoDayNumber - 1).toLong())
 
     private fun originalWeekDate(monday: LocalDate, week: Int, weekday: Int): LocalDate? =
         runCatching { monday.plusWeeks((week.toLong() - 1L)).plusDays((weekday - 1).toLong()) }

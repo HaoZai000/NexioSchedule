@@ -1,5 +1,8 @@
 package com.haooz.chedule.viewmodel
 
+import com.haooz.chedule.data.todayLocalDate
+import kotlinx.datetime.isoDayNumber
+
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,7 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 internal fun shouldAdvanceForReorganizedWeekend(
     today: LocalDate,
@@ -20,7 +23,7 @@ internal fun shouldAdvanceForReorganizedWeekend(
     rules: List<com.haooz.chedule.data.TeachingWeekReorganizationRule>,
     hasCoursesToday: () -> Boolean,
 ): Boolean {
-    if (today.dayOfWeek.value !in 6..7) return false
+    if (today.dayOfWeek.isoDayNumber !in 6..7) return false
     if (semesterStartDate != null &&
         com.haooz.chedule.data.TeachingWeekReorganization
             .hasFutureTeachingWeekDates(semesterStartDate, today, rules)
@@ -40,7 +43,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val rules = repository.getTeachingWeekReorganizations()
             if (rules.isNotEmpty()) {
                 val start = runCatching {
-                    java.time.LocalDate.parse(repository.getClassStartTime().replace('/', '-'))
+                    LocalDate.parse(repository.getClassStartTime().replace('/', '-'))
                 }.getOrNull() ?: return emptySet()
                 return com.haooz.chedule.reminder.CourseReminderHelper.effectiveWeekendDays(
                     start, week, rules,
@@ -81,7 +84,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         if (todayDayOfWeek !in 6..7) return false
         val rules = repository.getTeachingWeekReorganizations()
         if (rules.isNotEmpty()) {
-            val today = LocalDate.now()
+            val today = todayLocalDate()
             val start = runCatching {
                 LocalDate.parse(repository.getClassStartTime().replace('/', '-'))
             }.getOrNull()
@@ -91,7 +94,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     .resolveDaySchedule(getApplication(), today, repository).courses.isNotEmpty()
             }
         }
-        val today = LocalDate.now()
+        val today = todayLocalDate()
         val hasCourses = if (isBeforeHolidayExclusionActive(today)) {
             com.haooz.chedule.reminder.CourseReminderHelper
                 .resolveDaySchedule(getApplication(), today, repository).courses.isNotEmpty()

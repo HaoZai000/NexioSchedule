@@ -1,6 +1,8 @@
 /** 课程时间设置页面 - 一级：管理本课表的节次骨架与作息方案 */
 package com.haooz.chedule.ui.activities
 
+import com.haooz.chedule.data.todayLocalDate
+
 import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -64,7 +66,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 data class TimeConfigCardBounds(
     val left: Float,
@@ -135,8 +137,8 @@ fun CourseTimeSettingsScreen(
     var secEvening by remember { mutableIntStateOf(4) }
     var showAddRoutine by remember { mutableStateOf(false) }
     var newRoutineName by remember { mutableStateOf("") }
-    var newRoutineMonth by remember { mutableIntStateOf(LocalDate.now().monthValue) }
-    var newRoutineDay by remember { mutableIntStateOf(LocalDate.now().dayOfMonth) }
+    var newRoutineMonth by remember { mutableIntStateOf(todayLocalDate().monthNumber) }
+    var newRoutineDay by remember { mutableIntStateOf(todayLocalDate().dayOfMonth) }
     var showCopyDialog by remember { mutableStateOf(false) }
     var copyCandidate by remember { mutableStateOf<String?>(null) }
 
@@ -285,8 +287,8 @@ fun CourseTimeSettingsScreen(
                                         )
                                         // 名称留空由用户填，输入框 label「作息名称」做占位
                                         newRoutineName = ""
-                                        newRoutineMonth = LocalDate.now().monthValue
-                                        newRoutineDay = LocalDate.now().dayOfMonth
+                                        newRoutineMonth = todayLocalDate().monthNumber
+                                        newRoutineDay = todayLocalDate().dayOfMonth
                                         showAddRoutine = true
                                     },
                                     holdDownState = showAddRoutine

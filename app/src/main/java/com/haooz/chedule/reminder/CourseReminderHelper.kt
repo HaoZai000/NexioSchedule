@@ -1,4 +1,11 @@
 package com.haooz.chedule.reminder
+
+import com.haooz.chedule.data.localDateTimeAt
+
+import com.haooz.chedule.data.minusDays
+import com.haooz.chedule.data.plusDays
+import com.haooz.chedule.data.todayLocalDate
+import kotlinx.datetime.isoDayNumber
 import com.haooz.chedule.ui.utils.ApiCompat
 
 import android.annotation.SuppressLint
@@ -23,7 +30,7 @@ import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.data.TeachingWeekPosition
 import com.haooz.chedule.ui.activities.MainActivity
 import com.haooz.chedule.widget.WidgetUpdateCache
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 import java.util.Calendar
 import com.haooz.chedule.data.LOG_LEVEL_DEBUG
 import com.haooz.chedule.data.NexioLog
@@ -542,15 +549,15 @@ object CourseReminderHelper {
                 currentWeek <= repository.getTotalWeeks() &&
                 currentWeek <= repository.getLastWeekWithCourses()
         }
-        return resolveDaySchedule(context, LocalDate.now().plusDays(1), repository).courses.isNotEmpty()
+        return resolveDaySchedule(context, todayLocalDate().plusDays(1), repository).courses.isNotEmpty()
     }
 
     // 开学日期所在周的周一之后才算已开始；解析失败时保守放行，避免误屏蔽
     fun isSemesterStarted(repository: CourseRepository): Boolean {
         return try {
             val start = LocalDate.parse(repository.getClassStartTime().replace("/", "-"))
-            val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
-            !LocalDate.now().isBefore(startMonday)
+            val startMonday = start.minusDays((start.dayOfWeek.isoDayNumber - 1).toLong())
+            todayLocalDate() >= startMonday
         } catch (_: Exception) {
             true
         }
@@ -1049,7 +1056,7 @@ object CourseReminderHelper {
     }
 
     fun resolveDaySchedule(context: Context, forTomorrow: Boolean): DayScheduleResolution {
-        val today = LocalDate.now()
+        val today = todayLocalDate()
         return resolveDaySchedule(context, if (forTomorrow) today.plusDays(1) else today)
     }
 
@@ -1070,7 +1077,7 @@ object CourseReminderHelper {
         repository: CourseRepository,
         holidayEntriesByYear: Map<Int, List<HolidayManager.Entry>>?,
     ): DayScheduleResolution {
-        val calendarDay = date.dayOfWeek.value
+        val calendarDay = date.dayOfWeek.isoDayNumber
         val entriesByYear = holidayEntriesByYear ?: HolidayManager.loadAllByYear(context)
         val holidayEntries = HolidayManager.entriesForDate(entriesByYear, date)
         val targetEntry = holidayEntries.firstOrNull { it.type == HolidayManager.TYPE_WORKSWAP }
@@ -1223,9 +1230,7 @@ object CourseReminderHelper {
         section: String,
     ): Boolean {
         val date = runCatching {
-            java.time.Instant.ofEpochMilli(startMillis)
-                .atZone(java.time.ZoneId.systemDefault())
-                .toLocalDate()
+            localDateTimeAt(startMillis).date
         }.getOrNull() ?: return false
         val resolution = resolveDaySchedule(context, date, repository)
         return resolution.courses.any { course ->

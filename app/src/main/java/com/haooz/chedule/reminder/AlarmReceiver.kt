@@ -1,6 +1,10 @@
 /** 课程提醒闹钟接收器 */
 package com.haooz.chedule.reminder
 
+import com.haooz.chedule.data.plusDays
+import com.haooz.chedule.data.todayLocalDate
+import kotlinx.datetime.daysUntil
+
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -8,8 +12,7 @@ import com.haooz.chedule.data.NexioLog
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayCountdown
 import com.haooz.chedule.data.HolidayManager
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
 
 class AlarmReceiver : BroadcastReceiver() {
 
@@ -28,8 +31,8 @@ class AlarmReceiver : BroadcastReceiver() {
     ): String {
         val block = HolidayCountdown.holidayBlockAt(entriesByYear, startDate) ?: return "明天不用上课"
         val resume = block.endDate.plusDays(1)
-        val days = ChronoUnit.DAYS.between(startDate, block.endDate) + 1L
-        return "共${days}天，${resume.monthValue}月${resume.dayOfMonth}日恢复上课"
+        val days = startDate.daysUntil(block.endDate) + 1L
+        return "共${days}天，${resume.monthNumber}月${resume.dayOfMonth}日恢复上课"
     }
 
     /** 把 1..23 的整数转成中文数字（如 8 -> "八"，23 -> "二十三"），用于"早八"式文案 */
@@ -131,7 +134,7 @@ class AlarmReceiver : BroadcastReceiver() {
             }
 
             CourseReminderHelper.TYPE_NEXT_DAY -> {
-                val today = LocalDate.now()
+                val today = todayLocalDate()
                 val tomorrow = today.plusDays(1)
                 val entriesByYear = HolidayManager.loadAllByYear(context)
                 // 只加载一次假期数据，课程解析与假期判定共用，避免重复读 prefs 且口径不一致

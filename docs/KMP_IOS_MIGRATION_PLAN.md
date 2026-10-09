@@ -45,17 +45,12 @@
 | 候选 | 阻塞 / 前提 | 风险 |
 |---|---|---|
 | ✅ **拆 `Holidays.kt` 的类型集群** | **已完成**（2026-10-09）：1782 行拆成 4 个文件，6 个平台中立类型已下沉 `:core`（详见「当前进展 ⑦」） | — |
-| **`java.time` → kotlinx-datetime**（阶段 2.1，19~21 文件 / 34 处 import） | 无外部数据依赖，但**它是整个节假日集群 + `CourseScheduleDateBounds` 进 `:core` 的唯一挡路石**；`DateTimeFormatter` / `SimpleDateFormat` 需手写替换（风险 **R5**） | 中高 —— 日期静默算错，**编译永远绿** |
+| ✅ **`java.time` → kotlinx-datetime** | **已完成**（2026-10-09）：`:app` 全部 22 个文件换血，`:core` 补 `DateExt` 兼容层 + 12 个差分等价用例（详见「当前进展 ⑧」） | — |
+| **把节假日集群搬进 `:core`**（`CourseScheduleDateBounds` / `TeachingWeekReorganization` / `HolidayCourseExclusion` / `HolidayCountdown`） | 日期已通；剩下的挡路石**每个文件都只剩 0~3 处**（见「⑧-c」表）：`Math.floorDiv/floorMod`、Gson 编解码、`HolidayManager.Entry` 仍是嵌套在 `:app` 里的类型 | 中 —— 唯一有行为风险的是 `TeachingWeekReorganization.encode()` 的输出是**持久化数据** |
 | **Gson 迁移**（文档风险表里的 **R2，最高**） | **必须先有真实用户备份做 round-trip 回归**；需 `@Serializable` + 显式字段清单 | 高 —— 数据格式一变，存量用户读不出来 |
 | **Native HTTP** | 需 macOS 定 iOS target；引入 Ktor 会顶掉协程版本（见下方决定表） | 高，但属 iOS 侧独立交付 |
 
-**建议顺序**：先 `java.time` 转换（解锁节假日集群与 `CourseScheduleDateBounds`）→ 再 Gson（等拿到真实备份）。
-
-> ⚠ **为什么下一步必须是日期转换，而不是继续拆文件**：`java.time.LocalDate` 与
-> kotlinx-datetime 的 `LocalDate` 是两个**不兼容的类型**。只要节假日集群的任何一个
-> 对外 API 还带 `LocalDate`，把它搬进 `:core` 就会强迫所有 `:app` 调用点做类型转换
-> —— 那是 46 处 `TeachingWeekReorganization` + 14 处 `HolidayCourseExclusion` 的调用点，
-> 分散在 12 个文件里。**先把日期统一成 kotlinx-datetime，后面每个文件才是真正的「搬」而不是「改」。**
+**建议顺序**：先搬节假日集群（挡路石已经很小）→ 再 Gson（等拿到真实备份）。
 
 ### 4. 每次改完必跑
 
@@ -266,7 +261,7 @@ AppFiles.init(
 
 | 模块 | 源文件 | 行数 | 源集 | 状态 |
 |---|---:|---:|---|---|
-| `:core` | 22 (+12 平台实现) | ~3,067 | common / android / **jvm / linuxX64(门禁)** | 数据层下沉 + 7 套跨平台抽象 + 节假日中立类型（见 ⑦） |
+| `:core` | 23 (+12 平台实现) | ~3,340 | common / android / **jvm / linuxX64(门禁)** | 数据层下沉 + 7 套跨平台抽象 + 节假日中立类型（⑦）+ `DateExt` 日期补齐层（⑧） |
 | `:backdrop` | 64 | 5,458 | common / android / skiko | KMP 化，含 edgelight + capsule；**skikoMain 未针对 Native 编译过** |
 | `:miuix` | 103 | 26,464 | common / android / skiko | KMP 化；**skikoMain 未针对 Native 编译过** |
 | `:app` | 148 | 69,983 | android | Android-only，**剩余迁移主体** |
@@ -385,6 +380,83 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 顺手修掉：这两个仓库原本各自 `new OkHttpClient()`（第 11、12 套连接池），现在复用 `HttpService`。
 
+### ✅ 已完成批次 · ⑧ 阶段 2.1：`java.time` → kotlinx-datetime 全量换血（2026-10-09）
+
+**`:app` 的 22 个 `java.time` 文件全部换成 kotlinx-datetime，`:app:assembleDebug` 通过。**
+这一步是「节假日集群 + `CourseScheduleDateBounds` 进 `:core`」的唯一前置。
+
+#### ⑧-a 为什么必须整体换，不能逐个文件换
+
+`java.time.LocalDate` 与 kotlinx-datetime 的 `LocalDate` 是**两个不兼容的类型**。
+只要任何一个对外 API 还带旧类型，搬到 `:core` 就会强迫所有 `:app` 调用点做转换
+（46 处 `TeachingWeekReorganization` + 14 处 `HolidayCourseExclusion`，散在 12 个文件）。
+所以只能一次全换 —— 好处是**换不干净编译器立刻报错**，不会留半截。
+
+#### ⑧-b 新增 `core/.../data/DateExt.kt`：kotlinx-datetime 补不齐的那部分
+
+阶段 0 验证 2 已证明两者在 `parse` / `plus` / `daysUntil` / `dayOfWeek` 上语义等价，
+但**有 8 类 API kotlinx-datetime 根本没有**，必须自己写（全部实测确认过，别凭印象改）：
+
+| 缺什么 | 实测结论 | 补法 |
+|---|---|---|
+| `LocalDate.now()` / `LocalTime.now()` | 必须显式给时区 | `todayLocalDate()` / `nowLocalTime()` / `nowLocalDateTime()` |
+| `LocalDate.MIN` / `MAX` | **有，但是 `internal`**（0.6.2 实测） | `LOCAL_DATE_MIN` / `LOCAL_DATE_MAX` = kotlinx 年份区间端点（±999_999），另给 `LOCAL_DATE_MIN/MAX_EPOCH_DAY` |
+| `plusDays` / `minusDays` / `plusWeeks` / `minusWeeks` | **`plusDays` 是 `internal`，其余不存在**；只有 `plus(value, DateTimeUnit)`，且它是**顶层扩展**，必须 `import kotlinx.datetime.plus` | 包一层同名扩展 |
+| `lengthOfMonth()` | 不存在 | 用「下月 1 号 − 本月 1 号」算 |
+| `LocalDate.ofEpochDay(Long)` | kotlinx 是 `fromEpochDays(**Int**)`。⚠ **`.toInt()` 越界会静默回绕**，不抛异常 | `localDateFromEpochDays(Long): LocalDate?` 先判 Int 范围 |
+| `java.lang.Math.addExact/subtractExact` | `java.lang.Math` 在 Native 上**不存在** | `addExactOrNull` / `subtractExactOrNull`（溢出 → null，与原来「抛异常被 runCatching 吃掉」等价） |
+| `DateTimeFormatter` 固定 pattern | kotlinx 的 `Format { }` DSL 默认 padding 与 java pattern 不一致 | 手写 `formatHourMinute` / `formatMonthDay` / `formatMonthDayShort` / `formatChineseDate` / `formatSlashDate` / `parseHourMinute` |
+| `Duration.between(LocalTime, LocalTime)` | kotlinx 没有 LocalTime 的 Duration 差 | `millisBetween`；LocalDateTime 的差在 `HolidayCountdown` 里手算秒差 |
+
+> ⚠ **`Long.floorDiv(Long)` 在 Kotlin/Native 上是有的（stdlib）**，但 `Math.floorDiv` 没有。
+> 所以 `CourseScheduleDateBounds.ceilDiv` 的 `-Math.floorDiv(-value, divisor)` 要改成 `-(-value).floorDiv(divisor)`。
+
+#### ⑧-c 安全网：12 个差分等价用例（未入库）
+
+新增 `core/src/jvmTest/.../DateExtEquivalenceTest.kt`，把上面每个手写替换**逐条与 `java.time` 对拍**：
+
+| 用例 | 覆盖 |
+|---|---|
+| parse/toString/epochDay | 2026 全年逐日 + 1900/2000/2024/2100 各月首末 |
+| dayOfWeek iso 编号 / lengthOfMonth | 同上全量对拍 + 闰年 2 月单独钉死 |
+| plusDays/minusDays/plusWeeks/minusWeeks | ×9 个偏移量全量对拍 |
+| daysUntil / weeksBetween | 与 `ChronoUnit` 对拍（含负数、跨年） |
+| 4 个日期格式化 | 与 `DateTimeFormatter` **逐字**比对 |
+| HH:mm 解析与格式化 | 24×7 组合 + 6 种非法输入 |
+| millisBetween | 与 `Duration.between().toMillis()` 对拍 |
+| localDateFromEpochDays | 与 `ofEpochDay` 对拍 + **Int 越界必须返回 null** |
+| MIN/MAX 哨兵 | 钉死 epoch-day 常量（−365 961 662 / 364 522 971）防改库后静默偏移 |
+| addExact/subtractExact | 10×10 组合（含 Long.MAX/MIN）与 `java.lang.Math` 对拍 |
+
+`:core:jvmTest` 从 160 → **172 个用例，全绿**。
+
+#### ⑧-d 机械替换的验证手段（可复用）
+
+批量改写日期代码**必须机械核对**，因为编译器只能抓类型错、抓不到 `!A.isBefore(B)` 这类
+语义反转。做法：从 `git show HEAD:<文件>` 取出**每一处** `isBefore` / `isAfter` /
+`dayOfWeek.value` / `toEpochDay()` / `LocalDate.of(` 等调用点，按固定规则算出期望文本，
+再检查新文件里**存在**这条期望文本（空白与括号归一化后比对）。
+51 处 `isBefore/isAfter` + 113 处其余替换，逐条对完只剩 6 处「人工处理」的（都已单独复核）。
+
+> ⚠ **踩到的坑**：`!A.isBefore(B)` 用正则改成 `!A < B` 后，Kotlin 会解析成 `(!A) < B`
+> —— 必须再补一条 `!X < Y` → `X >= Y` 的规则。另有一条正则的 `\)?` 吃掉了 `if (…)` 的右括号，
+> 造成 3 处语法错（编译器抓到了）。
+
+#### ⑧-e 剩下的挡路石（下一步直接看这张表）
+
+| 文件 | 剩余 JVM/Android 专有点 | 说明 |
+|---|---:|---|
+| `HolidayCourseExclusion.kt` | **0** | 但引用 `HolidayManager.Entry` / `entriesForDate`（还在 `:app`） |
+| `HolidayCountdown.kt` | 1 | `Math.floorMod` |
+| `CourseScheduleDateBounds.kt` | 1 | `Math.floorDiv` |
+| `TeachingWeekReorganization.kt` | 3 | Gson `encode/decode`（**输出是持久化数据，必须逐字对齐**） |
+| `HolidayManager.kt` | 73 | `Context`/`SharedPreferences`/`org.json`/Gson/`@Synchronized`/`CourseRepository` 反向依赖 |
+| `CourseRepository.kt` | 39 | 同上一档 |
+| `ScheduleAppearance.kt` / `ScheduleBackup.kt` | 32 / 26 | Bitmap、文件 IO |
+
+**结论：把 `CourseScheduleDateBounds` / `TeachingWeekReorganization` / `HolidayCourseExclusion` /
+`HolidayCountdown` 搬进 `:core` 已经只差 5 处小改动 + 把 `HolidayManager.Entry` 从嵌套类提出来。**
+
 ### ✅ 已完成批次 · ⑦ 拆 `Holidays.kt` 类型集群 + 6 个中立类型下沉（2026-10-09）
 
 **做法：先机械拆、再挑零成本的部分搬。** 两件事分开做，各有一条独立的验证手段。
@@ -466,15 +538,15 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 | 工作量 | 数量 |
 |---|---|
 | `:app` 的 Android 专用 import | **545 处 / 111 文件**（`android.*` / `androidx.core` / `navigationevent` / `activity` …）|
-| `java.time`（阶段 2 日期迁移） | **34 处 import / 19 文件**（含全限定引用则 49 处 / 21 文件）|
+| ~~`java.time`（阶段 2 日期迁移）~~ | ✅ **已完成**（2026-10-09）：22 文件全换，`java.time` 在 `:app` 只剩注释（见 ⑧） |
 | Gson 引用（**风险 R2**） | 33 处 / 14 文件 |
 | `java.io` 引用 | 18 处（import）/ 11 文件 |
 
 按阻塞类型分组：
 
-- **纯日期**：`CourseScheduleDateBounds`（293 行，只有 `java.time`）—— 原先被 `Holidays.kt`
-  的**类型集群**挡住，**该集群已拆开**（见 ⑦）。现在唯一挡路的是 **`java.time` 本身**：
-  换成 kotlinx-datetime 才是它进 `:core` 的前置条件
+- **纯日期**：`CourseScheduleDateBounds`（314 行）—— 两个前置（类型集群 ⑦、日期换血 ⑧）都已做完，
+  现在它自己只剩 **1 处 `Math.floorDiv`**；真正的阻塞变成了 `HolidayManager.Entry`
+  这个还嵌在 `:app` 里的类型（它的宿主 `HolidayManager` 还差 Context/org.json/Gson/`@Synchronized`）
 - **Gson**：`CourseRepository` / `ScheduleAppearance` / `TimeConfigSnapshotParser` … ——
   需 `@Serializable` + **显式字段清单**，属**最高风险 R2**，必须有真实用户备份做 round-trip 回归
 - **文件 IO**：`ScheduleBackup`（还差 WebDAV + 提醒依赖）；其余 `java.io` 引用多为导入导出
@@ -742,9 +814,12 @@ CMP 无对应物，且用得很广（顶栏按钮、下拉菜单、底部 Tab、
 
 **目标：** 让 `:core` 具备上 Kotlin/Native 的资格。全计划中技术决策最密集的一步。
 
-**2.1 `java.time` → `kotlinx-datetime`（22 个文件，阶段 1 已做 2 个）**
+**2.1 `java.time` → `kotlinx-datetime`（22 个文件）✅ 已完成（2026-10-09，见「当前进展 ⑧」）**
 
-重点盯 `SimpleDateFormat` 的每个调用点，逐个写对照用例验证输出一致。
+实测结论修正：**`SimpleDateFormat` 不在这一步里** —— 它全部用于「文件名时间戳 / 日志时间戳」，
+操作的是 `java.util.Date`，与 `LocalDate` 无关，且所在文件（`ScheduleBackup` / `CrashLogHelper` /
+`LocalBackupScreen` / `WebDavSettingsScreen` / `UpdateDialog` / `UpdateSettingsScreen`）
+本就留在 `:app`，不属于阶段 2.1。真正要手写替换的是 `DateTimeFormatter` 的 5 个固定 pattern。
 
 **2.2 Gson 分层替换 —— 不要全局无脑替换**
 

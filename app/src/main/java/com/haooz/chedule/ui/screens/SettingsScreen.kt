@@ -1,5 +1,13 @@
 package com.haooz.chedule.ui.screens
 
+import com.haooz.chedule.data.minusWeeks
+
+import com.haooz.chedule.data.lengthOfMonth
+import com.haooz.chedule.data.minusDays
+import com.haooz.chedule.data.todayLocalDate
+import com.haooz.chedule.data.weeksBetween
+import kotlinx.datetime.isoDayNumber
+
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
@@ -86,8 +94,7 @@ import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
 import java.util.Calendar
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
@@ -106,7 +113,7 @@ internal fun parseDate(dateStr: String): Triple<Int, Int, Int> {
 
 internal fun getDaysInMonth(year: Int, month: Int): Int {
     return try {
-        LocalDate.of(year, month, 1).lengthOfMonth()
+        LocalDate(year, month, 1).lengthOfMonth()
     } catch (_: Exception) {
         31
     }
@@ -1040,8 +1047,8 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
     val startTotalMinutes = startHour * 60 + startMinute
     val endTotalMinutes = endHour * 60 + endMinute
 
-    val startDate = LocalDate.of(startYear, startMonth, startDay)
-    val dayOfWeek = startDate.dayOfWeek.value
+    val startDate = LocalDate(startYear, startMonth, startDay)
+    val dayOfWeek = startDate.dayOfWeek.isoDayNumber
 
     val rrule = event["RRULE"] ?: ""
     var untilStr = ""
@@ -1143,8 +1150,8 @@ internal fun applyScheduleData(
         val defaultClassStartDate = try {
             LocalDate.parse(classStartTime.replace("/", "-"))
         } catch (_: Exception) {
-            val today = LocalDate.now()
-            today.minusDays((today.dayOfWeek.value - 1).toLong()).minusWeeks(16)
+            val today = todayLocalDate()
+            today.minusDays((today.dayOfWeek.isoDayNumber - 1).toLong()).minusWeeks(16)
         }
 
         // ICS 无开学日设置时，用最早课程所在周的周一反推
@@ -1153,15 +1160,15 @@ internal fun applyScheduleData(
             val startDateStr = courseMap["startDate"] as? String
             if (startDateStr != null && startDateStr.length == 8) {
                 val date = try {
-                    LocalDate.of(
+                    LocalDate(
                         startDateStr.substring(0, 4).toInt(),
                         startDateStr.substring(4, 6).toInt(),
                         startDateStr.substring(6, 8).toInt()
                     )
                 } catch (_: Exception) { null }
                 if (date != null) {
-                    val monday = date.minusDays((date.dayOfWeek.value - 1).toLong())
-                    if (icsClassStartDate == null || monday.isBefore(icsClassStartDate)) {
+                    val monday = date.minusDays((date.dayOfWeek.isoDayNumber - 1).toLong())
+                    if (icsClassStartDate == null || monday < icsClassStartDate) {
                         icsClassStartDate = monday
                     }
                 }
@@ -1169,7 +1176,7 @@ internal fun applyScheduleData(
         }
         val classStartDate = icsClassStartDate ?: defaultClassStartDate
 
-        val classStartMonday = classStartDate.minusDays((classStartDate.dayOfWeek.value - 1).toLong())
+        val classStartMonday = classStartDate.minusDays((classStartDate.dayOfWeek.isoDayNumber - 1).toLong())
 
         val userSectionTimes = settingsViewModel.sectionTimes.value
         fun findSectionByTime(startMinutes: Int, endMinutes: Int): Pair<Int, Int>? {
@@ -1237,7 +1244,7 @@ internal fun applyScheduleData(
                         val ud = if (pair.size > 1) pair[1] else ""
                         if (sd.length == 8) {
                             val courseStartDate = try {
-                                LocalDate.of(
+                                LocalDate(
                                     sd.substring(0, 4).toInt(),
                                     sd.substring(4, 6).toInt(),
                                     sd.substring(6, 8).toInt()
@@ -1245,22 +1252,22 @@ internal fun applyScheduleData(
                             } catch (_: Exception) { null }
 
                             if (courseStartDate != null) {
-                                val courseMonday = courseStartDate.minusDays((courseStartDate.dayOfWeek.value - 1).toLong())
-                                val startWeek = ChronoUnit.WEEKS.between(classStartMonday, courseMonday).toInt() + 1
+                                val courseMonday = courseStartDate.minusDays((courseStartDate.dayOfWeek.isoDayNumber - 1).toLong())
+                                val startWeek = weeksBetween(classStartMonday, courseMonday) + 1
 
                                 val endWeek = if (ud.length == 8) {
                                     val untilDate = try {
-                                        LocalDate.of(
+                                        LocalDate(
                                             ud.substring(0, 4).toInt(),
                                             ud.substring(4, 6).toInt(),
                                             ud.substring(6, 8).toInt()
                                         )
                                     } catch (_: Exception) { null }
                                     if (untilDate != null) {
-                                        val daysDiff = (untilDate.dayOfWeek.value - dayOfWeek + 7) % 7
+                                        val daysDiff = (untilDate.dayOfWeek.isoDayNumber - dayOfWeek + 7) % 7
                                         val lastCourseDate = untilDate.minusDays(daysDiff.toLong())
-                                        val lastCourseMonday = lastCourseDate.minusDays((lastCourseDate.dayOfWeek.value - 1).toLong())
-                                        ChronoUnit.WEEKS.between(classStartMonday, lastCourseMonday).toInt() + 1
+                                        val lastCourseMonday = lastCourseDate.minusDays((lastCourseDate.dayOfWeek.isoDayNumber - 1).toLong())
+                                        weeksBetween(classStartMonday, lastCourseMonday) + 1
                                     } else {
                                         startWeek
                                     }
@@ -1283,15 +1290,15 @@ internal fun applyScheduleData(
                     val count = countStr.toIntOrNull()
                     if (count != null && count > 0) {
                         val courseStartDate = try {
-                            LocalDate.of(
+                            LocalDate(
                                 startDateStr.substring(0, 4).toInt(),
                                 startDateStr.substring(4, 6).toInt(),
                                 startDateStr.substring(6, 8).toInt()
                             )
                         } catch (_: Exception) { null }
                         if (courseStartDate != null) {
-                            val courseMonday = courseStartDate.minusDays((courseStartDate.dayOfWeek.value - 1).toLong())
-                            val startWeek = ChronoUnit.WEEKS.between(classStartMonday, courseMonday).toInt() + 1
+                            val courseMonday = courseStartDate.minusDays((courseStartDate.dayOfWeek.isoDayNumber - 1).toLong())
+                            val startWeek = weeksBetween(classStartMonday, courseMonday) + 1
                             selectedWeeks = (startWeek until startWeek + count).toList()
                         }
                     }

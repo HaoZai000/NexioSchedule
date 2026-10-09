@@ -1,5 +1,7 @@
 package com.haooz.chedule.ui.components
 
+import com.haooz.chedule.data.nowLocalTime
+
 import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -741,7 +743,7 @@ internal fun rememberIsOngoing(startTime: String, endTime: String): Boolean {
     var ongoing by remember(startTime, endTime) { mutableStateOf(false) }
     LaunchedEffect(startTime, endTime) {
         while (true) {
-            val now = java.time.LocalTime.now()
+            val now = nowLocalTime()
             val nowMinutes = now.hour * 60 + now.minute
             ongoing = parseSpecialHm(startTime)?.let { s ->
                 val e = parseSpecialHm(endTime) ?: return@let false

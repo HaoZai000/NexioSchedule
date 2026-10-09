@@ -1,7 +1,9 @@
 package com.haooz.chedule.data
 
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.daysUntil
+import kotlinx.datetime.isoDayNumber
+
+import kotlinx.datetime.LocalDate
 
 /** Date bounds for every week that can contain an effective course in the active schedule. */
 object CourseScheduleDateBounds {
@@ -35,7 +37,7 @@ object CourseScheduleDateBounds {
             TeachingWeekReorganization.validationError(it, Int.MAX_VALUE) == null
         }.orEmpty()
         val semesterStartMonday = runCatching {
-            semesterStartDate.minusDays((semesterStartDate.dayOfWeek.value - 1).toLong())
+            semesterStartDate.minusDays((semesterStartDate.dayOfWeek.isoDayNumber - 1).toLong())
         }.getOrNull() ?: return null
         val todayPosition = TeachingWeekReorganization.mapDate(semesterStartDate, today, rules)
         val weekOffset = todayPosition.week - currentWeek.toLong()
@@ -106,8 +108,8 @@ object CourseScheduleDateBounds {
                 val displayDay = when {
                     followPosition?.weekday != null -> followPosition.weekday!!
                     legacyDay != null -> legacyDay
-                    followDate != null -> followDate.dayOfWeek.value
-                    else -> datePosition.weekday ?: firstDate.dayOfWeek.value
+                    followDate != null -> followDate.dayOfWeek.isoDayNumber
+                    else -> datePosition.weekday ?: firstDate.dayOfWeek.isoDayNumber
                 }
                 if (courses.any {
                         it.dayOfWeek == displayDay && it.isActiveInWeek(displayWeek.toInt())
@@ -150,12 +152,12 @@ object CourseScheduleDateBounds {
         ) 2L else 1L
         val stepDays = stepWeeks * 7L
         val firstCalendarWeek = weeks.first.toLong() + weekOffset
-        val firstEpochDay = semesterStartMonday.toEpochDay() +
+        val firstEpochDay = semesterStartMonday.toEpochDays().toLong() +
             (firstCalendarWeek - 1L) * 7L + (course.dayOfWeek - 1).toLong()
         val occurrenceCount = (weeks.last.toLong() - weeks.first.toLong()) / stepWeeks
         val lastEpochDay = firstEpochDay + occurrenceCount * stepDays
-        val minEpochDay = LocalDate.MIN.toEpochDay()
-        val maxEpochDay = LocalDate.MAX.toEpochDay()
+        val minEpochDay = LOCAL_DATE_MIN_EPOCH_DAY
+        val maxEpochDay = LOCAL_DATE_MAX_EPOCH_DAY
         val firstOccurrence = if (firstEpochDay < minEpochDay) {
             ceilDivPositive(minEpochDay - firstEpochDay, stepDays)
         } else {
@@ -169,8 +171,10 @@ object CourseScheduleDateBounds {
         if (firstOccurrence > lastOccurrence) return@runCatching null
 
         CourseDatePattern(
-            firstDate = LocalDate.ofEpochDay(firstEpochDay + firstOccurrence * stepDays),
-            lastDate = LocalDate.ofEpochDay(firstEpochDay + lastOccurrence * stepDays),
+            firstDate = localDateFromEpochDays(firstEpochDay + firstOccurrence * stepDays)
+                ?: return@runCatching null,
+            lastDate = localDateFromEpochDays(firstEpochDay + lastOccurrence * stepDays)
+                ?: return@runCatching null,
             stepDays = stepDays,
         )
     }.getOrNull()
@@ -251,13 +255,13 @@ object CourseScheduleDateBounds {
         val firstCalendarWeek = TeachingWeekReorganization
             .originalWeekForTeachingWeek(firstEffective, rules) ?: return null
         if (TeachingWeekReorganization.originalWeekForTeachingWeek(lastEffective, rules) == null) return null
-        val firstEpochDay = semesterStartMonday.toEpochDay() +
+        val firstEpochDay = semesterStartMonday.toEpochDays().toLong() +
             (firstCalendarWeek - 1L) * 7L + (course.dayOfWeek - 1).toLong()
         val stepDays = stepWeeks * 7L
         val patternOccurrenceCount = (lastEffective - firstEffective) / stepWeeks
         val lastEpochDay = firstEpochDay + patternOccurrenceCount * stepDays
-        val minEpochDay = LocalDate.MIN.toEpochDay()
-        val maxEpochDay = LocalDate.MAX.toEpochDay()
+        val minEpochDay = LOCAL_DATE_MIN_EPOCH_DAY
+        val maxEpochDay = LOCAL_DATE_MAX_EPOCH_DAY
         val firstOccurrence = if (firstEpochDay < minEpochDay) {
             ceilDivPositive(minEpochDay - firstEpochDay, stepDays)
         } else 0L
@@ -267,8 +271,8 @@ object CourseScheduleDateBounds {
         if (firstOccurrence > lastOccurrence) return null
 
         return CourseDatePattern(
-            firstDate = LocalDate.ofEpochDay(firstEpochDay + firstOccurrence * stepDays),
-            lastDate = LocalDate.ofEpochDay(firstEpochDay + lastOccurrence * stepDays),
+            firstDate = localDateFromEpochDays(firstEpochDay + firstOccurrence * stepDays) ?: return null,
+            lastDate = localDateFromEpochDays(firstEpochDay + lastOccurrence * stepDays) ?: return null,
             stepDays = stepDays,
         )
     }
@@ -307,8 +311,8 @@ object CourseScheduleDateBounds {
 
     /** Calendar week numbering shared with reminder schedule resolution. */
     fun calendarWeekForDate(semesterStartDate: LocalDate, date: LocalDate): Long {
-        val daysFromSemesterMonday = ChronoUnit.DAYS.between(semesterStartDate, date) +
-            (semesterStartDate.dayOfWeek.value - 1).toLong()
+        val daysFromSemesterMonday = semesterStartDate.daysUntil(date).toLong() +
+            (semesterStartDate.dayOfWeek.isoDayNumber - 1).toLong()
         return daysFromSemesterMonday.floorDiv(7L) + 1L
     }
 }

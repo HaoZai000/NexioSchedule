@@ -1,5 +1,9 @@
 package com.haooz.chedule.ui.components
 
+import com.haooz.chedule.data.formatMonthDay
+
+import com.haooz.chedule.data.todayLocalDate
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,12 +42,10 @@ import top.yukonga.miuix.kmp.icon.extended.Background
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
 import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import kotlinx.datetime.LocalDate
 import kotlin.math.roundToInt
 
 private val DAY_NAMES = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-private val MM_DD_FORMATTER = DateTimeFormatter.ofPattern("MM/dd")
 
 // 不用 Scaffold paddingValues：随当前 tab 顶栏高度变化，切页时内容位移，
 // 叠加 SharedBlur 层 draw 阶段写入滞后一帧，表现为顶部慢一帧就位
@@ -220,7 +222,7 @@ private fun DayOfWeekRow(
             val index = dayOfWeek - 1
             val name = DAY_NAMES[index]
             val isToday = dayOfWeek == currentDayOfWeek && isCurrentWeek &&
-                (!isReorganized || weekDates.getOrNull(index) == LocalDate.now())
+                (!isReorganized || weekDates.getOrNull(index) == todayLocalDate())
 
             val todayHighlightColor = Color(0xFF3482FF)
             Box(
@@ -240,7 +242,7 @@ private fun DayOfWeekRow(
                     )
                     if (weekDates.isNotEmpty() && index < weekDates.size) {
                         val dateText = remember(weekDates[index]) {
-                            weekDates[index].format(MM_DD_FORMATTER)
+                            weekDates[index].formatMonthDay()
                         }
                         Text(
                             text = dateText,

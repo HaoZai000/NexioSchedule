@@ -1,5 +1,7 @@
 package com.haooz.chedule.ui.activities
 
+import com.haooz.chedule.data.todayLocalDate
+
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.SystemBarStyle
@@ -39,7 +41,7 @@ import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.net.HttpURLConnection
 import java.net.URL
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -64,7 +66,7 @@ class HolidaySettingsActivity : ComponentActivity() {
             }
             val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
             val scrollBehavior = rememberSharedScrollBehavior()
-            val currentDate = remember { LocalDate.now() }
+            val currentDate = remember { todayLocalDate() }
             var year by remember { mutableIntStateOf(currentDate.year) }
             var entries by remember {
                 mutableStateOf(HolidayManager.load(context, year))

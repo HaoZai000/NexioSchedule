@@ -1,5 +1,8 @@
 package com.haooz.chedule.data
 
+import kotlinx.datetime.daysUntil
+import kotlinx.datetime.isoDayNumber
+
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
@@ -11,8 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
 
 // ════════════════════════════════════════════════════════════════════════
 //  节假日与调休 · 数据本体（加载 / 缓存 / 导入导出 / 数据源）
@@ -85,7 +87,7 @@ object HolidayManager {
             } else {
                 runCatching { LocalDate.parse(endDate) }.getOrNull() ?: return false
             }
-            return !targetDate.isBefore(startDate) && !targetDate.isAfter(lastDate)
+            return targetDate >= startDate && targetDate <= lastDate
         }
 
         /** 调休跟随的绝对日期；未配置/格式坏 → null */
@@ -397,7 +399,7 @@ object HolidayManager {
         firstDate: LocalDate,
         lastDate: LocalDate,
     ): List<Entry> {
-        if (lastDate.isBefore(firstDate)) return emptyList()
+        if (lastDate < firstDate) return emptyList()
         return entriesByYear.toSortedMap().flatMap { (year, entries) ->
             entries.filter { entry ->
                 val startDate = runCatching { LocalDate.parse(entry.date) }.getOrNull()
@@ -408,7 +410,7 @@ object HolidayManager {
                     runCatching { LocalDate.parse(entry.endDate) }.getOrNull()
                         ?: return@filter false
                 }
-                !endDate.isBefore(firstDate) && !startDate.isAfter(lastDate)
+                endDate >= firstDate && startDate <= lastDate
             }.map { year to it }
         }.sortedWith(
             compareBy<Pair<Int, Entry>> { it.second.custom }
@@ -421,7 +423,7 @@ object HolidayManager {
         firstDate: LocalDate,
         lastDate: LocalDate,
     ): Map<String, List<Entry>> {
-        if (lastDate.isBefore(firstDate)) return emptyMap()
+        if (lastDate < firstDate) return emptyMap()
         return buildMap {
             var date = firstDate
             while (true) {
@@ -515,7 +517,7 @@ object HolidayManager {
             if (entry.followWeek != -1 && entry.followWeek !in 1..52) return false
             if (entry.followWeekday != -1 && entry.followWeekday !in 1..7) return false
         }
-        return !endDate.isBefore(startDate)
+        return endDate >= startDate
     }
 
     private fun hasOnlyValidStoredRows(raw: String): Boolean = runCatching {
@@ -787,7 +789,7 @@ object HolidayManager {
                 .getOrNull() ?: start
             val days = blocks.getOrPut(entry.name) { mutableListOf() }
             var cursor = start
-            while (!cursor.isAfter(end)) {
+            while (cursor <= end) {
                 days += cursor
                 cursor = cursor.plusDays(1)
             }
@@ -801,8 +803,8 @@ object HolidayManager {
             val first = days.first()
             val last = days.last()
             return when {
-                date.isBefore(first) -> ChronoUnit.DAYS.between(date, first)
-                date.isAfter(last) -> ChronoUnit.DAYS.between(last, date)
+                date < first -> date.daysUntil(first).toLong()
+                date > last -> last.daysUntil(date).toLong()
                 else -> 0L
             }
         }
@@ -821,12 +823,12 @@ object HolidayManager {
         for ((blockName, items) in swapsByBlock) {
             val days = blocks.getValue(blockName).sorted()
             // 假期吃掉的工作日（周一~周五），按日期先后
-            val lost = days.filter { it.dayOfWeek.value <= 5 }
+            val lost = days.filter { it.dayOfWeek.isoDayNumber <= 5 }
             if (lost.isEmpty()) continue
             // 假期两侧都算：节前、节后的补班日都从「最后一个工作日」往前拿，
             // 且按补班日**倒序**分配（越靠近假期结束的补班，补的课越靠后）。
             val ordered = items
-                .filter { it.second.isBefore(days.first()) || it.second.isAfter(days.last()) }
+                .filter { it.second < days.first() || it.second > days.last() }
                 .sortedByDescending { it.second }
             ordered.forEachIndexed { index, pair ->
                 lost.getOrNull(lost.lastIndex - index)?.let { assigned[pair.first] = it }

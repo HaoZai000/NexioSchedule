@@ -1,10 +1,11 @@
 package com.haooz.chedule.data
 
-import java.time.Duration
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.atTime
+import kotlinx.datetime.daysUntil
+
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalTime
 
 // ── 节假日与调休 · 假期倒计时（今日页）──────────────────
 //
@@ -31,13 +32,13 @@ object HolidayCountdown {
                     ?: return@mapNotNull null
                 val end = runCatching { LocalDate.parse(entry.endDate.ifBlank { entry.date }) }
                     .getOrNull() ?: return@mapNotNull null
-                if (end.isBefore(start) || storageYear > end.year) return@mapNotNull null
+                if (end < start || storageYear > end.year) return@mapNotNull null
                 val firstEligibleDate = if (storageYear > start.year) {
-                    LocalDate.of(storageYear, 1, 1)
+                    LocalDate(storageYear, 1, 1)
                 } else {
                     start
                 }
-                if (firstEligibleDate.isAfter(end)) null
+                if (firstEligibleDate > end) null
                 else HolidayPeriod(firstEligibleDate, end)
             }
             .toList()
@@ -64,23 +65,23 @@ object HolidayCountdown {
         val validHolidays = mergeHolidayPeriods(holidays)
 
         validHolidays.firstOrNull { holiday ->
-            !today.isBefore(holiday.startDate) && !today.isAfter(holiday.endDate)
+            today >= holiday.startDate && today <= holiday.endDate
         }?.let { return Snapshot.DuringHoliday(it.endDate) }
 
-        val nextHoliday = validHolidays.firstOrNull { it.startDate.isAfter(today) } ?: return null
+        val nextHoliday = validHolidays.firstOrNull { it.startDate > today } ?: return null
         var additionalCandidate: Snapshot.BeforeHoliday? = null
         for (date in additionalCourseDates.asSequence()
-                .filter { it.isBefore(nextHoliday.startDate) }
+                .filter { it < nextHoliday.startDate }
                 .distinct()
                 .sortedDescending()) {
             if (validHolidays.any {
-                !date.isBefore(it.startDate) && !date.isAfter(it.endDate) && date != it.endDate
+                date >= it.startDate && date <= it.endDate && date != it.endDate
             }) {
                 continue
             }
             val endTime = lastClassEndAt(date) ?: continue
             additionalCandidate = Snapshot.BeforeHoliday(date.atTime(endTime))
-            if (latestPossibleCourseDate != null && date.isAfter(latestPossibleCourseDate)) {
+            if (latestPossibleCourseDate != null && date > latestPossibleCourseDate) {
                 return additionalCandidate
             }
             break
@@ -94,16 +95,16 @@ object HolidayCountdown {
             val earliestPatternDate = regularCoursePatterns.minOf { it.firstDate }
             val searchStart = earliestPossibleCourseDate?.let { minOf(it, earliestPatternDate) }
                 ?: earliestPatternDate
-            while (!searchLimit.isBefore(searchStart)) {
+            while (searchLimit >= searchStart) {
                 val candidateDate = regularCoursePatterns.asSequence()
                     .mapNotNull { latestPatternDateOnOrBefore(it, searchLimit) }
                     .maxOrNull() ?: break
                 if (additionalCandidate != null &&
-                    !candidateDate.isAfter(additionalCandidate.startsAt.toLocalDate())
+                    candidateDate <= additionalCandidate.startsAt.date
                 ) break
 
                 val holiday = validHolidays.firstOrNull {
-                    !candidateDate.isBefore(it.startDate) && !candidateDate.isAfter(it.endDate)
+                    candidateDate >= it.startDate && candidateDate <= it.endDate
                 }
                 if (holiday != null) {
                     if (candidateDate == holiday.endDate) {
@@ -111,25 +112,25 @@ object HolidayCountdown {
                             return Snapshot.BeforeHoliday(candidateDate.atTime(endTime))
                         }
                     }
-                    if (holiday.startDate == LocalDate.MIN) break
+                    if (holiday.startDate == LOCAL_DATE_MIN) break
                     searchLimit = holiday.startDate.minusDays(1)
                     continue
                 }
                 lastClassEndAt(candidateDate)?.let { endTime ->
                     return Snapshot.BeforeHoliday(candidateDate.atTime(endTime))
                 }
-                if (candidateDate == searchStart || candidateDate == LocalDate.MIN) break
+                if (candidateDate == searchStart || candidateDate == LOCAL_DATE_MIN) break
                 searchLimit = candidateDate.minusDays(1)
             }
         } else if (regularCoursePatterns == null &&
             earliestPossibleCourseDate != null && latestPossibleCourseDate != null
         ) {
             var searchDate = minOf(nextHoliday.startDate.minusDays(1), latestPossibleCourseDate)
-            while (!searchDate.isBefore(earliestPossibleCourseDate) &&
-                (additionalCandidate == null || searchDate.isAfter(additionalCandidate.startsAt.toLocalDate()))
+            while (searchDate >= earliestPossibleCourseDate &&
+                (additionalCandidate == null || searchDate > additionalCandidate.startsAt.date)
             ) {
                 val holiday = validHolidays.firstOrNull {
-                    !searchDate.isBefore(it.startDate) && !searchDate.isAfter(it.endDate)
+                    searchDate >= it.startDate && searchDate <= it.endDate
                 }
                 if (holiday != null) {
                     if (searchDate == holiday.endDate) {
@@ -137,8 +138,8 @@ object HolidayCountdown {
                             return Snapshot.BeforeHoliday(searchDate.atTime(endTime))
                         }
                     }
-                    if (holiday.startDate == LocalDate.MIN ||
-                        holiday.startDate.isBefore(earliestPossibleCourseDate)
+                    if (holiday.startDate == LOCAL_DATE_MIN ||
+                        holiday.startDate < earliestPossibleCourseDate
                     ) break
                     searchDate = holiday.startDate.minusDays(1)
                     continue
@@ -193,7 +194,7 @@ object HolidayCountdown {
         date: LocalDate,
     ): HolidayBlock? {
         val period = mergeHolidayPeriods(holidayPeriodsFromStoredEntries(entriesByYear))
-            .firstOrNull { !date.isBefore(it.startDate) && !date.isAfter(it.endDate) }
+            .firstOrNull { date >= it.startDate && date <= it.endDate }
             ?: return null
         val name = HolidayManager.entriesForDate(entriesByYear, period.startDate)
             .firstOrNull { it.type == HolidayManager.TYPE_HOLIDAY }?.name.orEmpty()
@@ -202,12 +203,12 @@ object HolidayCountdown {
 
     private fun mergeHolidayPeriods(holidays: List<HolidayPeriod>): List<HolidayPeriod> {
         val merged = mutableListOf<HolidayPeriod>()
-        holidays.filter { !it.endDate.isBefore(it.startDate) }
+        holidays.filter { it.endDate >= it.startDate }
             .sortedBy { it.startDate }
             .forEach { holiday ->
                 val previous = merged.lastOrNull()
                 if (previous == null ||
-                    ChronoUnit.DAYS.between(previous.endDate, holiday.startDate) > 1L
+                    previous.endDate.daysUntil(holiday.startDate).toLong() > 1L
                 ) {
                     merged += holiday
                 } else {
@@ -223,33 +224,40 @@ object HolidayCountdown {
         pattern: CourseScheduleDateBounds.CourseDatePattern,
         limit: LocalDate,
     ): LocalDate? {
-        if (pattern.stepDays <= 0L || limit.isBefore(pattern.firstDate)) return null
+        if (pattern.stepDays <= 0L || limit < pattern.firstDate) return null
         val boundedLimit = minOf(limit, pattern.lastDate)
-        if (boundedLimit.isBefore(pattern.firstDate)) return null
-        val intervals = ChronoUnit.DAYS.between(pattern.firstDate, boundedLimit) / pattern.stepDays
+        if (boundedLimit < pattern.firstDate) return null
+        val intervals = pattern.firstDate.daysUntil(boundedLimit).toLong() / pattern.stepDays
         return runCatching { pattern.firstDate.plusDays(intervals * pattern.stepDays) }.getOrNull()
     }
 
     fun message(snapshot: Snapshot, now: LocalDateTime): String = when (snapshot) {
         is Snapshot.DuringHoliday -> {
-            val daysUntilReturn = ChronoUnit.DAYS.between(now.toLocalDate(), snapshot.returnDate)
+            val daysUntilReturn = now.date.daysUntil(snapshot.returnDate)
             if (daysUntilReturn <= 0) "怎么今天就返校了……"
             else "还有 $daysUntilReturn 天返校"
         }
 
         is Snapshot.BeforeHoliday -> {
-            val remaining = Duration.between(now, snapshot.startsAt)
-            if (remaining.isNegative || remaining.isZero) {
+            // 原来用 java.time 的 Duration.between(now, startsAt)。kotlinx-datetime 没有
+            // LocalDateTime 的 Duration 差，直接算秒差 —— 语义一致（两者同时区解释）。
+            val remainingSeconds = secondsBetween(now, snapshot.startsAt)
+            if (remainingSeconds <= 0L) {
                 "恭喜你放假啦！"
             } else {
-                formatRemaining(remaining)
+                formatRemaining(remainingSeconds)
             }
         }
     }
 
-    private fun formatRemaining(remaining: Duration): String = when {
-        remaining.toDays() >= 1 -> "还有 ${remaining.toDays()} 天放假"
-        remaining.toHours() >= 1 -> "还有 ${remaining.toHours()} 小时放假"
-        else -> "还有 ${remaining.toMinutes().coerceAtLeast(1)} 分钟放假"
+    /** 两个本地时间相差的秒数（to - from）。负数表示 [to] 在 [from] 之前。 */
+    private fun secondsBetween(from: LocalDateTime, to: LocalDateTime): Long =
+        (to.date.toEpochDays() - from.date.toEpochDays()) * 86_400L +
+            (to.time.toSecondOfDay() - from.time.toSecondOfDay())
+
+    private fun formatRemaining(remainingSeconds: Long): String = when {
+        remainingSeconds / 86_400L >= 1 -> "还有 ${remainingSeconds / 86_400L} 天放假"
+        remainingSeconds / 3_600L >= 1 -> "还有 ${remainingSeconds / 3_600L} 小时放假"
+        else -> "还有 ${(remainingSeconds / 60L).coerceAtLeast(1)} 分钟放假"
     }
 }
