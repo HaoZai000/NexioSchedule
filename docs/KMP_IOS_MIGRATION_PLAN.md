@@ -3,13 +3,143 @@
 > 目标平台：**iOS**（iPad 一并覆盖）  
 > 策略：渐进式，全程不打断 1.6.x 正常发版  
 > 制定日期：2026-10-08 · 最近更新：2026-10-09（Kotlin 2.4.10，AGP 9.2.1，CMP 1.12.0）  
-> 代码状态：`master` `b9ebd4b`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
+> 代码状态：`master` `dcd2a92`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
 
 ---
 
+## 🤝 给 iOS 开发者的交接清单（先读这一节）
+
+> 本节写给接手 iOS 的人：**哪些必须由你实现、哪些已经能直接用、当前验证到什么程度**。
+> 基于 2026-10-09 的代码状态。带 ⚠ 的都是会踩的坑。
+
+### A. 必须由你实现（3 个平台实现 + 3 个启动注入）
+
+#### A1. `HttpService` 的 Native 实现 —— **硬阻塞，不做则整个 App 无法联网**
+
+- **文件**：`core/src/nativeMain/kotlin/com/haooz/chedule/data/HttpService.native.kt`
+- **现状**：`createHttpService()` 返回一个**调用即抛 `NotImplementedError`** 的占位实现
+- **原因**：OkHttp 没有 Kotlin/Native 版本
+- **二选一**：
+  - **Ktor**（推荐）：`ktor-client-darwin` 给 Apple 目标，`ktor-client-cio` 覆盖其他 Native
+  - 或自己 cinterop `NSURLSession`
+
+> ⚠ **选 Ktor 前先读这一条**：实测任何现代 Ktor 都会顶掉 `kotlinx-coroutines` 版本
+> （3.6.0 → 1.11.0，3.1.3 → 1.10.2），而本项目当前是 **1.9.0**，提醒/闹钟/同步/小组件
+> 全压在协程上。这正是当初**刻意不引入 Ktor** 的原因。
+> 如果要在 iOS 侧引入，**请单独评估、单独提交**，不要和其他改动混在一起 ——
+> 否则真机出现时序类异常时无法归因，也无法单独回退。
+
+- **必须遵守的契约**（`core/src/commonMain/.../HttpService.kt`，别改签名）：
+
+  | 项 | 约定 |
+  |---|---|
+  | 方法 | `get(url, headers, maxBytes)` / `post(url, body, contentType, headers)` / `request(method, url, body, contentType, headers)` |
+  | 返回值 | `HttpResult(code, bytes, truncated = false)`，`isSuccessful` = `code in 200..299`；`maxBytes > 0` 时超限返回 `truncated = true`（**不是抛异常**），调用方按失败处理 |
+  | 异常 | **网络异常照常抛出，不要吞** —— 调用点普遍自带 `try/catch`，吞掉会让那些兜底失效 |
+  | 响应体 | 一次性读入内存（现有调用点没有流式消费）；`maxBytes` 必须在**读取过程中**生效，不能读完再检查大小 |
+  | 超时 | `HttpTimeouts(connectSeconds, readSeconds, callSeconds)`；`callSeconds <= 0` 表示不设整体超时 |
+  | 自定义方法 | WebDAV 用到 `PROPFIND` / `MKCOL`（在 `ScheduleBackup`，目前仍留在 `:app`） |
+
+#### A2. `KeyValueStore` 的实现（`NSUserDefaults`）+ 启动注入
+
+- **接口**：`core/src/commonMain/kotlin/com/haooz/chedule/data/KeyValueStore.kt`
+- **照抄参考**：`app/src/main/java/com/haooz/chedule/data/SharedPreferencesStore.kt`（Android，约 90 行）
+- **契约**（每条都有对应的 Android 行为，别想当然）：
+
+  | 项 | 约定 |
+  |---|---|
+  | ⚠ **按名字分文件** | 项目有 **17 个**偏好文件名（`app_preferences` / `course_schedule_prefs` / `course_reminder_prefs` …）。每个名字必须对应**独立**存储，**绝不能合并成一个** —— 合并等于篡改存量数据的落盘位置 |
+  | ⚠ 名字来源 | 各业务文件自带的 `private const val PREFS = "…"`，**不要新建集中常量表**（手抄错名字 = 老用户数据静默读不出来） |
+  | `getStringSet` | 必须返回**副本**；Android 上就地改会抛 `UnsupportedOperationException`，而 `Collections.singleton` 的坑就在这里 |
+  | 类型不符 | 返回默认值。Android 侧是抛 `ClassCastException`、调用方用 `runCatching` 兜底 —— 两种路径都要能工作 |
+  | `edit {}` | 语义 = 立即提交（等价 Android 的 `apply()`） |
+  | `all()` | 返回**拷贝**（备份/迁移功能依赖它） |
+
+#### A3. `AppFile` 的实现（`NSFileManager`）+ 启动注入
+
+- **接口**：`core/src/commonMain/kotlin/com/haooz/chedule/data/AppFile.kt`
+- **照抄参考**：`app/src/main/java/com/haooz/chedule/data/FileAppFile.kt`（Android，约 30 行）
+- **契约**：`writeBytes` **必须自动创建父目录**（调用方不再手写 `mkdirs`）；
+  `resolve(relative)` 以 `/` 分隔；`root` 指向应用沙盒私有目录。
+- **落盘路径必须逐字保持**：`repo/index/school_index.pb`、`repo/schools/resources`
+
+#### A4. 启动注入（3 个 `init`，缺任何一个都会在首次使用时抛异常）
+
+**示意代码**（Kotlin/Native 通过 cinterop 调 Foundation；API 名以实际 cinterop 绑定为准）：
+
+```kotlin
+// iOS 入口（AppDelegate / @main，越早越好；对应 Android 的 NexioApplication.onCreate）
+val version = NSBundle.mainBundle
+    .objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: "unknown"
+
+AppInfo.init(version = version)
+AppStorage.init { name -> NsUserDefaultsStore(name) }          // 见 A2
+AppFiles.init(
+    root = NsFileAppFile(defaultDocumentsDir()),               // 见 A3
+    readAsset = { path ->                                      // 内置学校索引引导
+        // 把 school_index.pb 放进 Xcode bundle 的 Resources，按 path 取；
+        // **失败要抛异常** —— SchoolRepository 会捕获、打日志、跳过引导（原逻辑如此）
+        val p = NSBundle.mainBundle.pathForResource(path, null)
+            ?: throw IOException("内置资源缺失: $path")
+        NSData.dataWithContentsOfFile(p)!!.toByteArray()
+    },
+)
+```
+
+**Android 的真实对应实现**可直接对照：`app/src/main/java/com/haooz/chedule/NexioApplication.kt`
+（`onCreate` 开头那几行 `AppStorage.init` / `AppInfo.init` / `AppFiles.init`）。
+
+### B. 已经能直接用，不需要你写的
+
+| 能力 | 位置 | iOS 现状 |
+|---|---|---|
+| 日志 `platformLog` | `core/src/nativeMain/.../PlatformLog.native.kt` | ✅ 已实现（println）。想接 `NSLog` 可覆盖，结构不用变 |
+| `ioDispatcher` | `core/src/nativeMain/.../IoDispatcher.native.kt` | ✅ `Dispatchers.Default`（Native 侧不用 `Dispatchers.IO` —— 它在 Native 上是 `internal`） |
+| 设备信息 `currentDeviceInfo()` | `core/src/nativeMain/.../PlatformInfo.native.kt` | ⚠ 能编能跑，但只是 `Platform.osFamily` 兜底。**建议改成 `UIDevice`**（`model` / `systemVersion`），`sdkLevel` 保持 0（那是 Android SDK_INT 的语义） |
+| 学校索引解析 | `core/src/commonMain/.../school/SchoolIndex.kt` | ✅ 手写 protobuf 解析器，已用**真实 248 校索引**做过新旧实现等价性对比 |
+| `:miuix` / `:backdrop` 的 Skia 实现 | `*/src/skikoMain/` | ⚠ 见 D 节 —— **从未针对 Native 编译过** |
+
+### C. 加 iOS target 的步骤（**需要 macOS**）
+
+1. `core/build.gradle.kts` 加目标：`iosArm64()` / `iosSimulatorArm64()` / `iosX64()`
+   （`linuxX64` 是编译门禁用，可留可去）
+2. ⚠ **`:miuix` / `:backdrop` 要把 `skikoMain` 显式接给 iOS 源集**。
+   现在它是挂在 jvm 上的：
+   ```kotlin
+   jvmMain { kotlin.srcDir("src/skikoMain/kotlin") }   // miuix/build.gradle.kts:58
+                                                       // backdrop/build.gradle.kts:44
+   ```
+   iOS 侧要加同样一行，或改建成真正的中间源集。**漏了这一步，SkSL 模糊/描边在 iOS 上会找不到 actual。**
+3. 跑 `./gradlew :core:compileKotlinIosArm64`，**不要只跑 android / jvm** —— 原因见 D 节。
+
+### D. 当前验证边界（请勿高估）
+
+| 说法 | 真实程度 |
+|---|---|
+| `:core/commonMain` 平台中立 | ✅ **编译器验证**：`:core` 挂了 `linuxX64`（Native）目标，`compileKotlinLinuxX64` + `compileTestKotlinLinuxX64` 通过 |
+| `:miuix` / `:backdrop` 的 commonMain + skikoMain 平台中立 | ⚠ **仅静态检查**：CMP 不支持 linuxX64、iOS 目标又需 macOS，只能用根项目的 `checkKmpPurity` 扫**已知模式**（171 个文件）。**未知 API 查不出来** |
+| skikoMain 能在 iOS 跑 | ❌ **从未编译过**，只被 jvm 复用（见 C 第 2 条） |
+| iOS 已可用 | ❌ 网络层是抛异常的占位；没有 iOS target；没有 Xcode 工程 |
+
+> **历史教训（为什么值得反复强调）**：`:core` 一度只有 android + jvm 两个 **JVM** 目标，
+> `compileCommonMainKotlinMetadata` 是 `SKIPPED`，commonMain 从未被平台中立的 stdlib
+> 检查过。于是 6 类 JVM 专有 API（`@Volatile` / `synchronized` / `Dispatchers.IO` /
+> `System.currentTimeMillis()` / `String.format()` / `String.toByteArray()`）共 13 处
+> 一路绿灯，**真正编 iOS 时会全部失败**，而 Android 侧毫无察觉。
+>
+> 结论：**「能编过」必须问清楚是「哪个目标能编过」。**
+
+### E. 提交前请跑这三条
+
+```bash
+./gradlew :core:compileKotlinLinuxX64 :core:compileTestKotlinLinuxX64   # commonMain/Test 平台中立
+./gradlew checkKmpPurity                                                 # 已知 JVM 专有 API 静态扫描
+./gradlew :app:assembleDebug                                             # Android 零回归（红线）
+```
+
 ---
 
-## 📍 当前进展（更新于 2026-10-09 · 已合入 master `b9ebd4b`）
+## 📍 当前进展（更新于 2026-10-09 · 已合入 master `dcd2a92`）
 
 > **安全网**：`master` 上打了永久标签 `backup/pre-merge-20261009`（合并前的状态）。
 > 万一发现遗漏，`git branch <名字> backup/pre-merge-20261009` 即可恢复 —— 
@@ -41,16 +171,25 @@
 
 | 模块 | 源文件 | 行数 | 源集 | 状态 |
 |---|---:|---:|---|---|
-| `:core` | 18 (+12 平台实现) | ~3,100 | common / android / **jvm / linuxX64(门禁)** | 数据层下沉 + 5 套跨平台抽象 |
-| `:backdrop` | 64 | 5,458 | common / android / skiko | ✅ KMP 化，含 edgelight + capsule |
-| `:miuix` | 103 | 26,464 | common / android / skiko | ✅ KMP 化，本轮新建 |
-| `:app` | 154 | 70,559 | android | Android-only，**剩余迁移主体** |
+| `:core` | 21 (+12 平台实现) | ~2,987 | common / android / **jvm / linuxX64(门禁)** | 数据层下沉 + 7 套跨平台抽象 |
+| `:backdrop` | 64 | 5,458 | common / android / skiko | KMP 化，含 edgelight + capsule；**skikoMain 未针对 Native 编译过** |
+| `:miuix` | 103 | 26,464 | common / android / skiko | KMP 化；**skikoMain 未针对 Native 编译过** |
+| `:app` | 148 | 69,983 | android | Android-only，**剩余迁移主体** |
 
-编译验证：`core` / `backdrop` / `miuix` 的 `compileAndroidMain` + `compileKotlinJvm` 全绿，
-`:app:assembleDebug` 通过（APK 19.83MB）。
-> jvm target 复用 `skikoMain`，所以「jvm 编得过」= **SkSL 路径也编得过**。
+`:core` 已有的 7 套跨平台能力：`NexioLog`（日志）/ `KeyValueStore`+`AppStorage`（存储）/
+`HttpService`（网络）/ `JsonSupport`（JSON）/ `PlatformInfo`（设备信息）/ `AppFile`+`AppFiles`（文件）/
+`ioDispatcher`（调度器 —— 不用 `Dispatchers.IO`，它在 Kotlin/Native 上是 `internal`）。
 
-### ✅ 本轮完成
+**`data/school/` 已整体下沉**（`SchoolIndex` / `SchoolRepository` / `ScriptRepository`），
+`:app` 侧该包目录已清空 —— 学校索引与脚本下载这条链现在完全跨平台。
+
+**编译验证**（务必按目标区分，别笼统说「编得过」）：
+- `:core/commonMain` → `compileKotlinLinuxX64` 通过 ⇒ **Native 目标也能编**（`commonTest` 同）
+- `:backdrop` / `:miuix` 的 `commonMain` + `skikoMain` → 只有 `compileKotlinJvm` / `compileAndroidMain`，
+  **从未针对 Native 编译**；平台专有 API 靠 `checkKmpPurity` 静态兜底
+- `:app:assembleDebug` 通过（APK 19.96MB）
+
+### ✅ 已完成批次 · 模块拆分（`:miuix` 建立与反向依赖解除）
 
 **① `:miuix` 模块建立** —— Miuix fork 整体搬入，`git mv` 保证历史可读（108 个 rename）。
 只 fork 了 `miuix-ui` 一个子库，其余（squircle / icons / blur / preference / navigation3-ui）
@@ -93,22 +232,74 @@ expect 封装写成了两个独立函数，各自调了一次 `rememberNavigatio
 > 教训：抽象时不能改变「实例边界」。HEAD 是 1 个 state 喂两处，我改成 2 个 —— 就是 bug。
 > 判断方法：改动前后数一数底层平台对象被创建了几次。
 
+### ✅ 已完成批次 · 数据层下沉与定位修复
+
+**④ 文件系统抽象 + `SchoolRepository` 下沉**
+
+新增 `interface AppFile` + `AppFiles.init(root, readAsset)`（注入式，与 `AppStorage` 同模式）。
+选注入而非 expect/actual 的原因见「阶段 3.1」：这样 `:core` 的 commonMain 保持**零平台实现**，
+`linuxX64` 门禁才编得过；Android 侧继续用 `java.io.File`（`FileAppFile`，行为零变化）。
+
+顺带把「自动创建父目录」收进 `writeBytes` —— 原来每个调用点都手写 `parentFile?.mkdirs()`。
+
+`SchoolRepository`（85 行）下沉 `:core`。改的是**落盘路径**，所以补了 9 个用例验证行为等价：
+
+| 用例 | 验证点 |
+|---|---|
+| 引导写入路径与迁移前一致 | `repo/index/school_index.pb` **逐字未变** + 父目录自动创建 |
+| 本地已有索引时不再读内置资源 | 「存在即跳过」分支仍成立（计数验证只读 1 次） |
+| 首次使用从内置资源引导并解析 | 用**真实 248 校生产索引**，结果与直接解析一致 |
+| 内置资源缺失 / 索引损坏 | 安全降级为 null + 打日志，不抛给 UI |
+| `getSchools` 过滤与排序 | 分类过滤 + `initial.uppercase()+name` 排序键不变 |
+
+**⑤ 修复：长按课程卡片的浮层与落点错位**
+
+根因是「节次顶部 Y」在项目里有**三套算法**，其中两套（手写公式）漏掉**特殊块挤占**：
+
+| 位置 | 数据来源 | 含特殊块 |
+|---|---|---|
+| 卡片实际排版、空节次长按、落点高亮 | `grid.sectionTop` | ✅ |
+| ~~课程卡长按浮层锚点~~ | 手写公式 | ❌ → 已改走 `grid.sectionTop` |
+| ~~落点命中测试 `computeDropTarget`~~ | 手写公式 | ❌ → 已改 |
+
+表现：有特殊块时长按浮层**整体偏上**（偏移量 = 该节次上方的特殊块总高，约半个卡片时
+就是「偏上 50%」），且「高亮在哪格」与「实际落到哪格」错开。
+
+修法：把权威的 `specialGrid.sectionTop` 接入 `ScheduleGridGeometry.sectionTopDp`，
+浮层锚点、吸附落点、命中测试统一走它；拖动高度改用 `courseVisualHeightPx`（含分界缝与特殊块），
+不再写死 `sectionCount × sectionHeight`。
+
+> ⚠ 这套公式差异**只在存在特殊块时**才产生偏移。默认作息 `specialBlocks = null`
+> （即默认没有），所以不是所有用户都会遇到。
+
 ### ⚠️ 仍需真机确认
 
 1. **描边亮度** —— `setColorUniform` 改用 `copy(alpha = 1f)`（alpha 已由
    `GraphicsLayer.alpha` 单独控制，原来相乘会偏暗）。但默认色是 `White.copy(alpha = 0.5f)`，
    **需确认描边是否偏亮**。
-2. **对话框的模糊 / 描边 / 跟手返回** —— 上面两个 bug 修完后需回归确认。
+2. **对话框的模糊 / 描边 / 跟手返回** —— 两个 bug 修完后需回归确认。
+3. **长按浮层与拖放落点** —— 已修，需按「跨特殊块 / 跨午休晚修 / 调课日列」三种情形回归。
 
-### 📌 剩余工作量
+### 📌 剩余工作量（实测，2026-10-09）
 
-- **`:app` 还有 574 处 Android 专用 import，分布在 115 个文件**（`android.*`、
-  `androidx.core` / `navigationevent` / `activity` / `room` 等）—— 这是 iOS 迁移的主体。
-- **阶段 2 日期迁移**：`:app` 尚余 34 处 `java.time` import
-  （`TodayScreen` 5 / `Holidays` 5 / `SettingsScreen` 2 …）。逐个文件改 + 编译，
-  **不要用正则批量改写**（曾破坏 lambda / when 分支 / `!` 优先级）。
-- `Holidays.kt` 的调休 `followDate` 推算是全项目最敏感的部分，改它要逐点对照。
-- iOS 工程接入需 macOS / `.konan`，本机无法编译验证。
+| 工作量 | 数量 |
+|---|---|
+| `:app` 的 Android 专用 import | **545 处 / 111 文件**（`android.*` / `androidx.core` / `navigationevent` / `activity` …）|
+| `java.time`（阶段 2 日期迁移） | 34 处 |
+| Gson 引用（风险 R2） | 33 处 / 14 文件 |
+| `java.io` 引用 | 20 处 / 12 文件 |
+
+按阻塞类型分组：
+
+- **纯日期**：`CourseScheduleDateBounds`（293 行，只有 `java.time`）—— 但被 `Holidays.kt` 的
+  **类型集群**挡住（`HolidayManager` / `TeachingWeekReorganization` 等类型都定义在那个 1782 行的文件里）
+- **Gson**：`CourseRepository` / `ScheduleAppearance` / `TimeConfigSnapshotParser` … ——
+  需 `@Serializable` + **显式字段清单**，属**最高风险 R2**，必须有真实用户备份做 round-trip 回归
+- **文件 IO**：`ScheduleBackup`（还差 WebDAV + 提醒依赖）；其余 `java.io` 引用多为导入导出
+- **Android 专有模块**（按约定留在 `:app`）：`reminder/` / `widget/` / `shizuku/` / `wearable/` / `ui/web/`
+
+**不要用正则批量改写日期代码**（曾破坏 lambda / when 分支 / `!` 优先级）。
+`Holidays.kt` 的调休 `followDate` 推算是全项目最敏感的部分，改它要逐点对照。
 
 ---
 
@@ -174,13 +365,26 @@ iOS 走的是 **Kotlin/Native**，不是 JVM。这一条决定了所有工作量
 | --------------------- | ------------------- | ------------------------ |
 | Gson（运行时反射）           | ✅                   | ❌ **不存在**，必须换            |
 | `java.time.*`         | ✅                   | ❌ 不可用，换 kotlinx-datetime |
-| OkHttp                | ✅                   | ⚠️ 有 Darwin 引擎，可用但需验证    |
-| 文件 IO（`java.io.File`） | ✅                   | ⚠️ 需 expect/actual       |
+| OkHttp                | ✅                   | ❌ **没有 Native 版本** —— 见下方说明 |
+| 文件 IO（`java.io.File`） | ✅                   | ❌ 不存在（`AppFile` 抽象已就位，实现待补） |
 | 精确闹钟（AlarmManager）    | ✅ `setAlarmClock`   | ❌ **完全不存在**              |
 | 后台执行代码                | ✅ BroadcastReceiver | ❌ **不存在**                |
 | 控制系统免打扰               | ✅                   | ❌ **系统禁止**               |
 | 桌面小部件                 | ✅ AppWidget         | ⚠️ WidgetKit，须 Swift 重写  |
 | 系统壁纸                  | 未使用（仅 App 内背景）      | ✅ 不受影响                   |
+
+> **关于网络层的现状（最容易误解的一条，务必看清）**
+>
+> OkHttp 在 iOS 上**不可用**（没有 Kotlin/Native 版本）。`:core` 已把网络收成自建的
+> `HttpService` 接口：Android 侧继续用 OkHttp（行为零变化），
+> **Native 侧目前是一个「调用即抛 `NotImplementedError`」的占位**。
+> 所以「iOS 已可用」是不成立的 —— 这是接 iOS 前必须补的第一件事，见「交接清单 A1」。
+>
+> 本文档早期写的「Ktor 包一层，OkHttp 不删」**已作废**。原因不是技术不可行，
+> 而是**代价**：任何现代 Ktor 都会把全项目的 `kotlinx-coroutines` 从 1.9.0
+> 顶到 1.10.2 / 1.11.0，而提醒/闹钟/同步全压在协程上。
+> 把「升级核心异步库」捆进迁移会让故障无法归因、也无法单独回退。
+> 如果 iOS 侧确实要引入 Ktor，请**单独评估、单独提交**。
 
 **两个必须提前接受的事实：**
 
@@ -203,7 +407,7 @@ iOS 走的是 **Kotlin/Native**，不是 JVM。这一条决定了所有工作量
 | 教务导入                    | WebView + `@JavascriptInterface` | WKWebView + `WKScriptMessageHandler`          | 🔶 桥接层重写   |
 | Shizuku / 小米穿戴          | AIDL / 穿戴 SDK                    | 无对应                                           | ❌ 砍掉       |
 | 分享码 / 云同步               | OkHttp + 服务端                     | 网络层可复用                                        | ✅          |
-| 平板双栏布局                  | `LocalConfiguration` 判定          | `ScreenInfo` expect/actual                    | ✅ 需改造      |
+| 平板双栏布局                  | `LocalConfiguration` 判定          | `expect fun isTabletWidth()`（`:miuix` skikoMain 已有）            | ✅ 已改造      |
 
 **结论：iOS 版能拿到约 80% 的功能，砍掉的是"系统级控制"类（免打扰、精确闹钟、小部件、穿戴）。** 这些恰好都是 Android 独占能力，与代码质量无关。
 
@@ -389,16 +593,23 @@ Gson 靠运行时反射，KN 上不存在。但更要命的是**架构依赖**�
 
 ### 阶段 3 · 平台能力抽象 + 仓储下沉（3~4 周）
 
-**3.1 定 expect/actual 接口（只定最小集合，够用就停）**
+**3.1 平台能力抽象 —— 最小集合，够用就停**
 
-```kotlin
-expect class KeyValueStore { fun getString(k: String, d: String): String; fun putString(k: String, v: String); ... }
-expect fun appFilesDir(): String
-expect class Notifier { fun schedule(id: String, at: Instant, title: String, body: String); fun cancel(id: String); fun cancelAll() }
-expect class ScreenInfo      // 替代 LocalConfiguration（42 处）
-expect object Haptics
-expect fun showToast(msg: String)
-```
+原始设想（~~`expect class KeyValueStore` / `expect fun appFilesDir()`~~）已被实际实现取代：
+存储与文件改用 **接口 + 启动注入**，而不是 expect/actual。
+理由：接口能让 `:core` 的 commonMain 保持**零平台实现**（`linuxX64` 门禁才编得过），
+Android 侧继续用原生 API（行为零变化），iOS 侧注入自己的实现即可。
+**新增平台能力时请沿用这个模式**，不要为了「正统 KMP」改成 expect/actual。
+
+| 能力 | 实际形态 | 状态 |
+|---|---|---|
+| 日志 | `expect fun platformLog(...)` | ✅ 三平台 actual 齐（Android / JVM / Native） |
+| 存储 | `interface KeyValueStore` + `AppStorage.init { }` | ✅ 抽象完成；**iOS 侧待实现**（见交接清单 A2） |
+| 文件 | `interface AppFile` + `AppFiles.init(...)` | ✅ 抽象完成；**iOS 侧待实现**（见 A3） |
+| 网络 | `expect fun createHttpService(...)` | ⚠ Android/JVM 完成；**Native 是抛异常的占位**（见 A1） |
+| 设备信息 | `expect fun currentDeviceInfo()` | ✅ 三平台 actual 齐；iOS 建议改用 `UIDevice` |
+| 调度器 | `expect val ioDispatcher` | ✅ Native 用 `Dispatchers.Default`（`Dispatchers.IO` 在 Native 上是 `internal`） |
+| `Notifier` / `ScreenInfo` / `Haptics` / `showToast` | 尚未抽取 | ⬜ 等有文件真正要下沉时再定，**别提前造** |
 
 Android actual **必须继续走 SharedPreferences**，否则老用户数据全丢。
 
@@ -546,7 +757,7 @@ nativeMain   **未实现，调用即抛** → 接 iOS 前必须替换（见下�
 这两个模块做不到编译门禁 —— **Compose Multiplatform 不支持 `linuxX64`**，
 而 iOS 目标需要 macOS 宿主。退化为根项目的 `checkKmpPurity` 任务：
 
-- 扫描 `core` / `backdrop` / `miuix` 的 `commonMain` + `skikoMain`（169 个文件）
+- 扫描 `core` / `backdrop` / `miuix` 的 `commonMain` + `skikoMain`（171 个文件）
 - 规则覆盖已发现的全部坑：`@Volatile`（无限定时）、`synchronized`、`Dispatchers.IO`、
   `java.*` / `kotlin.jvm.*` 导入、`System.currentTimeMillis`、`String.format`、
   `String.toByteArray()`、`::class.java`、`java.io.*`、`Thread`
@@ -594,8 +805,23 @@ nativeMain   **未实现，调用即抛** → 接 iOS 前必须替换（见下�
 
 ## 七、立即可做的第一步
 
-**下一步：真机验证 Android 零回归。** 装上刚打出的 APK，重点看用了 edgeLight 的地方
-（顶栏按钮 / 下拉菜单 / 底部 Tab / DayColumn / 回到今天悬浮按钮 / 平板侧栏），
-确认液态玻璃与改动前一致。
+这份文档的读者有两类，**该做的第一步不同**：
 
-验证通过后进入**阶段 2 · 日期迁移**，从叶子文件开始逐个改，不要用脚本批量改写。
+### 如果你是 Android 侧开发者（继续迁移）
+
+1. **先跑门禁三条**（见「交接清单 E」），确认当前基线是绿的
+2. 按「剩余工作量」那张表挑一个**阻塞簇**做，别挑单个文件：
+   - 想解锁最多文件 → **Gson / `java.time` 的阻塞簇**（文件与网络抽象已就位，见「阶段 3.1」）
+   - 想降低最大风险 → **Gson 迁移**（R2），但**必须先有真实用户备份做 round-trip 回归**
+   - 想推进日期 → 得先拆 `Holidays.kt` 的类型集群，否则 `CourseScheduleDateBounds` 动不了
+3. 每批结束都要：`:app:assembleDebug` 通过 + 门禁三条绿 + 真机过一遍受影响的界面
+
+### 如果你是 iOS 侧开发者
+
+1. **先读「交接清单 A」** —— 那 3 个平台实现 + 3 个启动注入是硬门槛，不做则 App 起不来/无法联网
+2. 在 macOS 上按「交接清单 C」加 iOS target（**别忘了给 `:miuix` / `:backdrop` 接 `skikoMain`**）
+3. 第一次编译大概率会撞到 `:miuix` / `:backdrop` 的 `skikoMain` 问题 —— 它们**从未针对 Native 编译过**，
+   `checkKmpPurity` 只能挡已知模式，请按编译器的报错逐个修
+4. 网络层按 A1 换掉那个抛异常的占位实现（引入 Ktor 请单独评估协程版本影响）
+
+> **红线（对两边都适用）**：不打断 1.6.x 正常发版。每阶段结束时 `:app` 必须能正常编译、打包、发布。

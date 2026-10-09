@@ -33,8 +33,20 @@ package com.haooz.chedule.data
  */
 interface HttpService {
 
-    /** GET，返回状态码与响应体。 */
-    suspend fun get(url: String, headers: Map<String, String> = emptyMap()): HttpResult
+    /**
+     * GET，返回状态码与响应体。
+     *
+     * @param maxBytes 响应体上限。`<= 0` 表示不限制。
+     *   超出上限时**不抛异常**，而是返回 [HttpResult.truncated] = true（可能带已读到的部分字节），
+     *   由调用方决定怎么处理 —— 迁移前 `ScriptRepository` 就是「超限即视为下载失败」。
+     *   存在的意义是**边读边计数、超限即中止**，避免异常大的响应先把内存吃掉。
+     *   ⚠ 平台实现必须真正在读取过程中就停，不能读完再检查大小（那样 OOM 已经发生）。
+     */
+    suspend fun get(
+        url: String,
+        headers: Map<String, String> = emptyMap(),
+        maxBytes: Long = -1,
+    ): HttpResult
 
     /** POST，body 为 UTF-8 文本（迁移前都是 `toRequestBody(application/json)`）。 */
     suspend fun post(
@@ -57,17 +69,65 @@ interface HttpService {
     ): HttpResult
 }
 
-/** 一次性读空的响应。 */
+/**
+ * 一次性读空的响应。
+ *
+ * @param truncated 是否因超出 `maxBytes` 而被截断。为 true 时 [bytes] 是不完整内容，
+ *   调用方应视为失败，不要拿去解析。
+ */
 class HttpResult(
     val code: Int,
     val bytes: ByteArray,
+    val truncated: Boolean = false,
 ) {
     val isSuccessful: Boolean get() = code in 200..299
 
     /** 响应体按 UTF-8 解码。 */
     val text: String get() = bytes.decodeToString()
 
-    override fun toString(): String = "HttpResult(code=$code, bytes=${bytes.size})"
+    override fun toString(): String =
+        "HttpResult(code=$code, bytes=${bytes.size}${if (truncated) ", truncated" else ""})"
+}
+
+/**
+ * 在读取过程中最多读 [maxBytes]：超限立即停手，返回（已读字节, 是否被截断）。
+ *
+ * 抽到 commonMain 是因为各平台实现需要同一套语义 ——
+ * 迁移前这段逻辑只存在于 `ScriptRepository`（用 `byteStream()` 手写），
+ * 其余调用点都是无上限的 `body.bytes()`。
+ *
+ * 用「按块收集再拼接」而不是平台专有的 `ByteArrayOutputStream`（JVM 专有）。
+ * 超限时保留到上限为止的字节，并标记截断 —— 调用方一律按失败处理。
+ *
+ * @param read 每次调用读一段到给定缓冲区，返回读到的字节数，-1 表示流结束。
+ */
+internal fun readAtMost(maxBytes: Long, read: (ByteArray) -> Int): Pair<ByteArray, Boolean> {
+    if (maxBytes <= 0) return ByteArray(0) to false
+    val buffer = ByteArray(8192)
+    val chunks = ArrayList<ByteArray>()
+    var total = 0L
+    var truncated = false
+    while (true) {
+        val n = read(buffer)
+        if (n == -1) break
+        total += n
+        if (total > maxBytes) {
+            // 只保留到上限为止，多出的部分丢弃
+            val keep = (n - (total - maxBytes)).toInt()
+            if (keep > 0) chunks.add(buffer.copyOf(keep))
+            truncated = true
+            break
+        }
+        chunks.add(buffer.copyOf(n))
+    }
+    val size = chunks.sumOf { it.size }
+    val out = ByteArray(size)
+    var pos = 0
+    for (chunk in chunks) {
+        chunk.copyInto(out, pos)
+        pos += chunk.size
+    }
+    return out to truncated
 }
 
 /**

@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -79,9 +78,8 @@ fun AdapterSelectionBottomSheet(
     onDismissRequest: () -> Unit,
     onAdapterSelected: (SchoolData, AdapterData) -> Unit
 ) {
-    val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
-    val schoolRepository = remember { SchoolRepository(context) }
+    val schoolRepository = remember { SchoolRepository() }
 
     // 退出动画期间保留最后选中的学校，避免内容瞬间消失导致关闭看起来无动画
     var lastSchool by remember { mutableStateOf<SchoolData?>(null) }

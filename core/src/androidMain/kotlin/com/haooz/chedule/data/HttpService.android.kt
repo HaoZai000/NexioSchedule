@@ -44,8 +44,13 @@ actual fun createHttpService(timeouts: HttpTimeouts): HttpService = OkHttpHttpSe
 
 private class OkHttpHttpService(private val timeouts: HttpTimeouts) : HttpService {
 
-    override suspend fun get(url: String, headers: Map<String, String>): HttpResult =
-        execute(method = "GET", url = url, body = null, contentType = null, headers = headers)
+    override suspend fun get(
+        url: String,
+        headers: Map<String, String>,
+        maxBytes: Long,
+    ): HttpResult = execute(
+        method = "GET", url = url, body = null, contentType = null, headers = headers, maxBytes = maxBytes,
+    )
 
     override suspend fun post(
         url: String,
@@ -68,6 +73,7 @@ private class OkHttpHttpService(private val timeouts: HttpTimeouts) : HttpServic
         body: String?,
         contentType: String?,
         headers: Map<String, String>,
+        maxBytes: Long = -1,
     ): HttpResult = withContext(Dispatchers.IO) {
         val builder = Request.Builder().url(url)
         headers.forEach { (k, v) -> builder.header(k, v) }
@@ -81,10 +87,30 @@ private class OkHttpHttpService(private val timeouts: HttpTimeouts) : HttpServic
 
         val response = clientFor(timeouts).newCall(builder.build()).execute()
         try {
-            HttpResult(
-                code = response.code,
-                bytes = response.body?.bytes() ?: ByteArray(0),
-            )
+            val bodyOrNull = response.body
+            val bytes: ByteArray
+            var truncated = false
+            if (maxBytes > 0 && bodyOrNull != null) {
+                // 先看声明的长度：明知超限就不必去分配了
+                val declared = bodyOrNull.contentLength()
+                if (declared > maxBytes) {
+                    bytes = ByteArray(0)
+                    truncated = true
+                } else {
+                    // 流只能取一次，必须在 readAtMost 外面拿好
+                    val stream = bodyOrNull.byteStream()
+                    try {
+                        val (b, t) = readAtMost(maxBytes) { buf -> stream.read(buf) }
+                        bytes = b
+                        truncated = t
+                    } finally {
+                        stream.close()
+                    }
+                }
+            } else {
+                bytes = bodyOrNull?.bytes() ?: ByteArray(0)
+            }
+            HttpResult(code = response.code, bytes = bytes, truncated = truncated)
         } finally {
             response.close()
         }

@@ -309,7 +309,7 @@ var pageTitle by remember { mutableStateOf("加载中...") }
     // 进入页面时按需预下载适配脚本，失败不阻塞页面
     LaunchedEffect(school.resourceFolder, assetJsPath) {
         val path = assetJsPath ?: return@LaunchedEffect
-        ScriptRepository(context, ScriptRepository.getRepoUrl(context))
+        ScriptRepository(ScriptRepository.getRepoUrl())
             .ensureScript(school.resourceFolder, path)
     }
 
@@ -553,7 +553,7 @@ var pageTitle by remember { mutableStateOf("加载中...") }
     val executeImportWithTable: (String) -> Unit = { tableId ->
         assetJsPath?.let { path ->
             scope.launch {
-                val scriptFile = ScriptRepository(context, ScriptRepository.getRepoUrl(context))
+                val scriptFile = ScriptRepository(ScriptRepository.getRepoUrl())
                     .ensureScript(school.resourceFolder, path)
                 if (scriptFile != null) {
                     val jsCode = scriptFile.readText()

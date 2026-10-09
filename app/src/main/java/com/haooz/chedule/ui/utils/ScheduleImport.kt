@@ -584,7 +584,7 @@ object ThirdPartyShareImporter {
 
     @SuppressLint("SetJavaScriptEnabled")
     private suspend fun importWakeUp(context: Context, shareKey: String): ThirdPartySharePayload {
-        val scriptFile = ScriptRepository(context, ScriptRepository.getRepoUrl(context))
+        val scriptFile = ScriptRepository(ScriptRepository.getRepoUrl())
             .ensureScript(ExtractedShareTools.GLOBAL_TOOLS_RESOURCE, ExtractedShareTools.WAKEUP_JS)
             ?: throw IllegalStateException("WakeUp 适配脚本下载失败，请检查网络后重试")
         val script = scriptFile.readText()

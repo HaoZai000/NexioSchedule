@@ -29,7 +29,11 @@ actual fun createHttpService(timeouts: HttpTimeouts): HttpService =
 private class NativeUnimplementedHttpService(
     @Suppress("unused") private val timeouts: HttpTimeouts,
 ) : HttpService {
-    override suspend fun get(url: String, headers: Map<String, String>): HttpResult = fail()
+    override suspend fun get(
+        url: String,
+        headers: Map<String, String>,
+        maxBytes: Long,
+    ): HttpResult = fail()
 
     override suspend fun post(
         url: String,

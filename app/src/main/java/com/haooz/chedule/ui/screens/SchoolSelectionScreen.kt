@@ -38,7 +38,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -71,9 +70,8 @@ fun SchoolSelectionScreen(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     onAdapterSelected: (SchoolData, AdapterData) -> Unit
 ) {
-    val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
-    val schoolRepository = remember { SchoolRepository(context) }
+    val schoolRepository = remember { SchoolRepository() }
 
     var selectedSchool by remember { mutableStateOf<SchoolData?>(null) }
 

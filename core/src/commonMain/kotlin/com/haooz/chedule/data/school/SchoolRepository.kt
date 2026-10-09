@@ -1,19 +1,31 @@
 /** 学校信息仓库 - 管理学校列表和索引数据 */
 package com.haooz.chedule.data.school
 
-import android.content.Context
+import com.haooz.chedule.data.AppFile
+import com.haooz.chedule.data.AppFiles
 import com.haooz.chedule.data.NexioLog
-import java.io.File
 
 private const val TAG = "SchoolRepository"
 
-class SchoolRepository(private val context: Context) {
+/**
+ * 学校索引仓库。
+ *
+ * ## 迁移说明
+ *
+ * 原先依赖 `Context`（`filesDir` + `assets`）与 `java.io.File`，两者都无法进 commonMain。
+ * 现改用 [AppFiles] 注入的文件系统，**不再持有 Context**，因此整体下沉 `:core`。
+ *
+ * 行为保持不变：
+ * - `repo/index/school_index.pb`、`repo/schools/resources` 路径逐字未变
+ * - 内置索引引导仍是「本地不存在才拷贝」，失败打日志并跳过
+ */
+class SchoolRepository {
 
-    private val indexFile: File
-        get() = File(context.filesDir, "repo/index/school_index.pb")
+    private val indexFile: AppFile
+        get() = AppFiles.root.resolve("repo/index/school_index.pb")
 
-    private val schoolsDir: File
-        get() = File(context.filesDir, "repo/schools/resources")
+    private val schoolsDir: AppFile
+        get() = AppFiles.root.resolve("repo/schools/resources")
 
     fun loadIndex(): SchoolIndexData? {
         // 首次使用：本地无索引时，从安装包内置 asset 引导一份，避免联网才能获取学校列表
@@ -31,12 +43,8 @@ class SchoolRepository(private val context: Context) {
     private fun ensureBundledIndex() {
         if (indexFile.exists()) return
         try {
-            context.assets.open("eduloader/school_index.pb").use { inbound ->
-                indexFile.parentFile?.mkdirs()
-                indexFile.outputStream().use { outbound ->
-                    inbound.copyTo(outbound)
-                }
-            }
+            // writeBytes 会自动创建父目录（原来这里是手写 parentFile?.mkdirs()）
+            indexFile.writeBytes(AppFiles.readAsset("eduloader/school_index.pb"))
         } catch (e: Exception) {
             NexioLog.e(TAG, "读取内置索引失败: ${e.message}")
         }
@@ -66,8 +74,8 @@ class SchoolRepository(private val context: Context) {
         return index.schools.find { it.id == id }
     }
 
-    fun getScriptFile(adapter: AdapterData, school: SchoolData): File? {
-        val scriptFile = File(schoolsDir, "${school.resourceFolder}/${adapter.assetJsPath}")
+    fun getScriptFile(adapter: AdapterData, school: SchoolData): AppFile? {
+        val scriptFile = schoolsDir.resolve("${school.resourceFolder}/${adapter.assetJsPath}")
         return if (scriptFile.exists()) scriptFile else null
     }
 

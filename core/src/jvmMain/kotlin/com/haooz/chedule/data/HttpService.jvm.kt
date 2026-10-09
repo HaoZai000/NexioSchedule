@@ -20,8 +20,11 @@ actual fun createHttpService(timeouts: HttpTimeouts): HttpService = UrlConnectio
 
 private class UrlConnectionHttpService(private val timeouts: HttpTimeouts) : HttpService {
 
-    override suspend fun get(url: String, headers: Map<String, String>): HttpResult =
-        execute("GET", url, null, null, headers)
+    override suspend fun get(
+        url: String,
+        headers: Map<String, String>,
+        maxBytes: Long,
+    ): HttpResult = execute("GET", url, null, null, headers, maxBytes)
 
     override suspend fun post(
         url: String,
@@ -44,6 +47,7 @@ private class UrlConnectionHttpService(private val timeouts: HttpTimeouts) : Htt
         body: String?,
         contentType: String?,
         headers: Map<String, String>,
+        maxBytes: Long = -1,
     ): HttpResult = withContext(Dispatchers.IO) {
         val conn = (URI(url).toURL().openConnection() as HttpURLConnection).apply {
             requestMethod = method
@@ -65,10 +69,31 @@ private class UrlConnectionHttpService(private val timeouts: HttpTimeouts) : Htt
                 conn.outputStream.use { it.write(body.toByteArray()) }
             }
             val code = conn.responseCode
-            // 4xx/5xx 走 errorStream，否则 HttpURLConnection 会抛 IOException
-            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-            val bytes = stream?.use { it.readBytes() } ?: ByteArray(0)
-            HttpResult(code, bytes)
+            var truncated = false
+            val bytes: ByteArray
+            // 与 Android 实现保持一致：声明长度已超限就不去读，返回空字节 + truncated。
+            // 两个平台若不统一，将来在 truncated 分支里用 bytes 的调用方会得到不同结果。
+            if (maxBytes > 0 && conn.contentLengthLong > maxBytes) {
+                truncated = true
+                bytes = ByteArray(0)
+            } else {
+                // 4xx/5xx 走 errorStream，否则 HttpURLConnection 会抛 IOException
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                bytes = if (stream == null) {
+                    ByteArray(0)
+                } else {
+                    stream.use { input ->
+                        if (maxBytes > 0) {
+                            val (b, t) = readAtMost(maxBytes) { buf -> input.read(buf) }
+                            truncated = t
+                            b
+                        } else {
+                            input.readBytes()
+                        }
+                    }
+                }
+            }
+            HttpResult(code, bytes, truncated)
         } finally {
             conn.disconnect()
         }

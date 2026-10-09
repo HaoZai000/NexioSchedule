@@ -36,6 +36,13 @@ class NexioApplication : Application() {
                 packageManager.getPackageInfo(packageName, 0).versionName
             }.getOrNull() ?: "unknown",
         )
+        // 文件系统入口：:core 侧只认接口，Android 用 java.io.File 实现（行为与迁移前一致）。
+        // readAsset 走 assets，供「内置学校索引」首启引导使用；读取失败让它抛，
+        // 由 SchoolRepository 按原逻辑打日志并跳过引导。
+        com.haooz.chedule.data.AppFiles.init(
+            root = com.haooz.chedule.data.FileAppFile(filesDir),
+            readAsset = { name -> assets.open(name).use { it.readBytes() } },
+        )
         // 课表外观单例：尽早初始化，主界面首帧即可读壁纸与卡片参数
         com.haooz.chedule.data.ScheduleAppearance.init(this)
         // 预测性返回动画开关：应用启动即同步到全局单例（应用设置中可切换）

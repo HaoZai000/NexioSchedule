@@ -124,7 +124,7 @@ class EducationalImportActivity : ComponentActivity() {
             _isUpdating.value = true
             updateScope.launch {
                 try {
-                    ScriptRepository(context, ScriptRepository.getRepoUrl(context)).updateAll(
+                    ScriptRepository(ScriptRepository.getRepoUrl()).updateAll(
                         onLog = { }
                     )
                     prefs.edit().putLong(KEY_LAST_UPDATE_TIME, System.currentTimeMillis()).apply()
@@ -142,7 +142,7 @@ class EducationalImportActivity : ComponentActivity() {
             _isUpdating.value = true
             updateScope.launch {
                 try {
-                    val result = ScriptRepository(context, ScriptRepository.getRepoUrl(context)).updateAll(
+                    val result = ScriptRepository(ScriptRepository.getRepoUrl()).updateAll(
                         onLog = { }
                     )
                     val msg = when (result) {
