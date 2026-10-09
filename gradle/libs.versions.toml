@@ -5,6 +5,9 @@
 agp = "9.2.1"                         # Android Gradle Plugin
 kotlin = "2.4.10"                     # Kotlin 编译器（含 Compose 编译插件）
 
+# 跨平台（:core KMP 模块）
+kotlinxDatetime = "0.6.2"             # kotlinx-datetime：java.time 的 KMP 替代（0.7+ 重命名了 monthNumber→month、Clock 改为 kotlin.time 别名，留到阶段 2 再评估升级）
+
 # AndroidX 基础
 coreKtx = "1.18.0"                    # AndroidX Core KTX
 lifecycleRuntimeKtx = "2.9.1"         # 生命周期运行时 KTX
@@ -55,6 +58,9 @@ miuix-navigation3 = { group = "top.yukonga.miuix.kmp", name = "miuix-navigation3
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }                                     # JSON 序列化
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version = "4.12.0" }                                  # HTTP 客户端
 
+# ===== 跨平台（:core KMP 模块）=====
+kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinxDatetime" } # java.time 的 KMP 替代
+
 # Shizuku
 shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }                              # Shizuku 运行时 API
 shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }                   # Shizuku IPC 接入
@@ -67,5 +73,7 @@ materialKolor-utilities = { group = "com.materialkolor", name = "material-color-
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }     # Android 应用插件
+android-kmp-library = { id = "com.android.kotlin.multiplatform.library" }         # AGP 9 起 KMP 模块的 Android 目标专用插件；classpath 上已有，不可带版本
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }  # Compose 编译插件
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform" }  # KMP 插件（:core）；AGP 9 内置 Kotlin 工具链，classpath 上已有，不能再声明版本否则报
 # 注：AGP 9.0 起内置 Kotlin 支持，不再需要 org.jetbrains.kotlin.android 插件

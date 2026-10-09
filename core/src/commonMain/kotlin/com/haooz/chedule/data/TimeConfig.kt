@@ -1,6 +1,14 @@
 package com.haooz.chedule.data
 
-import java.time.LocalDate
+import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+
+// 注：TimeRoutine / SpecialItem / SpecialBlock 的 fromRaw 原先是 internal。
+// 搬到 :core 后 internal 的可见范围变成了 :core 模块本身，:app 的解析与导入逻辑访问不到，
+// 因此改为 public。等阶段 2 换成 kotlinx.serialization、由编译器生成反序列化代码后，
+// 这些手工 fromRaw 应当整体删除。
 
 /**
  * 作息方案：同一套节次骨架（上午/下午/晚上各几节）下的**一套时间**。
@@ -84,7 +92,7 @@ data class TimeRoutine(
 
         // USELESS_ELVIS：Gson 反序列化后非空字段仍可能是 null
         @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS", "ELVIS_ALWAYS_NULL")
-        internal fun fromRaw(raw: Any?, fallbackId: Long = 0L): TimeRoutine? = when (raw) {
+        fun fromRaw(raw: Any?, fallbackId: Long = 0L): TimeRoutine? = when (raw) {
             is TimeRoutine -> TimeRoutine(
                 id = raw.id,
                 name = raw.name ?: "作息方案",
@@ -171,7 +179,7 @@ data class SpecialItem(
          */
         // USELESS_ELVIS：以下 ?: 编译期看似走左值，但 Gson 反序列化后字段可能是 null
         @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS", "ELVIS_ALWAYS_NULL")
-        internal fun fromRaw(raw: Any?): SpecialItem? = when (raw) {
+        fun fromRaw(raw: Any?): SpecialItem? = when (raw) {
             is SpecialItem -> SpecialItem(
                 id = raw.id,
                 name = raw.name ?: "",
@@ -213,7 +221,7 @@ data class SpecialBlock(
          */
         // USELESS_ELVIS：以下 ?: 编译期看似走左值，但 Gson 反序列化后字段可能是 null
         @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS", "ELVIS_ALWAYS_NULL")
-        internal fun fromRaw(raw: Any?): SpecialBlock? = when (raw) {
+        fun fromRaw(raw: Any?): SpecialBlock? = when (raw) {
             is SpecialBlock -> SpecialBlock(
                 id = raw.id,
                 name = raw.name ?: "",
@@ -284,10 +292,10 @@ data class TimeConfig(
         get() = (routines as List<*>?).orEmpty().mapNotNull { TimeRoutine.fromRaw(it) }
 
     /** 当前日期下生效的作息方案；无方案时返回 null（此时取顶层时间字段） */
-    fun routineFor(date: LocalDate = LocalDate.now()): TimeRoutine? {
+    fun routineFor(date: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())): TimeRoutine? {
         val list = safeRoutines
         if (list.isEmpty()) return null
-        val today = date.monthValue * 100 + date.dayOfMonth
+        val today = date.monthNumber * 100 + date.dayOfMonth
         val sorted = list.sortedBy { it.effectiveOrdinal }
         // 今天早于全部生效日期时回绕到日期最大的方案（跨年循环）
         var chosen = sorted.last()
@@ -343,7 +351,7 @@ data class TimeConfig(
      * 叠加当前生效作息的时间数据后返回新配置。
      * 无作息方案时原样返回，旧数据完全兼容。
      */
-    fun effective(date: LocalDate = LocalDate.now()): TimeConfig {
+    fun effective(date: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())): TimeConfig {
         val r = routineFor(date) ?: return this
         return applyRoutine(r)
     }
@@ -383,7 +391,7 @@ data class TimeConfig(
     }
 
     /** 指定日期生效的作息方案 id；无方案返回 null */
-    fun effectiveRoutineId(date: LocalDate = LocalDate.now()): Long? = routineFor(date)?.id
+    fun effectiveRoutineId(date: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())): Long? = routineFor(date)?.id
 
     /**
      * 把 source 的**作息时间数据**写回指定作息方案。
@@ -689,21 +697,8 @@ data class TimeConfig(
     }
 
     companion object {
-        /** 仅用于识别坏快照（键名全对不上时判损坏），不参与取值 */
-        private val FIELD_NAMES = setOf(
-            "id", "name", "morningSections", "afternoonSections", "eveningSections",
-            "quickTimeEnabled", "classDuration", "shortBreak",
-            "sectionTimes", "sectionNames", "specialBlocks", "routines"
-        )
-
-        /** JSON 键名一个已知字段都不像时判为损坏，返回 null */
-        fun parseSnapshotOrNull(gson: com.google.gson.Gson, json: String): TimeConfig? {
-            val obj = runCatching {
-                gson.fromJson(json, com.google.gson.JsonObject::class.java)
-            }.getOrNull() ?: return null
-            if (obj.keySet().none { it in FIELD_NAMES }) return null
-            return runCatching { gson.fromJson(json, TimeConfig::class.java) }.getOrNull()
-        }
+        // 注：parseSnapshotOrNull 依赖 Gson，已留在 Android 侧的 TimeConfigSnapshotParser.kt，
+        // 等阶段 2 换成 kotlinx.serialization 后再移回 commonMain。
 
         /**
          * 长期数据兜底：UnsafeAllocator 使非空字段可能为 null；三段节数全 0 视为损坏恢复 4/4/4；

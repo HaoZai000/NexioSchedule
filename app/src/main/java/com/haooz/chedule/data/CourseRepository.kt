@@ -11,7 +11,7 @@ import java.time.LocalDate
 import java.util.Locale
 
 /** 课程数据仓库（SharedPreferences，单例） */
-class CourseRepository private constructor(context: Context) {
+class CourseRepository private constructor(context: Context) : PeriodTimeSource {
 
     private val appContext: Context = context.applicationContext
     private val prefs: SharedPreferences = appContext.getSharedPreferences(
@@ -1010,7 +1010,7 @@ class CourseRepository private constructor(context: Context) {
         notifyCourseChanged("settings")
     }
 
-    fun getMorningSections(): Int = getMorningSections(getCurrentScheduleId())
+    override fun getMorningSections(): Int = getMorningSections(getCurrentScheduleId())
 
     fun getMorningSections(scheduleId: String): Int {
         val configId = getScheduleTimeConfigId(scheduleId)
@@ -1025,7 +1025,7 @@ class CourseRepository private constructor(context: Context) {
         notifyCourseChanged("settings")
     }
 
-    fun getAfternoonSections(): Int = getAfternoonSections(getCurrentScheduleId())
+    override fun getAfternoonSections(): Int = getAfternoonSections(getCurrentScheduleId())
 
     fun getAfternoonSections(scheduleId: String): Int {
         val configId = getScheduleTimeConfigId(scheduleId)
@@ -1059,7 +1059,7 @@ class CourseRepository private constructor(context: Context) {
      * period: "morning" / "afternoon" / "evening"
      * 返回相对节次号 (1-6) -> "HH:mm-HH:mm"
      */
-    fun getPeriodTimes(period: String): Map<Int, String> {
+    override fun getPeriodTimes(period: String): Map<Int, String> {
         return getPeriodTimes(period, getCurrentScheduleId())
     }
 
@@ -1839,7 +1839,7 @@ class CourseRepository private constructor(context: Context) {
             return fallback
         }
         val config = try {
-            val parsed = TimeConfig.parseSnapshotOrNull(gson, json)
+            val parsed = parseTimeConfigSnapshotOrNull(gson, json)
             if (parsed == null) {
                 // 键名全不认得：覆写默认，避免每次启动读到 0 节
                 android.util.Log.e(TAG, "time_config_$id 快照无法辨认，判为损坏：${json.take(120)}")
@@ -2413,7 +2413,7 @@ class CourseRepository private constructor(context: Context) {
 
     private fun parseTimeConfigSnapshot(raw: Any): TimeConfig? {
         val json = runCatching { gson.toJson(raw) }.getOrNull() ?: return null
-        val parsed = TimeConfig.parseSnapshotOrNull(gson, json) ?: return null
+        val parsed = parseTimeConfigSnapshotOrNull(gson, json) ?: return null
         return TimeConfig.sanitize(0L, parsed)
     }
 

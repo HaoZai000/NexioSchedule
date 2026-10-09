@@ -12,20 +12,20 @@ package com.haooz.chedule.data
 object CourseTimeResolver {
 
     /** 课程开始时间（如 "08:00"）；自定义时间优先 */
-    fun getStartTime(course: Course, repository: CourseRepository): String? {
+    fun getStartTime(course: Course, repository: PeriodTimeSource): String? {
         if (course.hasValidCustomTime()) return course.customStartTime
         return resolveSectionTime(course.startSection, repository)
     }
 
     /** 课程结束时间（如 "08:45"）；自定义时间优先 */
-    fun getEndTime(course: Course, repository: CourseRepository): String? {
+    fun getEndTime(course: Course, repository: PeriodTimeSource): String? {
         if (course.hasValidCustomTime()) return course.customEndTime
         return resolveSectionTime(course.endSection, repository, isEnd = true)
     }
 
     private fun resolveSectionTime(
         section: Int,
-        repository: CourseRepository,
+        repository: PeriodTimeSource,
         isEnd: Boolean = false
     ): String? {
         if (section <= 0) return null

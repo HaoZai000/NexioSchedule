@@ -68,6 +68,10 @@ configurations.all {
 }
 
 dependencies {
+    // ===== 跨平台共享模块（KMP）=====
+    // 领域模型：Course / ScheduleFolder / TimeConfig。包名不变，import 无需改动
+    implementation(project(":core"))
+
     // ===== 小米穿戴（手表 interconnect） =====
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
 
