@@ -456,8 +456,14 @@ class MainActivity : ComponentActivity() {
                             },
                             onDecline = { finish() },
                             onOpenPolicy = {
+                                // 隐私政策已改成 AboutActivity 宿主里的一条路由。
+                                // 用「初始路由」打开：返回即回到这里的同意弹窗（栈里只有一页）。
                                 startActivity(
-                                    Intent(this@MainActivity, PrivacyPolicyActivity::class.java)
+                                    Intent(this@MainActivity, AboutActivity::class.java)
+                                        .putExtra(
+                                            AboutActivity.EXTRA_INITIAL_ROUTE,
+                                            com.haooz.chedule.ui.navigation.AppRoute.PrivacyPolicy.id,
+                                        )
                                 )
                             }
                         )

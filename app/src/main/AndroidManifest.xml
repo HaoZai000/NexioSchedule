@@ -129,18 +129,6 @@
             android:label="桌面小部件"
             android:theme="@style/Theme.课程表" />
         <activity
-            android:name=".ui.activities.PrivacyPolicyActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="隐私政策"
-            android:theme="@style/Theme.课程表" />
-        <activity
-            android:name=".ui.activities.LicenseActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="开源协议"
-            android:theme="@style/Theme.课程表" />
-        <activity
             android:name=".ui.activities.SwitchScheduleActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
@@ -158,12 +146,6 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
             android:label="捐赠支持"
-            android:theme="@style/Theme.课程表" />
-        <activity
-            android:name=".ui.activities.ChangelogActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="更新日志"
             android:theme="@style/Theme.课程表" />
         <activity
             android:name=".ui.activities.UpdateSettingsActivity"

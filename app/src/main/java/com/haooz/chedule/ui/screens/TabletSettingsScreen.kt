@@ -68,6 +68,8 @@ import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
+import android.content.Intent
+import com.haooz.chedule.ui.activities.AboutActivity
 import com.haooz.chedule.ui.activities.AboutScreen
 import com.haooz.chedule.ui.activities.AiImportScreen
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
@@ -758,6 +760,15 @@ fun TabletSettingsScreen(
                                         embedded = true,
                                         // 弹窗采样全屏层，才能把左栏内容一起虚化
                                         dialogBackdrop = liquidGlassBackdrop,
+                                        // 平板设置页还没路由化（它在 MainActivity 里），
+                                        // 所以这三个子页仍以「开新宿主 + 指定初始路由」的方式打开 ——
+                                        // 行为与改造前一致：全屏打开，返回回到这里。
+                                        onNavigate = { route ->
+                                            context.startActivity(
+                                                Intent(context, AboutActivity::class.java)
+                                                    .putExtra(AboutActivity.EXTRA_INITIAL_ROUTE, route.id)
+                                            )
+                                        },
                                     )
                                 }
 
