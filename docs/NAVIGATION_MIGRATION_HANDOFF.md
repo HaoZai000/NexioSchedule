@@ -139,7 +139,17 @@ MainActivity.setContent
     ⚠ 但要注意：宿主重建（旋转、进程回收）也会走一次 dispose → 清理，
     这与原 Activity 行为相同，不是新增问题。
 
-13. **子页里的 `viewModel()` 现在拿到的是宿主的实例**
+13. 🔴 **薄壳迁移会「静默丢元素」，编译器抓不到 —— 必须逐个对账**
+    WebDAV 页底部的「备份到云端 / 从云端恢复」两个按钮在 `ada9380` 里被漏掉了：
+    状态变量 `backingUp` / `restoring` / `onBackup` / `onRestore` **全都在，只是没人渲染** ——
+    Kotlin 认为「赋值也算使用」，不报未使用，页面照样 BUILD SUCCESSFUL，
+    只有真机点进去才发现按钮没了（用户实测发现，已在 `WebDavSettingsRoute` 补回）。
+    ⇒ **每个壳迁完，按「原 Activity 里的可交互元素」逐个对账**：
+    `LiquidTopBarButton` / `LiquidGlassTextButton` / `OverlayDialog` / `TextButton` 的数量
+    应与原 Activity 一致（顶栏返回那个会被 `DocumentPageScaffold` 吃掉）。
+    已全量对账 7 个已删 Activity：只有 WebDAV 少了 2 个，其余一致。
+
+14. **子页里的 `viewModel()` 现在拿到的是宿主的实例**
     原来每个 Activity 有独立 ViewModelStore，`CourseManageActivity` 里的 `CourseViewModel`
     是新实例；单宿主后与 `MainActivity` 共用同一个。好处是改完课返回主界面立刻是新的；
     ⚠ 若某页依赖「自己的 ViewModel 是干净的」，要显式传或自己 `viewModel(key=...)`。

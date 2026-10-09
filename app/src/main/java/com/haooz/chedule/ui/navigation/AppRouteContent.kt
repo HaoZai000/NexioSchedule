@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -449,9 +451,20 @@ private fun HolidaySettingsRoute(router: AppRouter) {
     }
 }
 
-/** WebDAV 云备份设置（原 WebDavSettingsActivity，170 行，含顶栏「测试连接」）。 */
+/**
+ * WebDAV 云备份设置（原 WebDavSettingsActivity，170 行）。
+ *
+ * 顶栏「测试连接」（[endAction]）+ 底部「备份到云端 / 从云端恢复」（[overlay]）。
+ *
+ * ⚠ **底部两个按钮曾经在薄壳迁移时被漏掉**：状态变量 `backingUp` / `restoring` /
+ * `onBackup` / `onRestore` 全都在、只是没人渲染 —— **编译器抓不到**（赋值也算「使用」），
+ * 页面照样 BUILD SUCCESSFUL，只有真机点进去才发现按钮没了。
+ * 教训：迁完壳，要按「原 Activity 里的可交互元素逐个对账」，不能只信编译。
+ */
 @Composable
 private fun WebDavSettingsRoute(router: AppRouter) {
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
     var connected by remember { mutableStateOf(false) }
     var onTestConnection by remember { mutableStateOf({}) }
     var backingUp by remember { mutableStateOf(false) }
@@ -462,6 +475,33 @@ private fun WebDavSettingsRoute(router: AppRouter) {
     DocumentPageScaffold(
         title = "WebDAV 云备份",
         onBack = { router.popBack() },
+        overlay = { backdrop ->
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(
+                        start = tabletHorizontalPadding + 8.dp,
+                        end = tabletHorizontalPadding + 8.dp
+                    )
+                    .navigationBarsPadding()
+                    .padding(bottom = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                LiquidGlassTextButton(
+                    text = if (backingUp) "备份中..." else "备份到云端",
+                    onClick = { onBackup() },
+                    backdrop = backdrop,
+                    modifier = Modifier.weight(1f)
+                )
+                LiquidGlassTextButton(
+                    text = if (restoring) "恢复中..." else "从云端恢复",
+                    onClick = { onRestore() },
+                    backdrop = backdrop,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        },
         endAction = { backdropAlpha, shadowAlpha ->
             LiquidTopBarButton(
                 onClick = { onTestConnection() },
