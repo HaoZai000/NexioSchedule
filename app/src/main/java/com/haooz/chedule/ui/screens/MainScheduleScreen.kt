@@ -171,6 +171,18 @@ data class ScheduleGridGeometry(
     val columnDataPosition: Map<Int, Pair<Int, Int>> = emptyMap(),
     /** 教学周重组的休课日列：该列永远渲染为空，落进去的课会静默消失，必须拦掉 */
     val blockedColumns: Set<Int> = emptySet(),
+    /**
+     * 节次 → 顶部 y（**dp**，列内相对坐标），直接取自 [computeSpecialGridLayout] 的结果。
+     *
+     * ⚠ 定位必须用它，不能再用「节次高 × 序号 + 分界缝」现算：
+     * 网格里还会插入**特殊块**（早读 / 大课间 / 晚自习…），块会把它下面的节次整体下推，
+     * 而现算公式**漏掉这部分**。结果就是长按浮层 / 吸附落点整体偏上，
+     * 偏移量正好等于该节次上方的特殊块总高（特殊块高约半个卡片时表现为「偏上 50%」）。
+     *
+     * 空节次长按路径一直用的是 `grid.sectionTop`（所以它没问题），
+     * 课程卡长按路径走的是本字段，两条路径由此统一到同一个权威来源。
+     */
+    val sectionTopDp: Map<Int, Float> = emptyMap(),
 )
 
 @SuppressLint("ConfigurationScreenWidthHeight")
@@ -971,6 +983,8 @@ fun MainScheduleScreen(
                             showBreakDividers = showBreakDividers,
                             columnDataPosition = dataMap,
                             blockedColumns = blocked,
+                            // 节次顶的权威来源：含特殊块挤占，浮层/落点定位都依赖它
+                            sectionTopDp = specialGrid.sectionTop,
                         )
                     }
                     val pushFreshGeometry by rememberUpdatedState {

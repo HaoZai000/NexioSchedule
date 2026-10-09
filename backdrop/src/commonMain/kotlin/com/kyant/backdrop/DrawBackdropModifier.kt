@@ -21,6 +21,10 @@ import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.positionInWindow
+// 必须用 kotlin.concurrent.Volatile：不限定的 @Volatile 靠 JVM 专有的默认导入
+// `kotlin.jvm.*` 解析，Kotlin/Native / JS 上会「Unresolved reference」。
+// 这些字段被 draw 阶段跨线程读取，需要真正的 volatile 语义，不能简单降级为普通 var。
+import kotlin.concurrent.Volatile
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.LayoutModifierNode

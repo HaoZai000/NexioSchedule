@@ -4,7 +4,9 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import com.kyant.capsule.core.Point
-import java.lang.Math.PI
+// java.lang.Math.PI 是 JVM 专有（Kotlin/Native / JS 都没有 java.*）；
+// kotlin.math.PI 是同一个 Double 常量，且本就与下面的 abs/ceil/cos/sin/tan 同源。
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos

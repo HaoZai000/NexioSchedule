@@ -62,7 +62,7 @@ var logEnabled: Boolean = true
  */
 var logMinLevel: Int = LOG_LEVEL_WARN
 
-internal inline fun emit(level: Int, tag: String, message: String, throwable: Throwable?) {
+internal fun emit(level: Int, tag: String, message: String, throwable: Throwable?) {
     if (logEnabled && level >= logMinLevel) platformLog(level, tag, message, throwable)
 }
 

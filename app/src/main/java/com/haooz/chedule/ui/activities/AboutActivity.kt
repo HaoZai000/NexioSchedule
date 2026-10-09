@@ -1199,7 +1199,7 @@ fun AboutScreen(
                     text = "撤回并退出",
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        com.haooz.chedule.data.PrivacyConsent.revoke(context)
+                        com.haooz.chedule.data.PrivacyConsent.revoke()
                         showRevokeDialog = false
                         activity?.finishAffinity()
                     },

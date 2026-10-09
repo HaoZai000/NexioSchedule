@@ -1,6 +1,5 @@
 package com.haooz.chedule.data
 
-import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +16,13 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * [consented] 是可观察状态：主界面在同意前已预加载，字段变化可让依赖同意的副作用
  * （如天气查询）在用户点「同意」后重新执行。
+ *
+ * ## 迁移说明
+ *
+ * 本对象原先每个方法都收 `Context`，且 `Context` **只用来 getSharedPreferences**。
+ * 改用 [AppStorage] 后不再持有任何 Android 类型，因此**可直接下沉到 `:core`**
+ * （依赖只有 `kotlinx.coroutines.flow`，是跨平台的）。
+ * 这是存储层抽象后第一个真正具备跨平台资格的类。
  */
 object PrivacyConsent {
 
@@ -35,30 +41,27 @@ object PrivacyConsent {
     val consented: StateFlow<Boolean> = _consented.asStateFlow()
 
     /** 用户是否已同意「当前版本」的隐私政策；无记录或版本过低均为未同意 */
-    fun hasConsented(context: Context): Boolean =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getInt(KEY_CONSENTED_VERSION, 0) >= CURRENT_VERSION
+    fun hasConsented(): Boolean =
+        AppStorage.store(PREFS_NAME).getInt(KEY_CONSENTED_VERSION, 0) >= CURRENT_VERSION
 
     /** 启动时同步内存状态，供界面观察 */
-    fun refresh(context: Context) {
-        _consented.value = hasConsented(context)
+    fun refresh() {
+        _consented.value = hasConsented()
     }
 
     /** 记录用户已同意当前版本的隐私政策 */
-    fun setConsented(context: Context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putInt(KEY_CONSENTED_VERSION, CURRENT_VERSION)
-            .apply()
+    fun setConsented() {
+        AppStorage.store(PREFS_NAME).edit {
+            putInt(KEY_CONSENTED_VERSION, CURRENT_VERSION)
+        }
         _consented.value = true
     }
 
     /** 撤回同意：清空同意状态，下次启动需重新同意隐私政策 */
-    fun revoke(context: Context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putInt(KEY_CONSENTED_VERSION, 0)
-            .apply()
+    fun revoke() {
+        AppStorage.store(PREFS_NAME).edit {
+            putInt(KEY_CONSENTED_VERSION, 0)
+        }
         _consented.value = false
     }
 }

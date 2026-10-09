@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalAtomicApi::class)
+
 package top.yukonga.miuix.kmp.layout
 
 import androidx.compose.foundation.background
@@ -33,9 +35,18 @@ import com.kyant.backdrop.effects.blur
 import top.yukonga.miuix.kmp.material.LocalUseFakeProgressiveBlur
 import com.kyant.backdrop.effects.runtimeShaderEffect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import java.util.concurrent.atomic.AtomicInteger
+// java.util.concurrent.atomic.AtomicInteger 是 JVM 专有；
+// kotlin.concurrent.atomics.AtomicInt 是跨平台的等价物（Kotlin 2.1+ 实验 API）。
+import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
-private val progressiveBlurShaderSeq = AtomicInteger(0)
+/**
+ * shader 名唯一序号。
+ *
+ * 必须原子：并发组合若拿到同一个序号，两个 shader 会共用名字，
+ * 而 shader 缓存按名字索引 —— 会导致取到错误的 shader。
+ */
+private val progressiveBlurShaderSeq = AtomicInt(0)
 private val NoSampleTrack: () -> Float = { 0f }
 
 /**
@@ -139,7 +150,7 @@ fun ProgressiveBlurTopBar(
     val blurShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { RectangleShape } }
     // ShaderRegistry 按 key 共享 RuntimeShader；多顶栏同时挂载时必须各用独立 key，
     val shaderKey = remember(resampleKey) {
-        "ProgressiveBlurRadial_${progressiveBlurShaderSeq.incrementAndGet()}"
+        "ProgressiveBlurRadial_${progressiveBlurShaderSeq.addAndFetch(1)}"
     }
     val denoiseKey = remember(shaderKey) { "${shaderKey}_denoise" }
     val blurEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =

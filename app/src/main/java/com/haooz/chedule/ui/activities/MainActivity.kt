@@ -383,13 +383,12 @@ class MainActivity : ComponentActivity() {
         }
 
         // 同步隐私同意状态到可观察状态：主界面已预加载，依赖同意的副作用据此判断是否可执行
-        PrivacyConsent.refresh(this)
+        PrivacyConsent.refresh()
 
         // 合规：仅在用户同意隐私政策后，才进行设备信息上报
-        if (PrivacyConsent.hasConsented(this)) {
-            StatsReporter.init(this)
-            StatsReporter.reportActive(this)
-            StatsReporter.reportInstallOnce(this)
+        if (PrivacyConsent.hasConsented()) {
+            StatsReporter.reportActive()
+            StatsReporter.reportInstallOnce()
         }
 
         // 异步预加载搭配壁纸，Compose 侧已处理 cachedWallpaperBitmap=null
@@ -442,18 +441,17 @@ class MainActivity : ComponentActivity() {
                 // 合规：未同意隐私政策前不申请权限、不收集信息（由 privacyConsented 门禁网络副作用）；
                 // 主界面仍照常组合（预加载），这样点「同意」后即时进入，不会卡顿
                 var privacyAgreed by remember {
-                    mutableStateOf(PrivacyConsent.hasConsented(this@MainActivity))
+                    mutableStateOf(PrivacyConsent.hasConsented())
                 }
                 Box(modifier = Modifier.fillMaxSize()) {
                     CourseScheduleApp(privacyConsented = privacyAgreed)
                     if (!privacyAgreed) {
                         PrivacyConsentScreen(
                             onAgree = {
-                                PrivacyConsent.setConsented(this@MainActivity)
+                                PrivacyConsent.setConsented()
                                 // 同意后方可进行设备信息上报
-                                StatsReporter.init(this@MainActivity)
-                                StatsReporter.reportActive(this@MainActivity)
-                                StatsReporter.reportInstallOnce(this@MainActivity)
+                                StatsReporter.reportActive()
+                                StatsReporter.reportInstallOnce()
                                 privacyAgreed = true
                             },
                             onDecline = { finish() },
@@ -1947,6 +1945,12 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
         if (geom.showBreakDividers) with(density) { 24.dp.toPx() } else 0f
 
     fun sectionTopPx(geom: ScheduleGridGeometry, section: Int, dividerPx: Float): Float {
+        // 优先用网格布局的**实际**节次顶（来自 computeSpecialGridLayout，含特殊块挤占）。
+        // 下面的「节次高 × 序号 + 分界缝」现算公式漏掉特殊块高度，
+        // 会让长按浮层与吸附落点整体偏上，偏移量正好等于该节次上方的特殊块总高
+        //（特殊块高约半个卡片时就表现为「长按浮层偏上 50%」）。
+        // 空节次长按路径一直用的是 grid.sectionTop，所以它没这个问题。
+        geom.sectionTopDp[section]?.let { dp -> return with(density) { dp.dp.toPx() } }
         val sectionH = geom.sectionHeightPx
         if (sectionH <= 0f) return 0f
         val morning = geom.morningSections
@@ -2339,6 +2343,20 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
         val relY = firstSectionCenterY - topY
         if (relY < 0f) return null
         val sectionH = geom.sectionHeightPx
+
+        // 优先用网格**权威**节次顶（sectionTopDp 含分界缝与特殊块挤占），
+        // 与卡片实际排版、落点高亮（MainScheduleScreen 的 boxOf 用 grid.sectionTop）保持一致。
+        // 下面那套手写遍历漏掉特殊块，会让「实际落到的格子」与「高亮显示的格子」错开。
+        val totalSections = geom.morningSections + geom.afternoonSections + geom.eveningSections
+        if (geom.sectionTopDp.isNotEmpty() && totalSections > 0) {
+            for (s in 1..totalSections) {
+                val top = geom.sectionTopDp[s]?.let { with(density) { it.dp.toPx() } } ?: continue
+                if (relY < top + sectionH) return day to s
+            }
+            // 落在最后一节之下：吸到最后一节
+            return day to totalSections
+        }
+
         val dividerH = with(density) { 24.dp.toPx() }
         var cursor = 0f
         for (s in 1..geom.morningSections) {
@@ -3578,11 +3596,23 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
                                                 // 落点仅跨格时写 state，避免逐帧重组课表
                                                 val course = draggedCardCourse
                                                 if (course != null) {
-                                                    val sectionH =
-                                                        gridGeometry?.sectionHeightPx ?: 0f
+                                                    val geomNow = gridGeometry
+                                                    val sectionH = geomNow?.sectionHeightPx ?: 0f
                                                     val sectionCount =
                                                         course.endSection - course.startSection + 1
-                                                    val cardHeightPx = sectionCount * sectionH
+                                                    // 必须与浮层卡片用同一套高度（含分界缝与特殊块挤占）：
+                                                    // 之前写死 sectionCount * sectionH，跨午休/晚修或插了特殊块时
+                                                    // 「起始节次中心」会算偏，落点命中与高亮就错开一节。
+                                                    val cardHeightPx = when {
+                                                        course.hasValidCustomTime() -> draggedCardSize.y
+                                                        geomNow != null -> courseVisualHeightPx(
+                                                            geomNow,
+                                                            course.startSection,
+                                                            course.endSection,
+                                                            dividerPxFor(geomNow),
+                                                        )
+                                                        else -> sectionCount * sectionH
+                                                    }
                                                     val centerX = draggedCardPosition.x + offsetX
                                                     val cardTopY =
                                                         draggedCardPosition.y + offsetY - cardHeightPx / 2f
@@ -4324,8 +4354,8 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
                     LaunchedEffect(privacyConsented) {
                         // 合规：未同意隐私政策前不拉取公告（不触网）
                         if (!privacyConsented) return@LaunchedEffect
-                        val n = com.haooz.chedule.data.NoticeFetcher.fetch(context)
-                        if (n != null && com.haooz.chedule.data.NoticeFetcher.shouldShow(context, n)) {
+                        val n = com.haooz.chedule.data.NoticeFetcher.fetch()
+                        if (n != null && com.haooz.chedule.data.NoticeFetcher.shouldShow(n)) {
                             notice = n
                         }
                     }
@@ -4349,7 +4379,7 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
                                     modifier = Modifier.weight(1f),
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        com.haooz.chedule.data.NoticeFetcher.markSeen(context, n)
+                                        com.haooz.chedule.data.NoticeFetcher.markSeen(n)
                                         notice = null
                                     }
                                 )
@@ -4616,6 +4646,15 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
                                 // 无壁纸时垫页底色，取值见 floatSolidBacking
                                 solidBackingColor = floatSolidBacking,
                                 cardHeightPerSection = displayAppearance.cardHeight,
+                                // ⚠ 必须把浮层 Box 的高度原样传给卡片，否则长按浮层会偏上。
+                                // CourseCard 自身高度 = customCardHeightDp ?: (节次数 × 每节高)，
+                                // 而上面 Box 的高度用的是 heightPx（实测/视觉高度）。
+                                // 两者不一致时，固定高度的卡片在 Box 里按顶部对齐，
+                                // 视觉中心就偏上 (heightPx − 卡片高)/2 ——
+                                // 自定义时间课的实测高约为节次高的 2 倍时，
+                                // 偏移正好是半个卡片高（表现为“偏上 50%”）。
+                                // v1.6.4beta24 引入：那之前 Box 高度恒为节次几何，与卡片一致。
+                                customCardHeightDp = with(density) { heightPx.toDp().value },
                                 cardCornerRadius = displayAppearance.cardCornerRadius,
                                 isTablet = isTablet,
                                 cardContentAlignment = displayAppearance.cardContentAlignment,

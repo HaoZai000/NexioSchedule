@@ -15,11 +15,33 @@
 > 万一发现遗漏，`git branch <名字> backup/pre-merge-20261009` 即可恢复 —— 
 > 标签不过期，比 reflog（90 天）可靠。
 
+### 🔴 重要纠正：「:core 已 KMP 化」曾经只等于「Android/JVM 能编」
+
+`:backdrop` / `:miuix` 有 `skikoMain`（走 jvm 目标），所以它们的 commonMain 是被验过的。
+但 `:core` 此前**只有 android + jvm 两个 JVM 目标**，`compileCommonMainKotlinMetadata` 是
+`SKIPPED` —— commonMain 从未被平台中立的 stdlib 检查过。后果是 4 个文件 7 处 JVM 专有 API
+一路绿灯，**真正编 iOS 时会全部失败**：
+
+| 位置 | 问题 |
+|---|---|
+| `AppStorage.kt` | `@Volatile`（靠 JVM 默认导入 `kotlin.jvm.*` 解析）、`synchronized` ×2 |
+| `PlatformInfo.kt` / `StatsReporter.kt` | 同上 `@Volatile` |
+| `Course.kt` | `System.currentTimeMillis()`、`String.format()`（**已合入 master 的遗留**） |
+| `NoticeFetcher` / `AppreciationFetcher` / `StatsReporter` | `Dispatchers.IO` 在 Native 上是 `internal` |
+
+**已全部修复**，并加了 `linuxX64` 编译门禁防止复发（详见「网络层专项」里的门禁小节）。
+修复方式：`import kotlin.concurrent.Volatile`、copy-on-write 取代 `synchronized`、
+`expect val ioDispatcher`（Native 用 `Dispatchers.Default`）、`Clock.System.now()`、
+`padStart` 取代 `String.format`。
+
+> 教训：**「能编过」必须明确是「哪个目标能编过」**。只要 commonMain 没有非 JVM 目标参与编译，
+> 「KMP 化完成」就是没有依据的结论。
+
 ### 模块现状
 
 | 模块 | 源文件 | 行数 | 源集 | 状态 |
 |---|---:|---:|---|---|
-| `:core` | 5 | 1,023 | commonMain | 数据层下沉第一批 |
+| `:core` | 18 (+12 平台实现) | ~3,100 | common / android / **jvm / linuxX64(门禁)** | 数据层下沉 + 5 套跨平台抽象 |
 | `:backdrop` | 64 | 5,458 | common / android / skiko | ✅ KMP 化，含 edgelight + capsule |
 | `:miuix` | 103 | 26,464 | common / android / skiko | ✅ KMP 化，本轮新建 |
 | `:app` | 154 | 70,559 | android | Android-only，**剩余迁移主体** |
@@ -469,23 +491,78 @@ Android actual **必须继续走 SharedPreferences**，否则老用户数据全�
 - 无流式、无 SSE（排查过 `byteStream` 只用于下载文件，非流式读取）
 - 唯一有门槛的是 WebDAV 的 `PROPFIND` / `MKCOL` 自定义方法——Ktor 的 `HttpMethod.parse()` 支持
 
-### 改法：Ktor 包一层，OkHttp 不删
+### 改法：**改为自建 `HttpService` 接口，暂不引入 Ktor**（2026-10-09 修订）
 
-OkHttp 没有官方 KMP 版本，但**不需要删**——Ktor Client 在 Android 上的推荐引擎就是 OkHttp：
+~~Ktor 包一层，OkHttp 不删~~ —— 原计划是引入 Ktor Client。实测后改了：
+
+| Ktor 版本 | 连带把 `kotlinx-coroutines` 从 1.9.0 顶到 |
+|---|---|
+| 3.6.0 | **1.11.0** |
+| 3.1.3 | **1.10.2** |
+
+`:app` 的协程 1.9.0 来自 Compose 传递依赖，而提醒/闹钟/同步/小组件全压在协程上。
+**把「升级核心异步库」捆进「KMP 迁移」会让故障无法归因**，也无法单独回退。
+
+因此当前实现是 `:core` 自定义 `HttpService` 接口：
 
 ```
-commonMain   ktor-client-core        → 统一的 get/post/custom 调用
-androidMain  ktor-client-okhttp      → 底层仍是 OkHttp，现有超时配置可平移
-iosMain      ktor-client-darwin      → NSURLSession
+commonMain   HttpService        → get / post / request(自定义方法)，超时用 HttpTimeouts
+androidMain  OkHttpHttpService  → 引擎、超时、重试语义与迁移前逐字一致
+jvmMain      HttpURLConnection  → 纯 JDK，零依赖（WebDAV 自定义方法受限，仅桌面调试用）
+nativeMain   **未实现，调用即抛** → 接 iOS 前必须替换（见下）
 ```
 
-因为用法只到「带超时的一次性请求」这个程度，commonMain 侧的封装接口可以非常小，  
-不需要引入 ContentNegotiation 之类的插件，也就不必把网络层跟 kotlinx.serialization 绑死。
+`HttpTimeouts` 保留了迁移前实测存在的 4 种超时组合（5/5、10/30、10/10+15、12/20+30），
+`callTimeout` 只在显式给了才设置。
+
+### ⚠ 未完成：Kotlin/Native 的 HTTP 实现
+
+`nativeMain/HttpService.native.kt` 目前是**显式抛异常**的占位。OkHttp 无 Native 版本，
+需要二选一：
+- Ktor `ktor-client-darwin`（iOS）+ `ktor-client-cio`（其他 Native）—— 届时协程版本问题需单独评估
+- 或直接调平台 `NSURLSession`
+
+之所以留占位而不是干脆不加 Native 目标：`:core` 现在挂了一个 `linuxX64` **编译门禁**
+（见下节），它需要 actual 才能编译通过。
+
+### 🔒 编译门禁：`:core` 的 `linuxX64` + 全仓 `checkKmpPurity`
+
+**第一道（最强）：`:core` 挂 `linuxX64()` 目标，由编译器真编译。**
+
+`:core` 只产出编译产物、不发布。原因是真实教训：此前 `:core` 只有 android + jvm 两个
+**JVM** 目标，`compileCommonMainKotlinMetadata` 是 `SKIPPED`，于是 commonMain 从未被
+平台中立的 stdlib 检查过 —— 5 类 JVM 专有 API 一路绿灯，真正编 iOS 时会全部失败。
+
+`linuxX64` 同为 Kotlin/Native（同样没有 `kotlin.jvm.*` 默认导入），且能在 Windows 上交叉编译。
+
+```
+./gradlew :core:compileKotlinLinuxX64 :core:compileTestKotlinLinuxX64
+```
+
+`linuxX64Test` 被 Kotlin 自动禁用（非 Linux 宿主），所以不影响 `check`。
+
+**第二道：`:backdrop` / `:miuix` 只能用静态检查。**
+
+这两个模块做不到编译门禁 —— **Compose Multiplatform 不支持 `linuxX64`**，
+而 iOS 目标需要 macOS 宿主。退化为根项目的 `checkKmpPurity` 任务：
+
+- 扫描 `core` / `backdrop` / `miuix` 的 `commonMain` + `skikoMain`（169 个文件）
+- 规则覆盖已发现的全部坑：`@Volatile`（无限定时）、`synchronized`、`Dispatchers.IO`、
+  `java.*` / `kotlin.jvm.*` 导入、`System.currentTimeMillis`、`String.format`、
+  `String.toByteArray()`、`::class.java`、`java.io.*`、`Thread`
+- 已接到各模块的 `check` 上，`./gradlew check` 会自动跑
+
+> 两个**已实测确认**的误报陷阱（写规则时踩过，已修）：
+> 1. `@Volatile` 只有在**文件未导入** `kotlin.concurrent.Volatile` 时才是问题 —— 必须文件级判断
+> 2. `@JvmInline` / `import kotlin.jvm.JvmInline` 是**合法**的（Kotlin 对 value class
+>    的注解有特殊处理，探针在 linuxX64 上实测编过），必须排除
+
+静态检查不如编译器完备（未知 API 查不出来），但把已知的坑全覆盖了。
 
 ### 顺带要修的真问题（与迁移无关）
 
-**10 个文件各自 `new OkHttpClient()`**，等于开了 10 套独立的连接池与线程池。OkHttp 官方明确建议共享单例。  
-迁移时统一收口到一处 `HttpClient` 注入，顺手把这个也解决掉。
+~~**10 个文件各自 `new OkHttpClient()`**~~ → **已修**：`OkHttpHttpService` 内部按
+`HttpTimeouts` 缓存 Client，迁移过来的文件不再各建一套连接池与线程池。
 
 ---
 
@@ -501,7 +578,7 @@ iosMain      ktor-client-darwin      → NSURLSession
 | R6 | Miuix 是 fork 的 `-android` 变体               | 阻断跨平台          | 评估：改动提上游 / 改官方 KMP 依赖 + 局部自定义           |
 | R7 | 云端分享白名单未同步                                 | 新字段静默丢弃        | 改客户端字段必须同改 `server/index.js` 并重新部署      |
 | R8 | 61.7k 行 UI 迁移周期过长，拖垮主线开发                   | 项目停滞           | 严格按批次，每批次结束 `:app` 仍可发版                 |
-| R9 | ~~OkHttp 在 iOS 不可用~~                       | 低              | 实测用法极浅，Ktor 包一层即可，Android 端仍走 OkHttp 引擎 |
+| R9 | ~~OkHttp 在 iOS 不可用~~                       | 低              | **改法已修订**：自建 `HttpService`，Android/JVM 复用 OkHttp；Native 侧未实现（见「网络层专项」） |
 
 ---
 

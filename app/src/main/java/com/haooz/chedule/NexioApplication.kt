@@ -1,6 +1,7 @@
 package com.haooz.chedule
 
 import android.app.Application
+import com.haooz.chedule.data.asKeyValueStore
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +23,19 @@ class NexioApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 跨平台存储入口：必须最先初始化，之后任何 AppStorage.store(...) 才可用。
+        // 工厂按名字转发到各自的 SharedPreferences 文件 —— 名字由各业务文件自带，
+        // 这里不做汇总，避免抄错名字导致存量数据读不出来。
+        com.haooz.chedule.data.AppStorage.init { name ->
+            getSharedPreferences(name, MODE_PRIVATE).asKeyValueStore()
+        }
+        // 应用版本号：跨平台侧（:core）无法读 PackageManager，启动时注入一次。
+        // 上报负载里的 app_version 依赖它，漏掉会变成 "unknown"。
+        com.haooz.chedule.data.AppInfo.init(
+            runCatching {
+                packageManager.getPackageInfo(packageName, 0).versionName
+            }.getOrNull() ?: "unknown",
+        )
         // 课表外观单例：尽早初始化，主界面首帧即可读壁纸与卡片参数
         com.haooz.chedule.data.ScheduleAppearance.init(this)
         // 预测性返回动画开关：应用启动即同步到全局单例（应用设置中可切换）

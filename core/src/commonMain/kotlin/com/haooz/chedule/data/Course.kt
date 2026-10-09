@@ -1,5 +1,7 @@
 package com.haooz.chedule.data
 
+import kotlinx.datetime.Clock
+
 data class Course(
     val id: String,
     val name: String,
@@ -16,7 +18,9 @@ data class Course(
     val selectedWeeks: List<Int> = emptyList(),
     // 空串表示未指定，云同步靠它区分课表
     val scheduleId: String = "",
-    val lastModified: Long = System.currentTimeMillis(),
+    // System.currentTimeMillis() 是 JVM 专有（Kotlin/Native 没有），改用 kotlinx-datetime。
+    // 值语义相同：都是 Unix 纪元毫秒。
+    val lastModified: Long = Clock.System.now().toEpochMilliseconds(),
     // 开启后用 customStartTime/EndTime，否则回退节次时间表
     val isCustomTime: Boolean = false,
     val customStartTime: String? = null, // "HH:mm"
@@ -102,7 +106,10 @@ data class Course(
                 val endMinute = currentMinute + classDuration
                 val eH = endMinute / 60
                 val eM = endMinute % 60
-                result[i] = String.format("%02d:%02d-%02d:%02d", sH, sM, eH, eM)
+                // String.format 是 JVM 专有，且会用**默认 Locale 的数码字形** ——
+                // 在阿拉伯语/波斯语等 locale 下 "%02d" 会输出阿拉伯-印度数字，把 "08:00" 变成非 ASCII。
+                // padStart 与 locale 无关，恒为 ASCII，顺带修掉这个潜在问题。
+                result[i] = "${sH.pad2()}:${sM.pad2()}-${eH.pad2()}:${eM.pad2()}"
                 currentMinute = endMinute
                 if (i < sectionCount) {
                     currentMinute += if (i == longBreakSection) longBreak else shortBreak
@@ -274,3 +281,11 @@ data class Course(
         return run
     }
 }
+
+/**
+ * 两位补零，对应 `String.format("%02d", this)`，但**与 Locale 无关**。
+ *
+ * 负数与三位数以上与原行为一致：`-5` → `"-5"`、`100` → `"100"`（`%02d` 的 2 是
+ * 最小宽度而非截断）。本项目取值范围是 0..23 / 0..59，恒为两位。
+ */
+private fun Int.pad2(): String = if (this in 0..9) "0$this" else toString()
