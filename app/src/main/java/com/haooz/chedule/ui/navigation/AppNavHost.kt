@@ -13,7 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 
 /**
- * 单宿主导航容器：渲染当前路由 + 接管系统返回。
+ * 子页叠加层：渲染当前叠加路由 + 在有子页时接管系统返回。
  *
  * ## 转场
  *
@@ -27,7 +27,9 @@ import androidx.compose.ui.Modifier
  *
  * ## 返回语义
  *
- * 与 Activity 一致：栈里还有上一页 → 回上一页；否则 → 调 [onExit]（对应 `finish()`）。
+ * 栈里还有子页 → 本路由器出栈；栈空了 → `BackHandler` 的 `enabled` 变 false，
+ * 返回键**不拦截**，交还给 Android 宿主（MainActivity 的预测性返回 / 隐藏后台）。
+ * 这就是为什么 [AppRouter] 的栈从空开始、主界面不参与路由。
  *
  * ## ⚠ 必须用 `SaveableStateHolder`，否则返回后页面状态全丢
  *
@@ -51,17 +53,17 @@ import androidx.compose.ui.Modifier
 @Composable
 fun AppNavHost(
     router: AppRouter,
-    onExit: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable (AppRoute) -> Unit,
 ) {
     // 按路由 id 托管各页的 saveable 状态：留在栈里的页面，回来时滚动位置/折叠进度都还在。
-    // key 用 route.id：同一个路由被压两次会共用状态 —— 当前 4 个文档页互不跳自己，
+    // key 用 route.id：同一个路由被压两次会共用状态 —— 当前子页互不跳自己，
     // 不存在这种情况；将来若出现自跳或带参数路由，需要改成「按栈条目分配唯一 key」。
     val stateHolder = rememberSaveableStateHolder()
 
-    BackHandler {
-        router.backOrExit(onExit)
+    // 只在有子页时接管返回；没有子页时不拦截，Android 宿主的返回逻辑照常生效
+    BackHandler(enabled = router.hasOverlay) {
+        router.popBack()
     }
 
     AnimatedContent(
@@ -79,8 +81,10 @@ fun AppNavHost(
         },
         label = "AppNavHost",
     ) { route ->
-        stateHolder.SaveableStateProvider(route.id) {
-            content(route)
+        if (route != null) {
+            stateHolder.SaveableStateProvider(route.id) {
+                content(route)
+            }
         }
     }
 }

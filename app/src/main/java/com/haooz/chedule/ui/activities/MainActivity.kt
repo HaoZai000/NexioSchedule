@@ -11,6 +11,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
@@ -56,7 +57,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -72,6 +72,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import com.haooz.chedule.ui.navigation.AppNavHost
+import com.haooz.chedule.ui.navigation.AppRoute
+import com.haooz.chedule.ui.navigation.AppRouteContent
+import com.haooz.chedule.ui.navigation.LocalAppRouter
+import com.haooz.chedule.ui.navigation.rememberAppRouter
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -443,30 +448,39 @@ class MainActivity : ComponentActivity() {
                 var privacyAgreed by remember {
                     mutableStateOf(PrivacyConsent.hasConsented())
                 }
-                Box(modifier = Modifier.fillMaxSize()) {
-                    CourseScheduleApp(privacyConsented = privacyAgreed)
-                    if (!privacyAgreed) {
-                        PrivacyConsentScreen(
-                            onAgree = {
-                                PrivacyConsent.setConsented()
-                                // 同意后方可进行设备信息上报
-                                StatsReporter.reportActive()
-                                StatsReporter.reportInstallOnce()
-                                privacyAgreed = true
-                            },
-                            onDecline = { finish() },
-                            onOpenPolicy = {
-                                // 隐私政策已改成 AboutActivity 宿主里的一条路由。
-                                // 用「初始路由」打开：返回即回到这里的同意弹窗（栈里只有一页）。
-                                startActivity(
-                                    Intent(this@MainActivity, AboutActivity::class.java)
-                                        .putExtra(
-                                            AboutActivity.EXTRA_INITIAL_ROUTE,
-                                            com.haooz.chedule.ui.navigation.AppRoute.PrivacyPolicy.id,
-                                        )
-                                )
-                            }
-                        )
+                val router = rememberAppRouter()
+                CompositionLocalProvider(LocalAppRouter provides router) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // ── 主界面常驻底座 ──
+                        // 刻意**不**参与路由的 save/restore：拆 Activity 时代跳到子页，
+                        // 主 Activity 只是 stop、没有销毁，全部组合状态原样保留。
+                        // 若塞进 AnimatedContent + SaveableStateHolder，
+                        // rememberSaveable 能救回来，但 remember { mutableStateOf } 救不回来
+                        // —— CourseScheduleApp 里有大量这类状态（pager 位置 / 壁纸映射 / …）。
+                        CourseScheduleApp(privacyConsented = privacyAgreed)
+
+                        // ── 子页叠加层 ──
+                        // 栈空时不渲染任何东西，主界面直接可见；
+                        // navigate 后子页滑入盖在主界面上，popBack 后滑出露出主界面。
+                        AppNavHost(router) { route ->
+                            AppRouteContent(router, route)
+                        }
+
+                        if (!privacyAgreed) {
+                            PrivacyConsentScreen(
+                                onAgree = {
+                                    PrivacyConsent.setConsented()
+                                    // 同意后方可进行设备信息上报
+                                    StatsReporter.reportActive()
+                                    StatsReporter.reportInstallOnce()
+                                    privacyAgreed = true
+                                },
+                                onDecline = { finish() },
+                                onOpenPolicy = {
+                                    router.navigate(com.haooz.chedule.ui.navigation.AppRoute.PrivacyPolicy)
+                                }
+                            )
+                        }
                     }
                 }
             }

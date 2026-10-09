@@ -1,7 +1,7 @@
 package com.haooz.chedule.ui.navigation
 
 /**
- * 应用内页面路由表。
+ * 应用内子页路由表。
  *
  * ## 为什么要有这层（而不是继续用 Intent 跳 Activity）
  *
@@ -27,16 +27,18 @@ package com.haooz.chedule.ui.navigation
  * [id] 用于 `rememberSaveable` 的进程/配置重建。**已发布路由的 id 不要改** ——
  * 改了等于用户在多任务切换回来后落回首页。
  * 新增路由随便加；要改 id 就得同时写迁移。
+ *
+ * ## ⚠ 这里**没有**主界面路由
+ *
+ * 主界面（`CourseScheduleApp`）是**常驻底座**，不参与路由的 save/restore ——
+ * 否则切到子页再回来，`remember { mutableStateOf }` 之类非 saveable 状态全丢
+ * （见 [AppRouter] 的 KDoc）。将来若要把某个页面"变成主 tab"，应该改
+ * `CourseScheduleApp` 内部的 pager，而不是在这里加一条主界面路由。
  */
 sealed interface AppRoute {
 
     /** 稳定标识。见接口 KDoc：**已发布的不要改**。 */
     val id: String
-
-    /** 主界面（课表 / 今日 / 设置 三页 pager 的宿主内容）。 */
-    data object Main : AppRoute {
-        override val id: String get() = "main"
-    }
 
     /** 关于页。 */
     data object About : AppRoute {
@@ -61,7 +63,6 @@ sealed interface AppRoute {
     companion object {
         /** 按 [id] 还原路由；未知 id 返回 null（版本回退/脏数据时由调用方兜底）。 */
         fun fromId(id: String): AppRoute? = when (id) {
-            Main.id -> Main
             About.id -> About
             Changelog.id -> Changelog
             License.id -> License

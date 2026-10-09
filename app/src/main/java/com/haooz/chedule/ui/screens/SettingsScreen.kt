@@ -54,7 +54,8 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TeachingWeekReorganization
 import com.haooz.chedule.data.TimeConfig
-import com.haooz.chedule.ui.activities.AboutActivity
+import com.haooz.chedule.ui.navigation.AppRoute
+import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.activities.CourseReminderActivity
 import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
 import com.haooz.chedule.ui.activities.HolidaySettingsActivity
@@ -543,12 +544,13 @@ fun SettingsScreen(
                                         context.startActivity(intent)
                                     }
                                 )
+                                // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
+                                val appRouter = LocalAppRouter.current
                                 ArrowPreference(
                                     title = "关于应用",
                                     onClick = {
                                         FeatureLog.about("open")
-                                        val intent = Intent(context, AboutActivity::class.java)
-                                        context.startActivity(intent)
+                                        appRouter.navigate(AppRoute.About)
                                     }
                                 )
                             }

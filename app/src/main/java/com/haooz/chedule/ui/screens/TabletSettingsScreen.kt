@@ -69,7 +69,8 @@ import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import android.content.Intent
-import com.haooz.chedule.ui.activities.AboutActivity
+import com.haooz.chedule.ui.navigation.AppRoute
+import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.activities.AboutScreen
 import com.haooz.chedule.ui.activities.AiImportScreen
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
@@ -754,6 +755,8 @@ fun TabletSettingsScreen(
                                 TabletSettingsDest.About -> {
                                     val aboutBackdrop =
                                         rememberLayerBackdrop()
+                                    // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
+                                    val appRouter = LocalAppRouter.current
                                     AboutScreen(
                                         onBack = {},
                                         liquidGlassBackdrop = aboutBackdrop,
@@ -764,10 +767,7 @@ fun TabletSettingsScreen(
                                         // 所以这三个子页仍以「开新宿主 + 指定初始路由」的方式打开 ——
                                         // 行为与改造前一致：全屏打开，返回回到这里。
                                         onNavigate = { route ->
-                                            context.startActivity(
-                                                Intent(context, AboutActivity::class.java)
-                                                    .putExtra(AboutActivity.EXTRA_INITIAL_ROUTE, route.id)
-                                            )
+                                            appRouter.navigate(route)
                                         },
                                     )
                                 }

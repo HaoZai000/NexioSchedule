@@ -2,43 +2,63 @@ package com.haooz.chedule.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 
-/** 最近一次导航的方向，供转场动画判方向。 */
-enum class NavDirection { Push, Pop }
+
 
 /**
- * 应用内返回栈。
+ * 供 `:app` 深处的 Composable（如 `SettingsScreen`）发起路由跳转，**不经过 Activity 引用**。
  *
- * 持有 `AppRoute` 的栈，是「导航状态」的唯一来源 —— 它放在 Compose 里而不是
- * Activity 的 back stack 里，正是为了让同一份状态将来能被 iOS 复用。
+ * 在 `MainActivity.setContent` 的最外层 provide，任何宿主内容里的页面都能读到。
+ * ⚠ 只在主线程（组合）里用，不加锁。
+ */
+val LocalAppRouter = staticCompositionLocalOf<AppRouter> {
+    error("LocalAppRouter 未提供：请在 MainActivity.setContent 最外层 CompositionLocalProvider")
+}
+
+
+/** 最近一次导航的方向，供转场动画判方向。 */
+enum class NavDirection { Push, Pop }
+/**
+ * 子页叠加路由器。
+ *
+ * ## 「叠加」而不是「替换」—— 这是本次设计里最重要的一个决定
+ *
+ * 主界面（`CourseScheduleApp`）**永远保持组合**，不参与路由的 save/restore。
+ * 子页（关于 / 更新日志 / …）以叠加层的方式压在主界面**之上**，出栈时销毁。
+ *
+ * 这么做的原因：拆 Activity 时代跳到子页，主 Activity 只是 **stop、没有销毁**，
+ * 它的**全部组合状态**（pager 位置、壁纸映射、非 saveable 的临时状态）都原样保留。
+ * 若把主界面也塞进 `AnimatedContent` + `SaveableStateHolder`，
+ * `rememberSaveable` 能救回来，但 `remember { mutableStateOf }` 之类救不回来
+ * —— `CourseScheduleApp` 里有大量这类状态，丢了就是「切到设置再回来 pager 位置变了」。
+ *
+ * 代价：主界面在子页打开期间**持续组合**（没有被回收）。可接受 —— 原来多个
+ * Activity 共存的方案里主 Activity 也只是 stop 而不是 destroy。
  *
  * ## 生命周期
  *
  * 通过 [rememberAppRouter] 创建，用 `rememberSaveable` 保存**当前栈**，
- * 所以配置变更（旋转）与进程被回收后重建都能回到原来的页面。
+ * 配置变更/进程被杀后重建都能回到原来的页面。
  *
  * ## 并发
  *
- * 只在主线程（Compose 组合）里改，与 Activity 的 `OnBackPressedDispatcher` 同线程，
- * 不需要加锁。
+ * 只在主线程（Compose 组合）里改，与 Activity 的 `OnBackPressedDispatcher` 同线程。
  */
 @Stable
-class AppRouter(initial: List<AppRoute>) {
+class AppRouter {
 
-    private val stack = mutableStateListOf<AppRoute>().apply { addAll(initial) }
+    private val stack = mutableStateListOf<AppRoute>()
 
-    /** 当前栈（只读快照语义；内部是 `SnapshotStateList`，读它会自动触发重组）。 */
-    val routes: List<AppRoute> get() = stack
+    /** 是否有子页叠加在主界面之上。false 时返回键交给 Android 宿主自己处理。 */
+    val hasOverlay: Boolean get() = stack.isNotEmpty()
 
-    val current: AppRoute get() = stack.last()
-
-    /** 还能不能返回。false 表示再返回就该退出宿主（对应原来 Activity 的 `finish()`）。 */
-    val canGoBack: Boolean get() = stack.size > 1
+    /** 当前叠加的路由；没有子页时为 null（此时主界面直接可见）。 */
+    val current: AppRoute? get() = stack.lastOrNull()
 
     val depth: Int get() = stack.size
 
@@ -52,53 +72,32 @@ class AppRouter(initial: List<AppRoute>) {
     }
 
     /**
-     * 出栈。返回 false 表示栈里只剩一个，调用方应当退出宿主。
-     *
-     * 与 Activity 的 back 语义一致：**回到上一个页面**，不是「跳到某个目标页」。
+     * 出栈。返回 false 表示栈已经空了 —— 此时返回键应交给 Android 宿主
+     * （MainActivity 的预测性返回 /「退出即隐藏后台」）。
      */
     fun popBack(): Boolean {
-        if (!canGoBack) return false
+        if (stack.isEmpty()) return false
         stack.removeAt(stack.lastIndex)
         lastDirection = NavDirection.Pop
         return true
     }
 
-    /**
-     * 返回；栈里已经没有上一页时执行 [onExit]（对应原来 Activity 的 `finish()`）。
-     *
-     * 页面顶栏的返回按钮必须走这个，**不要只调 [popBack]** ——
-     * 在栈底页上 `popBack()` 会返回 false 而不做任何事，按钮看起来就"失灵"了。
-     */
-    fun backOrExit(onExit: () -> Unit) {
-        if (!popBack()) onExit()
-    }
-
     internal fun stackIds(): List<String> = stack.map { it.id }
 }
 
-/** 创建并记住一个 [AppRouter]；配置变更/进程重建后按原栈恢复。 */
+/**
+ * 创建并记住一个空的叠加路由器。
+ *
+ * ⚠ 栈**从空开始**：主界面不是路由，是常驻底座。
+ * 只有 `navigate(AppRoute.X)` 之后栈才非空、`hasOverlay` 才为 true。
+ */
 @Composable
-fun rememberAppRouter(initial: List<AppRoute>): AppRouter {
-    val saver = remember(initial) { appRouterSaver(initial) }
-    return rememberSaveable(saver = saver) { AppRouter(initial) }
+fun rememberAppRouter(): AppRouter {
+    return rememberSaveable(saver = appRouterSaver) { AppRouter() }
 }
 
-/**
- * 单路由入口的便捷重载（绝大多数宿主只需要一个初始页）。
- */
-@Composable
-fun rememberAppRouter(initial: AppRoute): AppRouter = rememberAppRouter(listOf(initial))
-
-/**
- * 保存**当前栈**而不是初始栈 —— 用初始栈会在旋转后把用户弹回首页。
- *
- * 还原时若 id 全部认不出来（版本回退到没有该路由的旧版本），退回 [fallback]，
- * 至少保证有个能渲染的页面，而不是让宿主空白或崩溃。
- */
-private fun appRouterSaver(fallback: List<AppRoute>): Saver<AppRouter, Any> = listSaver(
+/** 保存**当前栈**而不是初始值 —— 用初始值会在旋转后把用户弹回首页。 */
+private val appRouterSaver: Saver<AppRouter, Any> = listSaver(
     save = { it.stackIds() },
-    restore = { ids ->
-        val restored = ids.mapNotNull(AppRoute::fromId)
-        AppRouter(restored.ifEmpty { fallback })
-    },
+    restore = { ids -> AppRouter().also { r -> ids.mapNotNull(AppRoute::fromId).forEach(r::navigate) } },
 )
