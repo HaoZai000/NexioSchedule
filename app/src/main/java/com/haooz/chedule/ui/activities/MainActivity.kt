@@ -336,6 +336,16 @@ class MainActivity : ComponentActivity() {
     var resumeCount by mutableIntStateOf(0)
         private set
 
+    /**
+     * 由 Intent 触发、需要路由跳转的待处理路由（目前是「打开提醒设置」深链）。
+     *
+     * 这类 intent 在 `onCreate`/`onNewIntent` 里到达，那时要么 Compose 还没起来、
+     * 要么已经起来 —— 统一记成状态，由 setContent 里的 LaunchedEffect 消费，
+     * 避免在 Activity 层直接 startActivity（那会绕过单宿主）。
+     */
+    var pendingRoute by mutableStateOf<com.haooz.chedule.ui.navigation.AppRoute?>(null)
+        private set
+
     fun clearShareIntent() {
         shareIntentUri = null
         shareIntentAction = null
@@ -449,6 +459,13 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(PrivacyConsent.hasConsented())
                 }
                 val router = rememberAppRouter()
+                // 消费 Intent 带来的待跳转路由（提醒设置深链等）
+                LaunchedEffect(pendingRoute) {
+                    pendingRoute?.let {
+                        router.navigate(it)
+                        pendingRoute = null
+                    }
+                }
                 CompositionLocalProvider(LocalAppRouter provides router) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         // ── 主界面常驻底座 ──
@@ -534,7 +551,9 @@ class MainActivity : ComponentActivity() {
             ) == true
         ) {
             intent.removeExtra(CourseReminderHelper.EXTRA_OPEN_REMINDER_SETTINGS)
-            startActivity(Intent(this, CourseReminderActivity::class.java))
+            // 课程提醒已改成路由，这里不能再 startActivity —— 记成「待跳转」，
+            // 由 setContent 里的 LaunchedEffect 消费（onCreate 时 Compose 还没起来）。
+            pendingRoute = com.haooz.chedule.ui.navigation.AppRoute.CourseReminder
         }
     }
 

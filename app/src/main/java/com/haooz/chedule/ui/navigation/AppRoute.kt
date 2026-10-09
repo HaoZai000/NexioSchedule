@@ -100,6 +100,31 @@ sealed interface AppRoute {
         override val id: String get() = "schedule_backup"
     }
 
+    /** AI 文本导入（「AI 文本导入」）。 */
+    data object AiImport : AppRoute {
+        override val id: String get() = "ai_import"
+    }
+
+    /** 桌面小部件引导（「桌面小部件」）。 */
+    data object WidgetIntro : AppRoute {
+        override val id: String get() = "widget_intro"
+    }
+
+    /** 课程提醒（「课程提醒」）。 */
+    data object CourseReminder : AppRoute {
+        override val id: String get() = "course_reminder"
+    }
+
+    /** 节假日与调休（「节假日与调休」）。 */
+    data object HolidaySettings : AppRoute {
+        override val id: String get() = "holiday_settings"
+    }
+
+    /** WebDAV 云备份（「WebDAV 云备份」）。 */
+    data object WebDavSettings : AppRoute {
+        override val id: String get() = "webdav_settings"
+    }
+
     companion object {
         /** 按 [id] 还原路由；未知 id 返回 null（版本回退/脏数据时由调用方兜底）。 */
         fun fromId(id: String): AppRoute? = when (id) {
@@ -115,6 +140,11 @@ sealed interface AppRoute {
             ScheduleImport.id -> ScheduleImport
             ScheduleExport.id -> ScheduleExport
             ScheduleBackup.id -> ScheduleBackup
+            AiImport.id -> AiImport
+            WidgetIntro.id -> WidgetIntro
+            CourseReminder.id -> CourseReminder
+            HolidaySettings.id -> HolidaySettings
+            WebDavSettings.id -> WebDavSettings
             else -> null
         }
     }

@@ -109,26 +109,6 @@
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".ui.activities.CourseReminderActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="课程提醒"
-            android:theme="@style/Theme.课程表"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
-            android:name=".ui.activities.HolidaySettingsActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="节假日与调休"
-            android:theme="@style/Theme.课程表"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
-            android:name=".ui.activities.WidgetIntroActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="桌面小部件"
-            android:theme="@style/Theme.课程表" />
-        <activity
             android:name=".ui.activities.SwitchScheduleActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
@@ -136,24 +116,10 @@
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".ui.activities.WebDavSettingsActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="WebDAV 云同步"
-            android:theme="@style/Theme.课程表"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
             android:name=".ui.activities.EducationalImportActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
             android:label="教务系统导入"
-            android:theme="@style/Theme.课程表"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
-            android:name=".ui.activities.AiImportActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="AI 文本导入"
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
 

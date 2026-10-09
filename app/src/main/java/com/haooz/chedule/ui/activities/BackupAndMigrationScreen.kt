@@ -287,13 +287,13 @@ fun BackupAndMigrationScreen(
                         insideMargin = PaddingValues(0.dp)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
+                            val aiImportRouter = LocalAppRouter.current
                             ArrowPreference(
                                 title = "AI 文本导入",
                                 summary = "粘贴由AI解析后的课程进行导入",
                                 onClick = {
-                                    context.startActivity(
-                                        Intent(context, AiImportActivity::class.java)
-                                    )
+                                    aiImportRouter.navigate(AppRoute.AiImport)
                                 }
                             )
                             ArrowPreference(
@@ -599,8 +599,7 @@ fun BackupAndMigrationScreen(
                                 title = "WebDAV 云备份",
                                 summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置WebDAV后可云备份/恢复",
                                 onClick = {
-                                    val intent = Intent(context, WebDavSettingsActivity::class.java)
-                                    context.startActivity(intent)
+                                    appRouter.navigate(AppRoute.WebDavSettings)
                                 }
                             )
                         }

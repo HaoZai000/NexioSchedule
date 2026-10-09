@@ -56,10 +56,7 @@ import com.haooz.chedule.data.TeachingWeekReorganization
 import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
-import com.haooz.chedule.ui.activities.CourseReminderActivity
 import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
-import com.haooz.chedule.ui.activities.HolidaySettingsActivity
-import com.haooz.chedule.ui.activities.WidgetIntroActivity
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
@@ -358,28 +355,28 @@ fun SettingsScreen(
                             Column(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
+                                // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
+                                val settingsRouter = LocalAppRouter.current
                                 ArrowPreference(
                                     title = "课程提醒",
                                     summary = "课前提醒、次日课程提醒",
                                     onClick = {
                                         FeatureLog.reminder("open")
-                                        val intent = Intent(context, CourseReminderActivity::class.java)
-                                        reminderSettingsLauncher.launch(intent)
+                                        settingsRouter.navigate(AppRoute.CourseReminder)
                                     }
                                 )
                                 ArrowPreference(
                                     title = "节假日与调休",
                                     onClick = {
                                         FeatureLog.holiday("open")
-                                        context.startActivity(Intent(context, HolidaySettingsActivity::class.java))
+                                        settingsRouter.navigate(AppRoute.HolidaySettings)
                                     }
                                 )
                                 ArrowPreference(
                                     title = "桌面小部件",
                                     onClick = {
                                         FeatureLog.widget("open")
-                                        val intent = Intent(context, WidgetIntroActivity::class.java)
-                                        context.startActivity(intent)
+                                        settingsRouter.navigate(AppRoute.WidgetIntro)
                                     }
                                 )
                                 ArrowPreference(
