@@ -3,7 +3,7 @@
 > 目标平台：**iOS**（iPad 一并覆盖）  
 > 策略：渐进式，全程不打断 1.6.x 正常发版  
 > 制定日期：2026-10-08 · 最近更新：2026-10-09（Kotlin 2.4.10，AGP 9.2.1，CMP 1.12.0）  
-> 代码状态：`master` `8294dfb`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
+> 代码状态：`master` `ada9380`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
 
 ---
 
@@ -410,7 +410,7 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 > **增量 1**（`0ce3c8a`）：路由器基础设施 + AboutActivity 宿主化（4 条路由），删 3 个 Activity
 > **增量 1.5**（`a1e7f7e`）：修复返回丢滚动状态（`SaveableStateHolder`）
-> **增量 2**（`90b0754`）：宿主迁到 `MainActivity`，`AboutActivity` 删除。Manifest 23 → **19** → **14**（增量 3 迁 5 个设置类薄壳）→ **10**（增量 4 修闪退并迁数据管理页）
+> **增量 2**（`90b0754`）：宿主迁到 `MainActivity`，`AboutActivity` 删除。Manifest 23 → **19** → **14**（增量 3 迁 5 个设置类薄壳）→ **10**（增量 4 修闪退）→ **6**（增量 5 迁 AI导入/小部件/提醒/节假日/WebDAV）
 
 **跨端的硬前提：CMP 在 iOS 上跑在 `UIViewController` 里，没有 Activity。**
 更关键的是 —— **导航状态原本活在 Android 的 Activity back stack 里，iOS 拿不到**。
