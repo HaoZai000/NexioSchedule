@@ -197,7 +197,7 @@ fun SwitchScheduleScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val repository = remember { CourseRepository(context) }
+    val repository = remember { CourseRepository() }
     val scrollBehavior = rememberSharedScrollBehavior()
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
     val screenGraphicsLayer = rememberGraphicsLayer()

@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class ScheduleViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = CourseRepository(application)
+    private val repository = CourseRepository()
 
     private val _currentScheduleName = MutableStateFlow(repository.getCurrentScheduleId())
     val currentScheduleName: StateFlow<String> = _currentScheduleName.asStateFlow()

@@ -988,7 +988,7 @@ private fun applyThirdPartySharePayload(
         scheduleViewModel.saveCoursesToSchedule(scheduleName, courses)
 
         if (payload.timeSlots.isNotEmpty()) {
-            val repository = CourseRepository(context)
+            val repository = CourseRepository()
             val maxSlot = payload.timeSlots.maxOf { it.number }
             val morningSections = settingsViewModel.morningSections.value.coerceAtLeast(1)
             val afternoonSections = settingsViewModel.afternoonSections.value.coerceAtLeast(1)
@@ -1047,7 +1047,7 @@ private fun buildExportJson(
     viewModel: CourseViewModel,
     scheduleName: String
 ): String? {
-    val repository = CourseRepository(viewModel.getApplication())
+    val repository = CourseRepository()
     val data = buildShareScheduleMap(repository, scheduleName)
     if (data == null) {
         Toast.makeText(viewModel.getApplication(), "「$scheduleName」课表为空，无法导出", Toast.LENGTH_SHORT).show()
@@ -1126,7 +1126,7 @@ private fun buildExportIcs(
     settingsViewModel: SettingsViewModel,
     scheduleName: String
 ): String? {
-    val repository = CourseRepository(viewModel.getApplication())
+    val repository = CourseRepository()
     val courses = repository.getCoursesForSchedule(scheduleName)
     if (courses.isEmpty()) {
         Toast.makeText(viewModel.getApplication(), "「$scheduleName」课表为空，无法导出", Toast.LENGTH_SHORT).show()

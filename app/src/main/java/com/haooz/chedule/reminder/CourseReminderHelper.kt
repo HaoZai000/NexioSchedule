@@ -414,7 +414,7 @@ object CourseReminderHelper {
     private const val SERVICE_START_COALESCE_MS = 400L
 
     fun startReminderService(context: Context) {
-        startReminderService(context, CourseRepository(context))
+        startReminderService(context, CourseRepository())
     }
 
     fun startReminderService(context: Context, repository: CourseRepository) {
@@ -464,7 +464,7 @@ object CourseReminderHelper {
             }
             // 全量重排 + 写 SP，放后台线程，别占主线程
             Thread {
-                runCatching { doStartReminderService(app, CourseRepository(app), fromCoalesced = true) }
+                runCatching { doStartReminderService(app, CourseRepository(), fromCoalesced = true) }
             }.apply {
                 isDaemon = true
                 name = "reminder-coalesced"
@@ -530,7 +530,7 @@ object CourseReminderHelper {
 
     /** 次日提醒触发后只注册下一个次日闹钟，避免全量重调度 */
     fun scheduleNextDayOnly(context: Context) {
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         if (!repository.getNextDayReminder()) return
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         scheduleNextDayAlarm(context, repository, alarmManager)
@@ -599,7 +599,7 @@ object CourseReminderHelper {
         }
         writeRcSet(context, KEY_PRE_CLASS_RCS, emptySet())
 
-        val allCourses = CourseRepository(context).getAllCourses()
+        val allCourses = CourseRepository().getAllCourses()
         for (course in allCourses) {
             val intent = Intent(context, AlarmReceiver::class.java)
             val pendingIntent = PendingIntent.getBroadcast(
@@ -819,7 +819,7 @@ object CourseReminderHelper {
         val now = System.currentTimeMillis()
         val cal = Calendar.getInstance()
         val currentMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         val todayCourses = getTodayCourses(context)
 
         // 倒计时/岛激活时需每分钟刷新，便于更新文案与对账补切
@@ -1063,7 +1063,7 @@ object CourseReminderHelper {
     }
 
     fun resolveDaySchedule(context: Context, date: LocalDate): DayScheduleResolution =
-        resolveDaySchedule(context, date, CourseRepository(context))
+        resolveDaySchedule(context, date, CourseRepository())
 
     /** Same day resolution with a reusable repository for multi-date calculations. */
     fun resolveDaySchedule(
@@ -1176,7 +1176,7 @@ object CourseReminderHelper {
     /** Remove a real ongoing course notification when holiday changes no longer resolve it for today. */
     private fun reconcileActiveHolidayCourse(context: Context) {
         val now = System.currentTimeMillis()
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         val countdownPrefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
         val countdownStart = countdownPrefs.getLong("startMillis", 0L)
         val countdownEnd = countdownPrefs.getLong("endMillis", 0L)
@@ -1251,7 +1251,7 @@ object CourseReminderHelper {
         resolveDaySchedule(context, forTomorrow = false).courses
 
     fun findNextCourseToday(context: Context): Course? {
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         val courses = getTodayCourses(context)
         val now = Calendar.getInstance()
         val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
@@ -1723,7 +1723,7 @@ object CourseReminderHelper {
         if (!prefs.getBoolean("active", false)) return
 
         // 岛模式下不显示实况通知：收起残留实况，改由岛状态对账接管
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         if (repository.getIslandNotification() && IslandNotificationHelper.isIslandSupported(context)) {
             if (prefs.getBoolean("active", false)) {
                 val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -2003,7 +2003,7 @@ object CourseReminderHelper {
     // 每分钟对账：兜底切换闹钟丢失/Doze 延迟、岛残留、开关关闭后的清理
     // 同时扫真实岛与测试岛，否则「测试小米超级岛」课中进度永远不更新
     fun reconcileIslandCountdown(context: Context) {
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         val islandEnabled = repository.getIslandNotification() &&
             IslandNotificationHelper.isIslandSupported(context)
 
@@ -2128,7 +2128,7 @@ object CourseReminderHelper {
 
     // 每分钟兜底补发：窗口内且未发送的课立即补发
     fun checkPendingPreClassReminders(context: Context) {
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         if (!repository.getPreClassReminder()) {
             return
         }

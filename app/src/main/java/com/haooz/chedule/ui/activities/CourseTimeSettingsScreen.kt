@@ -93,7 +93,7 @@ fun CourseTimeSettingsScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
-    val repository = remember { CourseRepository(context) }
+    val repository = remember { CourseRepository() }
     // 液态玻璃效果的透明下拉颜色（与项目其他页面保持一致）
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
         containerColor = Color.Transparent,

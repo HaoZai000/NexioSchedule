@@ -77,7 +77,7 @@ fun ShiftScheduleScreen(
     val shiftScheduleCourses by shiftViewModel.shiftScheduleCourses.collectAsState()
     val shiftScheduleSections by shiftViewModel.shiftScheduleSections.collectAsState()
     val context = LocalContext.current
-    val repository = remember(context) { CourseRepository.getInstance(context) }
+    val repository = remember(context) { CourseRepository.getInstance() }
     val hasReorganizedComparison = remember(shiftScheduleCourses.keys, scheduleDataVersion) {
         (shiftScheduleCourses.keys + repository.getCurrentScheduleId()).any { name ->
             repository.getTeachingWeekReorganizations(name).isNotEmpty()

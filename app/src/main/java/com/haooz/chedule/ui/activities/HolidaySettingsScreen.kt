@@ -150,7 +150,7 @@ fun HolidaySettingsScreen(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val holidayDataRevision by HolidayManager.dataRevision.collectAsState()
-    val repository = remember(context) { CourseRepository.getInstance(context) }
+    val repository = remember(context) { CourseRepository.getInstance() }
     val currentScheduleId = repository.getCurrentScheduleId()
     val currentTotalWeeks = repository.getTotalWeeks(currentScheduleId)
     val semesterStartDate = remember(currentScheduleId) {
@@ -1882,7 +1882,7 @@ private fun followDate(
     val week = followWeek.toIntOrNull() ?: return null
     val weekday = followWeekday.toIntOrNull() ?: return null
     if (week < 1 || weekday !in 1..7) return null
-    return CourseRepository.getInstance(context).dateForTeachingWeekDay(week, weekday)
+    return CourseRepository.getInstance().dateForTeachingWeekDay(week, weekday)
 }
 
 private fun entrySummary(entry: HolidayEntry): String {

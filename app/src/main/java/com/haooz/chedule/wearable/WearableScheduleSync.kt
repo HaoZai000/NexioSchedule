@@ -98,7 +98,7 @@ object WearableScheduleSync {
             init(context)
         }
         return try {
-            val repo = CourseRepository.getInstance(context.applicationContext)
+            val repo = CourseRepository.getInstance()
             val json = WatchPayload.buildFullJson(repo, context.applicationContext, scheduleName)
             val dir = java.io.File(context.applicationContext.filesDir, "wearable")
             if (!dir.exists()) dir.mkdirs()
@@ -192,7 +192,7 @@ object WearableScheduleSync {
         }
         pushing.set(true)
         try {
-            val repo = CourseRepository.getInstance(appContext)
+            val repo = CourseRepository.getInstance()
             // v4 整表推送：一次下发完整学期（课程+周次规则+设置+节次时间+假期），
             // 手表自行推算任意日期。
             val payload = WatchPayload.buildFullJson(repo, appContext, scheduleName)

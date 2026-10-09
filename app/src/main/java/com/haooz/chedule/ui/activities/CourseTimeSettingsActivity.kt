@@ -89,7 +89,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
             val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
             val editLiquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
             val scrollBehavior = rememberSharedScrollBehavior()
-            val repository = remember { CourseRepository(this@CourseTimeSettingsActivity) }
+            val repository = remember { CourseRepository() }
             val context = androidx.compose.ui.platform.LocalContext.current
             val activity = context as? CourseTimeSettingsActivity
 

@@ -459,7 +459,7 @@ fun LocalBackupScreen(
         coroutineScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val repository = CourseRepository(context.applicationContext as Application)
+                    val repository = CourseRepository()
                     when (payload) {
                         is BackupPayload.Single -> {
                             // 重名时自动编号，避免覆盖已有课表
@@ -625,7 +625,7 @@ fun LocalBackupScreen(
                                 coroutineScope.launch {
                                     val result = withContext(Dispatchers.IO) {
                                         try {
-                                            val repository = CourseRepository(context.applicationContext as Application)
+                                            val repository = CourseRepository()
                                             val dir = getBackupDir(context)
                                             if (!isUsableDir(dir)) {
                                                 throw IllegalStateException("备份目录不可写：${dir.absolutePath}")

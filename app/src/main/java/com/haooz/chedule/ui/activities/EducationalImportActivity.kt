@@ -563,7 +563,7 @@ class EducationalImportActivity : ComponentActivity() {
 
             val isTargetCurrent = targetScheduleId.isNullOrEmpty() ||
                 targetScheduleId == scheduleViewModel.currentScheduleName.value
-            val repository = if (isTargetCurrent) null else CourseRepository(this@EducationalImportActivity)
+            val repository = if (isTargetCurrent) null else CourseRepository()
 
             val morningSections: Int
             val afternoonSections: Int
@@ -642,7 +642,7 @@ class EducationalImportActivity : ComponentActivity() {
                 courseViewModel.setClassStartTime(startDate)
             } else if (!targetScheduleId.isNullOrEmpty()) {
                 // 只写目标课表存储，不 refreshEssentialData：当前 UI/提醒不应被非当前课表改动触发
-                CourseRepository.getInstance(this)
+                CourseRepository.getInstance()
                     .setClassStartTime(targetScheduleId, startDate)
             }
             applied = true
@@ -654,7 +654,7 @@ class EducationalImportActivity : ComponentActivity() {
             if (isTargetCurrent) {
                 courseViewModel.setTotalWeeks(totalWeeks)
             } else if (!targetScheduleId.isNullOrEmpty()) {
-                CourseRepository.getInstance(this)
+                CourseRepository.getInstance()
                     .setTotalWeeks(targetScheduleId, totalWeeks)
             }
             applied = true

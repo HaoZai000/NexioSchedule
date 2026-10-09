@@ -67,7 +67,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int
     ) {
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         val dark = WidgetTextSizes.isDark(context)
 
         val currentWeek = repository.getLiveTeachingWeek()

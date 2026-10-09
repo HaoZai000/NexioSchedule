@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 
 class ShiftViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = CourseRepository(application)
+    private val repository = CourseRepository()
 
     private val _isShiftMode = MutableStateFlow(repository.isShiftModeEnabled())
     val isShiftMode: StateFlow<Boolean> = _isShiftMode.asStateFlow()

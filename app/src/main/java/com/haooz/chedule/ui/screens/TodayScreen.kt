@@ -641,7 +641,7 @@ fun TodayScreen(
                             .map { it.dayOfWeek }
                             .filter { it in 1..7 }
                             .toSet()
-                        val repository = CourseRepository(appContext)
+                        val repository = CourseRepository()
                         val courseDateBoundsResult = runCatching {
                             val semesterStartDate = LocalDate.parse(
                                 repository.getClassStartTime().replace('/', '-')

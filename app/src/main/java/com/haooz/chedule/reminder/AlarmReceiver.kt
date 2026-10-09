@@ -51,7 +51,7 @@ class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val type = intent.getIntExtra(CourseReminderHelper.EXTRA_REMINDER_TYPE, 0)
         NexioLog.d("CourseReminder", "AlarmReceiver: type=$type ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         val useIsland = repository.getIslandNotification() && IslandNotificationHelper.isIslandSupported(context)
 
         when (type) {
@@ -70,7 +70,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 val dedupId = if (matchedEarly != null) {
                     val freshStart = CourseReminderHelper.getCourseStartTime(
                         matchedEarly,
-                        CourseRepository(context)
+                        CourseRepository()
                     ) ?: startTime
                     "${matchedEarly.name}|${matchedEarly.getTimeDisplayText()}|$freshStart"
                 } else {

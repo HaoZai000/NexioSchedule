@@ -242,11 +242,13 @@ data class AppearanceConfig(
  */
 object ScheduleAppearance {
 
+    // 这两个常量已下沉 :core（AppearancePrefs）—— CourseRepository 判「是不是外观键」
+    // 时要用它们，而 :core 不能反向依赖 :app。这里 const 转发，取值同源不会抄错。
     /** 独立 prefs 文件名 */
-    const val FILE = "appearance_settings"
+    const val FILE = AppearancePrefs.FILE
 
     /** 唯一的数据键：参数JSON 快照 */
-    const val FILE_STYLE_KEY = "appearance_style"
+    const val FILE_STYLE_KEY = AppearancePrefs.FILE_STYLE_KEY
 
     /** 壁纸文件名（存 filesDir） */
     private const val WALLPAPER_FILE = "appearance_wallpaper.webp"

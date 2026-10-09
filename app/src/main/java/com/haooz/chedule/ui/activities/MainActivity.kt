@@ -1203,7 +1203,7 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
         // 合规：未同意隐私政策前不进行云同步等网络行为
         if (!privacyConsented) return@LaunchedEffect
         val syncManager = com.haooz.chedule.data.SyncManager.getInstance(context)
-        val repository = com.haooz.chedule.data.CourseRepository(context)
+        val repository = com.haooz.chedule.data.CourseRepository()
         val webDavManager = com.haooz.chedule.data.WebDavManager(context)
         syncManager.start(repository, webDavManager)
         // 备份/恢复后刷新 ViewModel 内存缓存
@@ -1235,7 +1235,7 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
         // 作息按日期自动切换：跨过生效日期后补一次提醒重排。
         // 只是比对 prefs 里记的 key，几乎零开销，所以冷启动这一次也跑
         withContext(Dispatchers.IO) {
-            com.haooz.chedule.data.CourseRepository(context).syncRoutineAfterDateChange()
+            com.haooz.chedule.data.CourseRepository().syncRoutineAfterDateChange()
         }
         if (resumeCount > 1) {
             withContext(Dispatchers.IO) {
@@ -1424,7 +1424,7 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
     var customizeCoverActive by remember { mutableStateOf(false) }
     val customizeCoverScale = remember { Animatable(1f) }
     val customizeCoverAlpha = remember { Animatable(1f) }
-    val wallpaperRepository = remember { com.haooz.chedule.data.CourseRepository(context) }
+    val wallpaperRepository = remember { com.haooz.chedule.data.CourseRepository() }
     var combinations by remember { mutableStateOf(listOf<com.haooz.chedule.data.Combination>()) }
     var currentCombinationIndex by remember { mutableIntStateOf(0) }
     var wallpaperBitmap by remember { mutableStateOf(MainActivity.cachedWallpaperBitmap) }
@@ -1736,7 +1736,7 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
     val currentDayOfWeek = (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val dataVersion by viewModel.dataVersion.collectAsState()
-    val teachingWeekRepository = remember(context) { com.haooz.chedule.data.CourseRepository.getInstance(context) }
+    val teachingWeekRepository = remember(context) { com.haooz.chedule.data.CourseRepository.getInstance() }
     val teachingWeekRules = remember(teachingWeekRepository, dataVersion, classStartTime) {
         teachingWeekRepository.getTeachingWeekReorganizations()
     }

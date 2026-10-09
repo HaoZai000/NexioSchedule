@@ -60,7 +60,7 @@ class NexioApplication : Application() {
             // 日期解析由这里注入：:core 不能反向依赖还在 :app 的 CourseRepository。
             // 仓储构造不出来时**整段跳过**（连迁移标记都不写），与原实现一致。
             runCatching {
-                val repository = com.haooz.chedule.data.CourseRepository(this)
+                val repository = com.haooz.chedule.data.CourseRepository()
                 com.haooz.chedule.data.HolidayManager.migrateLegacyFollowDates { week, weekday ->
                     runCatching { repository.dateForTeachingWeekDay(week, weekday) }.getOrNull()
                 }
@@ -72,7 +72,7 @@ class NexioApplication : Application() {
     private fun initWearableSync() {
         runCatching {
             com.haooz.chedule.wearable.WearableScheduleSync.init(this)
-            val repo = com.haooz.chedule.data.CourseRepository.getInstance(this)
+            val repo = com.haooz.chedule.data.CourseRepository.getInstance()
             repo.addCourseChangedListener { _, _ ->
                 com.haooz.chedule.wearable.WearableScheduleSync.onScheduleChanged("course-change")
             }

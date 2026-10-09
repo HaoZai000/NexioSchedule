@@ -60,6 +60,18 @@ interface KeyValueStore {
     fun unregisterListener(token: Any?)
 }
 
+/**
+ * 对应 `SharedPreferences.getString(key, null)`：**键不存在返回 null**。
+ *
+ * 接口的 [KeyValueStore.getString] 刻意收非空默认值（契约里没有可空重载），
+ * 而迁移前有 12 处 `getString(key, null) ?: …` 的写法，所以补这个扩展。
+ *
+ * ⚠ 语义逐条对齐：键存在但**类型不是 String** 时，Android 实现会原样抛
+ * `ClassCastException`（见 `SharedPreferencesStore`），这里不会把它吞成 null。
+ */
+fun KeyValueStore.getStringOrNull(key: String): String? =
+    if (contains(key)) getString(key, "") else null
+
 /** 事务内可用的写入面。用完 [KeyValueStore.edit] 的回调即提交（等价 Android 的 apply）。 */
 interface KeyValueEditor {
     fun putString(key: String, value: String)

@@ -1398,7 +1398,7 @@ internal fun applyScheduleData(
             (settings["class_start_time"] as? String)?.let { viewModel.setClassStartTime(it) }
             (settings["current_week"] as? Number)?.toInt()?.let { viewModel.setCurrentWeek(it) }
             (settings["total_weeks"] as? Number)?.toInt()?.let { viewModel.setTotalWeeks(it) }
-            if (reorganizationFieldPresent && !CourseRepository.getInstance(context)
+            if (reorganizationFieldPresent && !CourseRepository.getInstance()
                     .setTeachingWeekReorganizations(
                         rules = importedReorganizations,
                         scheduleId = scheduleName,

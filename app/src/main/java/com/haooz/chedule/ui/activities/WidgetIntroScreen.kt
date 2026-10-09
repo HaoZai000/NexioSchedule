@@ -150,7 +150,7 @@ fun WidgetIntroScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 val context = LocalContext.current
-                val repository = remember { CourseRepository(context) }
+                val repository = remember { CourseRepository() }
                 var paddingMode by remember { mutableIntStateOf(repository.getWidgetPaddingMode()) }
                 WidgetPaddingSelector(
                     selectedMode = paddingMode,

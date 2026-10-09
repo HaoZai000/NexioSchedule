@@ -32,7 +32,7 @@ class TodayCoursesProvider : ContentProvider() {
         require(selection == null && selectionArgs == null) { "Selection is not supported" }
 
         val appContext = requireNotNull(context)
-        val repository = CourseRepository(appContext)
+        val repository = CourseRepository()
         // uri query 参数 size=2x2 区分详情文案；size=single 为单日程小组件专属截断；缺省 4x2
         val widgetSize = uri.getQueryParameter("size")
         // loc_only=1|true 或 size=single：location 仅回地点（单日程）

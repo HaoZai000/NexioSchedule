@@ -401,7 +401,7 @@ fun TabletSettingsScreen(
     var holidayLoading by remember { mutableStateOf(false) }
     var onHolidayUpdate by remember { mutableStateOf({}) }
     // 课表节数与时间：右栏叠编辑屏
-    val courseRepository = remember { com.haooz.chedule.data.CourseRepository(context) }
+    val courseRepository = remember { com.haooz.chedule.data.CourseRepository() }
     var editingTimeConfig by remember { mutableStateOf<com.haooz.chedule.data.TimeConfig?>(null) }
     var editingTimeRoutineId by remember { mutableStateOf<Long?>(null) }
     var timeConfigRefreshTrigger by remember { mutableIntStateOf(0) }

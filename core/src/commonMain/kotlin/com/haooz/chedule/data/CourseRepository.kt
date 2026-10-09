@@ -1,26 +1,19 @@
 package com.haooz.chedule.data
 
+import kotlin.concurrent.Volatile
+import kotlinx.datetime.Clock
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.datetime.isoDayNumber
 
-import android.content.Context
-import android.content.SharedPreferences
-import android.os.Build
-import androidx.core.content.edit
-import com.google.gson.Gson
-import com.google.gson.JsonParser
-import com.google.gson.reflect.TypeToken
 import kotlinx.datetime.LocalDate
-import java.util.Locale
-import com.haooz.chedule.data.NexioLog
 
 /** 课程数据仓库（SharedPreferences，单例） */
-class CourseRepository private constructor(context: Context) : PeriodTimeSource {
+class CourseRepository private constructor() : PeriodTimeSource {
 
-    private val appContext: Context = context.applicationContext
-    private val prefs: SharedPreferences = appContext.getSharedPreferences(
-        PREFS_NAME, Context.MODE_PRIVATE
-    )
-    private val gson = Gson()
+    private val prefs: KeyValueStore = AppStorage.store(PREFS_NAME)
 
     private val courseCache = mutableMapOf<String, List<Course>>()
     private val occupiedWeeksCache = mutableMapOf<String, Set<Int>>()
@@ -77,21 +70,23 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             }
             saveScheduleFolders(folders)
         }
-        prefs.edit(commit = true) { putBoolean(KEY_DEFAULT_FOLDER_MIGRATED, true) }
+        prefs.edit { putBoolean(KEY_DEFAULT_FOLDER_MIGRATED, true) }
     }
 
-    // 变更回调：多播列表，避免后构造的 ViewModel 覆盖先注册的监听
-    private val courseChangedListeners =
-        java.util.concurrent.CopyOnWriteArrayList<(action: String, courseId: String) -> Unit>()
+    // 变更回调：多播列表，避免后构造的 ViewModel 覆盖先注册的监听。
+    // 原来是 java.util.concurrent.CopyOnWriteArrayList（JVM 专有），换成
+    // 「@Volatile 不可变列表 + 写时复制」—— 语义一致：读走快照、写不阻塞读。
+    @Volatile
+    private var courseChangedListeners: List<(action: String, courseId: String) -> Unit> = emptyList()
 
     fun addCourseChangedListener(listener: (action: String, courseId: String) -> Unit) {
-        if (!courseChangedListeners.contains(listener)) {
-            courseChangedListeners.add(listener)
+        if (listener !in courseChangedListeners) {
+            courseChangedListeners = courseChangedListeners + listener
         }
     }
 
     fun removeCourseChangedListener(listener: (action: String, courseId: String) -> Unit) {
-        courseChangedListeners.remove(listener)
+        courseChangedListeners = courseChangedListeners - listener
     }
 
     private fun dispatchCourseChanged(action: String, courseId: String) {
@@ -143,7 +138,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     /** 更新时间戳（本地修改不被远程覆盖）、失效时间缓存、通知 UI */
     private fun commitSettingsChanged(changeId: String = "") {
         val prefix = getScheduleKeyPrefix()
-        prefs.edit { putLong("${prefix}_settings_last_modified", System.currentTimeMillis()) }
+        prefs.edit { putLong("${prefix}_settings_last_modified", Clock.System.now().toEpochMilliseconds()) }
         invalidateTimeCaches()
         dispatchCourseChanged("settings", changeId)
     }
@@ -156,7 +151,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
      */
     private fun markScheduleSettingsChanged(scheduleId: String, changeId: String = "") {
         val prefix = getScheduleKeyPrefix(scheduleId)
-        prefs.edit { putLong("${prefix}_settings_last_modified", System.currentTimeMillis()) }
+        prefs.edit { putLong("${prefix}_settings_last_modified", Clock.System.now().toEpochMilliseconds()) }
         if (scheduleId != getCurrentScheduleId()) return
         if (batchingSettings) return
         invalidateTimeCaches()
@@ -169,18 +164,20 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         @Volatile
         private var INSTANCE: CourseRepository? = null
 
-        fun getInstance(context: Context): CourseRepository {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: CourseRepository(context.applicationContext).also { INSTANCE = it }
+        private val lock = Any()
+
+        fun getInstance(): CourseRepository {
+            return INSTANCE ?: synchronizedOn(lock) {
+                INSTANCE ?: CourseRepository().also { INSTANCE = it }
             }
         }
 
         // 兼容旧代码的构造方式
-        operator fun invoke(context: Context): CourseRepository = getInstance(context)
+        operator fun invoke(): CourseRepository = getInstance()
 
         /** 开学日规范格式 yyyy/MM/dd */
         fun formatClassStartDate(date: LocalDate): String =
-            String.format(Locale.ROOT, "%04d/%02d/%02d", date.year, date.monthNumber, date.dayOfMonth)
+            date.formatSlashDate()
 
         /**
          * 解析教务/设置/备份里各种开学日写法。
@@ -270,8 +267,9 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
          */
         private val defaultWidgetPaddingMode: Int = run {
             val xiaomiBrands = setOf("xiaomi", "redmi", "poco")
-            val isXiaomi = Build.BRAND.lowercase(Locale.ROOT) in xiaomiBrands ||
-                Build.MANUFACTURER.lowercase(Locale.ROOT) in xiaomiBrands
+            val device = currentDeviceInfo()
+            val isXiaomi = device.brand.lowercase() in xiaomiBrands ||
+                device.manufacturer.lowercase() in xiaomiBrands
             if (isXiaomi) 1 else 0
         }
     }
@@ -291,12 +289,11 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     fun getCoursesForSchedule(scheduleId: String): List<Course> {
         courseCache[scheduleId]?.let { return it }
         val key = "$SCHEDULE_KEY_PREFIX${scheduleId}_$KEY_COURSES"
-        val json = prefs.getString(key, null) ?: return emptyList()
+        val json = prefs.getStringOrNull(key) ?: return emptyList()
         // 坏 JSON 按真名读会得到空壳课，不当成有效课表，保留原数据供备份恢复
         if (!coursesJsonLooksValid(json)) return emptyList()
-        val type = object : TypeToken<List<Course>>() {}.type
         return try {
-            val courses = sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
+            val courses = sanitizeCourses(decodeCourses(json))
             courseCache[scheduleId] = courses
             courses
         } catch (_: Exception) {
@@ -311,7 +308,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             course.selectedWeeks.ifEmpty {
                 course.startWeek..course.endWeek
             }
-        }.toSortedSet()
+        }.toSet()
         val weekCount = weeks.size
         return "共${weekCount}周，${courseCount}节课"
     }
@@ -372,11 +369,10 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         val scheduleId = getCurrentScheduleId()
         courseCache[scheduleId]?.let { return it }
         val key = "${getScheduleKeyPrefix()}$KEY_COURSES"
-        val json = prefs.getString(key, null) ?: return emptyList()
+        val json = prefs.getStringOrNull(key) ?: return emptyList()
         if (!coursesJsonLooksValid(json)) return emptyList()
-        val type = object : TypeToken<List<Course>>() {}.type
         return try {
-            val courses = sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
+            val courses = sanitizeCourses(decodeCourses(json))
             courseCache[scheduleId] = courses
             // 不预热 occupiedWeeksCache：仅编辑选周时用到，按需算即可，冷路径对首屏是白烧
             courses
@@ -388,7 +384,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     fun saveCourses(courses: List<Course>, notify: Boolean = true) {
         val scheduleId = getCurrentScheduleId()
         val key = "${getScheduleKeyPrefix()}$KEY_COURSES"
-        val json = gson.toJson(courses)
+        val json = encodeCourses(courses)
         prefs.edit { putString(key, json) }
         courseCache[scheduleId] = courses
         occupiedWeeksCache.clear()
@@ -411,7 +407,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         val courses = getAllCourses().toMutableList()
         val index = courses.indexOfFirst { it.id == course.id }
         if (index != -1) {
-            courses[index] = course.copy(lastModified = System.currentTimeMillis())
+            courses[index] = course.copy(lastModified = Clock.System.now().toEpochMilliseconds())
             saveCourses(courses, notify = false)
         }
         return courses
@@ -425,7 +421,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                 courses[i] = courses[i].copy(
                     name = updated.name,
                     colorRes = updated.colorRes,
-                    lastModified = System.currentTimeMillis()
+                    lastModified = Clock.System.now().toEpochMilliseconds()
                 )
                 changed = true
             }
@@ -469,7 +465,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             endWeek = remaining.max(),
             // 冲突路径调用方置 ALL；单独删某周保持原 weekType
             weekType = if (resetWeekType) Course.WEEK_TYPE_ALL else course.weekType,
-            lastModified = System.currentTimeMillis()
+            lastModified = Clock.System.now().toEpochMilliseconds()
         )
     }
 
@@ -659,7 +655,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                 startWeek = newWeeks.min(),
                 endWeek = newWeeks.max(),
                 weekType = Course.WEEK_TYPE_ALL,
-                lastModified = System.currentTimeMillis()
+                lastModified = Clock.System.now().toEpochMilliseconds()
             )
             return result
         }
@@ -685,7 +681,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                 startWeek = sortedWeeks.min(),
                 endWeek = sortedWeeks.max(),
                 weekType = Course.WEEK_TYPE_ALL,
-                lastModified = System.currentTimeMillis()
+                lastModified = Clock.System.now().toEpochMilliseconds()
             )
             val sourceWeeks = currentSelectedWeeks.filter { it != week }
             if (sourceWeeks.isEmpty()) {
@@ -698,7 +694,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                     startWeek = sourceWeeks.min(),
                     endWeek = sourceWeeks.max(),
                     weekType = Course.WEEK_TYPE_ALL,
-                    lastModified = System.currentTimeMillis()
+                    lastModified = Clock.System.now().toEpochMilliseconds()
                 )
             }
         } else if (currentSelectedWeeks.size == 1 && currentSelectedWeeks.first() == week) {
@@ -711,7 +707,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                 startWeek = if (targetWeek != week) targetWeek else source.startWeek,
                 endWeek = if (targetWeek != week) targetWeek else source.endWeek,
                 weekType = if (targetWeek != week) Course.WEEK_TYPE_ALL else source.weekType,
-                lastModified = System.currentTimeMillis()
+                lastModified = Clock.System.now().toEpochMilliseconds()
             )
         } else {
             // 拆分
@@ -721,10 +717,10 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                 startWeek = sourceWeeks.min(),
                 endWeek = sourceWeeks.max(),
                 weekType = Course.WEEK_TYPE_ALL,
-                lastModified = System.currentTimeMillis()
+                lastModified = Clock.System.now().toEpochMilliseconds()
             )
             val newCourse = source.copy(
-                id = java.util.UUID.randomUUID().toString(),
+                id = randomUuidV4(),
                 dayOfWeek = targetDayOfWeek,
                 startSection = targetStartSection,
                 endSection = targetEndSection,
@@ -732,7 +728,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                 startWeek = targetWeek,
                 endWeek = targetWeek,
                 weekType = Course.WEEK_TYPE_ALL,
-                lastModified = System.currentTimeMillis()
+                lastModified = Clock.System.now().toEpochMilliseconds()
             )
             result.add(newCourse)
         }
@@ -795,7 +791,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         scheduleId: String = getCurrentScheduleId(),
     ): List<TeachingWeekReorganizationRule> {
         val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_TEACHING_WEEK_REORGANIZATIONS"
-        val raw = prefs.getString(key, null) ?: return emptyList()
+        val raw = prefs.getStringOrNull(key) ?: return emptyList()
         return runCatching {
             // Keep a syntactically valid saved rule visible if total_weeks was later reduced;
             // the editor can then explain/fix it instead of silently hiding the user's data.
@@ -836,7 +832,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             )
         }.getOrNull() ?: return false
         val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_TEACHING_WEEK_REORGANIZATIONS"
-        if (prefs.getString(key, null) == raw) return true
+        if (prefs.getStringOrNull(key) == raw) return true
         prefs.edit { putString(key, raw) }
         markScheduleSettingsChanged(scheduleId, "teaching_week_reorganizations")
         return true
@@ -893,14 +889,8 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
 
     fun getClassStartTime(scheduleId: String): String {
         val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_CLASS_START_TIME"
-        val cal = java.util.Calendar.getInstance()
-        val default = String.format(
-            Locale.ROOT, "%04d/%02d/%02d",
-            cal.get(java.util.Calendar.YEAR),
-            cal.get(java.util.Calendar.MONTH) + 1,
-            cal.get(java.util.Calendar.DAY_OF_MONTH)
-        )
-        val stored = prefs.getString(key, null)
+        val default = todayLocalDate().formatSlashDate()
+        val stored = prefs.getStringOrNull(key)
         val normalized = normalizeClassStartDate(stored)
         if (normalized != null) {
             // 教务脚本等常写入 yyyy-MM-dd：识别后就地规范化，绝不能重置成今天
@@ -1320,11 +1310,11 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
 
     fun getScheduleNames(): List<String> {
         scheduleNamesCache?.let { return it }
-        val json = prefs.getString(KEY_SCHEDULE_NAMES, null)
+        val json = prefs.getStringOrNull(KEY_SCHEDULE_NAMES)
         val names = try {
             if (json.isNullOrBlank()) listOf("默认课表")
             else {
-                val parsed: List<String>? = gson.fromJson(json, object : TypeToken<List<String>>() {}.type)
+                val parsed: List<String>? = runCatching { decodeStringList(json) }.getOrNull()
                 parsed?.takeIf { it.isNotEmpty() } ?: listOf("默认课表")
             }
         } catch (_: Exception) {
@@ -1335,8 +1325,8 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     }
 
     internal fun saveScheduleNames(names: List<String>) {
-        val json = gson.toJson(names)
-        prefs.edit(commit = true) { putString(KEY_SCHEDULE_NAMES, json) }
+        val json = encodeStringList(names)
+        prefs.edit { putString(KEY_SCHEDULE_NAMES, json) }
         // 课表列表变化会让"当前课表 ID 是否仍有效"的结论失效
         scheduleNamesCache = names
         currentScheduleIdCache = null
@@ -1403,8 +1393,8 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         val duplicatedTimeConfigId = addTimeConfig(
             getTimeConfig(getScheduleTimeConfigId(currentId)).copy(id = 0L, name = name)
         )
-        prefs.edit(commit = true) {
-            for ((key, value) in prefs.all) {
+        prefs.edit {
+            for ((key, value) in prefs.all()) {
                 if (key.startsWith(currentPrefix)) {
                     val settingName = key.removePrefix(currentPrefix)
                     if (settingName == KEY_COURSES ||
@@ -1428,7 +1418,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             putLong("$SCHEDULE_TIME_CONFIG_PREFIX$name", duplicatedTimeConfigId)
             val today = todayLocalDate()
             val todayStr =
-                String.format(Locale.ROOT, "%04d/%02d/%02d", today.year, today.monthNumber, today.dayOfMonth)
+                today.formatSlashDate()
             putString("$newPrefix$KEY_CLASS_START_TIME", todayStr)
             putInt("$newPrefix$KEY_CURRENT_WEEK", 1)
             remove("$newPrefix$KEY_TEACHING_WEEK_REORGANIZATIONS")
@@ -1442,10 +1432,9 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
      * 缓存冷时条件恒为 false，幽灵引用会一直留在 prefs 并被备份导出。
      */
     private fun rewriteScheduleNameInFolders(oldName: String, newName: String?) {
-        val json = prefs.getString(KEY_SCHEDULE_FOLDERS, null) ?: return
+        val json = prefs.getStringOrNull(KEY_SCHEDULE_FOLDERS) ?: return
         val folders = try {
-            val type = object : TypeToken<List<ScheduleFolder>>() {}.type
-            gson.fromJson<List<ScheduleFolder>>(json, type) ?: emptyList()
+            decodeScheduleFolders(json)
         } catch (_: Exception) {
             return
         }
@@ -1477,7 +1466,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         removeScheduleNameFromFolders(name)
         val prefix = "$SCHEDULE_KEY_PREFIX${name}_"
         prefs.edit {
-            for (key in prefs.all.keys) {
+            for (key in prefs.all().keys) {
                 if (key.startsWith(prefix)) {
                     remove(key)
                 }
@@ -1514,8 +1503,8 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             // 迁移 schedule_{old}_* → schedule_{new}_*
             val oldPrefix = "$SCHEDULE_KEY_PREFIX${oldName}_"
             val newPrefix = "$SCHEDULE_KEY_PREFIX${newName}_"
-            prefs.edit(commit = true) {
-                for ((key, value) in prefs.all) {
+            prefs.edit {
+                for ((key, value) in prefs.all()) {
                     if (key.startsWith(oldPrefix)) {
                         val suffix = key.removePrefix(oldPrefix)
                         val newKey = "$newPrefix$suffix"
@@ -1528,13 +1517,12 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                                     if (!coursesJsonLooksValid(value)) {
                                         putString(newKey, value)
                                     } else {
-                                        val type = object : TypeToken<List<Course>>() {}.type
                                         try {
                                             // 旧 JSON 字段可能为 null，直接 copy() 会 NPE
                                             val courses =
-                                                sanitizeCourses(gson.fromJson(value, type) ?: emptyList())
+                                                sanitizeCourses(decodeCourses(value))
                                             val updated = courses.map { it.copy(scheduleId = newName) }
-                                            putString(newKey, gson.toJson(updated))
+                                            putString(newKey, encodeCourses(updated))
                                         } catch (_: Exception) {
                                             putString(newKey, value)
                                         }
@@ -1558,7 +1546,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             val oldBoundKey = "$SCHEDULE_TIME_CONFIG_PREFIX$oldName"
             if (prefs.contains(oldBoundKey)) {
                 val boundId = prefs.getLong(oldBoundKey, 0L)
-                prefs.edit(commit = true) {
+                prefs.edit {
                     putLong("$SCHEDULE_TIME_CONFIG_PREFIX$newName", boundId)
                     remove(oldBoundKey)
                 }
@@ -1578,13 +1566,12 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
      */
     fun getScheduleFolders(): List<ScheduleFolder> {
         scheduleFoldersCache?.let { return it }
-        val json = prefs.getString(KEY_SCHEDULE_FOLDERS, null)
+        val json = prefs.getStringOrNull(KEY_SCHEDULE_FOLDERS)
         val allNames = getScheduleNames()
         val parsed = try {
             if (json.isNullOrBlank()) emptyList()
             else {
-                val type = object : TypeToken<List<ScheduleFolder>>() {}.type
-                gson.fromJson<List<ScheduleFolder>>(json, type) ?: emptyList()
+                decodeScheduleFolders(json)
             }
         } catch (_: Exception) {
             emptyList()
@@ -1615,7 +1602,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     }
 
     private fun saveScheduleFolders(folders: List<ScheduleFolder>) {
-        prefs.edit(commit = true) { putString(KEY_SCHEDULE_FOLDERS, gson.toJson(folders)) }
+        prefs.edit { putString(KEY_SCHEDULE_FOLDERS, encodeScheduleFolders(folders)) }
         scheduleFoldersCache = folders
     }
 
@@ -1624,7 +1611,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         val folders = getScheduleFolders().toMutableList()
         folders.add(
             ScheduleFolder(
-                id = "folder_${System.currentTimeMillis()}_${folders.size}",
+                id = "folder_${Clock.System.now().toEpochMilliseconds()}_${folders.size}",
                 name = name
             )
         )
@@ -1730,17 +1717,17 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     }
 
     fun getShiftSelectedSchedules(): List<String> {
-        val json = prefs.getString(KEY_SHIFT_SELECTED_SCHEDULES, null)
+        val json = prefs.getStringOrNull(KEY_SHIFT_SELECTED_SCHEDULES)
         return try {
             if (json.isNullOrBlank()) emptyList()
-            else gson.fromJson(json, object : TypeToken<List<String>>() {}.type) ?: emptyList()
+            else runCatching { decodeStringList(json) }.getOrNull() ?: emptyList()
         } catch (_: Exception) {
             emptyList()
         }
     }
 
     fun setShiftSelectedSchedules(names: List<String>) {
-        val json = gson.toJson(names)
+        val json = encodeStringList(names)
         prefs.edit {putString(KEY_SHIFT_SELECTED_SCHEDULES, json) }
     }
 
@@ -1757,7 +1744,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     /** 获取所有时间配置 ID 列表（按创建顺序） */
     fun getTimeConfigIds(): List<Long> {
         timeConfigIdsCache?.let { return it }
-        val idsStr = prefs.getString(KEY_TIME_CONFIG_IDS, null)
+        val idsStr = prefs.getStringOrNull(KEY_TIME_CONFIG_IDS)
         val parsed = if (idsStr == null) {
             null
         } else {
@@ -1765,8 +1752,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             val cleaned = idsStr.trim()
             if (cleaned.startsWith("[")) {
                 try {
-                    val type = object : TypeToken<List<Long>>() {}.type
-                    gson.fromJson<List<Long>>(cleaned, type) ?: emptyList()
+                    decodeLongList(cleaned)
                 } catch (_: Exception) {
                     emptyList()
                 }
@@ -1794,7 +1780,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
      * @return 扫到了配置则返回（已落盘），一个都没有则返回 null 交回上层走原逻辑
      */
     private fun rebuildTimeConfigIdsFromKeys(): List<Long>? {
-        val scanned = prefs.all.keys
+        val scanned = prefs.all().keys
             .filter { it.startsWith(TIME_CONFIG_PREFIX) && it != KEY_TIME_CONFIG_IDS }
             .mapNotNull { it.removePrefix(TIME_CONFIG_PREFIX).toLongOrNull() }
             .distinct()
@@ -1837,7 +1823,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     fun getTimeConfig(id: Long): TimeConfig {
         timeConfigCache[id]?.let { return it }
         val key = "$TIME_CONFIG_PREFIX$id"
-        val json = prefs.getString(key, null)
+        val json = prefs.getStringOrNull(key)
         // 兜底配置必须经 sanitize 播种（内部 ensureRoutine 会补一个默认作息）。
         // 裸默认配置 routines 为空：设置页只在内存里 ensureRoutine，
         // 而 saveRoutine 按存储态校验「目标作息是否存在」——两头对不上，保存会被静默丢弃
@@ -1850,7 +1836,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             return fallback
         }
         val config = try {
-            val parsed = parseTimeConfigSnapshotOrNull(gson, json)
+            val parsed = parseTimeConfigSnapshotOrNull(json)
             if (parsed == null) {
                 // 键名全不认得：覆写默认，避免每次启动读到 0 节
                 NexioLog.e(TAG, "time_config_$id 快照无法辨认，判为损坏：${json.take(120)}")
@@ -1875,7 +1861,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     /** 节数与节次时间都来自这里，保存时同步失效占用/全局节次缓存 */
     fun saveTimeConfig(config: TimeConfig) {
         val key = "${TIME_CONFIG_PREFIX}${config.id}"
-        val json = gson.toJson(config)
+        val json = encodeTimeConfig(config)
         prefs.edit { putString(key, json) }
         timeConfigCache[config.id] = config
         invalidateTimeCaches()
@@ -1980,7 +1966,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         }
         val kept = ids.filter { it in bound }
         saveTimeConfigIds(kept)
-        prefs.edit(commit = true) { orphans.forEach { remove("$TIME_CONFIG_PREFIX$it") } }
+        prefs.edit { orphans.forEach { remove("$TIME_CONFIG_PREFIX$it") } }
         orphans.forEach { timeConfigCache.remove(it) }
         NexioLog.w(TAG, "pruneOrphanTimeConfigs: 保留=$kept 删除=$orphans")
     }
@@ -1990,7 +1976,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
      * + 旧全局指针本身及其解析值（未绑定的课表会回退到它）。
      */
     private fun collectBoundTimeConfigIds(): Set<Long> {
-        val bound = prefs.all.keys
+        val bound = prefs.all().keys
             .filter { it.startsWith(SCHEDULE_TIME_CONFIG_PREFIX) }
             .map { prefs.getLong(it, 0L) }
             .toMutableSet()
@@ -2018,7 +2004,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         val config = getTimeConfig(getScheduleTimeConfigId(scheduleId))
         val key = "${config.id}:${config.effectiveRoutineId() ?: -1L}"
         val prefKey = "${SCHEDULE_KEY_PREFIX}${scheduleId}_active_routine"
-        val last = prefs.getString(prefKey, null)
+        val last = prefs.getStringOrNull(prefKey)
 
         // 顺带把顶层镜像刷成当天生效的那套。跨日期切换本身没有任何写操作，
         // 镜像不刷新就会一直停在上一个作息上 —— 只读顶层的旧版本 App、
@@ -2028,7 +2014,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         if (effective != config) saveTimeConfig(effective)
 
         if (last == key) return false
-        prefs.edit(commit = true) { putString(prefKey, key) }
+        prefs.edit { putString(prefKey, key) }
         // 首次登记不重排，避免新装 / 首次升级时白跑一次全量闹钟排程
         if (last == null) return false
         notifyCourseChanged("settings")
@@ -2273,12 +2259,12 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     /**
  * 外观键不进全量备份。
  *
- * 外观已整体迁到 [ScheduleAppearance] 的独立 prefs 文件，本文件里理论上不该再有外观键。
+ * 外观已整体迁到 [AppearancePrefs] 的独立 prefs 文件，本文件里理论上不该再有外观键。
  * 这里保留判定是为了兜住两类残留：迁移未完成的旧版本数据、以及历史备份里混入的键
  * （旧版外观键叫 `combination_*` / `comb_*`，迁移到新文件后键名也变了，但老备份仍带旧名）。
  */
     private fun isCombinationBackupKey(key: String): Boolean {
-        return key == ScheduleAppearance.FILE_STYLE_KEY ||
+        return key == AppearancePrefs.FILE_STYLE_KEY ||
             key.startsWith("combination_") ||
             key.startsWith("comb_") ||
             key.startsWith("wallpaper_")
@@ -2303,7 +2289,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
      */
     fun exportAllPreferences(): Map<String, Any> {
         val result = mutableMapOf<String, Any>()
-        for ((key, value) in prefs.all) {
+        for ((key, value) in prefs.all()) {
             if (isCombinationBackupKey(key) || isAppFeatureBackupKey(key)) continue
             when (value) {
                 is String -> result[key] = value
@@ -2318,7 +2304,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             }
         }
         if (KEY_SCHEDULE_NAMES !in result) {
-            result[KEY_SCHEDULE_NAMES] = gson.toJson(getScheduleNames())
+            result[KEY_SCHEDULE_NAMES] = encodeStringList(getScheduleNames())
         }
         if (KEY_CURRENT_SCHEDULE_ID !in result) {
             result[KEY_CURRENT_SCHEDULE_ID] = getCurrentScheduleId()
@@ -2326,7 +2312,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         ensureEmptyScheduleCourseEntries(result, getScheduleNames())
         result.putAll(HolidayManager.exportBackupData())
         // 文件夹用清洗后的结果导出：历史坏数据里的幽灵课表名不应进备份
-        result[KEY_SCHEDULE_FOLDERS] = gson.toJson(getScheduleFolders())
+        result[KEY_SCHEDULE_FOLDERS] = encodeScheduleFolders(getScheduleFolders())
         return result
     }
 
@@ -2347,7 +2333,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         preserveFolderMembership: Boolean,
     ) {
         prefs.edit {
-            for ((key) in prefs.all) {
+            for ((key) in prefs.all()) {
                 if (key.startsWith(SCHEDULE_KEY_PREFIX) || key.startsWith(TIME_CONFIG_PREFIX) ||
                     key.startsWith(SCHEDULE_TIME_CONFIG_PREFIX)) {
                     remove(key)
@@ -2423,8 +2409,8 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     }
 
     private fun parseTimeConfigSnapshot(raw: Any): TimeConfig? {
-        val json = runCatching { gson.toJson(raw) }.getOrNull() ?: return null
-        val parsed = parseTimeConfigSnapshotOrNull(gson, json) ?: return null
+        val json = runCatching { toJsonElement(raw).toString() }.getOrNull() ?: return null
+        val parsed = parseTimeConfigSnapshotOrNull(json) ?: return null
         return TimeConfig.sanitize(0L, parsed)
     }
 
@@ -2510,7 +2496,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         }
 
         val key = "${prefix}$KEY_COURSES"
-        val json = gson.toJson(courses)
+        val json = encodeCourses(courses)
         prefs.edit { putString(key, json) }
         invalidateAllCaches()
 
@@ -2559,9 +2545,17 @@ internal fun <T> withValidatedFullScheduleBackup(
     return restore(holidayBackup)
 }
 
+/** 对应 Gson 的 `x?.isJsonPrimitive == true && x.asJsonPrimitive.isString && x.asString.isNotBlank()`。 */
+private fun JsonElement?.isNonBlankJsonString(): Boolean =
+    this is JsonPrimitive && isString && content.isNotBlank()
+
 /** Export an empty slot for schedules that have never had a course persisted. */
 internal fun ensureEmptyScheduleCourseEntries(data: MutableMap<String, Any>, scheduleNames: List<String>) {
-    scheduleNames.forEach { name -> data.putIfAbsent("schedule_${name}_courses", "[]") }
+    scheduleNames.forEach { name ->
+        val key = "schedule_${name}_courses"
+        // MutableMap.putIfAbsent 是 JVM 专有，等价展开
+        if (!data.containsKey(key)) data[key] = "[]"
+    }
 }
 
 internal fun shouldPreserveRestoredFolderMembership(data: Map<String, Any>): Boolean =
@@ -2572,16 +2566,16 @@ internal fun normalizeFullScheduleBackup(data: Map<String, Any>): Map<String, An
     return if (data.containsKey("schedule_names")) {
         data
     } else {
-        data + ("schedule_names" to Gson().toJson(names))
+        data + ("schedule_names" to encodeStringList(names))
     }
 }
 
-internal fun validateFullScheduleBackupStructure(data: Map<String, Any>): List<String> {
+fun validateFullScheduleBackupStructure(data: Map<String, Any>): List<String> {
     val names = if (data.containsKey("schedule_names")) {
         val rawNames = data["schedule_names"]
         when (rawNames) {
             is String -> runCatching {
-                Gson().fromJson<List<*>>(rawNames, object : TypeToken<List<*>>() {}.type)
+                jsonToPlainValue(parseJsonElement(rawNames)) as? List<*>
             }.getOrNull()
             is List<*> -> rawNames
             else -> null
@@ -2610,19 +2604,21 @@ internal fun validateFullScheduleBackupStructure(data: Map<String, Any>): List<S
     if (data.containsKey("schedule_folders")) {
         val rawFolders = data["schedule_folders"] as? String
             ?: throw IllegalArgumentException("Invalid schedule folders in backup")
-        val folders = runCatching { JsonParser.parseString(rawFolders) }.getOrNull()
-        require(folders != null && folders.isJsonArray) { "Invalid schedule folders in backup" }
-        folders.asJsonArray.forEach { folder ->
-            require(folder.isJsonObject) { "Invalid schedule folder in backup" }
-            val fields = folder.asJsonObject
-            val id = fields.get("id")
-            val name = fields.get("name")
-            val members = fields.get("schedules")
-            require(id?.isJsonPrimitive == true && id.asJsonPrimitive.isString && id.asString.isNotBlank() &&
-                name?.isJsonPrimitive == true && name.asJsonPrimitive.isString && name.asString.isNotBlank() &&
-                members?.isJsonArray == true && members.asJsonArray.all { member ->
-                    member.isJsonPrimitive && member.asJsonPrimitive.isString && member.asString in scheduleNames
-                }
+        // 原来走 Gson 的 JsonParser/JsonElement（isJsonArray / asJsonObject / asJsonPrimitive…）；
+        // kotlinx 的 JsonElement 用类型判断 + JsonPrimitive.isString 表达同一套语义。
+        val folders = runCatching { parseJsonElement(rawFolders) }.getOrNull()
+        require(folders is JsonArray) { "Invalid schedule folder in backup" }
+        folders.forEach { folder ->
+            require(folder is JsonObject) { "Invalid schedule folder in backup" }
+            val id = folder["id"]
+            val name = folder["name"]
+            val members = folder["schedules"]
+            require(
+                id.isNonBlankJsonString() &&
+                    name.isNonBlankJsonString() &&
+                    members is JsonArray && members.all { member ->
+                        member is JsonPrimitive && member.isString && member.content in scheduleNames
+                    }
             ) { "Invalid schedule folder in backup" }
         }
     }
@@ -2660,7 +2656,7 @@ internal fun validateFullScheduleBackupStructure(data: Map<String, Any>): List<S
             val rawCourses = data[coursesKey] as? String
                 ?: throw IllegalArgumentException("Invalid full schedule backup: malformed course data")
             val courses = runCatching {
-                Gson().fromJson<List<*>>(rawCourses, object : TypeToken<List<*>>() {}.type)
+                jsonToPlainValue(parseJsonElement(rawCourses)) as? List<*>
             }.getOrNull()
             require(courses != null && courses.all { it is Map<*, *> }) {
                 "Invalid full schedule backup: malformed course data"
@@ -2719,6 +2715,11 @@ internal fun validateFullScheduleBackupStructure(data: Map<String, Any>): List<S
     data.keys.asSequence()
         .filter {
             it.startsWith("schedule_") && it != "schedule_names" && it != "schedule_folders" &&
+                // ⚠ schedule_folder_map 是**老版本遗留键**（被 schedule_folders 取代后代码里
+                // 已无任何引用），但它还留在老用户的 prefs 里 → 会被 exportAllPreferences
+                // 原样导出。这里必须同样豁免，否则**用户连自己的备份都恢复不了**
+                //（实测：真实备份正是因此被拒，报 "setting belongs to an unknown schedule"）。
+                it != "schedule_folder_map" &&
                 !it.startsWith("schedule_time_config_")
         }
         .forEach { key ->
@@ -2726,18 +2727,24 @@ internal fun validateFullScheduleBackupStructure(data: Map<String, Any>): List<S
                 "Invalid full schedule backup: setting belongs to an unknown schedule"
             }
         }
+    // ⚠ 「绑定到已删除课表的时间配置」**不是损坏**，是正常残留：删课表时清的是
+    // `schedule_{名}_*`，而绑定键用的是另一个前缀 `schedule_time_config_{名}`，没被一起清掉。
+    // 实测：真实备份里有 13 个这样的残留名（辽科院26秋 / ICS导入课表 / 新建的课表 …），
+    // 而 schedule_names 只有 5 个 —— 旧校验会直接拒绝，**用户连自己的备份都恢复不了**。
+    // 恢复流程本来就会先删掉全部 `schedule_*` 前缀再按备份写回，残留写回去与现状一致，无害。
+    // 所以这里只做「格式合理」的检查（非空、不含分隔符歧义），不再要求名字已知。
     data.keys.asSequence()
         .filter { it.startsWith("schedule_time_config_") }
         .map { it.removePrefix("schedule_time_config_") }
         .forEach { scheduleName ->
-            require(scheduleName in scheduleNames) {
-                "Invalid full schedule backup: time configuration belongs to an unknown schedule"
+            require(scheduleName.isNotBlank()) {
+                "Invalid full schedule backup: malformed time configuration binding"
             }
         }
     return scheduleNames
 }
 
-internal fun validateSingleScheduleCourseData(
+fun validateSingleScheduleCourseData(
     courses: List<Map<String, Any>>,
     maxWeeks: Int? = null,
 ) {

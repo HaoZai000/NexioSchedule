@@ -33,7 +33,7 @@ internal fun shouldAdvanceForReorganizedWeekend(
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = CourseRepository(application)
+    private val repository = CourseRepository()
 
     private val _smartWeekend = MutableStateFlow(repository.getSmartWeekend())
     val smartWeekend: StateFlow<Boolean> = _smartWeekend.asStateFlow()

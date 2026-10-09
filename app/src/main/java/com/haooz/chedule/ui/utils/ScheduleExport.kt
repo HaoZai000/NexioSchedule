@@ -392,7 +392,7 @@ fun performScheduleShare(
     scheduleName: String,
     onSharingChanged: (Boolean) -> Unit = {},
 ) {
-    val repository = CourseRepository.getInstance(context.applicationContext)
+    val repository = CourseRepository.getInstance()
     val scheduleMap = buildShareScheduleMap(repository, scheduleName)
     if (scheduleMap == null) {
         Toast.makeText(context, "「$scheduleName」课表为空，无法分享", Toast.LENGTH_SHORT).show()

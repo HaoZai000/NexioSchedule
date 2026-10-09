@@ -417,7 +417,7 @@ fun MainScheduleScreen(
 
     val scheduleContext = LocalContext.current
     val scheduleRepository = remember(scheduleContext) {
-        CourseRepository.getInstance(scheduleContext)
+        CourseRepository.getInstance()
     }
     val currentScheduleId = remember(scheduleRepository, dataVersion) {
         scheduleRepository.getCurrentScheduleId()

@@ -65,7 +65,7 @@ object ClassDndHelper {
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     private fun currentMode(context: Context): Int =
-        CourseRepository(context).getClassDndMode()
+        CourseRepository().getClassDndMode()
 
     // DND/PRIORITY 需要「免打扰访问权限」
     fun isDndPermissionGranted(context: Context): Boolean {
@@ -336,7 +336,7 @@ object ClassDndHelper {
 
     // 受课程提醒总开关约束
     private fun isFeatureAvailable(context: Context): Boolean {
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         val masterEnabled = repository.getPreClassReminder() || repository.getNextDayReminder()
         return masterEnabled && repository.getClassDndEnabled()
     }
@@ -368,7 +368,7 @@ object ClassDndHelper {
             val now = System.currentTimeMillis()
             if (now >= start && now < end) return true
         }
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         val now = Calendar.getInstance()
         val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
         for (course in CourseReminderHelper.getTodayCourses(context)) {
@@ -438,7 +438,7 @@ object ClassDndHelper {
      * 非课堂时段开启记为用户手动接管，applyCurrentState 不会自动把它还原掉。
      */
     fun toggleFromNotification(context: Context) {
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         if (!repository.getPreClassReminder() && !repository.getNextDayReminder()) {
             Toast.makeText(context, "请先在「课程提醒」中开启课程提醒", Toast.LENGTH_LONG).show()
             return
@@ -487,7 +487,7 @@ object ClassDndHelper {
     // 与课前提醒闹钟独立：只要总开关开着就按课表生效
     fun scheduleClassDndAlarms(context: Context, alarmManager: AlarmManager) {
         cancelClassDndAlarms(context, alarmManager)
-        val repository = CourseRepository(context)
+        val repository = CourseRepository()
         if (!repository.getClassDndEnabled()) {
             // 已经取消干净，登记表同步清空，否则下次会拿着过期 rc 空转
             writeRcSet(context, emptySet())
@@ -528,7 +528,7 @@ object ClassDndHelper {
 
     /** 测试课启动后同步勿扰闹钟，让「上课自动开启 / 下课自动关闭」在测试里也能验证 */
     fun syncTestClassDndAlarms(context: Context) {
-        if (!CourseRepository(context).getClassDndEnabled()) return
+        if (!CourseRepository().getClassDndEnabled()) return
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         scheduleClassDndAlarms(context, alarmManager)
         applyCurrentState(context)
@@ -593,7 +593,7 @@ object ClassDndHelper {
         }
         writeRcSet(context, emptySet())
 
-        for (course in CourseRepository(context).getAllCourses()) {
+        for (course in CourseRepository().getAllCourses()) {
             val id = course.id.hashCode()
             cancelOne(context, alarmManager, RC_DND_START_BASE + id, ClassDndReceiver.ACTION_CLASS_START)
             cancelOne(context, alarmManager, RC_DND_END_BASE + id, ClassDndReceiver.ACTION_CLASS_END)

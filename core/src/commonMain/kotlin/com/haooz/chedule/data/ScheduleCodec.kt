@@ -413,6 +413,32 @@ fun decodeTimeConfig(json: String): TimeConfig {
     return timeConfigFromJsonMap(map)
 }
 
+/**
+ * `TimeConfig` 的已知字段名。JSON 里**一个都不像**时判为损坏。
+ *
+ * 原先是 `TimeConfigSnapshotParser.kt`（`:app`）里的私有常量 —— 那个文件因为依赖 Gson
+ * 被留在 Android 侧，注释里写明「等阶段 2 换成 kotlinx.serialization 之后应当移回」。
+ * 现在就是那个时候：逻辑逐字搬过来，原文件删除。
+ */
+private val TIME_CONFIG_FIELD_NAMES = setOf(
+    "id", "name", "morningSections", "afternoonSections", "eveningSections",
+    "quickTimeEnabled", "classDuration", "shortBreak",
+    "sectionTimes", "sectionNames", "specialBlocks", "routines",
+)
+
+/**
+ * `TimeConfig` 快照解析：JSON 键名一个已知字段都不像时判为损坏，返回 null。
+ *
+ * 与迁移前 `parseTimeConfigSnapshotOrNull(gson, json)` **逻辑完全一致**：
+ * 先解析成对象做「像不像 TimeConfig」的判定，再整体解析。
+ * 两步都吞异常返回 null（调用方按「损坏」处理）。
+ */
+fun parseTimeConfigSnapshotOrNull(json: String): TimeConfig? {
+    val obj = runCatching { parseJsonObject(json) }.getOrNull() ?: return null
+    if (obj.keys.none { it in TIME_CONFIG_FIELD_NAMES }) return null
+    return runCatching { decodeTimeConfig(json) }.getOrNull()
+}
+
 // ════════════════════════════════════════════════════════════════════════
 //  简单标量列表（课表名 / time_config id）
 // ════════════════════════════════════════════════════════════════════════

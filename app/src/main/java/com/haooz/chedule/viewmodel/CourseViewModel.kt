@@ -25,7 +25,7 @@ import kotlinx.datetime.LocalDate
 
 class CourseViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = CourseRepository(application)
+    private val repository = CourseRepository()
     private var loadedScheduleId = repository.getCurrentScheduleId()
     private var loadedTeachingWeekReorganizations =
         repository.getTeachingWeekReorganizations(loadedScheduleId)
