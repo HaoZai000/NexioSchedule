@@ -95,13 +95,6 @@
             </intent-filter>
         </activity-alias>
         <activity
-            android:name=".ui.activities.CourseTimeSettingsActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="课表节数与时间"
-            android:theme="@style/Theme.课程表"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
             android:name=".ui.activities.CourseManageActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"

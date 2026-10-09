@@ -125,6 +125,11 @@ sealed interface AppRoute {
         override val id: String get() = "webdav_settings"
     }
 
+    /** 课表节数与时间（「课表节数与时间」）。 */
+    data object CourseTimeSettings : AppRoute {
+        override val id: String get() = "course_time_settings"
+    }
+
     companion object {
         /** 按 [id] 还原路由；未知 id 返回 null（版本回退/脏数据时由调用方兜底）。 */
         fun fromId(id: String): AppRoute? = when (id) {
@@ -145,6 +150,7 @@ sealed interface AppRoute {
             CourseReminder.id -> CourseReminder
             HolidaySettings.id -> HolidaySettings
             WebDavSettings.id -> WebDavSettings
+            CourseTimeSettings.id -> CourseTimeSettings
             else -> null
         }
     }

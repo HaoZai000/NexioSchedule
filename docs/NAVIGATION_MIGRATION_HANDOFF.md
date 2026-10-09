@@ -12,20 +12,22 @@
 为什么必须做：CMP 在 iOS 上跑在 `UIViewController` 里，没有 Activity；
 **导航状态原本活在 Android 的 Activity back stack 里，iOS 拿不到**。
 
-**现状：Manifest 23 → 6**
+**现状：Manifest 23 → 5**
 
 | 剩余 Activity | 行数 | 状态 |
 |---|---:|---|
 | `MainActivity` | 5903 | ✅ **宿主**（3 页 pager 常驻底座 + `AppNavHost` 叠加层） |
-| `CourseTimeSettingsActivity` | 332 | ⬜ 待迁（作息编辑 + 快照捕获） |
 | `CourseManageActivity` | 571 | ⬜ 待迁（快捷菜单 + 删除确认 + 课程编辑） |
 | `SwitchScheduleActivity` | 1928 | ⬜ 待迁（**内联 5 个 Composable**，需先抽 `SwitchScheduleScreen`） |
 | `EducationalImportActivity` | 671 | ⛔ **按决定保留**（WebView + `@JavascriptInterface` 平台页） |
 | `ImportAlias` | — | Manifest alias（指向 MainActivity，保留） |
 
-已迁 **14 条路由**：About / Changelog / License / PrivacyPolicy / PreferenceSettings /
+已迁 **15 条路由**：About / Changelog / License / PrivacyPolicy / PreferenceSettings /
 UpdateSettings / Communication / LocalBackup / AppreciateAuthor / ScheduleImport /
-ScheduleExport / ScheduleBackup / AiImport / WidgetIntro / CourseReminder / HolidaySettings / WebDavSettings。
+ScheduleExport / ScheduleBackup / AiImport / WidgetIntro / CourseReminder / HolidaySettings /
+WebDavSettings / CourseTimeSettings。
+
+代码基线：`master` `fcb77c1` → 增量 6 在 `1c6d2e7` 之上（未提交的增量见 `git status`）。
 
 ---
 
@@ -108,6 +110,22 @@ MainActivity.setContent
 8. **Activity 级深链**（提醒通知点进来）：`onCreate`/`onNewIntent` 里不能 `startActivity`，
    记成 `pendingRoute`（mutableState），由 `setContent` 的 `LaunchedEffect` 消费。
 
+9. **`onMultiWindowModeChanged` 是 Activity 回调，子页拿不到**
+   原来 `CourseTimeSettingsActivity` / `CourseManageActivity` 各维护一份
+   `isInFreeformWindow`（用于小窗圆角与窗口尺寸）。单宿主后统一读**宿主**
+   `MainActivity.isInFreeformWindow`（同一个回调驱动，`onCreate` 里已由
+   `updateFreeformWindowState()` 初始化）→ `AppRouteContent` 里的 `isInFreeformWindow()`。
+   窗口尺寸用 `ApiCompat.currentWindowSize(context)`，圆角用
+   `LocalActivity.current?.window`。
+
+10. **`registerForActivityResult` 的「返回即刷新」可以直接删**
+    `SettingsScreen` 原来用 `rememberLauncherForActivityResult` 在从时间设置页回来时
+    `refreshSettings()` + `reloadCourses()`。查过 repository：**所有写路径**
+    （`saveRoutine` / `deleteRoutine` / `notifyTimeConfigChanged` / `copyTimeConfigFromSchedule`）
+    都 `notifyCourseChanged("settings")`，而 `CourseViewModel` 与 `SettingsViewModel`
+    都注册了该监听 → **刷新本来就会发生**，回调是冗余的。
+    ⇒ 迁移时先确认写路径有没有发广播，**有就直接删回调**，不要再造路由结果机制。
+
 ---
 
 ## 五、顺带修掉的真实缺陷（与导航无关，记档）
@@ -122,14 +140,15 @@ MainActivity.setContent
 
 ## 六、下一步（建议顺序）
 
-1. **迁 `CourseTimeSettingsActivity`**（332 行，三个复杂里最小）：读它的
-   `onEditRoutine` 快照捕获逻辑，状态搬进 route 函数，`isInFreeformWindow`
-   需要改成从 `LocalConfiguration`/MainActivity 取（Activity 回调没了）。
-2. **迁 `CourseManageActivity`**（571 行）：快捷菜单、删除确认、课程编辑全在 Activity 里。
+1. ✅ **迁 `CourseTimeSettingsActivity`**（332 行）—— 已完成。
+   它不是普通文档页：外层「背景缩放 + 模糊」动画 + 二级编辑页渲染在 `Scaffold` 外，
+   迁移时整体搬进了 `CourseTimeSettingsRoute`，骨架套 `DocumentPageScaffold`。
+2. **迁 `CourseManageActivity`**（571 行）：快捷菜单、删除确认、课程编辑全在 Activity 里，
+   结构与上一页同构（可直接照抄 `CourseTimeSettingsRoute`）。
 3. **迁 `SwitchScheduleActivity`**（1928 行）：先把内联的 `SwitchScheduleScreen`
    （5 个 Composable）抽成独立文件，再按套路走。
 4. 之后：`HttpService.native`（iOS 硬阻塞）/ 建 `:ui-shared`（`AppRouteContent`、
-   `DocumentPageScaffold`、14 个 Screen 的归宿）。
+   `DocumentPageScaffold`、15 个 Screen 的归宿）。
 5. **别动**：`EducationalImportActivity`（WebView 平台页）；Gson 的 10 个文件全在
    `:app` UI 层，**现阶段不需要动**（阶段 5 搬 UI 时才必须清）。
 

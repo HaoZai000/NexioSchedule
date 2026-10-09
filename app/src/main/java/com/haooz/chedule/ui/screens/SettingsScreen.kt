@@ -12,10 +12,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.content.Intent
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,7 +53,6 @@ import com.haooz.chedule.data.TeachingWeekReorganization
 import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
-import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
@@ -145,22 +141,11 @@ fun SettingsScreen(
     val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
+    // LocalAppRouter.current 是 @Composable 调用，必须在组合层取（各入口共用）
+    val settingsRouter = LocalAppRouter.current
     var showShiftModeConfirmDialog by remember { mutableStateOf(false) }
     var showNewSemesterDialog by remember { mutableStateOf(false) }
     var newSemesterName by remember { mutableStateOf("") }
-
-    val courseTimeSettingsLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) {
-        settingsViewModel.refreshSettings()
-        viewModel.reloadCourses()
-    }
-
-    val reminderSettingsLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) {
-        viewModel.reloadCourses()
-    }
 
     val (tempYearInit, tempMonthInit, tempDayInit) = remember(classStartTime) {
         parseDate(classStartTime)
@@ -334,9 +319,10 @@ fun SettingsScreen(
                                 summary = "管理课表的节数与课程时间",
                                 onClick = {
                                     FeatureLog.timeConfig("open")
-                                    val intent =
-                                        Intent(context, CourseTimeSettingsActivity::class.java)
-                                    courseTimeSettingsLauncher.launch(intent)
+                                    // 已路由化：不再走 Activity。保存/删除作息时 repository 会
+                                    // notifyCourseChanged("settings")，CourseViewModel 与
+                                    // SettingsViewModel 都会自行刷新，无需 Activity 结果回调
+                                    settingsRouter.navigate(AppRoute.CourseTimeSettings)
                                 }
                             )
                         }
@@ -355,8 +341,6 @@ fun SettingsScreen(
                             Column(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
-                                val settingsRouter = LocalAppRouter.current
                                 ArrowPreference(
                                     title = "课程提醒",
                                     summary = "课前提醒、次日课程提醒",

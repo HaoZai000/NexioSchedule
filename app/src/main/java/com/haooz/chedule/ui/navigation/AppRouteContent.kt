@@ -1,7 +1,11 @@
 package com.haooz.chedule.ui.navigation
 
+import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -24,16 +28,25 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
+import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.data.todayLocalDate
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
@@ -44,6 +57,9 @@ import com.haooz.chedule.ui.activities.BackupAndMigrationScreen
 import com.haooz.chedule.ui.activities.ChangelogScreen
 import com.haooz.chedule.ui.activities.CommunicationScreen
 import com.haooz.chedule.ui.activities.CourseReminderScreen
+import com.haooz.chedule.ui.activities.CourseTimeSettingsScreen
+import com.haooz.chedule.ui.activities.MainActivity
+import com.haooz.chedule.ui.activities.TimeConfigCardBounds
 import com.haooz.chedule.ui.activities.HolidaySettingsScreen
 import com.haooz.chedule.ui.activities.LicenseScreen
 import com.haooz.chedule.ui.activities.LocalBackupScreen
@@ -56,12 +72,17 @@ import com.haooz.chedule.ui.activities.WidgetIntroScreen
 import com.haooz.chedule.ui.basic.LiquidGlassTextButton
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.DocumentPageScaffold
+import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
+import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.chedule.ui.screens.TimeConfigEditScreen
+import com.haooz.chedule.ui.utils.ApiCompat
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -72,9 +93,11 @@ import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * 子页路由 → 页面的映射表。
@@ -91,10 +114,8 @@ import java.net.URL
  * PreferenceSettings / UpdateSettings / Communication / LocalBackup / AppreciateAuthor
  *
  * 仍是 Activity（各有 Activity 级状态或平台依赖，下一批处理）：
- * HolidaySettings（URL 拉取）/ WidgetIntro（弹窗+按钮）/ CourseReminder（超级岛）/
- * WebDavSettings（状态回调）/ BackupAndMigration（3 个 ViewModel + mode）/
- * CourseManage（571 行业务逻辑）/ CourseTimeSettings / SwitchSchedule（1928 行）/
- * EducationalImport（WebView）/ AiImport
+ * CourseManage（571 行业务逻辑）/ SwitchSchedule（1928 行）/
+ * EducationalImport（WebView，平台页按决定保留）
  */
 @Composable
 fun AppRouteContent(
@@ -186,6 +207,7 @@ fun AppRouteContent(
         AppRoute.CourseReminder -> CourseReminderRoute(router)
         AppRoute.HolidaySettings -> HolidaySettingsRoute(router)
         AppRoute.WebDavSettings -> WebDavSettingsRoute(router)
+        AppRoute.CourseTimeSettings -> CourseTimeSettingsRoute(router)
     }
 }
 
@@ -481,6 +503,221 @@ private fun BackupAndMigrationRoute(router: AppRouter, mode: ScheduleDataManageM
             liquidGlassBackdrop = backdrop,
             mode = mode,
         )
+    }
+}
+
+/**
+ * 是否处于自由小窗 / 分屏。
+ *
+ * 原来由每个 Activity 自己的 `onMultiWindowModeChanged` 维护（该回调 API 35 起废弃且无等价替代）。
+ * 单宿主之后子页拿不到自己的 Activity 回调，统一读**宿主** [MainActivity] 的 Compose 状态 ——
+ * 它由宿主的同一个回调驱动，语义不变。
+ */
+@Composable
+private fun isInFreeformWindow(): Boolean {
+    val activity = LocalActivity.current as? MainActivity ?: return false
+    return activity.isInFreeformWindow
+}
+
+/**
+ * 课表节数与时间（原 CourseTimeSettingsActivity，332 行）。
+ *
+ * 这一页比普通文档页多两层结构，迁移时**必须整体搬**：
+ * - 外层 `Box` 做「背景缩放 + 模糊」动画，二级编辑页从列表卡片展开时主列表缩下去
+ * - 二级编辑页 `TimeConfigEditScreen` 渲染在 `Scaffold` **外面**（与 CourseManageActivity 同构），
+ *   否则会被顶栏裁掉
+ */
+@Composable
+private fun CourseTimeSettingsRoute(router: AppRouter) {
+    val context = LocalContext.current
+    val activity = LocalActivity.current
+    val density = LocalDensity.current
+    val repository = remember { CourseRepository() }
+    val coroutineScope = rememberCoroutineScope()
+
+    val isInFreeformWindow = isInFreeformWindow()
+
+    // 页面状态管理（原来在 Activity 里）
+    var currentPage by remember { mutableStateOf("select") }
+    var editingConfig by remember { mutableStateOf<TimeConfig?>(null) }
+    var editingRoutineId by remember { mutableStateOf<Long?>(null) }
+    var editingCardBounds by remember { mutableStateOf<TimeConfigCardBounds?>(null) }
+    var listRefreshTrigger by remember { mutableIntStateOf(0) }
+
+    // 屏幕尺寸与圆角
+    val windowSize = remember(isInFreeformWindow) {
+        ApiCompat.currentWindowSize(context)
+    }
+    val screenWidth = windowSize.width.toFloat()
+    val screenHeight = windowSize.height.toFloat()
+    val screenCornerRadius = remember(isInFreeformWindow) {
+        if (isInFreeformWindow) {
+            20f * density.density
+        } else {
+            activity?.window?.let { ApiCompat.windowCornerRadius(it) } ?: 0f
+        }
+    }
+
+    // 快照截取
+    val screenGraphicsLayer = rememberGraphicsLayer()
+    var cardSnapshot by remember { mutableStateOf<Bitmap?>(null) }
+
+    // 背景缩放与模糊动画
+    val backgroundScale = remember { Animatable(1f) }
+    val managePageBlurRadius = remember { Animatable(0f) }
+    // 二级编辑页的玻璃层是独立的（与一级页不共享采样源）
+    val editLiquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    // 使用 renderEffect 模糊，避免动画时重组（API 31 以下不模糊）
+                    val blurRadiusPx = managePageBlurRadius.value * this@graphicsLayer.density
+                    renderEffect = ApiCompat.blurRenderEffect(blurRadiusPx)
+                }
+                .background(MiuixTheme.colorScheme.surface)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val scale = backgroundScale.value
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .drawWithContent {
+                        screenGraphicsLayer.record {
+                            this@drawWithContent.drawContent()
+                        }
+                        val scale = backgroundScale.value
+                        if (scale < 0.999f) {
+                            val path = Path().apply {
+                                addSquircleRect(
+                                    width = size.width,
+                                    height = size.height,
+                                    cornerRadius = screenCornerRadius
+                                )
+                            }
+                            clipPath(path) {
+                                this@drawWithContent.drawContent()
+                            }
+                        } else {
+                            drawContent()
+                        }
+                    }
+            ) {
+                DocumentPageScaffold(
+                    title = "课表节数与时间",
+                    onBack = { router.popBack() },
+                ) { scrollBehavior, liquidGlassBackdrop ->
+                    CourseTimeSettingsScreen(
+                        onEditRoutine = { routine, baseConfig, bounds ->
+                            // 二级页面只编辑这一个作息：把该作息的时间叠加上去
+                            editingConfig = baseConfig.effectiveFor(routine.id)
+                            editingRoutineId = routine.id
+                            editingCardBounds = bounds
+                            // 先捕获快照（原始状态）
+                            coroutineScope.launch {
+                                val lx = bounds.left.toInt().coerceIn(0, screenWidth.toInt() - 1)
+                                val ly = bounds.top.toInt().coerceIn(0, screenHeight.toInt() - 1)
+                                val lw = bounds.width.toInt().coerceIn(1, screenWidth.toInt() - lx)
+                                val lh = bounds.height.toInt().coerceIn(1, screenHeight.toInt() - ly)
+                                cardSnapshot = try {
+                                    val fullBitmap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                                    Bitmap.createBitmap(fullBitmap, lx, ly, lw, lh)
+                                } catch (_: Exception) { null } catch (_: OutOfMemoryError) { null }
+                            }
+                            // 等待一帧后启动背景动画
+                            coroutineScope.launch {
+                                delay(12.milliseconds)
+                                launch {
+                                    backgroundScale.animateTo(
+                                        targetValue = 0.92f,
+                                        animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                    )
+                                }
+                                launch {
+                                    managePageBlurRadius.animateTo(
+                                        targetValue = 5f,
+                                        animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                    )
+                                }
+                            }
+                            // 最后触发组合（背景已在动画中）
+                            currentPage = "edit"
+                        },
+                        refreshTrigger = listRefreshTrigger,
+                        scrollBehavior = scrollBehavior,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                    )
+                }
+            }
+        }
+
+        // 编辑页面渲染在 Scaffold 外面（与 CourseManageActivity 结构一致）
+        if (currentPage == "edit") {
+            editingConfig?.let { config ->
+                val bounds = editingCardBounds
+                TimeConfigEditScreen(
+                    timeConfig = config,
+                    routineId = editingRoutineId ?: 0L,
+                    onBackStart = {
+                        coroutineScope.launch {
+                            launch {
+                                backgroundScale.animateTo(
+                                    targetValue = 1f,
+                                    animationSpec = tween(350, easing = OobeCubicOutEasing)
+                                )
+                            }
+                            launch {
+                                managePageBlurRadius.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(350, easing = OobeCubicOutEasing)
+                                )
+                            }
+                        }
+                    },
+                    onBack = {
+                        currentPage = "select"
+                        editingConfig = null
+                        editingRoutineId = null
+                        editingCardBounds = null
+                        cardSnapshot = null
+                    },
+                    onSave = { savedConfig ->
+                        // 只替换这一个作息；节次骨架由一级页面管理，这里不碰。
+                        // 顶层 name 是用户在这一页改的作息名，要带回去。
+                        val saved = editingRoutineId?.let { routineId ->
+                            repository.saveRoutine(routineId, savedConfig, savedConfig.name)
+                        } ?: false
+                        if (!saved) {
+                            // 保存被丢弃必须让用户看见：以前静默丢弃，表现成「改完保存、重开还是原来的」
+                            Toast.makeText(context, "保存失败，请重试", Toast.LENGTH_SHORT).show()
+                        }
+                        listRefreshTrigger++
+                    },
+                    cardLeft = bounds?.left ?: 0f,
+                    cardTop = bounds?.top ?: 0f,
+                    cardWidth = bounds?.width ?: screenWidth,
+                    cardHeight = bounds?.height ?: (screenHeight * 0.2f),
+                    screenWidth = screenWidth,
+                    screenHeight = screenHeight,
+                    screenCornerRadius = screenCornerRadius,
+                    cardStartCornerRadius = 20f,
+                    cardSnapshot = cardSnapshot,
+                    // 新建配置的 FAB 形态已随「快捷切换」一起移除，二级页永远从列表卡片展开
+                    isFabCreation = false,
+                    onDeleteRoutine = { routineId ->
+                        // 删除会换掉生效作息，重排提醒等都在 repository 里一并做完
+                        repository.deleteRoutine(routineId)
+                        listRefreshTrigger++
+                    },
+                    liquidGlassBackdrop = editLiquidGlassBackdrop,
+                )
+            }
+        }
     }
 }
 
