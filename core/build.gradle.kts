@@ -64,6 +64,13 @@ kotlin {
             // runTest：HttpService 是 suspend 接口，契约测试需要协程测试运行时。
             implementation(libs.kotlinx.coroutines.test)
         }
+
+        // 仅 JVM 测试用的差分基准：把**真实 Gson** 拉进来对拍 ScheduleCodec
+        //（R2 迁移要求「换了序列化实现后输出与 Gson 一致」，光靠手写字面量不够）。
+        // 只影响测试编译，不进任何产物，也不给 :app 增加依赖。
+        jvmTest.dependencies {
+            implementation(libs.gson)
+        }
     }
 }
 
