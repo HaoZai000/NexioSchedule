@@ -55,7 +55,7 @@ internal val OobeQuartOutEasing = Easing { fraction ->
 }
 
 /** [OobeQuartOutEasing] 的温和起步变体：Hermite 把起点速度压为 0，中后段保持原强减速 */
-internal val OobeQuartOutSoftStartEasing = Easing { fraction ->
+val OobeQuartOutSoftStartEasing = Easing { fraction ->
     val t = fraction.coerceIn(0f, 1f)
     val k = 0.48f
     val shaped = if (t <= k) {
@@ -67,6 +67,13 @@ internal val OobeQuartOutSoftStartEasing = Easing { fraction ->
     val inverse = 1f - shaped
     1f - inverse.pow(4.5f)
 }
+
+/**
+ * 二级页「出场」缓动：起步更缓、后段正常滑出。
+ * 原为 [ActivityTransitions] 里的 `CubicBezierEasing(0.36f, 0.18f, 0.3f, 0.85f)`，
+ * 单宿主改造后由 [AppNavHost] 复用，故抽到这里集中管理。
+ */
+val SecondaryPageExitEasing = CubicBezierEasing(0.36f, 0.18f, 0.3f, 0.85f)
 
 internal val OobeFifthpowerOutEasing = Easing { fraction ->
     val inverse = 1f - fraction

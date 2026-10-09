@@ -76,7 +76,9 @@ import com.haooz.chedule.ui.navigation.AppNavHost
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouteContent
 import com.haooz.chedule.ui.navigation.LocalAppRouter
+import com.haooz.chedule.ui.navigation.MainLayerTransition
 import com.haooz.chedule.ui.navigation.rememberAppRouter
+import com.haooz.chedule.ui.navigation.rememberNavTransitionState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -459,6 +461,12 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(PrivacyConsent.hasConsented())
                 }
                 val router = rememberAppRouter()
+                // 主界面（常驻底座，不在 AppNavHost 的 AnimatedContent 里）的首层转场进度。
+                // 栈被 rememberSaveable 恢复成非空时（旋转 / 进程重建），主界面应已是「被盖住」的 1，
+                // 不能从 0 起步白播一次进入动画。
+                val mainTransition = rememberNavTransitionState(
+                    initialValue = if (router.hasOverlay) 1f else 0f,
+                )
                 // 消费 Intent 带来的待跳转路由（提醒设置深链等）
                 LaunchedEffect(pendingRoute) {
                     pendingRoute?.let {
@@ -469,17 +477,12 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(LocalAppRouter provides router) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         // ── 主界面常驻底座 ──
-                        // 刻意**不**参与路由的 save/restore：拆 Activity 时代跳到子页，
-                        // 主 Activity 只是 stop、没有销毁，全部组合状态原样保留。
-                        // 若塞进 AnimatedContent + SaveableStateHolder，
-                        // rememberSaveable 能救回来，但 remember { mutableStateOf } 救不回来
-                        // —— CourseScheduleApp 里有大量这类状态（pager 位置 / 壁纸映射 / …）。
-                        CourseScheduleApp(privacyConsented = privacyAgreed)
+                        MainLayerTransition(mainTransition) {
+                            CourseScheduleApp(privacyConsented = privacyAgreed)
+                        }
 
                         // ── 子页叠加层 ──
-                        // 栈空时不渲染任何东西，主界面直接可见；
-                        // navigate 后子页滑入盖在主界面上，popBack 后滑出露出主界面。
-                        AppNavHost(router) { route ->
+                        AppNavHost(router, mainTransition = mainTransition) { route ->
                             AppRouteContent(router, route)
                         }
 

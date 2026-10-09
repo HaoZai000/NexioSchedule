@@ -1148,25 +1148,31 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 2. **对话框的模糊 / 描边 / 跟手返回** —— 两个 bug 修完后需回归确认。
 3. **长按浮层与拖放落点** —— 已修，需按「跨特殊块 / 跨午休晚修 / 调课日列」三种情形回归。
 
-### 📌 剩余工作量（实测，2026-10-09）
+### 📌 剩余工作量（实测，2026-10-10 重数）
 
 | 工作量 | 数量 |
 |---|---|
-| `:app` 的 Android 专用 import | **505 处 / 146 文件**（`android.*` / `androidx.core` / `navigationevent` / `activity` …）|
+| `android.*` import | **349 处 / 93 文件** |
+| `androidx.*`（**不含** compose）| **99 处**（与上一行去重后共 **448 处 / 94 文件**）|
+| `androidx.compose.*` | 2665 处 —— **跨平台，不算阻塞**，别拿它估工作量 |
 | ~~`java.time`（阶段 2 日期迁移）~~ | ✅ **已完成**（2026-10-09）：22 文件全换，`java.time` 在 `:app` 只剩注释（见 ⑧） |
-| Gson 引用（**风险 R2**） | 33 处 / 14 文件（`TeachingWeekReorganization` 那份已换掉，见 ⑨-b） |
+| Gson 引用（**风险 R2**） | **22 处 / 10 文件**（⑫ 之后又降了；`TeachingWeekReorganization` 那份已换掉，见 ⑨-b）|
 | `java.io` 引用 | 18 处（import）/ 11 文件 |
+
+> ⚠ 早期写的「505 处 / 146 文件」把部分 androidx 混进来了，口径与该表不一致，**以本表为准**。
+> 逐文件处置清单见 `docs/NAVIGATION_MIGRATION_HANDOFF.md` **第七节（安卓数据层迁移清单）**。
 
 按阻塞类型分组：
 
 - ~~**纯日期**：`CourseScheduleDateBounds`~~ ✅ **已下沉 `:core`**（⑨）
 - ~~**节假日整条链**~~ ✅ **已下沉 `:core`**（⑨⑩，含存储层 `HolidayManager`）
-- **`CourseRepository`（数据层最后一块）**：全局单例 → Kotlin/Native 线程模型（风险 **R4**），
-  需改显式注入；另有 `String.format` 等 JVM 专有点
-- **Gson**：`CourseRepository` / `ScheduleAppearance` / `TimeConfigSnapshotParser` … ——
+- ~~**`CourseRepository`**~~ ✅ **已下沉 `:core`**（⑫，无参单例）；
+  Kotlin/Native 线程模型（风险 **R4**）仍未最终验证 —— **要等真机**
+- **Gson**：`ScheduleAppearance` 等 10 个文件（清单见交接文档 7.3）——
   需 `@Serializable` + **显式字段清单**，属**最高风险 R2**，必须有真实用户备份做 round-trip 回归
-- **文件 IO**：`ScheduleBackup`（还差 WebDAV + 提醒依赖）；其余 `java.io` 引用多为导入导出
+- **文件 IO**：`ScheduleBackup` 已下沉 ✅；其余 `java.io` 引用多为导入导出
 - **Android 专有模块**（按约定留在 `:app`）：`reminder/` / `widget/` / `shizuku/` / `wearable/` / `ui/web/`
+  —— 但 `reminder/CourseReminderHelper` 的**提醒时刻算法**值得抠进 `:core`（iOS 本地通知要用）
 
 **不要用正则批量改写日期代码**（曾破坏 lambda / when 分支 / `!` 优先级）。
 `Holidays.kt` 的调休 `followDate` 推算是全项目最敏感的部分，改它要逐点对照。

@@ -65,6 +65,16 @@ class AppRouter {
     var lastDirection: NavDirection = NavDirection.Push
         private set
 
+    /**
+     * 最近一次被 pop 出去的路由：已不在栈里，但退出转场还要把它画完 ——
+     * `AppNavHost` 靠它在动画期间继续渲染这一层（此时 `current` 已变成它下面那层）。
+     */
+    var lastPopped: AppRoute? = null
+        private set
+
+    /** 栈顶下面那一层；不足两层时为 null（此时下层是主界面，不在路由里）。 */
+    val underTop: AppRoute? get() = if (stack.size >= 2) stack[stack.size - 2] else null
+
     /** 入栈。同一个路由重复入栈是允许的（对应原来重复 startActivity）。 */
     fun navigate(route: AppRoute) {
         stack.add(route)
@@ -77,7 +87,7 @@ class AppRouter {
      */
     fun popBack(): Boolean {
         if (stack.isEmpty()) return false
-        stack.removeAt(stack.lastIndex)
+        lastPopped = stack.removeAt(stack.lastIndex)
         lastDirection = NavDirection.Pop
         return true
     }

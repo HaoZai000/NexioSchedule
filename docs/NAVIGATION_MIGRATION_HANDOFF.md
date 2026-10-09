@@ -1,8 +1,10 @@
-# 交接文档：单宿主导航改造（2026-10-09 收工快照）
+# 交接文档：单宿主导航改造 + 安卓数据层迁移清单（2026-10-10 收工快照）
 
-> **给新对话的接手人**：这份文档是「Activity → 路由」改造的完整交接。
+> **给新对话的接手人**：这份文档管两件事 ——
+> **①「Activity → 路由」改造**（一~六节，已收工）；
+> **②安卓侧数据层的迁移清单**（七节，下一步要做的）。
 > 宏观 KMP 迁移计划见 `docs/KMP_IOS_MIGRATION_PLAN.md`（含 ⑦–⑬ 数据层批次记录），本文不重复。
-> 代码基线：`master` `fcb77c1`，Android `assembleDebug` 通过，`:core:jvmTest` 241 用例全绿。
+> 代码基线：`master` `6367c55`，Android `assembleDebug` 通过，`:core:jvmTest` 241 用例全绿。
 
 ---
 
@@ -24,16 +26,17 @@
 > 手机端在 `MainActivity` 里内联渲染 `SwitchScheduleScreen`（带卡片形变动画，与路由转场冲突），
 > 平板走 `TabletSwitchSchedulePane`。**不是所有 Activity 都要变成路由。**
 
-已迁 **16 条路由**：About / Changelog / License / PrivacyPolicy / PreferenceSettings /
-UpdateSettings / Communication / LocalBackup / AppreciateAuthor / ScheduleImport /
-ScheduleExport / ScheduleBackup / AiImport / WidgetIntro / CourseReminder / HolidaySettings /
-WebDavSettings / CourseTimeSettings / CourseManage。
+已迁 **19 条路由**（`AppRoute.kt` 实测 `data object` 数量，早期文档写的 16 条是旧数，以这条为准）：
+About / Changelog / License / PrivacyPolicy / PreferenceSettings / UpdateSettings /
+Communication / LocalBackup / AppreciateAuthor / ScheduleImport / ScheduleExport /
+ScheduleBackup / AiImport / WidgetIntro / CourseReminder / HolidaySettings / WebDavSettings /
+CourseTimeSettings / CourseManage。
 
-（16 条 = 「About 系 4 + 设置系 4 + 数据管理 3 + 带额外元素 5」；课程管理/时间设置是带内部
-二级页的两个大页，也走路由。**切换课表不走路由**，原因见下方坑 15。）
+（19 条 = 「About 系 4 + 设置系 4 + 数据管理 3 + 带额外元素 8」；课程管理/时间设置是带内部
+二级页的两个大页，也走路由。**切换课表不走路由**，原因见下方坑 14。）
 
-代码基线：`master` `fcb77c1`；增量 6（CourseTimeSettings `da3bdf9`）、增量 7（CourseManage）
-都在 `1c6d2e7` 之上。
+代码基线：`master` `6367c55`。导航侧最后一个提交是
+`6367c55 fix(ui): 修复顶栏回弹不显现材质`（坑 16）。
 
 ---
 
@@ -56,11 +59,33 @@ MainActivity.setContent
 |---|---|
 | `AppRoute.kt` | 路由表。`id` 是持久化契约（`rememberSaveable` 用），**已发布的别改** |
 | `AppRouter.kt` | 返回栈 + `LocalAppRouter`。栈**从空开始**（主界面是底座不是路由） |
-| `AppNavHost.kt` | `AnimatedContent` 转场（只滑不淡）+ `BackHandler(enabled = hasOverlay)` + `SaveableStateHolder` |
+| `AppNavHost.kt` | **单进度 `p` 驱动两层位移 + 黑幕** + `NavigationBackHandler`（含预测性返回）+ `SaveableStateHolder` |
+| `NavTransitionState.kt` | 进度持有者（`value` / `animateTo` / `snapTo`）+ 主界面容器 `MainLayerTransition` |
 | `AppRouteContent.kt` | **路由→页面映射表**，阶段 5 整体搬 `:ui-shared` |
 
-**关键 API**（`AppRouter`）：`hasOverlay`（false 时 BackHandler 不拦截，Android 宿主的
-预测性返回/「退出即隐藏后台」照常生效）、`current: AppRoute?`、`navigate` / `popBack`。
+⚠ **转场只有一个进度 `p`**，三层全部由它驱动（对齐 1da9c0a8 的
+`SecondaryPageTransitionController`，它当初在 `ui/utils/ActivityTransitions.kt`）：
+
+| 层 | 位移 | p=0 | p=1 |
+|---|---|---|---|
+| 栈顶页 | `(1 - p) × W` | 屏外右 | 完全覆盖 |
+| 下一层 | `-0.24 × p × W` | 归位 | 左移 24% |
+| 黑幕 | `alpha = 0.42 × p` | 不压暗 | 压暗 42% |
+
+`push = 0→1`、`pop = 1→0`，**公式同一套、只是方向相反**。这是能同时支持
+「打断续播」与「预测性返回跟手」的前提：任何时候把 p 落到一个新值，
+整个层级都是自洽的，不需要重启动画。
+
+- ⚠ **因此这里没有用 `AnimatedContent` 的 `EnterExitTransition`**：那是两条各自独立的
+  动画，拿不到中间进度，既不能从半路续播也不能跟手。别再改回去。
+- **主界面不在转场容器里**（坑 2），它的视差由 `mainTransition`（同一个 p，只在
+  depth 跨越 0/1 时被驱动）推给 `MainLayerTransition`，在 MainActivity 层施加。
+- **手势跟手/取消回弹**的剩余时长用 `settleOnGlobalCurve` 在整条曲线上反解，
+  保证速度连续（原版 `animateEnter` 里「只有首次才 `snapTo(0)`」的等价实现）。
+
+**关键 API**（`AppRouter`）：`hasOverlay`（false 时返回不拦截，Android 宿主的
+预测性返回/「退出即隐藏后台」照常生效）、`current`、`underTop`、`lastPopped`、
+`navigate` / `popBack`。
 
 **`DocumentPageScaffold`**（`ui/components/`）—— 统一脚手架，折叠大标题 + 玻璃返回 +
 采样层。新增两个可选参数：
@@ -109,6 +134,34 @@ MainActivity.setContent
 
 6. **玻璃采样层级**：`backdrop` 只包内容；玻璃按钮/弹窗必须在**层外**（`overlay`），
    否则自己采样自己循环崩溃。原代码里十几处注释都强调过这点。
+
+7. **`AnimatedContent` 的默认 `sizeTransform` 不是 null** —— 退出会「缩小并弹出」
+   （本项已随转场重写作废，留着防手滑改回 `AnimatedContent`）
+   `ContentTransform` 的 `sizeTransform` 默认值是 `SizeTransform()`（非空！），栈空时
+   `targetState == null`、内容 lambda 不组合任何东西 → 目标尺寸测得 0×0，容器从全屏
+   spring 收缩到 0（还带 `clipToBounds`）；而 slide 的偏移量取自同一个收缩中的尺寸，
+   滑出距离也一起缩水。表现就是「退出时页面缩小并弹出」。
+
+8. **页面位移用 `Modifier.layout` 自己 place，别用 `offset` / `graphicsLayer`**
+   - `offset` 会把位移写进 constraints（`constraints.offset()`），子节点每帧真正
+     re-measure —— 转场时整页（列表 / pager / 玻璃采样）跟着重测，必掉帧。
+   - `graphicsLayer { translationX }` 不重测，但给整页套一层离屏 layer，
+     可能干扰页内的 `layerBackdrop` 采样。
+   - `layout { measurable.measure(constraints) /* 原样 */ ... place(dx, 0) }`：
+     constraints 不变 → 子节点命中 measure 缓存，只重新 place。
+
+9. **主界面的视差进度只能在 layout/draw 阶段读**
+   在组合期读 `NavTransitionState.value` 会让 `CourseScheduleApp` 整树跟着转场每帧重组
+   （平板展开/缩回直接掉帧，同一条坑 `TabletNavSideState.expandProgress` 早就踩过）。
+
+10. **黑幕的显隐不能挂在「转场是否进行中」上**
+    预测性返回跟手期间**没有任何动画在跑**（纯逐帧落值），那种写法会让人手势全程没有压暗。
+    常驻挂载，只在 draw 阶段按 `p` 决定画不画。
+
+11. **push 的起始帧必须在组合期把 `p` 归零**
+    `Animatable.snapTo` 是 suspend，赶不上当帧绘制；等 `LaunchedEffect` 去做的话，
+    新页会先以 `p=1`（最终位置）出现一帧，观感是闪一下。同理 pop 结束时
+    「清 `outgoing`」与「`p` 拉回 1」必须在同一帧做完，否则新栈顶会被摆到屏外。
 
 7. **LocalAppRouter.current 是 @Composable 调用**，必须在组合层取
    （`val r = LocalAppRouter.current` 然后在 onClick 里用 `r`）。
@@ -192,6 +245,9 @@ MainActivity.setContent
 - 新增 `FullBackupRoundTripTest`（真实备份「导出→导入→导出逐字一致」，文档阶段 2.3 红线）。
 - `ScheduleBackup` 下沉 `:core`，WebDAV 收敛到 `HttpService` —— **iOS 侧只剩
   `HttpService.native` 一处网络实现要写**。
+- **顶栏「回弹也显现材质」失效**（`6367c55`）：`CollapsibleTopAppBar` 搬进 `:miuix` 后读
+  miuix 那套 `LocalOverScrollState`，页面节点写的是 app fork 那套 → `offset` 恒 0，
+  整条分支死代码。详见坑 16。
 
 ---
 
@@ -208,15 +264,122 @@ MainActivity.setContent
 
 ### Activity 侧已收工，下一步转 KMP 本身
 
-4. `HttpService.native`（iOS 硬阻塞，WebDAV 只等这一处）/ 建 `:ui-shared`
-   （`AppRouteContent`、`DocumentPageScaffold`、16 个 Screen 的归宿）。
-5. **别动**：`EducationalImportActivity`（WebView 平台页）；Gson 的 10 个文件全在
-   `:app` UI 层，**现阶段不需要动**（阶段 5 搬 UI 时才必须清）。
-6. 已知未做：路由的**预测性返回动画**（`PredictiveBackHandler`），目前只有 `BackHandler`。
+4. **安卓数据层迁移**（`data/` + `viewmodel/` + 平台能力包）—— **清单见第七节**，
+   与导航改造同量级，建议独立开工前先读那一节。
+5. `HttpService.native`（iOS 硬阻塞，WebDAV 只等这一处）/ 建 `:ui-shared`
+   （`AppRouteContent`、`DocumentPageScaffold`、19 条路由对应的 Screen 的归宿）。
+6. **别动**：`EducationalImportActivity`（WebView 平台页）；`wearable/`（不由本项目维护）。
+7. 已知未做：路由的**预测性返回动画**（`PredictiveBackHandler`），目前只有 `BackHandler`。
 
 ---
 
-## 七、门禁命令（每次收工必跑）
+## 七、安卓数据层迁移清单（2026-10-10 实测）
+
+> 面向「安卓数据层后期也要迁」。数字都是 `grep` 实测，不是估的。
+
+### 7.0 先看清 `:core` 已经有什么 —— **别再造轮子**
+
+下沉前先查这张表，已有抽象直接接，不要新建第二套：
+
+| `:core` 现成抽象 | 替代谁 | 备注 |
+|---|---|---|
+| `AppFile` / `AppFiles` | `java.io.File` | **注入式**（不是 expect/actual），`NexioApplication.onCreate` 里 `AppFiles.init(FileAppFile(filesDir), assets)` |
+| `AppStorage` / `KeyValueStore` | `SharedPreferences` | 同样注入式；`:app` 侧实现是 `SharedPreferencesStore` |
+| `HttpService` | OkHttp（上层） | androidMain 已有 OkHttp 实现，**iOS 侧 `HttpService.native` 未写** |
+| `JsonSupport` / `ScheduleCodec` | Gson / org.json | 有 `ScheduleCodecGsonParityTest` 对拍（jvmTest，未入库） |
+| `Clock` | `System.currentTimeMillis()` | |
+| `Lock` / `synchronizedOn` | `synchronized` | Kotlin/Native 线程模型（风险 R4）|
+| `PlatformInfo` / `NexioLog` / `IoDispatcher` | `Build.*` / `Log.*` / 固定线程池 | 都是 expect/actual |
+
+包名与迁移前**完全一致**（`com.haooz.chedule.data`），所以 `:app` 侧 import 一行都不用改 ——
+这是前面 ⑦~⑬ 批次能一次过的原因，**下沉时务必保持包名不变**。
+
+### 7.1 三分类判定口径
+
+| 类别 | 判据 | 处置 |
+|---|---|---|
+| **A 整体下沉** | 纯数据/纯算法，无平台 API | 直接搬 `core/src/commonMain` |
+| **B 拆分下沉** | 逻辑跨平台 + 平台实现（Bitmap / 通知 / 文件）| 逻辑进 commonMain，平台实现进 `androidMain`（或走已有注入接口）|
+| **C 永不迁** | 本身就是 Android 能力（AlarmManager / RemoteViews / Shizuku）| 留 `:app`；**只把其中的纯算法抠出来** |
+
+### 7.2 逐文件清单（`:app` 非 UI 部分，31 个文件 / 9161 行）
+
+**`data/`（4 个，795 行）—— 全部有明确归属，优先做**
+
+| 文件 | 行 | Android 依赖 | 类别 | 处置与阻塞点 |
+|---|---:|---|---|---|
+| `WallpaperTransform.kt` | 61 | 仅 `androidx.compose.ui.geometry.Offset` | **A** | **零阻塞**，compose geometry 本就跨平台，可直接搬 |
+| `FileAppFile.kt` | 32 | `java.io.File` | **B** | `AppFile` 的 Android 实现 → 搬 `core/src/androidMain`（接口已在 `:core`）|
+| `SharedPreferencesStore.kt` | 94 | `android.content.SharedPreferences` | **B** | `KeyValueStore` 的 Android 实现 → 搬 `androidMain` |
+| `ScheduleAppearance.kt` | 608 | `Bitmap` / `LruCache` / `SharedPreferences` / Gson×2 / `File` / `Build` | **B** | 拆：①样式 JSON → 走 `JsonSupport`（键常量 `AppearancePrefs` 已在 `:core`）；②壁纸 Bitmap 编解码 → `androidMain`（走 `AppFile`）；③`LruCache` → 自己写个 Map 或留平台侧 |
+
+**`viewmodel/`（4 个，1076 行）—— 依赖只有 `AndroidViewModel` + `Application` + `viewModelScope`**
+
+`CourseViewModel` / `SettingsViewModel` / `ScheduleViewModel` / `ShiftViewModel` 都是
+「`AndroidViewModel(app)` 只为拿 `CourseRepository`」—— 而 **`CourseRepository` 已经是无参单例**
+（⑫ 之后）。⇒ 逐个去掉 `Application` 依赖后即可下沉；`viewModelScope` 用
+`CoroutineScope(SupervisorJob() + IoDispatcher)` 自管，或阶段 5 再统一。
+
+**平台能力包（22 个，7166 行）+ 启动注入点 —— 类别 C，只抠纯算法**
+
+| 包 | 文件数 / 行 | 主要平台 API | 值得抠出来的纯逻辑 |
+|---|---:|---|---|
+| `reminder/` | 10 / ~4500 | `AlarmManager` / `NotificationManager` / HyperOS 超级岛 / `BroadcastReceiver`×6 | ⭐ **`CourseReminderHelper` 里「下一节课的提醒时刻怎么算」** —— 与 `:core` 的 `CourseTimeResolver` 同族，下沉后 iOS 本地通知可直接复用 |
+| `widget/` | 7 / ~1500 | `RemoteViews` / `AppWidgetManager` / `Bitmap` | 无（小组件是 iOS 开发者的事，不做）|
+| `provider/` | 1 / 409 | `ContentProvider` 系（今日课程数据供给）| 「取今天的课」可复用 `:core` |
+| `shizuku/` | 2 / 353 | Shizuku Binder（免打扰/静音）| 无，Android 专属 |
+| `wearable/` | 2 / 409 | Wearable DataClient | 无，**不由本项目维护，别动** |
+| `NexioApplication.kt` | 124 | `Application` | 保留在 `:app`：启动注入点（`AppStorage.init` → `AppFiles.init` → `ScheduleAppearance.init` → 穿戴同步）。iOS 侧对应「3 个启动注入」，见 KMP 计划交接清单 A 节 |
+
+### 7.3 散落在 `ui/` 里的数据层（别漏）
+
+Gson 在 `:app` 还剩 **22 处 / 10 文件**，其中 9 个在 `ui/`（真正的「数据层」只剩 `data/ScheduleAppearance` 一个）：
+
+`data/ScheduleAppearance`、`ui/activities/BackupAndMigrationScreen`、
+`ui/activities/EducationalImportActivity`、`ui/activities/LocalBackupScreen`、
+`ui/screens/SettingsScreen`、`ui/screens/TodayAssistant`、`ui/utils/ScheduleExport`、
+`ui/utils/ScheduleImport`、`ui/utils/UpdateChecker`、`ui/web/AndroidBridge`。
+
+⚠ **R2 最高风险**：换序列化必须有真实用户备份做 round-trip 回归
+（`ScheduleCodec` 已与 Gson 对拍过，`ScheduleAppearance` 的 `CombinationStyle` 还没对拍）。
+
+### 7.4 实测基线（改完可对照）
+
+| 项 | 数量 | 说明 |
+|---|---:|---|
+| `android.*` import | **349 处 / 93 文件** | 平台专用，真阻塞 |
+| `androidx.*`（非 compose）| **99 处 / 44 文件** | 真阻塞。Top：`navigationevent` 20 / `core.content` 18 / `activity.compose` 15 / `lifecycle` 15 / `core.graphics` 11 |
+| `androidx.compose.*` | 2665 处 | **跨平台，不算阻塞**，别拿它估工作量 |
+| `java.*` import | **80 处 / 38 文件** | `java.util` 50 / `java.io` 18 / `java.net` 6 / `java.text` 5。最多的是 `ui/utils/CrashLogHelper`（10 处）|
+| `ui/` 规模 | 99 文件 / 58207 行 | 阶段 5 的主战场 |
+
+> 口径说明：早期文档写的「505 处 / 146 文件」把部分 androidx 算进来了，口径不一致。
+> 以后一律用上表三行分开记。
+
+### 7.5 建议分批（每批独立可验）
+
+- **D1**（半天，零风险）：`WallpaperTransform` + `FileAppFile` + `SharedPreferencesStore` 三个小文件归位到 `:core`。
+- **D2**（1~2 天）：`viewmodel/` 去掉 `Application` 依赖 → 下沉。
+- **D3**（2~3 天，含 R2）：`ScheduleAppearance` 拆分下沉 —— **先补 `CombinationStyle` 的 Gson 对拍测试再动手**。
+- **D4**（可选，独立）：`CourseReminderHelper` 的提醒时刻算法抠进 `:core`（iOS 收益最大的一条）。
+
+### 7.6 数据层版 checklist
+
+1. 先查 7.0 表：有没有现成抽象可接？有就接，**包名保持 `com.haooz.chedule.data` 不变**。
+2. 判定 A/B/C；B 类先画清「哪半边跨平台」再动手。
+3. 涉及序列化的：**先写 round-trip 测试**（导出→导入→导出逐字一致），再换实现。
+4. 搬完跑门禁（第八节）。⚠ **Android 编过不算数**，两条互补的闸门都要看：
+   - `checkKmpPurity` 会扫 `java.*` / `java.io.*` / `synchronized` / `Dispatchers.IO` /
+     `String.format` / `System.currentTimeMillis` / `::class.java` / `Thread` 等，
+     但**只扫 `core` / `backdrop` / `miuix` 的 `commonMain` + `skikoMain`** ——
+     `:app` 里写多少 `java.io` 它都看不见。
+   - `:core:compileKotlinLinuxX64`（Kotlin/Native 目标）才是真正的兜底：
+     上面那些静态规则漏掉的 API（比如变量形式的 `s.toByteArray()`）在这里才会暴露。
+5. 提交前**关掉 Android Studio**（已两次删过工作区文件）。
+
+---
+
+## 八、门禁命令（每次收工必跑）
 
 ```bash
 export JAVA_HOME="D:\\JDK"; unset JAVA_TOOL_OPTIONS
