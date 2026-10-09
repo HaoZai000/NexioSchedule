@@ -2,62 +2,91 @@
 
 > 目标平台：**iOS**（iPad 一并覆盖）  
 > 策略：渐进式，全程不打断 1.6.x 正常发版  
-> 制定日期：2026-10-08 · 现状 1.6.4-1008（versionCode 164，Kotlin 2.4.10）
+> 制定日期：2026-10-08 · 最近更新：2026-10-09（Kotlin 2.4.10，AGP 9.2.1，CMP 1.12.0）  
+> 代码状态：`master` `b9ebd4b`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
 
 ---
 
 ---
 
-## 📍 当前进展（更新于 2026-10-09）
+## 📍 当前进展（更新于 2026-10-09 · 已合入 master `b9ebd4b`）
 
-### ✅ 本轮新增：`:miuix` 模块建立 + 描边光迁入 backdrop
+> **安全网**：`master` 上打了永久标签 `backup/pre-merge-20261009`（合并前的状态）。
+> 万一发现遗漏，`git branch <名字> backup/pre-merge-20261009` 即可恢复 —— 
+> 标签不过期，比 reflog（90 天）可靠。
 
-**⑤ Miuix fork 已整体搬进 `:miuix` KMP 模块**（25,363 行 / 90 文件，`git mv` 全部识别为 `R`，零丢失）
-- 源集最终形态：`commonMain` 75+ 文件、`androidMain` 13 文件、`skikoMain` 新增 actual
-- 只 fork 了 `miuix-ui` 一个子库，其余（squircle / icons / blur / preference / navigation3-ui）
-  仍用官方 artifact —— **commonMain 依赖要写不带 `-android` 后缀的根坐标**，由 Gradle 按目标解析变体
-- 顺带搬进 `:backdrop` 的：`capsule` 几何库 1,763 行（16 文件，纯 Compose 零 Android 依赖）
-- 搬进 `:miuix` 的：`InteractiveHighlight` / `DragGestureInspector` / `DropdownPanelDragSelect`
-  / `CollapsibleTopAppBar` / `ProgressiveBlurTopBar`
-- ⚠ **纠正此前的错误结论**：`edgelight` 并非「需要重写 911 行」。实际只要 3 件事：
-  1. `BlurMaskFilter` → backdrop 已有的 `paint.blur()`（expect/actual）
-  2. `android.graphics.RuntimeShader` → backdrop 已有的 `RuntimeShader` 接口
-  3. shader 里 `layout(color) half4` → `float4`（`layout(color)` 是 AGSL 专有修饰符）
+### 模块现状
 
-**⑥ 反向依赖已全部解除**（`:miuix` / `:backdrop` 内零 `com.haooz` 引用）
-用两种手段，**不靠逐个调用点加参数**：
-- **CompositionLocal 注入**（App 根部 `CourseScheduleTheme` provide）：
-  `LocalChromeLensEnabled` / `LocalUseFakeProgressiveBlur` / `LocalPredictiveBackEnabled`
-  —— `ProgressiveBlurTopBar` 有 28 个调用点，走 Local 后一行都不用改
-- **expect/actual**：`isRenderEffectSupported` / `isRuntimeShaderSupported` / `rememberAppSettingDark`
-  / `NavigationBackHandlerFor` / `rememberNavigationBackState`
-- **显式接线层**：[EdgeLightBindings.kt](app/src/main/java/com/haooz/chedule/ui/utils/EdgeLightBindings.kt)
-  承接 3 个 `remember*EdgeLight`，14 个调用点零改动
+| 模块 | 源文件 | 行数 | 源集 | 状态 |
+|---|---:|---:|---|---|
+| `:core` | 5 | 1,023 | commonMain | 数据层下沉第一批 |
+| `:backdrop` | 64 | 5,458 | common / android / skiko | ✅ KMP 化，含 edgelight + capsule |
+| `:miuix` | 103 | 26,464 | common / android / skiko | ✅ KMP 化，本轮新建 |
+| `:app` | 154 | 70,559 | android | Android-only，**剩余迁移主体** |
 
-**⑦ 验证状态**
-- `:app:assembleDebug` **BUILD SUCCESSFUL**，APK 正常产出
-- `:backdrop` / `:miuix` / `:core` 的 `compileAndroidMain` + `compileKotlinJvm` 均通过
-  （jvm 复用 skikoMain，等于 **SkSL 路径也编得过**）
-- APK 由 19.83MB → 21.53MB：这是 fork 源码真正编进包内的结果（26,311 行），
-  此前这些代码以预编译 jar 形式存在，debug 包里同样计入，不是新增依赖
+编译验证：`core` / `backdrop` / `miuix` 的 `compileAndroidMain` + `compileKotlinJvm` 全绿，
+`:app:assembleDebug` 通过（APK 19.83MB）。
+> jvm target 复用 `skikoMain`，所以「jvm 编得过」= **SkSL 路径也编得过**。
 
-### ⚠️ 仍需真机验证的两处行为等价性
+### ✅ 本轮完成
 
-编译通过不等于观感不变，以下两点我无法在本机验证：
+**① `:miuix` 模块建立** —— Miuix fork 整体搬入，`git mv` 保证历史可读（108 个 rename）。
+只 fork 了 `miuix-ui` 一个子库，其余（squircle / icons / blur / preference / navigation3-ui）
+仍用官方 artifact。
 
-1. **描边亮度**：`setColorUniform("color", color.copy(alpha = 1f))` 替代了原先带 alpha 的
-   `toArgb()`。理由是 alpha 原本就由 `GraphicsLayer.alpha = intensity` 单独控制，
-   两者相乘会让描边偏暗。但默认色是 `Color.White.copy(alpha = 0.5f)`，
-   **真机确认描边是否偏亮**。
-2. **主题来源**：`rememberDefaultEdgeLight` 原读 App 的 `theme_mode` 偏好，
-   backdrop 版默认退回 `isSystemInDarkTheme()`；App 侧接线层已传 `isLightTheme = !isAppDarkTheme()`，
-   **App 内行为不变**，但直接用 backdrop 版会退化成跟随系统。
+**② edgelight + capsule 迁入 `:backdrop`** —— 纠正此前的错误结论：
+**edgelight 不需要重写 911 行**，只需 3 处替换：
+`BlurMaskFilter` → `paint.blur()`；`android.graphics.RuntimeShader` → backdrop 的 `RuntimeShader` 接口；
+shader 的 `layout(color) half4` → `float4`（`layout(color)` 是 AGSL 专有修饰符）。
 
-### 📌 下一步
+**③ 反向依赖全部解除**（`:miuix` / `:backdrop` 内零 `com.haooz` 引用）
 
-- 真机过一遍描边亮度 + 强制深浅色下的 InputField 底色
-- `:core` 阶段 2（`java.time` → kotlinx-datetime 的数据层替换）
-- iOS 工程接入（需 macOS / `.konan`，本机无法编译验证）
+| 手法 | 用于 | 例子 |
+|---|---|---|
+| CompositionLocal | App 的行为偏好，需根部注入 | `LocalChromeLensEnabled` / `LocalUseFakeProgressiveBlur` / `LocalPredictiveBackEnabled` |
+| expect/actual | 平台存储 / 平台能力 | `isTabletWidth` / `isRenderEffectSupported` / `rememberAppSettingDark` / `rememberNavigationBack` |
+| 接线层 | 逐调用点的 App 策略 | [EdgeLightBindings.kt](app/src/main/java/com/haooz/chedule/ui/utils/EdgeLightBindings.kt)，14 个调用点零改动 |
+
+> `ProgressiveBlurTopBar` 有 29 个调用点 —— 走 CompositionLocal 后**一行调用点都不用改**。
+> 遇到「调用点很多 + 值只有一个来源」时优先用 CompositionLocal。
+
+### 🔴 本轮修掉的两个「编译全绿但功能失效」问题
+
+这两类问题的共同点：**编译永远通过，只有真机能发现**。已写进 memory。
+
+**1. OverlayDialog 的模糊与描边整体消失**
+`:app` 里有**两个同名** `DialogContentLayout`：App 定制版（394 行，含 blur+edgeLight）与
+上游 Miuix 版（411 行，纯色）。我搬走了上游那个，又在修参数报错时把
+`liquidGlassBackdrop` / `isDark` / `enablePredictiveBackGesture` 当成「上游不需要」删了 ——
+于是 App 那份带效果的实现变成零引用孤儿文件。影响 **71 个调用点**。
+
+> 教训：改签名前先确认「当前文件是不是调用方原本用的那个」，
+> 用 `git show HEAD:<调用方>` 看它 import 了谁，比看函数签名可靠。
+
+**2. Android 预测性返回失效**
+expect 封装写成了两个独立函数，各自调了一次 `rememberNavigationEventState()` ——
+拿到**两个不同的 NavigationEventState**。handler 收到手势，但读进度的那个 state 恒为空，
+跟手动画不触发。影响 3 个调用点（Dialog / BottomSheet / ListPopup）。
+
+> 教训：抽象时不能改变「实例边界」。HEAD 是 1 个 state 喂两处，我改成 2 个 —— 就是 bug。
+> 判断方法：改动前后数一数底层平台对象被创建了几次。
+
+### ⚠️ 仍需真机确认
+
+1. **描边亮度** —— `setColorUniform` 改用 `copy(alpha = 1f)`（alpha 已由
+   `GraphicsLayer.alpha` 单独控制，原来相乘会偏暗）。但默认色是 `White.copy(alpha = 0.5f)`，
+   **需确认描边是否偏亮**。
+2. **对话框的模糊 / 描边 / 跟手返回** —— 上面两个 bug 修完后需回归确认。
+
+### 📌 剩余工作量
+
+- **`:app` 还有 574 处 Android 专用 import，分布在 115 个文件**（`android.*`、
+  `androidx.core` / `navigationevent` / `activity` / `room` 等）—— 这是 iOS 迁移的主体。
+- **阶段 2 日期迁移**：`:app` 尚余 34 处 `java.time` import
+  （`TodayScreen` 5 / `Holidays` 5 / `SettingsScreen` 2 …）。逐个文件改 + 编译，
+  **不要用正则批量改写**（曾破坏 lambda / when 分支 / `!` 优先级）。
+- `Holidays.kt` 的调休 `followDate` 推算是全项目最敏感的部分，改它要逐点对照。
+- iOS 工程接入需 macOS / `.konan`，本机无法编译验证。
 
 ---
 
@@ -70,7 +99,7 @@
 **② `backdrop` 已升级为 KMP 模块**（原本是放在 `:app` 里的 Android-only fork）
 - fork 自 `io.github.kyant0:backdrop:2.0.1`——**原库 2.x 本身就是 KMP 库**
   （1.x 是 Android-only，容易误判；务必确认最新版本再下结论）
-- 源集分工：`commonMain`（上游 + 本项目 **671 行定制**，14 个文件）/ `skikoMain`（上游自带 SkSL）/ `androidMain`（原 fork 的实现，补 `actual`）
+- 源集分工：`commonMain`（上游 + 本项目定制）/ `skikoMain`（上游自带 SkSL）/ `androidMain`（原 fork 的实现，补 `actual`）
 - Android 侧走的仍是你原来的实现，**行为不变**；iOS/Desktop 走 SkSL
 - `assembleDebug` 通过，APK 正常产出
 
@@ -91,22 +120,24 @@
 | 原判断 | 实际 |
 |---|---|
 | backdrop 是 Android-only，iOS 必须自己写 SkSL | 原库 2.0.1 已 KMP 化，SkSL 现成 |
-| Miuix fork「改了很多」= 27,425 行 | 相对 KMP 版只差 **671 行**，50/80 文件完全相同 |
-| edgelight 需要重写 911 行 | 它的 shader 是从 backdrop highlight 复制来的，SkSL 版有现成范例 |
+| Miuix fork「改了很多」= 27,425 行 | 相对 KMP 版只差 3,179 行，50/80 文件完全相同 |
+| edgelight 需要重写 911 行 | **只需 3 处替换**，backdrop 早已把 `RuntimeShader` / `paint.blur()` 做成跨平台 |
+| 「0 处 app 引用 ⇒ 死代码」 | 会漏**模块内部**引用（`CascadingMorphContent` 就引用了被判定为死的文件） |
 
-### 下一步（建议从这里继续）
+> **通用教训**：遇到「需要重写」「这是死代码」这类结论时，先把已有 expect/actual
+> 和模块内部引用摊开看一遍。两处都曾因此判错并返工。
 
-1. **真机验证 Android 零回归** ← 最优先，代码是你的原实现但画面没验过。
-   重点看用了 edgeLight 的：顶栏按钮 / 下拉菜单 / 底部 Tab / DayColumn / 回到今天悬浮按钮 / 平板侧栏
-2. **阶段 2 · 日期迁移**：从只用了 `LocalDate` 的叶子文件开始（`SettingsViewModel` 9 处、
-   `SettingsScreen` 10 处、`CourseRepository` 13 处），**逐个文件改 + 编译**，不要用正则批量改写
-   （曾用脚本批量改写，破坏 lambda / when 分支 / `!` 优先级，产出语法错误后回滚）
-3. 阶段 2 完成后再拆 `Holidays.kt`（它在阶段 3 之前拆会引发全项目类型连锁）
+### ⚠️ 排查「静默失效」的两条经验
 
-### 尚未解决 / 待观察
+本轮迁移中，**两个功能失效的问题都是编译全绿、只有真机才能发现**的：
 
-- **iOS 端仍缺实机验证**，desktop 截图只是近似
-- `Holidays.kt`（1,781 行）里的调休 `followDate` 推算是全项目最敏感的部分，阶段 2 改它时要逐点对照
+1. **同名文件**：`:app` 里两个 `DialogContentLayout`，搬错了那个 →
+   71 个调用点的模糊与描边消失。改签名前先 `git show HEAD:<调用方>` 确认它 import 的谁。
+2. **实例边界被抽象改变**：expect 封装把「1 个 state 喂两处」拆成「2 个函数各自 remember」
+   → 预测性返回进度恒为空。改动前后数一数底层平台对象被创建了几次。
+
+配套的自查手段：找「参数声明了但从未向下传递」的断链 —— 但这类脚本**误报率高**
+（局部 `val` 中转、位置传参都会误判），结论必须逐个人工确认。
 - Android Studio 已在工作区删过两次文件（341 / 602 个），恢复见 memory。**提交前先关 IDE**
 
 ---
@@ -405,7 +436,7 @@ Android actual **必须继续走 SharedPreferences**，否则老用户数据全�
 | 批次 1 | `SettingsScreen`、`CourseEditScreen`、`AddCourseDialog` 等表单类 | 少，Toast / Intent        |
 | 批次 2 | `CourseDetailScreen`、`TimeConfigEditScreen`（2,259 行）       | 中，haptics + 配置查询        |
 | 批次 3 | `MainScheduleScreen`、`CustomizeScheduleScreen`（1,951 行）    | 大，平板/折叠屏判定              |
-| 批次 4 | `ui/effects/*` 2,756 行 | ✅ **backdrop 部分已完成**（liquidglass 随模块 KMP 化解决）；余 background 344 / miuix 743 / edgelight 911 |
+| 批次 4 | `ui/effects/*` 2,756 行 | ✅ **已完成**：edgelight 911 迁入 `:backdrop`，liquidglass 510 迁入 `:miuix`，capsule 1,763 迁入 `:backdrop`；余 background 344（换 Miuix KMP artifact 即可） |
 | 批次 5 | 教务导入（WKWebView 桥接重写，1,080 行）                               | 大，需 iOS 平台代码            |
 | 批次 6 | 提醒专项（滚动预约，见验证 3）                                           | 大，架构约束                  |
 | 批次 7 | WidgetKit 小部件（Swift 重写）                                    | 独立排期                    |
