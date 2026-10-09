@@ -49,7 +49,7 @@ import com.haooz.chedule.ui.utils.ExtractedShareTools
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
-import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch

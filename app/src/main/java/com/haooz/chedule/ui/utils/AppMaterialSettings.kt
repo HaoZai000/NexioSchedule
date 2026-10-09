@@ -55,18 +55,18 @@ object AppMaterialSettings {
      * 未传时按主题回退（浅色白 / 深色灰）。最佳 / 均衡保留原高光。
      */
     fun resolveEdgeLight(
-        source: com.haooz.chedule.ui.effects.edgelight.EdgeLight,
+        source: com.kyant.backdrop.edgelight.EdgeLight,
         isLightTheme: Boolean,
         baseColor: Color? = null,
-    ): com.haooz.chedule.ui.effects.edgelight.EdgeLight {
+    ): com.kyant.backdrop.edgelight.EdgeLight {
         if (level != PERFORMANCE) return source
         val stroke = baseColor?.let(::lightenSameHue)
             ?: if (isLightTheme) Color.White else Color(0xFF333333)
-        return com.haooz.chedule.ui.effects.edgelight.EdgeLight(
+        return com.kyant.backdrop.edgelight.EdgeLight(
             width = 0.8.dp,
             blurRadius = 0.dp,
             intensity = source.intensity,
-            style = com.haooz.chedule.ui.effects.edgelight.EdgeLightStyle.Uniform(
+            style = com.kyant.backdrop.edgelight.EdgeLightStyle.Uniform(
                 color = stroke,
                 blendMode = BlendMode.SrcOver,
             ),

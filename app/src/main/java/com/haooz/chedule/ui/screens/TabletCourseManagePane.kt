@@ -42,8 +42,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.activities.CourseManageScreen
-import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
-import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
+import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.ShortcutMenu
 import com.haooz.chedule.ui.basic.ShortcutMenuItem
 import com.haooz.chedule.ui.utils.CourseSorting

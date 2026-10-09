@@ -6,6 +6,7 @@ app/build
 app/release
 core/build
 backdrop/build
+miuix/build
 local.properties
 
 # --- IDE 配置 ---

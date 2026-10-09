@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -49,11 +50,11 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.ScriptRepository
-import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
-import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
+import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.screens.SchoolSelectionScreen
 import com.haooz.chedule.ui.screens.WebViewScreen
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
@@ -348,6 +349,10 @@ class EducationalImportActivity : ComponentActivity() {
                             )
                         }
 
+                        // 迁移前 InputField 内部直接读 isAppDarkTheme()；现在 :miuix 拿不到 App 偏好，
+// 需显式传入，否则会退回「跟随系统」—— 强制深浅色时底色会与文字对不上。
+// isAppDarkTheme 是 @Composable，必须在组合期先取好，不能塞进下面那个 lambda。
+                        val searchIsLightTheme = !isAppDarkTheme()
                         Column(
                             modifier = Modifier
                                 .padding(top = paddingValues.calculateTopPadding() + topBarHeightDp)
@@ -371,6 +376,7 @@ class EducationalImportActivity : ComponentActivity() {
                                         backdrop = liquidGlassBackdrop,
                                         backdropAlpha = searchBackdropAlpha,
                                         shadowAlpha = searchShadowAlpha,
+                                        isLightTheme = { searchIsLightTheme },
                                     )
                                 },
                                 expanded = searchExpanded,

@@ -74,10 +74,10 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.SpecialBlock
 import com.haooz.chedule.data.TimeConfig
-import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
+import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.components.SpecialItemsEditorSection
 import com.haooz.chedule.ui.components.describeSpecialDays
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing

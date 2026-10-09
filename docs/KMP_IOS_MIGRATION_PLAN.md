@@ -6,6 +6,111 @@
 
 ---
 
+---
+
+## 📍 当前进展（更新于 2026-10-09）
+
+### ✅ 本轮新增：`:miuix` 模块建立 + 描边光迁入 backdrop
+
+**⑤ Miuix fork 已整体搬进 `:miuix` KMP 模块**（25,363 行 / 90 文件，`git mv` 全部识别为 `R`，零丢失）
+- 源集最终形态：`commonMain` 75+ 文件、`androidMain` 13 文件、`skikoMain` 新增 actual
+- 只 fork 了 `miuix-ui` 一个子库，其余（squircle / icons / blur / preference / navigation3-ui）
+  仍用官方 artifact —— **commonMain 依赖要写不带 `-android` 后缀的根坐标**，由 Gradle 按目标解析变体
+- 顺带搬进 `:backdrop` 的：`capsule` 几何库 1,763 行（16 文件，纯 Compose 零 Android 依赖）
+- 搬进 `:miuix` 的：`InteractiveHighlight` / `DragGestureInspector` / `DropdownPanelDragSelect`
+  / `CollapsibleTopAppBar` / `ProgressiveBlurTopBar`
+- ⚠ **纠正此前的错误结论**：`edgelight` 并非「需要重写 911 行」。实际只要 3 件事：
+  1. `BlurMaskFilter` → backdrop 已有的 `paint.blur()`（expect/actual）
+  2. `android.graphics.RuntimeShader` → backdrop 已有的 `RuntimeShader` 接口
+  3. shader 里 `layout(color) half4` → `float4`（`layout(color)` 是 AGSL 专有修饰符）
+
+**⑥ 反向依赖已全部解除**（`:miuix` / `:backdrop` 内零 `com.haooz` 引用）
+用两种手段，**不靠逐个调用点加参数**：
+- **CompositionLocal 注入**（App 根部 `CourseScheduleTheme` provide）：
+  `LocalChromeLensEnabled` / `LocalUseFakeProgressiveBlur` / `LocalPredictiveBackEnabled`
+  —— `ProgressiveBlurTopBar` 有 28 个调用点，走 Local 后一行都不用改
+- **expect/actual**：`isRenderEffectSupported` / `isRuntimeShaderSupported` / `rememberAppSettingDark`
+  / `NavigationBackHandlerFor` / `rememberNavigationBackState`
+- **显式接线层**：[EdgeLightBindings.kt](app/src/main/java/com/haooz/chedule/ui/utils/EdgeLightBindings.kt)
+  承接 3 个 `remember*EdgeLight`，14 个调用点零改动
+
+**⑦ 验证状态**
+- `:app:assembleDebug` **BUILD SUCCESSFUL**，APK 正常产出
+- `:backdrop` / `:miuix` / `:core` 的 `compileAndroidMain` + `compileKotlinJvm` 均通过
+  （jvm 复用 skikoMain，等于 **SkSL 路径也编得过**）
+- APK 由 19.83MB → 21.53MB：这是 fork 源码真正编进包内的结果（26,311 行），
+  此前这些代码以预编译 jar 形式存在，debug 包里同样计入，不是新增依赖
+
+### ⚠️ 仍需真机验证的两处行为等价性
+
+编译通过不等于观感不变，以下两点我无法在本机验证：
+
+1. **描边亮度**：`setColorUniform("color", color.copy(alpha = 1f))` 替代了原先带 alpha 的
+   `toArgb()`。理由是 alpha 原本就由 `GraphicsLayer.alpha = intensity` 单独控制，
+   两者相乘会让描边偏暗。但默认色是 `Color.White.copy(alpha = 0.5f)`，
+   **真机确认描边是否偏亮**。
+2. **主题来源**：`rememberDefaultEdgeLight` 原读 App 的 `theme_mode` 偏好，
+   backdrop 版默认退回 `isSystemInDarkTheme()`；App 侧接线层已传 `isLightTheme = !isAppDarkTheme()`，
+   **App 内行为不变**，但直接用 backdrop 版会退化成跟随系统。
+
+### 📌 下一步
+
+- 真机过一遍描边亮度 + 强制深浅色下的 InputField 底色
+- `:core` 阶段 2（`java.time` → kotlinx-datetime 的数据层替换）
+- iOS 工程接入（需 macOS / `.konan`，本机无法编译验证）
+
+---
+
+**① `:core` KMP 模块已建立**（阶段 1 的第一批）
+- `Course` / `ScheduleFolder` / `TimeConfig` / `CourseTimeResolver` / `PeriodTimeSource` 已下沉
+- 包名保持 `com.haooz.chedule.data` 不变，所以 `:app` 侧 import 一行没改
+- `:core` 的 `LocalDate` 用 kotlinx-datetime 0.6.2；`api(...)` 而非 `implementation`（否则下游看不到类型）
+- 踩过的坑写在 `.workbuddy/memory/`，重点：`api` vs `implementation`、AGP 9 的 KMP 插件写法
+
+**② `backdrop` 已升级为 KMP 模块**（原本是放在 `:app` 里的 Android-only fork）
+- fork 自 `io.github.kyant0:backdrop:2.0.1`——**原库 2.x 本身就是 KMP 库**
+  （1.x 是 Android-only，容易误判；务必确认最新版本再下结论）
+- 源集分工：`commonMain`（上游 + 本项目 **671 行定制**，14 个文件）/ `skikoMain`（上游自带 SkSL）/ `androidMain`（原 fork 的实现，补 `actual`）
+- Android 侧走的仍是你原来的实现，**行为不变**；iOS/Desktop 走 SkSL
+- `assembleDebug` 通过，APK 正常产出
+
+**③ 效果验证办法已就位（不用等 macOS）**
+- 用 `ImageComposeScene`（Compose Desktop = 真 Skia 后端）离屏渲染，可截出 SkSL 路径的真实效果
+- **desktop 与 iOS 共用同一份 `skikoMain` + `ImageFilter`**，所以桌面截图对 iOS 有直接参考价值
+- 实测 `Highlight.Default` / `Ambient` / `lens+blur` 全部正常
+- ⚠ Android 上**无法**临时切 SkSL：CMP 在 Android 就是 AndroidX Compose，Shader 必须是 `android.graphics.Shader`
+
+**④ 关键前提已验证：kotlinx-datetime ≡ java.time**
+- 11 个用例覆盖闰年/世纪年/跨年/取反优先级/Int 收窄边界，全部通过
+- 结论：阶段 2 的日期替换是语义安全的
+- ⚠ 该测试文件在提交前被删掉了（用户要求清理测试文件）。**做阶段 2 之前要按记忆里的对照表重新写回来**，
+  否则日期算错没有安全网
+
+### 修正过的判断
+
+| 原判断 | 实际 |
+|---|---|
+| backdrop 是 Android-only，iOS 必须自己写 SkSL | 原库 2.0.1 已 KMP 化，SkSL 现成 |
+| Miuix fork「改了很多」= 27,425 行 | 相对 KMP 版只差 **671 行**，50/80 文件完全相同 |
+| edgelight 需要重写 911 行 | 它的 shader 是从 backdrop highlight 复制来的，SkSL 版有现成范例 |
+
+### 下一步（建议从这里继续）
+
+1. **真机验证 Android 零回归** ← 最优先，代码是你的原实现但画面没验过。
+   重点看用了 edgeLight 的：顶栏按钮 / 下拉菜单 / 底部 Tab / DayColumn / 回到今天悬浮按钮 / 平板侧栏
+2. **阶段 2 · 日期迁移**：从只用了 `LocalDate` 的叶子文件开始（`SettingsViewModel` 9 处、
+   `SettingsScreen` 10 处、`CourseRepository` 13 处），**逐个文件改 + 编译**，不要用正则批量改写
+   （曾用脚本批量改写，破坏 lambda / when 分支 / `!` 优先级，产出语法错误后回滚）
+3. 阶段 2 完成后再拆 `Holidays.kt`（它在阶段 3 之前拆会引发全项目类型连锁）
+
+### 尚未解决 / 待观察
+
+- **iOS 端仍缺实机验证**，desktop 截图只是近似
+- `Holidays.kt`（1,781 行）里的调休 `followDate` 推算是全项目最敏感的部分，阶段 2 改它时要逐点对照
+- Android Studio 已在工作区删过两次文件（341 / 602 个），恢复见 memory。**提交前先关 IDE**
+
+---
+
 ## 一、先认清 iOS 迁移的本质
 
 
@@ -75,7 +180,7 @@ iOS 走的是 **Kotlin/Native**，不是 JVM。这一条决定了所有工作量
 
 ## 四、分阶段路线
 
-### 阶段 0 · 技术预研与地基
+### 阶段 0 · 技术预研与地基 ✅ 三项已完成（详见开头「当前进展」）
 
 这一步不做完，后面所有排期都是猜测。四件事，已完成三件：
 
@@ -132,10 +237,17 @@ Miuix 官方也是完整 KMP 库（有 `miuix-core-iosarm64` / `miuix-blur-iosar
 
 | 子包 | 行数 | 依赖 | iOS 结论 |
 |---|---:|---|---|
-| `edgelight/` | 911 | **`android.graphics.RuntimeShader`（原生 API，非 Compose）** | ⚠️ **唯一需要真正重写的** |
-| `miuix/` | 743 | `Context` / `ActivityManager` / `navigationevent` | 系统能力，expect/actual 即可 |
-| `liquidglass/` | 510 | backdrop 的 RuntimeShader | 随 backdrop 换依赖即解决 |
+| `edgelight/` | 911 | ~~`android.graphics.RuntimeShader`~~ | ✅ **已迁入 `:backdrop` commonMain**（非重写） |
+| `miuix/` | 743 | `Context` / `ActivityManager` / `navigationevent` | ✅ **已作为 `:miuix` 模块搬迁**，navigationevent 收成 expect |
+| `liquidglass/` | 510 | backdrop 的 RuntimeShader | ✅ `InteractiveHighlight` 等已入 `:miuix` |
 | `background/` | 344 | GLSL + `top.yukonga.miuix.kmp.blur.RuntimeShader` | Miuix 是 KMP 库，换 artifact 即可 |
+
+> **⚠️ 本行结论已被实测推翻**（保留原判断以免后人重犯）：
+> 曾判断「edgelight 需要重写 911 行」。实际迁入只做了 3 处替换，各 3 行：
+> `BlurMaskFilter` → backdrop 的 `paint.blur()`；`android.graphics.RuntimeShader` →
+> backdrop 的 `RuntimeShader` 接口；shader 的 `layout(color) half4` → `float4`。
+> **教训**：遇到「需要重写」结论时，先把已有 expect/actual 摊开看一遍 ——
+> backdrop 早就把这三个能力做成了跨平台的。
 
 **edgelight 是 UI 共享的唯一真实阻塞点**：它直接用 Android 13 原生的 `android.graphics.RuntimeShader`，
 CMP 无对应物，且用得很广（顶栏按钮、下拉菜单、底部 Tab、DayColumn、回到今天悬浮按钮、平板侧边栏…）。
@@ -160,7 +272,7 @@ CMP 无对应物，且用得很广（顶栏按钮、下拉菜单、底部 Tab、
 
 ---
 
-### 阶段 1 · 纯逻辑下沉（1~2 周）
+### 阶段 1 · 纯逻辑下沉（1~2 周）🟡 进行中
 
 **目标：** 建 `:core`，搬最干净的 5 个文件，`:app` 行为零变化。
 
@@ -293,7 +405,7 @@ Android actual **必须继续走 SharedPreferences**，否则老用户数据全�
 | 批次 1 | `SettingsScreen`、`CourseEditScreen`、`AddCourseDialog` 等表单类 | 少，Toast / Intent        |
 | 批次 2 | `CourseDetailScreen`、`TimeConfigEditScreen`（2,259 行）       | 中，haptics + 配置查询        |
 | 批次 3 | `MainScheduleScreen`、`CustomizeScheduleScreen`（1,951 行）    | 大，平板/折叠屏判定              |
-| 批次 4 | `ui/effects/*` 2,756 行（liquidglass 510 换依赖 / background 344 换 artifact / miuix 743 expect-actual / **edgelight 911 需 SkSL 重写**） | **唯一有真实重写量的一批** |
+| 批次 4 | `ui/effects/*` 2,756 行 | ✅ **backdrop 部分已完成**（liquidglass 随模块 KMP 化解决）；余 background 344 / miuix 743 / edgelight 911 |
 | 批次 5 | 教务导入（WKWebView 桥接重写，1,080 行）                               | 大，需 iOS 平台代码            |
 | 批次 6 | 提醒专项（滚动预约，见验证 3）                                           | 大，架构约束                  |
 | 批次 7 | WidgetKit 小部件（Swift 重写）                                    | 独立排期                    |
@@ -374,31 +486,8 @@ iosMain      ktor-client-darwin      → NSURLSession
 
 ## 七、立即可做的第一步
 
-阶段 0 的四项预研已完成三项，结论都比预估乐观。**阶段 0 的三个验证做完才动全面投入**这条红线仍然有效，但它的内容已经落地为：
+**下一步：真机验证 Android 零回归。** 装上刚打出的 APK，重点看用了 edgeLight 的地方
+（顶栏按钮 / 下拉菜单 / 底部 Tab / DayColumn / 回到今天悬浮按钮 / 平板侧栏），
+确认液态玻璃与改动前一致。
 
-1. 建一个独立的最小 CMP demo 工程（不影响主项目），target 只开 `iosSimulatorArm64`；
-2. 把 `com/kyant/backdrop/effects/Blur.kt` 和 `RenderEffect.kt` 抄进去，尝试用 Skia 复现；
-3. 跑起来看效果，判定「可复现 / 需降级」。
-
-**阶段 1** 的代码搬迁（1,411 行）已完成：:core 现有 Course / ScheduleFolder / TimeConfig / CourseTimeResolver / PeriodTimeSource，:app 与 :core 编译均通过。接下来是：
-
-```kotlin
-// settings.gradle.kts
-include(":core")
-
-// core/build.gradle.kts
-kotlin {
-    androidTarget()
-    iosArm64()
-    iosSimulatorArm64()
-    sourceSets {
-        commonMain.dependencies {
-            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.+")
-        }
-    }
-}
-```
-
-按 `Course.kt` → `ScheduleFolder.kt` → `CourseTimeResolver.kt` → `CourseScheduleDateBounds.kt` → `TimeConfig.kt` 顺序搬，最后换掉 2 处 `LocalDate`，编译，冒烟。
-
-**这两件事做完，iOS 迁移就算真正开始了。**
+验证通过后进入**阶段 2 · 日期迁移**，从叶子文件开始逐个改，不要用脚本批量改写。

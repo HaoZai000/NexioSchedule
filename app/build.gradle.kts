@@ -62,7 +62,7 @@ composeCompiler {
     stabilityConfigurationFiles.set(listOf(project.layout.projectDirectory.file("compose-stability.conf")))
 }
 
-// miuix-ui 已 fork 到本地源码，排除传递依赖中的 miuix-ui jar 避免 R8 重复定义
+// miuix-ui 已 fork 到本地 :miuix 模块（KMP），排除传递依赖中的 miuix-ui jar 避免 R8 重复定义
 configurations.all {
     exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui-android")
 }
@@ -75,6 +75,11 @@ dependencies {
     // ===== 液态玻璃效果库（fork 自 io.github.kyant0:backdrop 2.0.1，KMP）=====
     // 取代原先直接放在 :app 里的 com/kyant/backdrop（Android-only fork）
     implementation(project(":backdrop"))
+
+    // ===== 小米风格 UI 组件库（fork 自 top.yukonga.miuix.kmp:miuix-ui 0.9.3，KMP）=====
+    // 取代原先放在 :app 里的 top/yukonga/miuix（Android-only fork）
+    // 包名不变，import 无需改动；本项目 3,177 行定制全部保留在模块内
+    implementation(project(":miuix"))
 
     // ===== 小米穿戴（手表 interconnect） =====
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
@@ -101,7 +106,7 @@ dependencies {
     implementation(libs.androidx.webkit)
 
     // ===== Miuix UI =====
-    // miuix-ui 已 fork 到本地源码，不再使用 jar 依赖
+    // miuix-ui 已 fork 到 :miuix 模块（KMP），不再使用 jar 依赖
     // 偏好设置组件
     implementation(libs.miuix.preference)
     // 图标资源
@@ -114,7 +119,7 @@ dependencies {
     implementation(libs.miuix.navigation3)
 
     // ===== NavigationEvent =====
-    // SearchBar 返回键处理
+    // :miuix 的 androidMain（SearchBar / BottomSheet 返回键处理）需要
     implementation(libs.navigationevent.compose)
 
     // 其编译的 AGSL 运行时需要 org.jetbrains 注解

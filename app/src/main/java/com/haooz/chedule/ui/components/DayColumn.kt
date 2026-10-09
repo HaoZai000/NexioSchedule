@@ -50,8 +50,8 @@ import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.Course
 import kotlinx.coroutines.delay
 import com.haooz.chedule.data.HolidayCourseExclusion
-import com.haooz.chedule.ui.effects.edgelight.edgeLight
-import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
+import com.kyant.backdrop.edgelight.edgeLight
+import com.haooz.chedule.ui.utils.rememberCourseCardEdgeLight
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.SharedBlurBackdrop
 import com.kyant.backdrop.drawBackdrop
