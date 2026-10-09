@@ -23,10 +23,6 @@ import java.io.FileOutputStream
 //  三个枚举与取值对象。**调整外观只需要动这一个文件。**
 //
 //  设计取舍：当前是**单搭配**（没有搭配列表 UI），所以这里不保留 id维度 ——
-//  没有 `combination_ids`、没有 `combination_style_{id}`、没有 17 个
-//  `comb_xxx_{id}` 分散参数键。所有参数存成一个 JSON 快照，
-//  键只有一个 [FILE_STYLE_KEY]。将来真要加搭配列表时再加回 id 维度，
-//  届时只需给它换成带后缀的形式。
 //
 //  存储位置：独立的 `appearance_settings` 文件，不与课程数据混存，
 //  也不进全量备份（外观是本机观感，不随备份迁移）。

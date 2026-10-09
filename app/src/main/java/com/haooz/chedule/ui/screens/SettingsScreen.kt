@@ -459,31 +459,27 @@ fun SettingsScreen(
                             Column(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
+                                // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
+                                val dataManageRouter = LocalAppRouter.current
                                 ArrowPreference(
                                     title = "课表导入",
                                     onClick = {
                                         FeatureLog.import("open")
-                                        context.startActivity(
-                                            com.haooz.chedule.ui.activities.BackupAndMigrationActivity.importIntent(context)
-                                        )
+                                        dataManageRouter.navigate(AppRoute.ScheduleImport)
                                     }
                                 )
                                 ArrowPreference(
                                     title = "课表导出",
                                     onClick = {
                                         FeatureLog.backup("open_export")
-                                        context.startActivity(
-                                            com.haooz.chedule.ui.activities.BackupAndMigrationActivity.exportIntent(context)
-                                        )
+                                        dataManageRouter.navigate(AppRoute.ScheduleExport)
                                     }
                                 )
                                 ArrowPreference(
                                     title = "课表备份",
                                     onClick = {
                                         FeatureLog.backup("open_backup")
-                                        context.startActivity(
-                                            com.haooz.chedule.ui.activities.BackupAndMigrationActivity.backupIntent(context)
-                                        )
+                                        dataManageRouter.navigate(AppRoute.ScheduleBackup)
                                     }
                                 )
                             }

@@ -3,17 +3,23 @@ package com.haooz.chedule.ui.navigation
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.ui.activities.AboutScreen
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
+import com.haooz.chedule.ui.activities.BackupAndMigrationScreen
 import com.haooz.chedule.ui.activities.ChangelogScreen
 import com.haooz.chedule.ui.activities.CommunicationScreen
 import com.haooz.chedule.ui.activities.LicenseScreen
 import com.haooz.chedule.ui.activities.LocalBackupScreen
+import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.PreferenceSettingsScreen
 import com.haooz.chedule.ui.activities.PrivacyPolicyScreen
 import com.haooz.chedule.ui.activities.UpdateSettingsScreen
 import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.ScheduleViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 
 /**
@@ -114,6 +120,44 @@ fun AppRouteContent(
         ) { scrollBehavior, _ ->
             AppreciateAuthorScreen(scrollBehavior = scrollBehavior)
         }
+
+        // ── 数据管理（导入 / 导出 / 备份，共用 BackupAndMigrationScreen，按 mode 区分）──
+        AppRoute.ScheduleImport -> BackupAndMigrationRoute(router, ScheduleDataManageMode.Import)
+        AppRoute.ScheduleExport -> BackupAndMigrationRoute(router, ScheduleDataManageMode.Export)
+        AppRoute.ScheduleBackup -> BackupAndMigrationRoute(router, ScheduleDataManageMode.Backup)
+    }
+}
+
+/**
+ * 课表导入 / 导出 / 备份。
+ *
+ * ⚠ 这三个入口**必须**走路由，不能再是 Activity：原来 `BackupAndMigrationActivity`
+ * 是独立 Activity，`BackupAndMigrationScreen` 里的「本地备份」入口读 [LocalAppRouter]，
+ * 而那个 Activity 的 setContent 没有 provide，默认值是 `error(...)` —— 一点开就崩。
+ */
+@Composable
+private fun BackupAndMigrationRoute(router: AppRouter, mode: ScheduleDataManageMode) {
+    val title = when (mode) {
+        ScheduleDataManageMode.Import -> "课表导入"
+        ScheduleDataManageMode.Export -> "课表导出"
+        ScheduleDataManageMode.Backup -> "课表备份"
+    }
+    DocumentPageScaffold(
+        title = title,
+        onBack = { router.popBack() },
+    ) { scrollBehavior, backdrop ->
+        // 与原 BackupAndMigrationActivity 一致：ViewModel 由宿主创建后传入
+        val courseViewModel: CourseViewModel = viewModel()
+        val scheduleViewModel: ScheduleViewModel = viewModel()
+        val settingsViewModel: SettingsViewModel = viewModel()
+        BackupAndMigrationScreen(
+            scrollBehavior = scrollBehavior,
+            courseViewModel = courseViewModel,
+            scheduleViewModel = scheduleViewModel,
+            settingsViewModel = settingsViewModel,
+            liquidGlassBackdrop = backdrop,
+            mode = mode,
+        )
     }
 }
 

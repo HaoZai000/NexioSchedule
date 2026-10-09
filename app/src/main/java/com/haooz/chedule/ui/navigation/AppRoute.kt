@@ -85,6 +85,21 @@ sealed interface AppRoute {
         override val id: String get() = "appreciate_author"
     }
 
+    /** 课表导入（「课表导入」）。 */
+    data object ScheduleImport : AppRoute {
+        override val id: String get() = "schedule_import"
+    }
+
+    /** 课表导出（「课表导出」）。 */
+    data object ScheduleExport : AppRoute {
+        override val id: String get() = "schedule_export"
+    }
+
+    /** 课表备份（「课表备份」）。 */
+    data object ScheduleBackup : AppRoute {
+        override val id: String get() = "schedule_backup"
+    }
+
     companion object {
         /** 按 [id] 还原路由；未知 id 返回 null（版本回退/脏数据时由调用方兜底）。 */
         fun fromId(id: String): AppRoute? = when (id) {
@@ -97,6 +112,9 @@ sealed interface AppRoute {
             Communication.id -> Communication
             LocalBackup.id -> LocalBackup
             AppreciateAuthor.id -> AppreciateAuthor
+            ScheduleImport.id -> ScheduleImport
+            ScheduleExport.id -> ScheduleExport
+            ScheduleBackup.id -> ScheduleBackup
             else -> null
         }
     }
