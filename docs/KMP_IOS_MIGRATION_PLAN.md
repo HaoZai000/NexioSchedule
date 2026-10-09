@@ -3,13 +3,13 @@
 > 目标平台：**iOS**（iPad 一并覆盖）  
 > 策略：渐进式，全程不打断 1.6.x 正常发版  
 > 制定日期：2026-10-08 · 最近更新：2026-10-09（Kotlin 2.4.10，AGP 9.2.1，CMP 1.12.0）  
-> 代码状态：`master` `ec04a04`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
+> 代码状态：`master` `0ce3c8a`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
 
 ---
 
 ## 🔄 接手须知（新会话 / 新人从这一节开始）
 
-> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `ec04a04`。
+> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `0ce3c8a`。
 > 三条最重要的事实：**① 有测试没入库 ② 别推翻下面那几条决定 ③ 网络层的 Native 实现是空壳。**
 
 ### 1. 现状一句话
@@ -51,6 +51,9 @@
 | ✅ **`HolidayManager` 存储层下沉 `:core`** | **已完成**（2026-10-09）：`Context`/`org.json`/Gson/`@Synchronized`/`CourseRepository` 反向依赖全部处理掉，节假日整条链现在完全跨平台（详见「当前进展 ⑩」） | — |
 | ✅ **`CourseRepository` 下沉 `:core`** | **已完成**（2026-10-09）：**数据层全部完成**，顺带修掉两个「用户无法恢复自己备份」的真实缺陷（见「当前进展 ⑫」） | — |
 | ✅ **`ScheduleBackup` 下沉 `:core`** | **已完成**（2026-10-09）：WebDAV 收敛到 `HttpService`，iOS 侧不再有第二处网络实现要写（见「当前进展 ⑬」） | — |
+
+**UI 导航改造（阶段 5 前置）已起步** —— 增量 1 做完（路由器基础设施 + 关于页宿主化，
+Manifest 23 → 20 个 Activity）。详见「🎯 UI 导航改造」一节，**下一个增量是把宿主迁到 `MainActivity`**。
 
 **数据层已全部完成**（⑫⑬）。`:app/data` 只剩两个**按归属不该进 `:core`** 的文件
 （见 ⑬-c）：`ScheduleAppearance`（Bitmap）/ `WallpaperTransform`（Compose `Offset`），
@@ -246,7 +249,7 @@ AppFiles.init(
 
 ---
 
-## 📍 当前进展（更新于 2026-10-09 · 已合入 master `ec04a04`）
+## 📍 当前进展（更新于 2026-10-09 · 已合入 master `0ce3c8a`）
 
 > **安全网**：`master` 上打了永久标签 `backup/pre-merge-20261009`（合并前的状态）。
 > 万一发现遗漏，`git branch <名字> backup/pre-merge-20261009` 即可恢复 —— 
@@ -402,6 +405,77 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 ```
 
 顺手修掉：这两个仓库原本各自 `new OkHttpClient()`（第 11、12 套连接池），现在复用 `HttpService`。
+
+### 🎯 UI 导航改造（阶段 5 前置）· 增量 1 已完成（2026-10-09，提交 `0ce3c8a`）
+
+**跨端的硬前提：CMP 在 iOS 上跑在 `UIViewController` 里，没有 Activity。**
+更关键的是 —— **导航状态原本活在 Android 的 Activity back stack 里，iOS 拿不到**。
+只要还用 Intent 跳 Activity，那些 Screen 就永远共享不了。
+所以「单宿主 + 显式路由表」不是风格选择，是必要结构。
+
+#### 现状实测（改造前）
+
+| 项 | 数字 |
+|---|---|
+| 注册的 Activity | **23**（源文件 20；其中 **17 个是纯壳**：`enableEdgeToEdge` + `setContent { Theme { XxxScreen() } }`，屏幕本体已在隔壁 `*Screen.kt`、已是 Compose） |
+| 主流程 | **已经是单 Activity**：`MainActivity.CourseScheduleApp()`（5903 行）+ 3 页 pager |
+| Compose Navigation | **0**（没有 `NavHost`/`NavController`）→ 缺一层导航抽象，无论如何要新写 |
+| 导航方式 | `Intent(context, XxxActivity::class.java)` + `startActivity`；`finish()` 22 处；**Intent extras 47 处** |
+
+**真正的成本不在那 20 个壳，在平台专有面**：
+`WindowInsets`/系统栏 **84** ｜ `Toast` 31 ｜ `LocalConfiguration` 15 ｜
+`LocalActivity`/`LocalHapticFeedback` 15 ｜ `LocalContext` 12 ｜ 文件选择 4。
+
+#### 增量 1 做了什么
+
+新增 `ui/navigation/`：
+
+| 文件 | 作用 |
+|---|---|
+| `AppRoute` | 路由表。**`id` 是持久化契约**（`rememberSaveable` 用），已发布的不要改 |
+| `AppRouter` | 返回栈。`rememberSaveable` 保存**当前栈**（用初始栈会在旋转后弹回首页）；`backOrExit(onExit)` 给顶栏返回按钮用 —— 只调 `popBack` 在栈底会"失灵" |
+| `AppNavHost` | 渲染当前路由 + 接管系统返回 + 前进/返回转场 |
+| `AppRouteContent` | 路由 → 页面的映射表。**宿主不关心有哪些页面**；阶段 5 搬 UI 时这个文件整体搬走 |
+
+新增 `ui/components/DocumentPageScaffold`：隐私政策 / 开源协议 / 更新日志三个 Activity 壳
+**逐字相同**（各 96 行），抽成一个「折叠大标题顶栏 + 玻璃返回按钮 + 内容采样层」脚手架。
+
+关于页宿主化：`AboutActivity` 里内联的 1200 行 `AboutScreen` 抽成独立文件，
+`AboutActivity` 只剩 21 行宿主；**删掉 3 个 Activity**（Manifest 23 → **20**）。
+
+#### ⚠️ 为什么**手写**路由表而不是引入 Navigation 库
+
+1. `androidx.navigation:navigation-compose` 是 **Android-only**，阶段 5 还得换成 CMP 版 —— 白做一遍；
+2. 而 CMP 那个 artifact（`org.jetbrains.androidx.navigation`）**本机离线缓存里没有**（只有它的
+   `lifecycle` / `savedstate` / `navigationevent` 兄弟包），加不上；
+3. 路由表本身几十行，而且**将来要整体搬进共享模块**，手写反而没有「换库」这一步。
+
+> 这与「不引入 Ktor」是同一个判断：**不为了一点便利，把可控的东西换成会连带升级核心依赖的黑盒。**
+
+#### ⚠️ 已知未做：预测性返回的**动画**
+
+拆 Activity 时系统给的是**跨 Activity 的预测动画**；单宿主下系统不再提供（没有第二个 Activity
+可供动画），需要 `PredictiveBackHandler` + 自己驱动进度。这一版先用 `BackHandler`
+保证返回**功能**正确，**动画留到后续增量** —— 迁移后这 4 个页面的返回动画会变成
+`AppNavHost` 里那个「前进右滑入 / 返回右滑出」的自绘转场，不是系统预测动画。
+
+#### 📌 后续增量（按这个顺序）
+
+1. **把宿主迁到 `MainActivity`**（终点）。它有 `handleBackNavigation` / `onNewIntent` /
+   widget 深链等 Android 耦合，所以要单独一个增量做；`AppRoute` 与 `AppRouteContent` 原样搬过去。
+2. 按「软柿子优先」把剩下的薄壳逐个变成路由（`ChangelogActivity` 这类已删，
+   剩 `LicenseActivity` 同类；`WidgetIntroActivity` 155 行、`CourseReminderActivity` 155 行…）。
+3. **平台专有面抽接口**：等真搬某个 screen 时再抽它用到的那几个，
+   **别提前造全套**（与「别提前造 `Notifier`/`ScreenInfo`」同一条）。
+4. **WebView / Activity 结果类页面先不动**：`EducationalImportActivity`（WebView +
+   `@JavascriptInterface` 桥接）、`AiImportActivity` 先当「平台功能页」留着，用 route 跳过去再回来。
+
+> **判据**：某个 Screen「可以共享了」= 它的 Composable 不依赖任何 `android.*` /
+> `LocalContext` / `LocalConfiguration` / Activity 回调。
+>
+> **两个坑**：① 别把「单 Activity」理解成「所有东西塞进一个 NavHost」；
+> ② **widgets / 提醒也在 `startActivity(MainActivity)`** —— 宿主同时是「非 UI 入口」，
+> 那 47 处 extras 里有一部分就是它。
 
 ### ✅ 已完成批次 · ⑬ `ScheduleBackup` 下沉 `:core` —— WebDAV 收敛到 `HttpService`（2026-10-09）
 
