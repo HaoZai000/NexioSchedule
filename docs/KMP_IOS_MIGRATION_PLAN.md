@@ -49,15 +49,20 @@
 | ✅ **`java.time` → kotlinx-datetime** | **已完成**（2026-10-09）：`:app` 全部 22 个文件换血，`:core` 补 `DateExt` 兼容层 + 12 个差分等价用例（详见「当前进展 ⑧」） | — |
 | ✅ **节假日四个纯逻辑文件下沉 `:core`** | **已完成**（2026-10-09）：`CourseScheduleDateBounds` / `TeachingWeekReorganization` / `HolidayCourseExclusion` / `HolidayCountdown` 全部进 commonMain（详见「当前进展 ⑨」） | — |
 | ✅ **`HolidayManager` 存储层下沉 `:core`** | **已完成**（2026-10-09）：`Context`/`org.json`/Gson/`@Synchronized`/`CourseRepository` 反向依赖全部处理掉，节假日整条链现在完全跨平台（详见「当前进展 ⑩」） | — |
-| **`CourseRepository` 下沉**（37 点 / 2819 行）—— **下一步** | 前置 **⑪ 已完成**（`Course` / `ScheduleFolder` / 标量列表的编解码已就位）。剩下：**`TimeConfig` 的编解码**（最微妙，见下）、全局单例 → Kotlin/Native 线程模型（风险 **R4**）、`String.format`/`Calendar`/`Build.BRAND` 等清尾 | 中高 |
+| **`CourseRepository` 下沉**（37 点 / 2819 行）—— **下一步，前置已全部就位** | 序列化能力 **⑪ 已全部备好**（`Course` / `ScheduleFolder` / `TimeConfig` 一族 / 标量列表）。剩下：全局单例 → Kotlin/Native 线程模型（风险 **R4**）、`String.format`/`Calendar`/`Build.BRAND` 等清尾 | 中高 |
 
-> ⚠ **`TimeConfig` 的编解码是这一步唯一需要动脑的地方**：Gson 走 `UnsafeAllocator` 绕开构造器，
-> 缺字段会让**非空字段变成 null**，而 `sanitize()` 正是靠这个兜底
-> （`raw.name ?: "默认配置"`、`total <= 0 → 4/4/4`、`safeSpecialBlocks`）。
-> 手写解码若直接取 Kotlin 默认值（如 `morningSections = 4`），
-> 就会**跳过 `sanitize` 的恢复分支**（缺 `morningSections` 时 Gson 给 0 → 触发 4/4/4；
-> 给 4 就变成 4/4/4 但走的是另一条路，若只缺一个字段则结果不同）。
-> **解码必须取零值，把 null 语义交给 `sanitize`**，并逐个字段写对照用例。
+> **搬迁清单（⑪ 收尾时盘的，下次直接照做）**
+>
+> | 项 | 数量 | 处理 |
+> |---|---:|---|
+> | `CourseRepository.getInstance(context)` / `CourseRepository(context)` 调用点 | **59 处 / 31 文件** | 改成无参单例（`AppStorage` 式启动注入） |
+> | `prefs: SharedPreferences` | 1 | → `AppStorage.store(PREFS_NAME)` |
+> | Gson 调用 | 21 | → `ScheduleCodec`（已就位） |
+> | `System.currentTimeMillis()` | 12 | → `Clock.System.now()` |
+> | `String.format(Locale.ROOT, "%04d/%02d/%02d", …)` | 3 | → 手写 pad |
+> | `java.util.Calendar.getInstance()` | 1 | → `Clock` |
+> | `Build.BRAND` / `Build.MANUFACTURER`（小米检测） | 1 | 需要平台抽象或注入 |
+> | 单例 `synchronized(this)` | 1 | → 已有的 `synchronizedOn` |
 | **Gson 迁移**（文档风险表里的 **R2，最高**） | **真实备份已到手**（2026-10-09）→ 前置调研做完，配置要求已量出（见「🔬 R2 前置调研」）。仍需 `@Serializable` + 显式字段清单。⚠ `TeachingWeekReorganization` 的 Gson **已经换掉了**（⑨-b），剩的是单课表备份 / 分享码 / 教务导入 + 全量备份 4 条通道 | 高 —— 数据格式一变，存量用户读不出来。**已从「未知风险」降为「有明确配置要求」** |
 | **Native HTTP** | 需 macOS 定 iOS target；引入 Ktor 会顶掉协程版本（见下方决定表） | 高，但属 iOS 侧独立交付 |
 
@@ -454,6 +459,42 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 > **本批不改任何 app 行为** —— 只是新增可用的编解码，切换留到搬 `CourseRepository` 时。
 > 这样 R2 的风险被单独隔离在一批可验证的改动里，不会和「搬模块」混在一起。
+
+#### ⑪-d `TimeConfig` 一族（第二批补完，提交 `c262f44`）
+
+`TimeConfig` / `TimeRoutine` / `SpecialBlock` / `SpecialItem` 的编解码，以及
+`encodeTimeConfig` / `decodeTimeConfig`。嵌套三型**直接复用现有的 `fromRaw(Map)`** ——
+它们本来就是为「Gson 泛型丢失 + `UnsafeAllocator` 置 null」写的，且 `safeXxx` 走的也是它们，
+复用等于与 `sanitize` 路径同源，避免两套归一逻辑打架。
+
+> ⚠⚠ **本轮最重要的一条：Kotlin 默认值对 `TimeConfig` 是生效的。**
+>
+> 「Gson 绕开构造器」**只对没有无参构造器的类成立**，判据是**有没有必填参数**：
+>
+> | 类 | 有必填参数？ | 合成无参构造器？ | Gson 缺字段时给什么 |
+> |---|---|---|---|
+> | `Course` | ✅ 有（前 11 个无默认值） | ❌ | **零值 / null**（`UnsafeAllocator`） |
+> | `TimeConfig` / `TimeRoutine` / `SpecialBlock` / `SpecialItem` | ❌ 全有默认值 | ✅ | **Kotlin 默认值** |
+>
+> 实测证据：`{}` 反序列化后 `shortBreak = 10`、`longBreakMorning = 20`、`morningStartHour = 8`
+> —— 全是 Kotlin 默认值，不是 0。
+>
+> ⇒ 所以 `timeConfigFromJsonMap` 用 **`TimeConfig()` 作底 + `copy` 只覆盖出现过的字段**，
+> 这正是「无参构造器 + 按需覆盖」的等价写法，也不用把 25 个默认值再抄一遍。
+> ⇒ 反过来，`Course` 侧**必须取零值**（`courseFromJsonMap` 就是这么写的）。
+
+> ⚠ **另一个坑**：`toJsonElementWithoutNulls` 必须**递归**。第一版只跳顶层 null，
+> 结果嵌套的 `"items":null` 照样被写出去。数组元素里的 null 要**保留**
+> （Gson 的 `serializeNulls` 只影响对象字段，集合元素照写 null）。
+
+> 🔎 **发现一处既有缺陷，并有意改进**：`{"routines":null}` 这种 JSON 会让**现有 Gson 路径直接 NPE**
+> （Gson 把 null 塞进非空字段 → `sanitize` 内部 `copy` 炸）。手写解码把「显式 null」与
+> 「字段缺失」都归一成 `emptyList()`，能正常走完 `sanitize`。
+> **这是更健壮、且不改变任何正常数据的语义**，已单独写用例钉住并标注为有意为之。
+
+**新增 7 个用例**（`:core:jvmTest` 220 → **227**）：真实 `time_config` 解码 + `sanitize`
+与 Gson 完全一致、编码语义一致、往返稳定、**20 种缺字段输入的恢复路径逐字对齐**、
+`items` 为 null 时字段省略、非法输入、上面那处健壮性差异。
 
 ### 🔬 R2 前置调研 · 基于**真实用户备份**（2026-10-09）
 
