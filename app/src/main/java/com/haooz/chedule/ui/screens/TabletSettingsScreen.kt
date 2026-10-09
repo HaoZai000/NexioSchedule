@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
@@ -1015,10 +1016,14 @@ fun TabletSettingsScreen(
                                         onSave = { savedConfig ->
                                             // 只替换这一个作息；节次骨架由一级页面管理，这里不碰。
                                             // 顶层 name 是用户在这一页改的作息名，要带回去。
-                                            editingTimeRoutineId?.let { routineId ->
+                                            val saved = editingTimeRoutineId?.let { routineId ->
                                                 courseRepository.saveRoutine(
                                                     routineId, savedConfig, savedConfig.name
                                                 )
+                                            } ?: false
+                                            if (!saved) {
+                                                // 保存被丢弃必须让用户看见：以前静默丢弃，表现成「改完保存、重开还是原来的」
+                                                Toast.makeText(context, "保存失败，请重试", Toast.LENGTH_SHORT).show()
                                             }
                                             timeConfigRefreshTrigger++
                                             uiScope.launch {

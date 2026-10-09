@@ -34,6 +34,9 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         // 启动迁移，两者都幂等、只跑一次：
         // - 课表收进默认文件夹（文件夹 1.6.1 才有，1.5.6 及更早的课表还散在根目录）；
         // - 清理闲置 time_config（判据不可靠时整体跳过，见函数注释）。
+        // 另注：曾考虑补回「缺绑定就补绑」的迁移，但那会让上面 prune 的
+        // 「未绑定即跳过」保护失效——补绑后判据看似可靠，反而会把只在旧指针里的
+        // 配置判成孤儿删掉（场景同 1.6.4 的误删）。保持保守策略，不做补绑。
         migrateSchedulesIntoDefaultFolder()
         pruneOrphanTimeConfigsIfNeeded()
     }
@@ -1832,10 +1835,15 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         timeConfigCache[id]?.let { return it }
         val key = "$TIME_CONFIG_PREFIX$id"
         val json = prefs.getString(key, null)
-        val fallback = TimeConfig(id = id, name = "默认配置")
+        // 兜底配置必须经 sanitize 播种（内部 ensureRoutine 会补一个默认作息）。
+        // 裸默认配置 routines 为空：设置页只在内存里 ensureRoutine，
+        // 而 saveRoutine 按存储态校验「目标作息是否存在」——两头对不上，保存会被静默丢弃
+        val fallback = TimeConfig.sanitize(id, TimeConfig(id = id, name = "默认配置"))
         if (json.isNullOrEmpty()) {
             // id=0 没数据是全新安装的正常状态；别的 id 读不到 = 配置真丢了，会静默回落 4/4/4
             if (id != 0L) android.util.Log.e(TAG, "time_config_$id 无数据，回落默认配置")
+            // 缺键必须落盘自愈：不写回去，routines 就一直是空的，保存链路永远起不来
+            saveTimeConfig(fallback)
             return fallback
         }
         val config = try {
