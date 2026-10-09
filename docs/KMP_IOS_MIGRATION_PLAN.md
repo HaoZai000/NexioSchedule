@@ -3,18 +3,18 @@
 > 目标平台：**iOS**（iPad 一并覆盖）  
 > 策略：渐进式，全程不打断 1.6.x 正常发版  
 > 制定日期：2026-10-08 · 最近更新：2026-10-09（Kotlin 2.4.10，AGP 9.2.1，CMP 1.12.0）  
-> 代码状态：`master` `2821905`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
+> 代码状态：`master` `c80e504`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
 
 ---
 
 ## 🔄 接手须知（新会话 / 新人从这一节开始）
 
-> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `2821905`。
+> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `c80e504`。
 > 三条最重要的事实：**① 有测试没入库 ② 别推翻下面那几条决定 ③ 网络层的 Native 实现是空壳。**
 
 ### 1. 现状一句话
 
-`:app` 仍是 Android-only（迁移主体，508 处 Android 专用 import）；
+`:app` 仍是 Android-only（迁移主体，505 处 Android 专用 import，146 个文件）；
 数据层与 `data/school/` 已整体下沉 `:core`，**节假日纯逻辑集群也已全部下沉**（⑨）；
 `:miuix` / `:backdrop` 已是 KMP 模块，
 但 **`skikoMain` 从未针对 Native 编译过**；**iOS 尚未接入** —— 没有 iOS target、没有 Xcode 工程，
@@ -48,13 +48,12 @@
 | ✅ **拆 `Holidays.kt` 的类型集群** | **已完成**（2026-10-09）：1782 行拆成 4 个文件，6 个平台中立类型已下沉 `:core`（详见「当前进展 ⑦」） | — |
 | ✅ **`java.time` → kotlinx-datetime** | **已完成**（2026-10-09）：`:app` 全部 22 个文件换血，`:core` 补 `DateExt` 兼容层 + 12 个差分等价用例（详见「当前进展 ⑧」） | — |
 | ✅ **节假日四个纯逻辑文件下沉 `:core`** | **已完成**（2026-10-09）：`CourseScheduleDateBounds` / `TeachingWeekReorganization` / `HolidayCourseExclusion` / `HolidayCountdown` 全部进 commonMain（详见「当前进展 ⑨」） | — |
-| ✅ **把节假日集群搬进 `:core`** | **已完成**（2026-10-09）：4 个文件全部进 commonMain，`compileKotlinLinuxX64` 通过（见「当前进展 ⑨」） | — |
-| **搬 `HolidayManager` 存储层进 `:core`**（最大的一块，73 点） | 一次性要解决 5 件事：`Context`→`AppStorage`、`org.json`→`JsonSupport`（**含 `toJson` 的落盘格式对齐**）、Gson→`JsonSupport`、`System.currentTimeMillis`→`Clock`、**`@Synchronized`（Native 没有，且它保护「读→算→写」复合操作，不能默默删）**；外加 `migrateLegacyFollowDates` 对 `CourseRepository` 的反向依赖要抽成回调 | 高 —— 落盘格式 + 并发语义都在这一块 |
-| **`CourseRepository` 下沉**（39 点 / 2819 行） | 全局单例 → Kotlin/Native 线程模型（风险 **R4**），需改显式注入 | 中高 |
+| ✅ **`HolidayManager` 存储层下沉 `:core`** | **已完成**（2026-10-09）：`Context`/`org.json`/Gson/`@Synchronized`/`CourseRepository` 反向依赖全部处理掉，节假日整条链现在完全跨平台（详见「当前进展 ⑩」） | — |
+| **`CourseRepository` 下沉**（37 点 / 2819 行）—— **下一步** | 全局单例 → Kotlin/Native 线程模型（风险 **R4**），需改显式注入；`String.format` 等 JVM 专有 API 也要清 | 中高 |
 | **Gson 迁移**（文档风险表里的 **R2，最高**） | **必须先有真实用户备份做 round-trip 回归**；需 `@Serializable` + 显式字段清单。⚠ 注意：`TeachingWeekReorganization` 的 Gson **已经换掉了**（⑨-b），剩的是全量备份 / 单课表备份 / 分享码 / 教务导入 4 条通道 | 高 —— 数据格式一变，存量用户读不出来 |
 | **Native HTTP** | 需 macOS 定 iOS target；引入 Ktor 会顶掉协程版本（见下方决定表） | 高，但属 iOS 侧独立交付 |
 
-**建议顺序**：`HolidayManager` 存储层（最大且是 `CourseRepository` 的前置）→ `CourseRepository` → 再 Gson 4 条通道（等拿到真实备份）。
+**建议顺序**：`CourseRepository`（**数据层最后一块**）→ 再 Gson 4 条通道（等拿到真实备份）。
 
 ### 4. 每次改完必跑
 
@@ -233,7 +232,7 @@ AppFiles.init(
 
 ---
 
-## 📍 当前进展（更新于 2026-10-09 · 已合入 master `2821905`）
+## 📍 当前进展（更新于 2026-10-09 · 已合入 master `c80e504`）
 
 > **安全网**：`master` 上打了永久标签 `backup/pre-merge-20261009`（合并前的状态）。
 > 万一发现遗漏，`git branch <名字> backup/pre-merge-20261009` 即可恢复 —— 
@@ -265,14 +264,15 @@ AppFiles.init(
 
 | 模块 | 源文件 | 行数 | 源集 | 状态 |
 |---|---:|---:|---|---|
-| `:core` | 28 (+12 平台实现) | ~4,546 | common / android / **jvm / linuxX64(门禁)** | 数据层下沉 + 7 套跨平台抽象 + 日期补齐层（⑧）+ **整个节假日纯逻辑集群**（⑨） |
+| `:core` | 30 (+15 平台实现) | ~5,540 | common / android / **jvm / linuxX64(门禁)** | 数据层下沉 + 8 套跨平台抽象 + 日期补齐层（⑧）+ **整个节假日链**（⑨⑩，含存储层） |
 | `:backdrop` | 64 | 5,458 | common / android / skiko | KMP 化，含 edgelight + capsule；**skikoMain 未针对 Native 编译过** |
 | `:miuix` | 103 | 26,464 | common / android / skiko | KMP 化；**skikoMain 未针对 Native 编译过** |
 | `:app` | 148 | 69,983 | android | Android-only，**剩余迁移主体** |
 
-`:core` 已有的 7 套跨平台能力：`NexioLog`（日志）/ `KeyValueStore`+`AppStorage`（存储）/
+`:core` 已有的 8 套跨平台能力：`NexioLog`（日志）/ `KeyValueStore`+`AppStorage`（存储）/
 `HttpService`（网络）/ `JsonSupport`（JSON）/ `PlatformInfo`（设备信息）/ `AppFile`+`AppFiles`（文件）/
-`ioDispatcher`（调度器 —— 不用 `Dispatchers.IO`，它在 Kotlin/Native 上是 `internal`）。
+`ioDispatcher`（调度器 —— 不用 `Dispatchers.IO`，它在 Kotlin/Native 上是 `internal`）/
+`synchronizedOn`（互斥 —— Native 暂时直通，见「当前进展 ⑩-c」的已知缺口）。
 
 **节假日纯逻辑集群已整体下沉**（⑨）：`CourseScheduleDateBounds` / `TeachingWeekReorganization` /
 `HolidayCourseExclusion` / `HolidayCountdown` / `HolidayEntry` / `HolidayTypes` / `DateExt`
@@ -389,6 +389,93 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 顺手修掉：这两个仓库原本各自 `new OkHttpClient()`（第 11、12 套连接池），现在复用 `HttpService`。
 
+### ✅ 已完成批次 · ⑩ `HolidayManager` 存储层下沉 `:core`（2026-10-09）
+
+**`HolidayManager` 移入 `core/src/commonMain`，节假日整条链（存储 + 调休改周 + 课程剔除 +
+倒计时）现在完全跨平台。** `:app/data` 只剩 `CourseRepository` / `ScheduleAppearance` /
+`ScheduleBackup` / `TimeConfigSnapshotParser` / `WallpaperTransform` 与两个 Android actual。
+
+#### ⑩-a 逐个替换掉的平台依赖
+
+| 原来 | 现在 | 说明 |
+|---|---|---|
+| `Context` + `getSharedPreferences(PREFS, MODE_PRIVATE)` | `AppStorage.store(PREFS)` | 文件名 `holiday_settings` **逐字未变** |
+| `SharedPreferences` 形参（8 个 internal 重载） | `KeyValueStore` 形参 | 取值/写入 API 一一对应 |
+| `androidx.core.content.edit {}` | `KeyValueStore.edit {}` | 语义相同：提交即写盘 |
+| `org.json.JSONObject/JSONArray` | `JsonSupport` | 见 ⑩-b |
+| Gson `JsonParser`/`JsonElement`/`TypeToken` | `JsonSupport` | 见 ⑩-b |
+| `@Synchronized` / `synchronized(this)` | **新增** `synchronizedOn(lock)` | 见 ⑩-c |
+| `System.currentTimeMillis()` | `Clock.System.now()` | 同为 Unix 纪元毫秒 |
+| `CourseRepository(context)` | 调用方注入的日期解析回调 | 见 ⑩-d |
+| `entriesByYear.toSortedMap()` | `entries.entries.sortedBy { it.key }` | `toSortedMap` 是 JVM 专有（`TreeMap`） |
+
+另：`BACKUP_KEY` / `BACKUP_EXCLUSION_KEY` / `BACKUP_BEFORE_EXCLUSION_KEY` 三个常量从
+`internal` 提升为 **`public`** —— 原先 `internal` 在本模块内可见，跨模块后 `:app` 的
+`CourseRepository` 就看不见了（与 `TimeConfig.fromRaw` 是同一类问题）。
+
+#### ⑩-b `org.json` / Gson → `JsonSupport`：靠一个 `optRaw()` 保住语义
+
+`parseStoredEntry` 原实现满是 `item.opt("date") as? String` 这类**类型判定**。
+如果换成 `optString` / `optInt` 会**改变语义**（`optString` 把数字 `1` 变成 `"1"`），
+合法数据会被判非法而**整行丢弃** —— 用户那一年的假期就静默没了。
+
+所以新增 `JsonObject.optRaw(key)` / `JsonArray.optRaw(index)`，返回**原始值**
+（`String` / `Double` / `Boolean` / `Map` / `List` / null，与 Gson 的 `ObjectTypeAdapter` 同形状），
+于是那些 `as? X` 判断**逐字保留**。
+
+`parseBackupEntry`（Gson 侧）则用「是不是 `JsonPrimitive` + `isString`」区分字符串与字面量
+—— 与 Gson 的 `isString` / `isNumber` / `isBoolean` 三分法等价
+（`isString == false` 时 `content` 只可能是数字 / `true` / `false` / `null`）。
+
+#### ⑩-c `@Synchronized` 是这一批唯一的设计决策
+
+它保护的是「读 prefs → 算 → 写 prefs」的复合操作。真实场景：
+`NexioApplication.onCreate` 起一个后台 `Thread` 跑旧调休映射迁移，同一时刻主线程可能正在保存设置。
+**丢了这把锁会出现「迁移结果覆盖用户刚保存的编辑」这类编译全绿、只有并发才发生的问题。**
+
+但 **Kotlin/Native 没有 `synchronized`**（实测 `Unresolved reference`）。所以新增
+`expect fun <T> synchronizedOn(lock: Any, block: () -> T): T`：
+
+| 平台 | 实现 | 效果 |
+|---|---|---|
+| Android / JVM | `synchronized(lock)` | **与原来的 `@Synchronized` 逐字等价 —— Android 行为零变化（红线）** |
+| Kotlin/Native | 直通 | **暂时没有互斥**，KDoc 里明确写成「已知缺口」而不是「等价实现」 |
+
+> ⚠ **iOS 接进来之前必须回看这里**：如果 iOS 侧也会「后台迁移 + 前台保存」并发，
+> 要给 nativeMain 换真实现（`kotlinx.atomicfu` 的 `SynchronizedObject`，或把复合写收敛到单线程）。
+> `LockTest` 用 8 线程 ×2000 次「读→算→写」证明 JVM/Android 的锁**真的互斥**，不是空壳。
+
+#### ⑩-d `migrateLegacyFollowDates` 的反向依赖
+
+原实现内部 `CourseRepository(context)` —— `:core` 不能依赖还在 `:app` 的 `CourseRepository`。
+改为传入 `resolveDateForTeachingWeekDay: (week, weekday) -> LocalDate?`。
+调用方（`NexioApplication`）拿不到仓储时**根本不调用本函数**，
+以保持原来「构造失败就整体跳过、连迁移标记都不写」的语义。
+
+#### ⑩-e 调用点与一个隐藏的坑
+
+**46 处**去掉 `context` 实参（含 `viewModel.getApplication<android.app.Application>()`
+这种带泛型的嵌套实参 —— 脚本按括号深度找顶层逗号，不靠正则瞎猜）。
+
+⚠ **`WatchPayload` 的 `toJson()` 必须包一层 `JSONObject(...)`**：`toJson()` 现在返回 kotlinx 的
+`JsonObject`，直接 `JSONArray.put(...)` 会被 org.json 当成**未知类型转成一个带引号的字符串**，
+手表侧就解析不出结构了。改成 `JSONObject(entry.toJson().toString())` 后载荷逐字不变。
+
+#### ⑩-f 安全网（未入库）
+
+| 测试 | 用例数 | 覆盖 |
+|---|---:|---|
+| `HolidayManagerStorageTest` | 23 | 落盘串与存量格式逐字一致 / 真实存量串 load·save round-trip / 缺字段与类型不符的行被丢弃而非整批失败 / 年份键规则 / 版本号单调递增 / 备份通道 / 数据源两种响应解析 / 旧调休映射迁移**两个分支**（信任旧映射 vs 回退建议值） |
+| `LockTest` | 3 | 可重入 / 多线程不丢更新 / 异常穿透且不吞锁 |
+
+`:core:jvmTest` **179 → 206 全绿**。
+
+> ⚠ **诚实标注一条强度差异**：`TeachingWeekReorganization` 的 Gson 基准是**用真实 Gson 2.11.0
+> 跑出来的**；而 `toJson()` 的 org.json 基准**是按已知语义手写的字面量** ——
+> 离线环境里没有可运行的 org.json（Android 的 org.json 在 `android.jar` 里是 stub，调用即抛）。
+> 已用「含中文名的字面量」顺带验证了非 ASCII 不转义、字段顺序与紧凑格式；
+> 但**拿到真机数据后建议再跑一次 `entries_{年}` 的逐字对比**。
+
 ### ✅ 已完成批次 · ⑨ 节假日四个纯逻辑文件下沉 `:core`（2026-10-09）
 
 **结果：`CourseScheduleDateBounds` / `TeachingWeekReorganization` / `HolidayCourseExclusion` /
@@ -455,18 +542,17 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 | 文件 | JVM/Android 专有点 | 备注 |
 |---|---:|---|
-| `HolidayManager.kt` | 73 | 存储层本体：`Context`/`org.json`/Gson/`@Synchronized`/`CourseRepository` |
+| ~~`HolidayManager.kt`~~ | 73 | **已下沉 `:core`**（⑩）—— 换掉 Context/org.json/Gson/`@Synchronized`/`CourseRepository` 反向依赖 |
 | `CourseRepository.kt` | 39 | 2819 行，`String.format` 等 |
 | `ScheduleAppearance.kt` / `ScheduleBackup.kt` | 30 / 25 | Bitmap、文件 IO |
 | `SharedPreferencesStore.kt` / `FileAppFile.kt` | 13 / 2 | **Android 侧 actual，按决定必须留在 `:app`** |
 | `TimeConfigSnapshotParser.kt` | 2 | Gson |
 | `WallpaperTransform.kt` | 0 | 已中立，可直接搬 |
 
-> **`HolidayManager` 现在是最大的一块**（73 点）。搬它需要一次性解决 5 件事：
-> `Context`→`AppStorage`、`org.json`→`JsonSupport`（含 `toJson` 的落盘格式对齐）、
-> Gson→`JsonSupport`、`System.currentTimeMillis`→`Clock`、以及 `@Synchronized`
-> （**Kotlin/Native 没有**，且它保护的是「读 prefs → 算 → 写 prefs」的复合操作，不能默默删）。
-> 还有 `migrateLegacyFollowDates` 里 `CourseRepository` 的反向依赖，要把日期解析抽成回调。
+> **`HolidayManager` 已搬完（⑩）**，它曾是最大的一块（73 点）。现在 `:app/data` 里最大的
+> 是 `CourseRepository`（37 点 / 2819 行）—— 也是**数据层的最后一块**。
+> 它的难点与 `HolidayManager` 不同：不是平台 API，而是**全局单例撞 Kotlin/Native 线程模型（R4）**，
+> 要改成显式注入；另外还有 `String.format` 这类 JVM 专有点。
 
 ### ✅ 已完成批次 · ⑧ 阶段 2.1：`java.time` → kotlinx-datetime 全量换血（2026-10-09）
 
@@ -534,16 +620,17 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 | 文件 | 剩余 JVM/Android 专有点 | 说明 |
 |---|---:|---|
-| `HolidayCourseExclusion.kt` | **0** | 但引用 `HolidayManager.Entry` / `entriesForDate`（还在 `:app`） |
-| `HolidayCountdown.kt` | 1 | `Math.floorMod` |
-| `CourseScheduleDateBounds.kt` | 1 | `Math.floorDiv` |
-| `TeachingWeekReorganization.kt` | 3 | Gson `encode/decode`（**输出是持久化数据，必须逐字对齐**） |
-| `HolidayManager.kt` | 73 | `Context`/`SharedPreferences`/`org.json`/Gson/`@Synchronized`/`CourseRepository` 反向依赖 |
-| `CourseRepository.kt` | 39 | 同上一档 |
-| `ScheduleAppearance.kt` / `ScheduleBackup.kt` | 32 / 26 | Bitmap、文件 IO |
+| ~~`HolidayCourseExclusion.kt`~~ | 0 | **已下沉**（⑨） |
+| ~~`HolidayCountdown.kt`~~ | 1 | **已下沉**（⑨） |
+| ~~`CourseScheduleDateBounds.kt`~~ | 1 | **已下沉**（⑨） |
+| ~~`TeachingWeekReorganization.kt`~~ | 3 | **已下沉**（⑨） |
+| ~~`HolidayManager.kt`~~ | 73 | **已下沉**（⑩） |
+| `CourseRepository.kt` | 37 | **数据层最后一块**：全局单例撞 Native 线程模型（R4）、`String.format` |
+| `ScheduleAppearance.kt` / `ScheduleBackup.kt` | 30 / 26 | Bitmap、文件 IO |
 
-**结论：把 `CourseScheduleDateBounds` / `TeachingWeekReorganization` / `HolidayCourseExclusion` /
-`HolidayCountdown` 搬进 `:core` 已经只差 5 处小改动 + 把 `HolidayManager.Entry` 从嵌套类提出来。**
+**结论（当时）：把 `CourseScheduleDateBounds` / `TeachingWeekReorganization` /
+`HolidayCourseExclusion` / `HolidayCountdown` 搬进 `:core` 只差 5 处小改动 + 把
+`HolidayManager.Entry` 从嵌套类提出来。** —— 后续 ⑨ 与 ⑩ 就是照这条做的，已全部完成。
 
 ### ✅ 已完成批次 · ⑦ 拆 `Holidays.kt` 类型集群 + 6 个中立类型下沉（2026-10-09）
 
@@ -625,15 +712,17 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 | 工作量 | 数量 |
 |---|---|
-| `:app` 的 Android 专用 import | **545 处 / 111 文件**（`android.*` / `androidx.core` / `navigationevent` / `activity` …）|
+| `:app` 的 Android 专用 import | **505 处 / 146 文件**（`android.*` / `androidx.core` / `navigationevent` / `activity` …）|
 | ~~`java.time`（阶段 2 日期迁移）~~ | ✅ **已完成**（2026-10-09）：22 文件全换，`java.time` 在 `:app` 只剩注释（见 ⑧） |
-| Gson 引用（**风险 R2**） | 33 处 / 14 文件 |
+| Gson 引用（**风险 R2**） | 33 处 / 14 文件（`TeachingWeekReorganization` 那份已换掉，见 ⑨-b） |
 | `java.io` 引用 | 18 处（import）/ 11 文件 |
 
 按阻塞类型分组：
 
-- ~~**纯日期**：`CourseScheduleDateBounds`~~ ✅ **已下沉 `:core`**（⑨）。
-  节假日纯逻辑集群（4 个文件）已全部进 commonMain，下一步的最大一块是 `HolidayManager` 存储层
+- ~~**纯日期**：`CourseScheduleDateBounds`~~ ✅ **已下沉 `:core`**（⑨）
+- ~~**节假日整条链**~~ ✅ **已下沉 `:core`**（⑨⑩，含存储层 `HolidayManager`）
+- **`CourseRepository`（数据层最后一块）**：全局单例 → Kotlin/Native 线程模型（风险 **R4**），
+  需改显式注入；另有 `String.format` 等 JVM 专有点
 - **Gson**：`CourseRepository` / `ScheduleAppearance` / `TimeConfigSnapshotParser` … ——
   需 `@Serializable` + **显式字段清单**，属**最高风险 R2**，必须有真实用户备份做 round-trip 回归
 - **文件 IO**：`ScheduleBackup`（还差 WebDAV + 提醒依赖）；其余 `java.io` 引用多为导入导出
@@ -953,6 +1042,7 @@ Android 侧继续用原生 API（行为零变化），iOS 侧注入自己的实�
 | 网络 | `expect fun createHttpService(...)` | ⚠ Android/JVM 完成；**Native 是抛异常的占位**（见 A1） |
 | 设备信息 | `expect fun currentDeviceInfo()` | ✅ 三平台 actual 齐；iOS 建议改用 `UIDevice` |
 | 调度器 | `expect val ioDispatcher` | ✅ Native 用 `Dispatchers.Default`（`Dispatchers.IO` 在 Native 上是 `internal`） |
+| 互斥 | `expect fun synchronizedOn(lock, block)` | ⚠ Android/JVM 是真锁（与 `@Synchronized` 等价）；**Native 暂时直通** —— iOS 接进来前要补（见 ⑩-c） |
 | `Notifier` / `ScreenInfo` / `Haptics` / `showToast` | 尚未抽取 | ⬜ 等有文件真正要下沉时再定，**别提前造** |
 
 Android actual **必须继续走 SharedPreferences**，否则老用户数据全丢。
