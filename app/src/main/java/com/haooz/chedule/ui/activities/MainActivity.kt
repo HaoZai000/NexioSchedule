@@ -1202,9 +1202,11 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
     LaunchedEffect(privacyConsented) {
         // 合规：未同意隐私政策前不进行云同步等网络行为
         if (!privacyConsented) return@LaunchedEffect
-        val syncManager = com.haooz.chedule.data.SyncManager.getInstance(context)
+        val syncManager = com.haooz.chedule.data.SyncManager.getInstance()
         val repository = com.haooz.chedule.data.CourseRepository()
-        val webDavManager = com.haooz.chedule.data.WebDavManager(context)
+        val webDavManager = com.haooz.chedule.data.WebDavManager {
+            com.haooz.chedule.reminder.CourseReminderHelper.onHolidayDataChanged(context)
+        }
         syncManager.start(repository, webDavManager)
         // 备份/恢复后刷新 ViewModel 内存缓存
         syncManager.onSyncCompleted = {

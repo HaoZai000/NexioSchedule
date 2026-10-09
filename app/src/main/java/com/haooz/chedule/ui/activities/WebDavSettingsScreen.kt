@@ -70,7 +70,7 @@ fun WebDavSettingsScreen(
     onBusyStateChange: (backingUp: Boolean, restoring: Boolean) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
-    val webDavManager = remember { WebDavManager(context) }
+    val webDavManager = remember { WebDavManager { com.haooz.chedule.reminder.CourseReminderHelper.onHolidayDataChanged(context) } }
     val coroutineScope = rememberCoroutineScope()
     var listScrollY by remember { mutableIntStateOf(0) }
 
@@ -114,7 +114,7 @@ fun WebDavSettingsScreen(
         } else ""
     }
 
-    val syncManager = remember { SyncManager.getInstance(context) }
+    val syncManager = remember { SyncManager.getInstance() }
     val syncState by syncManager.syncState.collectAsState()
 
     val doBackup = {

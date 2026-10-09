@@ -156,6 +156,35 @@ fun LocalDate.formatChineseDate(): String =
 fun LocalDate.formatSlashDate(): String =
     "${year.toString().padStart(4, '0')}/${pad2(monthNumber)}/${pad2(dayOfMonth)}"
 
+// ── 6c. 备份文件用的时间戳格式 ─────────────────────
+// 原实现是 SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()) 与
+// ("yyyy-MM-dd HH:mm:ss", Locale.getDefault())。两者都只含数字与固定分隔符，
+// **不受 Locale 影响**，所以手写格式化与解析即可，行为逐字一致。
+
+/** `yyyyMMdd_HHmmss`。对应 `SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())`。 */
+fun LocalDateTime.formatCompactStamp(): String =
+    "${year.toString().padStart(4, '0')}${pad2(monthNumber)}${pad2(dayOfMonth)}" +
+        "_${pad2(hour)}${pad2(minute)}${pad2(second)}"
+
+/** `yyyy-MM-dd HH:mm:ss`。对应 `SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())`。 */
+fun LocalDateTime.formatDisplayDateTime(): String =
+    "${year.toString().padStart(4, '0')}-${pad2(monthNumber)}-${pad2(dayOfMonth)} " +
+        "${pad2(hour)}:${pad2(minute)}:${pad2(second)}"
+
+/** 解析 `yyyyMMdd_HHmmss`；长度或数字不合法时返回 null（对应 `SimpleDateFormat.parse` 抛异常那条路）。 */
+fun parseCompactStamp(value: String): LocalDateTime? {
+    if (value.length != 15 || value[8] != '_') return null
+    val digits = value.substring(0, 8) + value.substring(9)
+    if (digits.any { !it.isDigit() }) return null
+    val year = digits.substring(0, 4).toIntOrNull() ?: return null
+    val month = digits.substring(4, 6).toIntOrNull() ?: return null
+    val day = digits.substring(6, 8).toIntOrNull() ?: return null
+    val hour = digits.substring(8, 10).toIntOrNull() ?: return null
+    val minute = digits.substring(10, 12).toIntOrNull() ?: return null
+    val second = digits.substring(12, 14).toIntOrNull() ?: return null
+    return runCatching { LocalDateTime(year, month, day, hour, minute, second) }.getOrNull()
+}
+
 // ── 7. LocalDateTime 组装 ───────────────────────
 // java.time 的 `date.atTime(time)` / `date.atStartOfDay()` / `dateTime.toLocalDate()`。
 

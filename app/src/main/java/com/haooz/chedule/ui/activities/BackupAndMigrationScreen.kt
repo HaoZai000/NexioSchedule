@@ -119,7 +119,7 @@ fun BackupAndMigrationScreen(
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
-    val webDavManager = remember { WebDavManager(context) }
+    val webDavManager = remember { WebDavManager { com.haooz.chedule.reminder.CourseReminderHelper.onHolidayDataChanged(context) } }
     val lastSyncTimeMs = webDavManager.lastSyncTime
     val lastSyncSummary = remember(lastSyncTimeMs) {
         if (lastSyncTimeMs > 0L) {
