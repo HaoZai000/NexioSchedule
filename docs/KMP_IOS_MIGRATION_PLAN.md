@@ -3,7 +3,7 @@
 > 目标平台：**iOS**（iPad 一并覆盖）  
 > 策略：渐进式，全程不打断 1.6.x 正常发版  
 > 制定日期：2026-10-08 · 最近更新：2026-10-09（Kotlin 2.4.10，AGP 9.2.1，CMP 1.12.0）  
-> 代码状态：`master` `9ec793c`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
+> 代码状态：`master` `8294dfb`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
 
 ---
 
@@ -249,7 +249,7 @@ AppFiles.init(
 
 ---
 
-## 📍 当前进展（更新于 2026-10-09 · 已合入 master `9ec793c`）
+## 📍 当前进展（更新于 2026-10-09 · 已合入 master `8294dfb`）
 
 > **安全网**：`master` 上打了永久标签 `backup/pre-merge-20261009`（合并前的状态）。
 > 万一发现遗漏，`git branch <名字> backup/pre-merge-20261009` 即可恢复 —— 
@@ -410,7 +410,7 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 > **增量 1**（`0ce3c8a`）：路由器基础设施 + AboutActivity 宿主化（4 条路由），删 3 个 Activity
 > **增量 1.5**（`a1e7f7e`）：修复返回丢滚动状态（`SaveableStateHolder`）
-> **增量 2**（`90b0754`）：宿主迁到 `MainActivity`，`AboutActivity` 删除。Manifest 23 → **19** → **14**（增量 3 又迁 5 个设置类薄壳）
+> **增量 2**（`90b0754`）：宿主迁到 `MainActivity`，`AboutActivity` 删除。Manifest 23 → **19** → **14**（增量 3 迁 5 个设置类薄壳）→ **10**（增量 4 修闪退并迁数据管理页）
 
 **跨端的硬前提：CMP 在 iOS 上跑在 `UIViewController` 里，没有 Activity。**
 更关键的是 —— **导航状态原本活在 Android 的 Activity back stack 里，iOS 拿不到**。
