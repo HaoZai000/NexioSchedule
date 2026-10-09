@@ -50,7 +50,7 @@
 | ✅ **节假日四个纯逻辑文件下沉 `:core`** | **已完成**（2026-10-09）：`CourseScheduleDateBounds` / `TeachingWeekReorganization` / `HolidayCourseExclusion` / `HolidayCountdown` 全部进 commonMain（详见「当前进展 ⑨」） | — |
 | ✅ **`HolidayManager` 存储层下沉 `:core`** | **已完成**（2026-10-09）：`Context`/`org.json`/Gson/`@Synchronized`/`CourseRepository` 反向依赖全部处理掉，节假日整条链现在完全跨平台（详见「当前进展 ⑩」） | — |
 | **`CourseRepository` 下沉**（37 点 / 2819 行）—— **下一步** | 全局单例 → Kotlin/Native 线程模型（风险 **R4**），需改显式注入；`String.format` 等 JVM 专有 API 也要清 | 中高 |
-| **Gson 迁移**（文档风险表里的 **R2，最高**） | **必须先有真实用户备份做 round-trip 回归**；需 `@Serializable` + 显式字段清单。⚠ 注意：`TeachingWeekReorganization` 的 Gson **已经换掉了**（⑨-b），剩的是全量备份 / 单课表备份 / 分享码 / 教务导入 4 条通道 | 高 —— 数据格式一变，存量用户读不出来 |
+| **Gson 迁移**（文档风险表里的 **R2，最高**） | **真实备份已到手**（2026-10-09）→ 前置调研做完，配置要求已量出（见「🔬 R2 前置调研」）。仍需 `@Serializable` + 显式字段清单。⚠ `TeachingWeekReorganization` 的 Gson **已经换掉了**（⑨-b），剩的是单课表备份 / 分享码 / 教务导入 + 全量备份 4 条通道 | 高 —— 数据格式一变，存量用户读不出来。**已从「未知风险」降为「有明确配置要求」** |
 | **Native HTTP** | 需 macOS 定 iOS target；引入 Ktor 会顶掉协程版本（见下方决定表） | 高，但属 iOS 侧独立交付 |
 
 **建议顺序**：`CourseRepository`（**数据层最后一块**）→ 再 Gson 4 条通道（等拿到真实备份）。
@@ -388,6 +388,87 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 ```
 
 顺手修掉：这两个仓库原本各自 `new OkHttpClient()`（第 11、12 套连接池），现在复用 `HttpService`。
+
+### 🔬 R2 前置调研 · 基于**真实用户备份**（2026-10-09）
+
+拿到一份真实全量备份 `全部备份_20261009_155825.json`（166 个键 / 57343 字节 / 180 行），
+做了三件事：**回归验证已完成批次、量出 R2 的硬性配置要求、把备份变成可复用的回归夹具**。
+
+#### 🔬-a 已完成批次（⑨⑩）在真实数据上**逐字通过**
+
+| 断言 | 结果 |
+|---|---|
+| 真实 `entries_2026`（530 字节 4 条）→ `load()` → `toJson()` → 写回 | **逐字相同** ✅ |
+| 真实 `teaching_week_reorganizations`（`{"schema_version":1,"rules":[]}`）→ `decode` → `encode` | **逐字相同** ✅ |
+| 整份备份 → `decodeBackupData` → `restoreBackupData` → `exportBackupData` → 再 decode | 等价 ✅ |
+| 真实 `holiday_end/before_course_exclusion` | 解码正确 ✅ |
+
+> 这是比单测字面量更强的证据：前面几批换的是**序列化实现**，这份是**真机跑出来的存量数据**。
+
+#### 🔬-b `JsonSupport` 能逐字重放 Gson 的 pretty 输出（R2 的重大利好）
+
+真实备份是 `GsonBuilder().setPrettyPrinting()` 的产物（2 空格缩进）。实测：
+
+```kotlin
+Json { prettyPrint = true; prettyPrintIndent = "  " }.encodeToString(JsonElement.serializer(), element)
+```
+
+**与原文逐字一致（57343 字符 / 180 行全等）** —— 也就是说「全量备份」这条通道换掉 Gson 之后
+**文件字节完全不变**。这条结论直接消掉了 R2 里最大的一块不确定性。
+
+#### 🔴-c R2 的 kotlinx 配置必须这样写（漏一条就静默改格式）
+
+真实数据里 `schedule_{名}_courses` 的每门课只有 **15 个字段**，而 `Course` 有 **17 个** ——
+少的正是 `customStartTime` / `customEndTime`（`String?`，非自定义时间时为 null）。
+
+原因是 **Gson 默认 `serializeNulls = false`（null 字段直接省略）**，
+而 **kotlinx-serialization 默认 `explicitNulls = true`（会写出 `"customStartTime":null`）**。
+同时真实数据里 `isCustomTime: false`、`selectedWeeks: []` 都**写出来了**，
+说明 Gson **会写默认值**（它只跳 null），所以 kotlinx 侧也不能关掉默认值输出。
+
+⇒ R2 用的 `Json` 实例必须是：
+
+```kotlin
+Json {
+    encodeDefaults = true      // Gson 写默认值（isCustomTime:false / selectedWeeks:[] 都在真实数据里）
+    explicitNulls = false      // Gson 省 null（customStartTime/customEndTime 在真实数据里缺失）
+    ignoreUnknownKeys = true
+    coerceInputValues = true
+}
+```
+
+> ⚠ 现有 `JsonSupport` 里那个 `json` 实例**没有**设 `explicitNulls`（默认 true），
+> 且 `toJsonElement(map)` 对 null 值会产出 `JsonNull`（即写出 `null`）。
+> **R2 不能直接复用那个实例**，要单独建一个「Gson 兼容档」。
+> 受影响的通道：单课表备份、分享码、教务导入（`Course` / `TimeConfig` 的对象级序列化）。
+
+#### 🔴-d Gson 的 HTML 转义（已确认的「可接受差异」）
+
+Gson 默认 `escapeHtmlChars = true`，会把 `<` `>` `&` `=` `'` 写成 `\u003c` 之类。
+kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符串**，所以只影响字节、不影响数据。
+本份备份里这些字符**一个都没有**，所以没暴露；但别的用户的数据可能命中
+（例如课表名里带 `&`）。**R2 上线时把它记为「可接受差异」，不要试图去模拟 Gson 的转义**
+（模拟反而容易出错，而且会让新写的文件继续背着这个历史包袱）。
+
+#### 🔬-e 从真实数据量出来的字段清单（R2 显式字段清单的底稿）
+
+| 通道 | 真实形态 | 字段数 |
+|---|---|---:|
+| `time_config_{id}` | JSON 字符串 | **25**：`id/name/quickTimeEnabled/classDuration/shortBreak/longBreak{Enabled,Morning,Afternoon,Evening,MorningSection,AfternoonSection,EveningSection}/morningStart{Hour,Minute}/afternoonStart{Hour,Minute}/eveningStart{Hour,Minute}/morningSections/afternoonSections/eveningSections/sectionTimes/sectionNames/specialBlocks/routines` |
+| `schedule_{名}_courses` | JSON 字符串 | **15**（见 🔴-c） |
+| `schedule_{名}_section_times` | JSON 字符串 | `{"morning_1":"08:00-08:45",…}` |
+| `schedule_{名}_teaching_week_reorganizations` | JSON 字符串 | `{"schema_version":1,"rules":[…]}` |
+| `schedule_names` / `shift_selected_schedules` | JSON 字符串数组 | — |
+| `schedule_folders` | JSON 字符串 | `[{id,name,schedules:[…]}]` |
+| `schedule_folder_map` / `time_config_ids` | **不是 JSON** | `{}` / `1,4,8`（逗号分隔） |
+| `holiday_entries` / `holiday_end_course_exclusion` / `holiday_before_course_exclusion` | 对象 | ✅ 已下沉 `:core`（⑩） |
+
+#### 📌 R2 的回归夹具已就位
+
+`RealBackupRoundTripTest`（未入库）直接读这份备份，覆盖 4 个断言。
+**下一步 `CourseRepository` 下沉之后**，`importAllPreferences` / `exportAllPreferences`
+就能在 `:core` 里被测到，届时把「导出→导入→导出，二次导出与首次逐字一致」补上
+（文档「阶段 2.3 数据兼容红线」要求的正是这条）。
 
 ### ✅ 已完成批次 · ⑩ `HolidayManager` 存储层下沉 `:core`（2026-10-09）
 
@@ -999,6 +1080,10 @@ CMP 无对应物，且用得很广（顶栏按钮、下拉菜单、底部 Tab、
 
 **2.2 Gson 分层替换 —— 不要全局无脑替换**
 
+> 📌 **前置调研已完成**（见「当前进展 · 🔬 R2 前置调研」）：真实备份已到手，
+> `JsonSupport` 的 pretty 输出与 Gson **逐字一致**，且量出了 R2 必须的 kotlinx 配置
+> （`encodeDefaults = true` + `explicitNulls = false`）。**动手前先读那一节。**
+
 Gson 靠运行时反射，KN 上不存在。但更要命的是**架构依赖**：
 
 - 全量备份走 `exportAllPreferences()` 的 **prefs 级透传**，导入侧 `gson.toJson → Map` 自动展开，**两端都不写字段清单**；
@@ -1217,7 +1302,7 @@ nativeMain   **未实现，调用即抛** → 接 iOS 前必须替换（见下�
 | #  | 风险                                         | 影响             | 应对                                      |
 | -- | ------------------------------------------ | -------------- | --------------------------------------- |
 | ~~R1~~ | ~~backdrop / AGSL 在 iOS 无法复现~~                 | — | **已排除**：有现成 KMP 移植（SkSL，视觉等价），换依赖即可 |
-| R2 | Gson 替换破坏 4 条序列化通道                         | 用户数据丢失         | 分层替换 + round-trip 回归 + 旧格式读取路径          |
+| R2 | Gson 替换破坏 4 条序列化通道                         | 用户数据丢失         | 分层替换 + round-trip 回归 + 旧格式读取路径。**已用真实备份做前置调研**：pretty 输出逐字一致、配置要求已量出（见「🔬 R2 前置调研」） |
 | R3 | iOS 本地通知 64 条上限                            | 提醒漏发           | 滚动预约策略，阶段 0 原型验证                        |
 | R4 | Kotlin/Native 线程模型撞全局单例                    | 崩溃 / 状态错乱      | 阶段 3 改显式注入，阶段 4 专项验证                    |
 | R5 | `SimpleDateFormat` → kotlinx-datetime 行为偏移 | 日期静默算错         | 逐点对照用例                                  |
