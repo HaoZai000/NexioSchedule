@@ -415,7 +415,9 @@ fun CollapsibleTopAppBar(
     // 最近一次上报给 scrollBehavior / contentPadding 的顶栏高度，避免同值重复写状态
     val lastReportedHeight = remember { intArrayOf(-1) }
     val scrollShadowThresholdPx = with(density) { 10.dp.toPx() }
-    val showButtonShadow = remember(scrollBehavior, showShadow, effectiveShowLargeTitle, overScrollState.offset) {
+    // overScrollState 只作身份键：offset 在 derivedStateOf 内部读，本身就会被订阅。
+    // 若把它也写进 remember 键，回弹期间每一帧都要重建整个 derivedStateOf。
+    val showButtonShadow = remember(scrollBehavior, showShadow, effectiveShowLargeTitle, overScrollState) {
         derivedStateOf {
             if (showShadow != null) return@derivedStateOf showShadow
             val contentOffset = scrollBehavior?.state?.contentOffset ?: 0f

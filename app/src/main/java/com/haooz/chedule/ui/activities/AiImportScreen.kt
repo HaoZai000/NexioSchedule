@@ -63,7 +63,7 @@ import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import com.haooz.chedule.ui.screens.AddCourseDialog
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.delay

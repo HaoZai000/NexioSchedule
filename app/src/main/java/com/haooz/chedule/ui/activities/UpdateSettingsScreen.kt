@@ -46,7 +46,7 @@ import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import com.haooz.chedule.ui.utils.UpdateChecker
 import com.haooz.chedule.ui.utils.UpdateInstaller
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

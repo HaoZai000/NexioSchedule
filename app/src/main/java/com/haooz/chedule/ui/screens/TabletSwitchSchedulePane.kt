@@ -57,9 +57,9 @@ import com.haooz.chedule.ui.activities.SwitchScheduleScreen
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.utils.LocalOverScrollState
+import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel

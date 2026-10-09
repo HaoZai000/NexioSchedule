@@ -44,7 +44,7 @@ import com.haooz.chedule.data.WebDavManager
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel

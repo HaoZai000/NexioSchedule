@@ -170,6 +170,19 @@ MainActivity.setContent
     是新实例；单宿主后与 `MainActivity` 共用同一个。好处是改完课返回主界面立刻是新的；
     ⚠ 若某页依赖「自己的 ViewModel 是干净的」，要显式传或自己 `viewModel(key=...)`。
 
+16. 🔴 **app 里 fork 了 miuix 文件 = 两套互不相通的 CompositionLocal（顶栏回弹材质失效）**
+    `CollapsibleTopAppBar` 搬进 `:miuix` 后，import 只能从 app 的 fork
+    （`com.haooz.chedule.ui.utils.LocalOverScrollState`）改成 miuix 自带的
+    （`top.yukonga.miuix.kmp.utils.LocalOverScrollState`）；而 32 个页面的
+    `overScrollVertical()` 节点仍写 app fork 那套，`LocalOverScrollState` 从未被 provide
+    → 顶栏读到的 `offset` 恒为 0 → `contentOffset >= 0f && overscrollOffset < 0f`
+    「回弹也显现材质」整条分支变死代码。**编译器完全看不出来**（两边类型齐全、编译全绿）。
+    ⇒ 修法：删掉 fork，全站统一 import miuix 那套（两份实现已逐行比对等价）；
+    `DocumentPageScaffold` 再用 `CompositionLocalProvider` 给每页发一个独立实例，
+    顶栏与内容共用同一实例，也避开 `compositionLocalOf` 默认值的全局单例。
+    ⇒ **通则**：miuix 里已有的东西 app 不许再抄一份；查法
+    `grep -rn "LocalXxx" app/src miuix/src` 看是不是出现了两个同名 local。
+
 ---
 
 ## 五、顺带修掉的真实缺陷（与导航无关，记档）

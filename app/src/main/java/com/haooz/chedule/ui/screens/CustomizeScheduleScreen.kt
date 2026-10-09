@@ -98,7 +98,7 @@ import com.kyant.backdrop.edgelight.edgeLight
 import com.haooz.chedule.ui.utils.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.shadow.Shadow

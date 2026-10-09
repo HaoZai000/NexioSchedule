@@ -78,7 +78,7 @@ import com.kyant.backdrop.edgelight.edgeLight
 import com.haooz.chedule.ui.utils.rememberCardEdgeLight
 import com.haooz.chedule.ui.utils.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.pagerAxisTakeoverGesture
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel

@@ -81,7 +81,7 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.kyant.backdrop.Backdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch

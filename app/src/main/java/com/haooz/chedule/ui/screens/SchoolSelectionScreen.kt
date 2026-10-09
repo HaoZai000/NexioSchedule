@@ -49,7 +49,7 @@ import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator

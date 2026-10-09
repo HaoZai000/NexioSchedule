@@ -91,9 +91,9 @@ import com.haooz.chedule.ui.components.tabletNavChromeTitleSlot
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
-import com.haooz.chedule.ui.utils.LocalOverScrollState
-import com.haooz.chedule.ui.utils.OverScrollState
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.LocalOverScrollState
+import top.yukonga.miuix.kmp.utils.OverScrollState
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel

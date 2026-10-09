@@ -86,7 +86,7 @@ import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.coroutineScope

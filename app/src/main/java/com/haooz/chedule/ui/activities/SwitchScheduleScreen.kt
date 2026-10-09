@@ -93,7 +93,7 @@ import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.ApiCompat
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.performScheduleShare
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur

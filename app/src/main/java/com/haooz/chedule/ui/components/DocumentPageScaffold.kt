@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -18,6 +20,8 @@ import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.LocalOverScrollState
+import top.yukonga.miuix.kmp.utils.OverScrollState
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 /**
@@ -61,50 +65,58 @@ fun DocumentPageScaffold(
     }
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     val scrollBehavior = rememberSharedScrollBehavior()
+    // 本页独立的 overscroll 作用域：内容的 overScrollVertical 节点把越界量写进这个实例，
+    // 顶栏 CollapsibleTopAppBar 也从同一个 CompositionLocal 读它 —— 两边必须是同一套。
+    // 搬迁到 :miuix 后曾出现两套 LocalOverScrollState（app 的 fork 与 miuix 自带的），
+    // 顶栏读的是永远为 0 的那套，于是「回弹也显现材质」整条分支成了死代码。
+    // 顺带隔离：每页一个实例，不会互相串到 compositionLocalOf 的全局默认实例上。
+    val pageOverScrollState = remember { OverScrollState() }
 
-    Scaffold(
-        topBar = {
-            ProgressiveBlurTopBar(
-                backdrop = liquidGlassBackdrop,
-            ) {
-                CollapsibleTopAppBar(
-                    title = title,
-                    largeTitle = title,
-                    modifier = Modifier,
-                    scrollBehavior = scrollBehavior,
-                    contentPadding = {},
-                    startAction = { backdropAlpha, shadowAlpha ->
-                        LiquidTopBarButton(
-                            onClick = onBack,
-                            backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.ChevronBackward,
-                            contentDescription = "返回",
-                            performHapticFeedback = false,
-                            iconSize = 25.dp,
-                            iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                            backdropAlpha = backdropAlpha,
-                            shadowAlpha = shadowAlpha,
-                        )
-                    },
-                    endAction = endAction,
-                )
+    CompositionLocalProvider(LocalOverScrollState provides pageOverScrollState) {
+        Scaffold(
+            topBar = {
+                ProgressiveBlurTopBar(
+                    backdrop = liquidGlassBackdrop,
+                ) {
+                    CollapsibleTopAppBar(
+                        title = title,
+                        largeTitle = title,
+                        modifier = Modifier,
+                        scrollBehavior = scrollBehavior,
+                        contentPadding = {},
+                        startAction = { backdropAlpha, shadowAlpha ->
+                            LiquidTopBarButton(
+                                onClick = onBack,
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.ChevronBackward,
+                                contentDescription = "返回",
+                                performHapticFeedback = false,
+                                iconSize = 25.dp,
+                                iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                backdropAlpha = backdropAlpha,
+                                shadowAlpha = shadowAlpha,
+                            )
+                        },
+                        endAction = endAction,
+                    )
+                }
             }
-        }
-    ) { _ ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(backdrop)
-        ) {
-            // 采样层只包内容；顶栏玻璃按钮放在层外，避免循环采样
+        ) { _ ->
             Box(
-                modifier = Modifier.fillMaxSize().then(
-                    Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                )
+                modifier = Modifier
+                    .fillMaxSize()
+                    .layerBackdrop(backdrop)
             ) {
-                content(scrollBehavior, liquidGlassBackdrop)
+                // 采样层只包内容；顶栏玻璃按钮放在层外，避免循环采样
+                Box(
+                    modifier = Modifier.fillMaxSize().then(
+                        Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                    )
+                ) {
+                    content(scrollBehavior, liquidGlassBackdrop)
+                }
+                overlay?.invoke(this, liquidGlassBackdrop)
             }
-            overlay?.invoke(this, liquidGlassBackdrop)
         }
     }
 }

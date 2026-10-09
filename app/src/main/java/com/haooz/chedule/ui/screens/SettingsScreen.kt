@@ -58,7 +58,7 @@ import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.parseShareCourseWeekModel
 import com.haooz.chedule.ui.utils.parseShareCourses
 import com.haooz.chedule.ui.utils.parseShareSelectedWeeks

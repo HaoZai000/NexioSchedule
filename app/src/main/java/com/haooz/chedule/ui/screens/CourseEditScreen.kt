@@ -78,7 +78,7 @@ import com.haooz.chedule.ui.utils.CourseSorting
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.blockTouchPassThrough
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay

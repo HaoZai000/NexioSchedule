@@ -114,7 +114,7 @@ import com.kyant.backdrop.edgelight.edgeLight
 import com.haooz.chedule.ui.utils.rememberCourseCardEdgeLight
 import com.haooz.chedule.ui.utils.courseCardSolidBacking
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.pagerAxisTakeoverGesture
 import com.haooz.chedule.ui.utils.schedulePageBackgroundColor
 import com.haooz.chedule.viewmodel.CourseViewModel

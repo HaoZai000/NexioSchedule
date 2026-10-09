@@ -60,7 +60,7 @@ import com.haooz.chedule.ui.screens.applyScheduleData
 import com.haooz.chedule.ui.screens.parseFullScheduleJson
 import com.haooz.chedule.ui.screens.parseIcsFile
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.performScheduleShare
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel

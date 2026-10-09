@@ -47,7 +47,7 @@ import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import com.haooz.chedule.widget.CourseWidgetProviderStandard
 import com.haooz.chedule.widget.TodayCourseWidgetProviderStandard
 import top.yukonga.miuix.kmp.basic.Card
