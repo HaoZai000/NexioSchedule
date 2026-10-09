@@ -49,7 +49,15 @@
 | ✅ **`java.time` → kotlinx-datetime** | **已完成**（2026-10-09）：`:app` 全部 22 个文件换血，`:core` 补 `DateExt` 兼容层 + 12 个差分等价用例（详见「当前进展 ⑧」） | — |
 | ✅ **节假日四个纯逻辑文件下沉 `:core`** | **已完成**（2026-10-09）：`CourseScheduleDateBounds` / `TeachingWeekReorganization` / `HolidayCourseExclusion` / `HolidayCountdown` 全部进 commonMain（详见「当前进展 ⑨」） | — |
 | ✅ **`HolidayManager` 存储层下沉 `:core`** | **已完成**（2026-10-09）：`Context`/`org.json`/Gson/`@Synchronized`/`CourseRepository` 反向依赖全部处理掉，节假日整条链现在完全跨平台（详见「当前进展 ⑩」） | — |
-| **`CourseRepository` 下沉**（37 点 / 2819 行）—— **下一步** | 全局单例 → Kotlin/Native 线程模型（风险 **R4**），需改显式注入；`String.format` 等 JVM 专有 API 也要清 | 中高 |
+| **`CourseRepository` 下沉**（37 点 / 2819 行）—— **下一步** | 前置 **⑪ 已完成**（`Course` / `ScheduleFolder` / 标量列表的编解码已就位）。剩下：**`TimeConfig` 的编解码**（最微妙，见下）、全局单例 → Kotlin/Native 线程模型（风险 **R4**）、`String.format`/`Calendar`/`Build.BRAND` 等清尾 | 中高 |
+
+> ⚠ **`TimeConfig` 的编解码是这一步唯一需要动脑的地方**：Gson 走 `UnsafeAllocator` 绕开构造器，
+> 缺字段会让**非空字段变成 null**，而 `sanitize()` 正是靠这个兜底
+> （`raw.name ?: "默认配置"`、`total <= 0 → 4/4/4`、`safeSpecialBlocks`）。
+> 手写解码若直接取 Kotlin 默认值（如 `morningSections = 4`），
+> 就会**跳过 `sanitize` 的恢复分支**（缺 `morningSections` 时 Gson 给 0 → 触发 4/4/4；
+> 给 4 就变成 4/4/4 但走的是另一条路，若只缺一个字段则结果不同）。
+> **解码必须取零值，把 null 语义交给 `sanitize`**，并逐个字段写对照用例。
 | **Gson 迁移**（文档风险表里的 **R2，最高**） | **真实备份已到手**（2026-10-09）→ 前置调研做完，配置要求已量出（见「🔬 R2 前置调研」）。仍需 `@Serializable` + 显式字段清单。⚠ `TeachingWeekReorganization` 的 Gson **已经换掉了**（⑨-b），剩的是单课表备份 / 分享码 / 教务导入 + 全量备份 4 条通道 | 高 —— 数据格式一变，存量用户读不出来。**已从「未知风险」降为「有明确配置要求」** |
 | **Native HTTP** | 需 macOS 定 iOS target；引入 Ktor 会顶掉协程版本（见下方决定表） | 高，但属 iOS 侧独立交付 |
 
@@ -389,6 +397,64 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 顺手修掉：这两个仓库原本各自 `new OkHttpClient()`（第 11、12 套连接池），现在复用 `HttpService`。
 
+### ✅ 已完成批次 · ⑪ R2 数据层：模型编解码的显式字段清单（2026-10-09）
+
+**为什么先做这个而不是直接搬 `CourseRepository`**：`CourseRepository` 用 Gson 反射序列化
+`Course` / `TimeConfig` / `ScheduleFolder`，而 Gson 在 Kotlin/Native 上不存在。
+**不先把这几条序列化通道换掉，`CourseRepository` 根本搬不动**（在 `:core` 里它连
+`gson.toJson(courses)` 都写不出来）。所以这是搬它的前置，不是绕路。
+
+新增 `core/.../data/ScheduleCodec.kt`：
+
+| 能力 | 说明 |
+|---|---|
+| `Course.toJsonMap()` / `courseFromJsonMap()` | 17 个字段的显式清单 |
+| `ScheduleFolder.toJsonMap()` / `scheduleFolderFromJsonMap()` | 3 个字段 |
+| `encodeCourses` / `decodeCourses` | 语义对齐 `gson.toJson` / `fromJson<List<Course>>` |
+| `encodeScheduleFolders` / `decodeScheduleFolders` | 同上 |
+| `encodeStringList` / `decodeStringList`、`encodeLongList` / `decodeLongList` | 课表名、time_config id |
+| `toJsonElementWithoutNulls()` | 复刻 Gson 的 `serializeNulls = false`（null 字段省略） |
+
+#### ⑪-a 为什么是**手写**而不是 `@Serializable`
+
+本机（离线）的 Gradle 缓存里**没有 `kotlin-serialization` 编译器插件**
+（`find ~/.gradle -iname "*kotlin-serialization*"` 查无此物），
+加不上 `org.jetbrains.kotlin.plugin.serialization`。
+
+手写字段清单正好就是文档对 R2 的要求（「需 `@Serializable` + **显式字段清单**」）里
+那个「显式清单」，而且不引入编译期依赖。**将来若装上插件，可以平滑换成 `@Serializable`**
+（字段名已经对齐，不需要 `@SerialName`）。
+
+#### ⑪-b 与 Gson 的对齐点（逐条实测/推演）
+
+| 行为 | Gson | ScheduleCodec |
+|---|---|---|
+| `null` 字段 | **省略**（`serializeNulls=false`） | 省略（`toJsonElementWithoutNulls`） |
+| 默认值 | **照写**（只跳 null） | 照写（`encodeDefaults = true`） |
+| 缺字段反序列化 | 非空字段变 **null**（`UnsafeAllocator` 绕开构造器） | 取**零值**（0/""/emptyList/null），由调用方的 `sanitizeCourses` 兜成同一结果 |
+| 数字 | `Long` 原样、无小数点 | 同 |
+| `<>&='` | 转义成 `\u003c` 等 | **不转义**（可接受差异） |
+
+#### ⑪-c 安全网：把**真实 Gson** 拉进来当基准
+
+`core/build.gradle.kts` 的 `jvmTest` 加了 `libs.gson`（**仅测试编译，不进产物、不影响 `:app`**），
+新增 `ScheduleCodecGsonParityTest`（10 用例），用**真实备份数据**做差分对拍：
+
+| 用例 | 断言 |
+|---|---|
+| 真实 `courses` 解码 | 与 `gson.fromJson<List<Course>>` **逐字段相等** |
+| 真实 `courses` 编码 | 与 `gson.toJson` **语义相等**（解析回 Map 比较，与键顺序无关） |
+| 编解码往返 | 稳定；二次编码与一次编码语义相同 |
+| `null` 字段省略 | 真实数据无 `customStartTime`；编码后不得出现 `null`；有自定义时间的课必须写出两个字段 |
+| 边界输入 | `[]` / `null` / 非法 JSON / 非数组，与 Gson 行为对齐 |
+| `schedule_folders` / `schedule_names` / `Long` 列表 | 同 Gson |
+| `time_config_ids` | 证明它是逗号分隔、**不是 JSON** |
+
+`:core:jvmTest` **210 → 220 全绿**。
+
+> **本批不改任何 app 行为** —— 只是新增可用的编解码，切换留到搬 `CourseRepository` 时。
+> 这样 R2 的风险被单独隔离在一批可验证的改动里，不会和「搬模块」混在一起。
+
 ### 🔬 R2 前置调研 · 基于**真实用户备份**（2026-10-09）
 
 拿到一份真实全量备份 `全部备份_20261009_155825.json`（166 个键 / 57343 字节 / 180 行），
@@ -415,6 +481,27 @@ Json { prettyPrint = true; prettyPrintIndent = "  " }.encodeToString(JsonElement
 
 **与原文逐字一致（57343 字符 / 180 行全等）** —— 也就是说「全量备份」这条通道换掉 Gson 之后
 **文件字节完全不变**。这条结论直接消掉了 R2 里最大的一块不确定性。
+
+#### ⚠️-1 【实测推翻】字段顺序**不是**兼容契约，别去对齐它
+
+真实备份里 `_courses` 的字段是**字母序**（`classroom, colorRes, dayOfWeek, …`），
+而 `Course` 的声明顺序是 `id, name, classroom, …`。用**真实 Gson 2.11.0** 跑探针实测：
+
+```
+Gson 输出: {"id":"c1","name":"…","classroom":"A101","teacher":"…","dayOfWeek":1,…}
+Map 输出 : {"zebra":1,"apple":2,"mango":3}
+```
+
+⇒ **Gson 按声明顺序输出字段，且保留 Map 插入顺序，绝不排字母序。**
+那个字母序是 **release 构建被 R8 重排字段**的产物，随构建而变。
+
+⇒ **兼容性判据 = 字段集合 + 字段名 + 值的语义，不是逐字相等。**
+JSON 对象按规范无序、两端都按名字取值，顺序怎么排都能互相读。
+**做 R2 回归时用「解析回 Map 再比较」，不要写逐字断言**（否则会被无意义的顺序差异绊住）。
+
+> 附带结论：全量备份是 **prefs 级透传**，导入时把原始字符串直接写回 prefs、不解析，
+> 所以**整份文件**的逐字 round-trip 依然成立（已实测 ✅）；
+> 但一旦 app 重新保存某个课表，那条 `_courses` 串就会按当前构建的字段顺序重写。
 
 #### 🔴-c R2 的 kotlinx 配置必须这样写（漏一条就静默改格式）
 
