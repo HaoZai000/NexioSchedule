@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -80,12 +81,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowUpDown
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
@@ -334,8 +339,6 @@ fun TodayScreen(
     onSelectedDayChanged: (Int) -> Unit = {},
     onSelectedDateChanged: (Boolean) -> Unit = {},
     scrollToTodayTrigger: Int = 0,
-    jumpToDateTrigger: Int = 0,
-    onJumpToDateProcessed: () -> Unit = {},
     wallpaperBitmap: android.graphics.Bitmap? = null,
     wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
     wallpaperScale: Float = 1f,
@@ -402,15 +405,12 @@ fun TodayScreen(
         }
     }
 
-    LaunchedEffect(jumpToDateTrigger) {
-        if (jumpToDateTrigger > 0) {
-            val now = LocalDate.now()
-            datePickerYear = now.year
-            datePickerMonth = now.monthValue - 1
-            datePickerDay = now.dayOfMonth
-            showDatePicker = true
-            onJumpToDateProcessed()
-        }
+    val openJumpToDate: () -> Unit = {
+        val now = LocalDate.now()
+        datePickerYear = now.year
+        datePickerMonth = now.monthValue - 1
+        datePickerDay = now.dayOfMonth
+        showDatePicker = true
     }
 
     LaunchedEffect(pagerState.currentPage, holidayDataTick) {
@@ -746,12 +746,30 @@ fun TodayScreen(
                                 .collapsibleTopInset(settingsScrollBehavior)
                         ) {
                             Column(modifier = Modifier.padding(start = 16.dp, top = 8.dp)) {
-                                Text(
-                                    text = dateText,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MiuixTheme.colorScheme.onSurface,
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = dateText,
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MiuixTheme.colorScheme.onSurface,
+                                    )
+                                    IconButton(
+                                        onClick = openJumpToDate,
+                                        modifier = Modifier.padding(start = 6.dp),
+                                        minWidth = 32.dp,
+                                        minHeight = 32.dp,
+                                    ) {
+                                        Icon(
+                                            imageVector = MiuixIcons.Basic.ArrowUpDown,
+                                            contentDescription = "跳转日期",
+                                            modifier = Modifier.size(20.dp),
+                                            tint = MiuixTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
                                 if (isPageToday && holidayCountdownText != null) {
                                     Text(
                                         text = holidayCountdownText,
@@ -840,12 +858,30 @@ fun TodayScreen(
                                     .offset(x = (-15).dp)
                                     .padding(start = 28.dp, top = 8.dp)
                             ) {
-                                Text(
-                                    text = dateText,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MiuixTheme.colorScheme.onSurface,
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = dateText,
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MiuixTheme.colorScheme.onSurface,
+                                    )
+                                    IconButton(
+                                        onClick = openJumpToDate,
+                                        modifier = Modifier.padding(start = 6.dp),
+                                        minWidth = 32.dp,
+                                        minHeight = 32.dp,
+                                    ) {
+                                        Icon(
+                                            imageVector = MiuixIcons.Basic.ArrowUpDown,
+                                            contentDescription = "跳转日期",
+                                            modifier = Modifier.size(20.dp),
+                                            tint = MiuixTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
                                 if (isPageToday && holidayCountdownText != null) {
                                     Text(
                                         text = holidayCountdownText,

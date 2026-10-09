@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,24 +18,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.FastForward
+import top.yukonga.miuix.kmp.icon.basic.ArrowUpDown
 import top.yukonga.miuix.kmp.icon.extended.Background
+import top.yukonga.miuix.kmp.icon.extended.Backup
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
-import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -72,16 +70,13 @@ internal fun ScheduleTopBar(
     onOpenSwitchSchedule: () -> Unit,
     onJumpWeek: () -> Unit = {},
     onEnterCustomize: () -> Unit = {},
+    onCourseManage: () -> Unit = {},
     isTablet: Boolean = false,
     isShiftMode: Boolean = false,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     scrollBehavior: SharedScrollBehavior? = null,
     blurResampleKey: Int = 0,
     blurSampleTrack: () -> Float = { 0f },
-    // 布局期上报「更多」占位槽的真实位置，供下拉菜单按实际位置定位（避免首帧 inset 未到导致偏位）
-    onMoreSlotTop: (Float) -> Unit = {},
-    // 上报顶栏滚动材质透明度，供「更多」控件收起态同步渐显渐隐
-    onMoreMaterial: (Float) -> Unit = {},
     /**
      * 渐变遮罩色。共享顶栏槽里三根顶栏叠在一起平移淡入淡出，外层主题跟的是
      * **当前 tab**（见 MainActivity 的 `forcedDark`），切页瞬间会变 —— 不显式锁色
@@ -121,28 +116,43 @@ internal fun ScheduleTopBar(
                     gradientOverlayScrollTriggered = true,
                     titleStartAligned = isTablet,
                     titleModifier = titleRailPadding,
+                    titleAction = {
+                        IconButton(
+                            onClick = onJumpWeek,
+                            modifier = Modifier.padding(start = 4.dp),
+                            minWidth = 32.dp,
+                            minHeight = 32.dp,
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Basic.ArrowUpDown,
+                                contentDescription = "跳转周数",
+                                modifier = Modifier.size(20.dp),
+                                tint = MiuixTheme.colorScheme.onSurface,
+                            )
+                        }
+                    },
                     gradientMaskHeight = CollapsedHeight + 110.dp,
                     gradientColorOverride = gradientColorOverride,
                     scrollBehavior = scrollBehavior,
-                    // 平板左上角不放返回按钮
-                    startAction = null,
-                    onAlphaChanged = { backdrop, _ -> onMoreMaterial(backdrop) },
+                    // 手机：课表切换移到最左侧；平板已在侧栏
+                    startAction = if (isTablet || isShiftMode) null else { backdropAlpha, shadowAlpha ->
+                        LiquidTopBarButton(
+                            onClick = { onOpenSwitchSchedule() },
+                            backdrop = liquidGlassBackdrop,
+                            icon = MiuixIcons.Normal.ConvertFile,
+                            contentDescription = "课表切换",
+                            iconSize = 27.dp,
+                            backdropAlpha = backdropAlpha,
+                            shadowAlpha = shadowAlpha
+                        )
+                    },
                     endAction = { backdropAlpha, shadowAlpha ->
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (isTablet) {
-                                // pad：切换课表/课程管理已在侧栏，右上角直接放跳转周数 + 课表外观
-                                LiquidTopBarButton(
-                                    onClick = onJumpWeek,
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Basic.FastForward,
-                                    contentDescription = "跳转周数",
-                                    iconSize = 23.dp,
-                                    backdropAlpha = backdropAlpha,
-                                    shadowAlpha = shadowAlpha,
-                                )
+                                // pad：切换课表/课程管理已在侧栏，右上角只放课表外观
                                 LiquidTopBarButton(
                                     onClick = onEnterCustomize,
                                     backdrop = liquidGlassBackdrop,
@@ -155,22 +165,23 @@ internal fun ScheduleTopBar(
                             } else {
                                 if (!isShiftMode) {
                                     LiquidTopBarButton(
-                                        onClick = {
-                                            onOpenSwitchSchedule()
-                                        },
+                                        onClick = onCourseManage,
                                         backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.Normal.ConvertFile,
-                                        contentDescription = "课表切换",
-                                        iconSize = 27.dp,
+                                        icon = MiuixIcons.Backup,
+                                        contentDescription = "课程管理",
+                                        iconSize = 23.dp,
                                         backdropAlpha = backdropAlpha,
-                                        shadowAlpha = shadowAlpha
+                                        shadowAlpha = shadowAlpha,
                                     )
                                 }
-                                // 「更多」按钮由下拉菜单组件自带（收起态即那颗按钮，唯一一份），这里只占位对齐
-                                Spacer(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .onGloballyPositioned { onMoreSlotTop(it.positionInRoot().y) }
+                                LiquidTopBarButton(
+                                    onClick = onEnterCustomize,
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.Background,
+                                    contentDescription = "课表外观",
+                                    iconSize = 23.dp,
+                                    backdropAlpha = backdropAlpha,
+                                    shadowAlpha = shadowAlpha,
                                 )
                             }
                         }

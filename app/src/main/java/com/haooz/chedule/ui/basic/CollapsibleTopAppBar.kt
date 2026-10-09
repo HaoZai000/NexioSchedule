@@ -9,6 +9,7 @@ import androidx.compose.animation.core.animateTo
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,6 +31,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
@@ -348,6 +350,8 @@ fun CollapsibleTopAppBar(
     titleStartAligned: Boolean = false,
     /** 标题附加修饰符；平板端可传 tabletNavRailStartPadding() 避让侧栏 */
     titleModifier: Modifier = Modifier,
+    /** 标题右侧附加内容（如跳转按钮） */
+    titleAction: (@Composable () -> Unit)? = null,
     scrollBehavior: SharedScrollBehavior? = null,
     contentPadding: (Dp) -> Unit = {},
     // 左侧自定义 Composable（接收 backdropAlpha、shadowAlpha 用于液态玻璃按钮动画）
@@ -535,14 +539,17 @@ fun CollapsibleTopAppBar(
                         }
                         .blur(Dp(smallTitleBlur.value)),
                 ) {
-                    Text(
-                        text = title,
-                        color = titleColor,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Medium,
-                        overflow = TextOverflow.Ellipsis,
-                        softWrap = false,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = title,
+                            color = titleColor,
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.Medium,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = false,
+                        )
+                        titleAction?.invoke()
+                    }
                 }
                 // 右侧自定义 Composable
                 if (endAction != null) {
