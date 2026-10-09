@@ -2,7 +2,7 @@
 package com.haooz.chedule.shizuku
 
 import android.os.IBinder
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -49,9 +49,9 @@ class PrivilegedServiceImpl : IPrivilegedService.Stub() {
                     setUidFirewallRule.invoke(iConnectivityManager, FIREWALL_CHAIN_OEM_DENY, uid, rule)
 
                     result = true
-                    Log.d(TAG, "Successfully set networking for uid $uid, enabled: $enabled")
+                    NexioLog.d(TAG, "Successfully set networking for uid $uid, enabled: $enabled")
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed in worker thread", e)
+                    NexioLog.e(TAG, "Failed in worker thread", e)
                     result = false
                 } finally {
                     latch.countDown()
@@ -63,13 +63,13 @@ class PrivilegedServiceImpl : IPrivilegedService.Stub() {
 
             if (!completed) {
                 thread.interrupt()
-                Log.w(TAG, "Operation timed out")
+                NexioLog.w(TAG, "Operation timed out")
                 false
             } else {
                 result
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to set package networking", e)
+            NexioLog.e(TAG, "Failed to set package networking", e)
             false
         }
     }

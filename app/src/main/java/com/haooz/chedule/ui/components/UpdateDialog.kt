@@ -1,7 +1,7 @@
 package com.haooz.chedule.ui.components
 
 import android.content.Context
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -94,7 +94,7 @@ internal fun UpdateDialog(liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = nu
                 try {
                     UpdateChecker.checkForUpdate(context, source, channel)
                 } catch (e: Exception) {
-                    Log.e("UpdateDialog", "检查更新失败", e)
+                    NexioLog.e("UpdateDialog", "检查更新失败", e)
                     Pair(false, null)
                 }
             }

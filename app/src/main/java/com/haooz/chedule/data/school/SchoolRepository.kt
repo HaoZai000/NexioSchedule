@@ -2,7 +2,7 @@
 package com.haooz.chedule.data.school
 
 import android.content.Context
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import java.io.File
 
 private const val TAG = "SchoolRepository"
@@ -22,7 +22,7 @@ class SchoolRepository(private val context: Context) {
         return try {
             SchoolIndexParser.parse(indexFile.readBytes())
         } catch (e: Exception) {
-            Log.e(TAG, "索引解析失败: ${e.message}")
+            NexioLog.e(TAG, "索引解析失败: ${e.message}")
             null
         }
     }
@@ -38,7 +38,7 @@ class SchoolRepository(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "读取内置索引失败: ${e.message}")
+            NexioLog.e(TAG, "读取内置索引失败: ${e.message}")
         }
     }
 

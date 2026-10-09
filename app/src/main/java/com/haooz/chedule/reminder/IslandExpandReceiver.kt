@@ -3,8 +3,7 @@ package com.haooz.chedule.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
-
+import com.haooz.chedule.data.NexioLog
 /**
  * 超级岛展开态触发器
  * 倒计时结束后发送广播，触发展开态弹出
@@ -23,7 +22,7 @@ class IslandExpandReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        Log.d(TAG, "Received island expand broadcast")
+        NexioLog.d(TAG, "Received island expand broadcast")
 
         // 闹钟可能因为 Doze 严重延迟，等它到达时岛上已经是另一门课的倒计时了。
         // 这里校验开始时间是否仍与当前岛状态一致，不一致说明是迟到的旧闹钟，直接丢弃。
@@ -33,7 +32,7 @@ class IslandExpandReceiver : BroadcastReceiver() {
         if (expectedStart > 0L) {
             val current = IslandNotificationHelper.IslandState.snapshotFor(context, notificationId2)
             if (current == null || current.startMillis != expectedStart) {
-                Log.d(TAG, "Stale expand alarm (expected=$expectedStart current=${current?.startMillis}), ignored")
+                NexioLog.d(TAG, "Stale expand alarm (expected=$expectedStart current=${current?.startMillis}), ignored")
                 return
             }
         }
@@ -42,7 +41,7 @@ class IslandExpandReceiver : BroadcastReceiver() {
                 testMode = IslandNotificationHelper.isIslandTestId(notificationId2)
             )
         ) {
-            Log.d(TAG, "Already switched, ignored")
+            NexioLog.d(TAG, "Already switched, ignored")
             return
         }
 

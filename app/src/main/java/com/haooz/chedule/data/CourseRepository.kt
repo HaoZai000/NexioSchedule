@@ -9,6 +9,7 @@ import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import java.time.LocalDate
 import java.util.Locale
+import com.haooz.chedule.data.NexioLog
 
 /** 课程数据仓库（SharedPreferences，单例） */
 class CourseRepository private constructor(context: Context) : PeriodTimeSource {
@@ -1798,7 +1799,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             .sorted()
             .takeIf { it.isNotEmpty() } ?: return null
         saveTimeConfigIds(scanned)
-        android.util.Log.w(TAG, "time_config_ids 缺失/为空，已从现存配置键重建: $scanned")
+        NexioLog.w(TAG, "time_config_ids 缺失/为空，已从现存配置键重建: $scanned")
         return scanned
     }
 
@@ -1841,7 +1842,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         val fallback = TimeConfig.sanitize(id, TimeConfig(id = id, name = "默认配置"))
         if (json.isNullOrEmpty()) {
             // id=0 没数据是全新安装的正常状态；别的 id 读不到 = 配置真丢了，会静默回落 4/4/4
-            if (id != 0L) android.util.Log.e(TAG, "time_config_$id 无数据，回落默认配置")
+            if (id != 0L) NexioLog.e(TAG, "time_config_$id 无数据，回落默认配置")
             // 缺键必须落盘自愈：不写回去，routines 就一直是空的，保存链路永远起不来
             saveTimeConfig(fallback)
             return fallback
@@ -1850,7 +1851,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             val parsed = parseTimeConfigSnapshotOrNull(gson, json)
             if (parsed == null) {
                 // 键名全不认得：覆写默认，避免每次启动读到 0 节
-                android.util.Log.e(TAG, "time_config_$id 快照无法辨认，判为损坏：${json.take(120)}")
+                NexioLog.e(TAG, "time_config_$id 快照无法辨认，判为损坏：${json.take(120)}")
                 saveTimeConfig(fallback)
                 fallback
             } else {
@@ -1862,7 +1863,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                 sanitized
             }
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "time_config_$id 解析异常，回落默认配置", e)
+            NexioLog.e(TAG, "time_config_$id 解析异常，回落默认配置", e)
             fallback
         }
         timeConfigCache[id] = config
@@ -1927,7 +1928,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         val base = getTimeConfig(getScheduleTimeConfigId(scheduleId))
         val routine = edited.routineOf(routineId, nameOverride)
         if (base.routineById(routineId) == null) {
-            android.util.Log.w(
+            NexioLog.w(
                 TAG,
                 "saveRoutine: 目标作息不存在 config=${base.id} routineId=$routineId " +
                     "现有=${base.safeRoutines.map { it.id }}，本次保存被丢弃"
@@ -1965,21 +1966,21 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         if (ids.size <= 1) return
         val unbound = getScheduleNames().filterNot { prefs.contains("$SCHEDULE_TIME_CONFIG_PREFIX$it") }
         if (unbound.isNotEmpty()) {
-            android.util.Log.w(TAG, "课表 $unbound 未绑定时间配置，判据不可靠，跳过清理（ids=$ids）")
+            NexioLog.w(TAG, "课表 $unbound 未绑定时间配置，判据不可靠，跳过清理（ids=$ids）")
             return
         }
         val bound = collectBoundTimeConfigIds()
         val orphans = ids.filter { it !in bound }
         if (orphans.isEmpty()) return
         if (orphans.size >= ids.size) {
-            android.util.Log.w(TAG, "孤儿配置占满全部候选，判据可疑，不处理（ids=$ids）")
+            NexioLog.w(TAG, "孤儿配置占满全部候选，判据可疑，不处理（ids=$ids）")
             return
         }
         val kept = ids.filter { it in bound }
         saveTimeConfigIds(kept)
         prefs.edit(commit = true) { orphans.forEach { remove("$TIME_CONFIG_PREFIX$it") } }
         orphans.forEach { timeConfigCache.remove(it) }
-        android.util.Log.w(TAG, "pruneOrphanTimeConfigs: 保留=$kept 删除=$orphans")
+        NexioLog.w(TAG, "pruneOrphanTimeConfigs: 保留=$kept 删除=$orphans")
     }
 
     /**

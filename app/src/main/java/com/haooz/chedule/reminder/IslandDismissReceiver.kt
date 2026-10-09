@@ -3,8 +3,7 @@ package com.haooz.chedule.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
-
+import com.haooz.chedule.data.NexioLog
 /**
  * 超级岛"已上课"自动收起触发器。
  *
@@ -33,14 +32,14 @@ class IslandDismissReceiver : BroadcastReceiver() {
         if (expectedStart > 0L) {
             // 传了 startMillis：必须与当前 state 一致才执行 dismiss，否则就是迟到的旧闹钟
             if (state == null || state.startMillis != expectedStart) {
-                Log.d(TAG, "Dismiss ignored: state moved on (now=${state?.startMillis}, expected=$expectedStart)")
+                NexioLog.d(TAG, "Dismiss ignored: state moved on (now=${state?.startMillis}, expected=$expectedStart)")
                 return
             }
         } else {
             // 没传 startMillis（legacy 闹钟，或调用方异常）：
             // 保守地不动当前活跃的 state，避免误收刚发出来的新一轮倒计时岛。
             if (state != null) {
-                Log.d(TAG, "Dismiss without startMillis but state active, ignored")
+                NexioLog.d(TAG, "Dismiss without startMillis but state active, ignored")
                 return
             }
         }
@@ -52,6 +51,6 @@ class IslandDismissReceiver : BroadcastReceiver() {
             context,
             testMode = IslandNotificationHelper.isIslandTestId(notificationId)
         )
-        Log.d(TAG, "Island dismissed id=$notificationId")
+        NexioLog.d(TAG, "Island dismissed id=$notificationId")
     }
 }

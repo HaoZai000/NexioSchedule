@@ -6,7 +6,7 @@ import android.content.Context
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
 import rikka.shizuku.SystemServiceHelper
@@ -31,7 +31,7 @@ object ShizukuManager {
                 privilegedService = IPrivilegedService.Stub.asInterface(binder)
                 serviceConnected = true
                 bindLatch.countDown()
-                Log.d(TAG, "Privileged service connected")
+                NexioLog.d(TAG, "Privileged service connected")
             }
         }
 
@@ -39,7 +39,7 @@ object ShizukuManager {
             privilegedService = null
             serviceConnected = false
             bindLatch = CountDownLatch(1)
-            Log.d(TAG, "Privileged service disconnected")
+            NexioLog.d(TAG, "Privileged service disconnected")
         }
     }
 
@@ -47,9 +47,9 @@ object ShizukuManager {
         try {
             Sui.init(context.packageName)
             shizukuAvailable = Shizuku.pingBinder()
-            Log.d(TAG, "Shizuku initialized, available: $shizukuAvailable")
+            NexioLog.d(TAG, "Shizuku initialized, available: $shizukuAvailable")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize Shizuku", e)
+            NexioLog.e(TAG, "Failed to initialize Shizuku", e)
             shizukuAvailable = false
         }
     }
@@ -99,7 +99,7 @@ object ShizukuManager {
 
     fun setXmsfNetworkingEnabled(context: Context, enabled: Boolean): Boolean {
         if (!isShizukuRunning() || !checkSelfPermission()) {
-            Log.w(TAG, "Shizuku not available or no permission")
+            NexioLog.w(TAG, "Shizuku not available or no permission")
             return false
         }
 
@@ -107,12 +107,12 @@ object ShizukuManager {
             val xmsfUid = context.packageManager.getPackageUid(XMSF_PACKAGE, 0)
             setPackageNetworkingEnabledViaService(xmsfUid, enabled)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to set networking via service, trying fallback", e)
+            NexioLog.e(TAG, "Failed to set networking via service, trying fallback", e)
             try {
                 val xmsfUid = context.packageManager.getPackageUid(XMSF_PACKAGE, 0)
                 setPackageNetworkingEnabledViaBinder(xmsfUid, enabled)
             } catch (e2: Exception) {
-                Log.e(TAG, "Failed to set networking via binder fallback", e2)
+                NexioLog.e(TAG, "Failed to set networking via binder fallback", e2)
                 false
             }
         }
@@ -145,14 +145,14 @@ object ShizukuManager {
             // Wait for onServiceConnected callback, max 3 seconds
             val connected = bindLatch.await(3, TimeUnit.SECONDS)
             if (connected) {
-                Log.d(TAG, "Privileged service bound successfully")
+                NexioLog.d(TAG, "Privileged service bound successfully")
             } else {
-                Log.w(TAG, "Privileged service bind timed out")
+                NexioLog.w(TAG, "Privileged service bind timed out")
             }
 
             privilegedService
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to bind privileged service", e)
+            NexioLog.e(TAG, "Failed to bind privileged service", e)
             null
         }
     }
@@ -187,7 +187,7 @@ object ShizukuManager {
 
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to set networking via binder", e)
+            NexioLog.e(TAG, "Failed to set networking via binder", e)
             false
         }
     }
@@ -217,7 +217,7 @@ object ShizukuManager {
             val exit = process.waitFor()
             Pair(exit, output.toString().trim())
         } catch (e: Exception) {
-            Log.e(TAG, "execAsShell failed", e)
+            NexioLog.e(TAG, "execAsShell failed", e)
             Pair(-1, e.message ?: "执行异常")
         }
     }
@@ -264,7 +264,7 @@ object ShizukuManager {
                 if (ok) "静默安装成功" else "exit=$exit, ${output.take(300)}"
             )
         } catch (e: Exception) {
-            Log.e(TAG, "silentInstallApk failed", e)
+            NexioLog.e(TAG, "silentInstallApk failed", e)
             Pair(false, e.message ?: "执行异常")
         }
     }

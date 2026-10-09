@@ -9,7 +9,7 @@ import android.graphics.Rect
 import android.net.http.SslError
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import android.view.Choreographer
 import android.view.PixelCopy
 import android.view.ViewGroup
@@ -681,7 +681,7 @@ var pageTitle by remember { mutableStateOf("加载中...") }
                 }
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
                     consoleMessage?.let {
-                        Log.d("EduImport", "JS [${it.messageLevel()}]: ${it.message()} (${it.sourceId()}:${it.lineNumber()})")
+                        NexioLog.d("EduImport", "JS [${it.messageLevel()}]: ${it.message()} (${it.sourceId()}:${it.lineNumber()})")
                     }
                     return true
                 }

@@ -12,6 +12,7 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.reminder.CourseReminderHelper
 import java.util.Calendar
+import com.haooz.chedule.data.NexioLog
 
 class TodayCoursesProvider : ContentProvider() {
 
@@ -236,7 +237,7 @@ val subText = when {
             COLUMN_COLOR to String.format("#%08X", course.colorRes),
             COLUMN_COLOR_INDEX to run {
                 val colorIndex = Course.courseColors.indexOf(course.colorRes)
-                android.util.Log.d("TodayCoursesProvider", "Course: ${course.name}, colorRes: ${course.colorRes}, colorIndex: $colorIndex")
+                NexioLog.d("TodayCoursesProvider", "Course: ${course.name}, colorRes: ${course.colorRes}, colorIndex: $colorIndex")
                 colorIndex
             },
             COLUMN_IS_NOW to isNow,

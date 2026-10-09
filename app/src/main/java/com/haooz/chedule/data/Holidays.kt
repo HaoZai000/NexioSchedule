@@ -16,6 +16,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
+import com.haooz.chedule.data.NexioLog
 
 // ════════════════════════════════════════════════════════════════════════
 //  节假日与调休 —— 单文件全包
@@ -616,7 +617,7 @@ object HolidayManager {
     fun isHoliday(context: Context, date: LocalDate): Boolean {
         val hit = entriesForDate(loadAllByYear(context), date)
             .firstOrNull { it.type == TYPE_HOLIDAY }
-        android.util.Log.d(
+        NexioLog.d(
             "CourseReminder",
             "isHoliday: date=$date hit=${hit?.name ?: "none"} date=${hit?.date ?: "-"} end=${hit?.endDate ?: "-"}"
         )

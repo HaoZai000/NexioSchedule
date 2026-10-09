@@ -13,7 +13,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.media.AudioManager
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import android.widget.Toast
 import androidx.core.content.edit
 import com.haooz.chedule.data.CourseRepository
@@ -72,7 +72,7 @@ object ClassDndHelper {
         return try {
             notificationManager(context).isNotificationPolicyAccessGranted
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to query notification policy access", e)
+            NexioLog.e(TAG, "Failed to query notification policy access", e)
             false
         }
     }
@@ -107,7 +107,7 @@ object ClassDndHelper {
             notificationManager(context).currentInterruptionFilter
         }
     } catch (e: Exception) {
-        Log.w(TAG, "Failed to read current system state for mode=$mode", e)
+        NexioLog.w(TAG, "Failed to read current system state for mode=$mode", e)
         null
     }
 
@@ -128,7 +128,7 @@ object ClassDndHelper {
             }
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to write system state for mode=$mode", e)
+            NexioLog.e(TAG, "Failed to write system state for mode=$mode", e)
             false
         }
     }
@@ -139,13 +139,13 @@ object ClassDndHelper {
             try {
                 putInt(KEY_ORIGINAL_RINGER, audioManager(context).ringerMode)
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to snapshot ringer mode", e)
+                NexioLog.w(TAG, "Failed to snapshot ringer mode", e)
                 remove(KEY_ORIGINAL_RINGER)
             }
             try {
                 putInt(KEY_ORIGINAL_FILTER, notificationManager(context).currentInterruptionFilter)
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to snapshot interruption filter", e)
+                NexioLog.w(TAG, "Failed to snapshot interruption filter", e)
                 remove(KEY_ORIGINAL_FILTER)
             }
         }
@@ -163,7 +163,7 @@ object ClassDndHelper {
                 if (!p.contains(KEY_ORIGINAL_RINGER)) return false
                 // 从静音切回正常同样属于「切换勿扰」，未授权会抛 SecurityException
                 if (!canWriteState(context)) {
-                    Log.w(TAG, "Skip restoring ringer: policy access revoked")
+                    NexioLog.w(TAG, "Skip restoring ringer: policy access revoked")
                     return false
                 }
                 val original = p.getInt(KEY_ORIGINAL_RINGER, AudioManager.RINGER_MODE_NORMAL)
@@ -171,14 +171,14 @@ object ClassDndHelper {
                     audioManager(context).ringerMode = original
                     true
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to restore ringerMode to $original", e)
+                    NexioLog.e(TAG, "Failed to restore ringerMode to $original", e)
                     false
                 }
             }
             MODE_DND, MODE_PRIORITY -> {
                 if (!p.contains(KEY_ORIGINAL_FILTER)) return false
                 if (!canWriteState(context)) {
-                    Log.w(TAG, "Skip restoring filter: policy access revoked")
+                    NexioLog.w(TAG, "Skip restoring filter: policy access revoked")
                     return false
                 }
                 // 还原快照而非粗暴 ALL，用户可能原本就开着 PRIORITY/ALARMS
@@ -190,7 +190,7 @@ object ClassDndHelper {
                     notificationManager(context).setInterruptionFilter(original)
                     true
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to restore filter to $original", e)
+                    NexioLog.e(TAG, "Failed to restore filter to $original", e)
                     false
                 }
             }
@@ -219,7 +219,7 @@ object ClassDndHelper {
             System.currentTimeMillis() - at > MANUAL_HOLD_MAX_MS ||
             !isSameDay(at, System.currentTimeMillis())
         if (!expired) return true
-        Log.w(TAG, "Manual hold expired, restoring original state")
+        NexioLog.w(TAG, "Manual hold expired, restoring original state")
         handBack(context, requireConsistency = false)
         return false
     }
@@ -252,7 +252,7 @@ object ClassDndHelper {
     private fun takeOver(context: Context): Boolean {
         val mode = currentMode(context)
         if (!canWriteState(context)) {
-            Log.w(TAG, "takeOver skipped: mode=$mode requires notification policy access")
+            NexioLog.w(TAG, "takeOver skipped: mode=$mode requires notification policy access")
             return false
         }
         val before = readCurrentState(context, mode)
@@ -263,7 +263,7 @@ object ClassDndHelper {
         // 写入前后毫无变化、又不等于目标值 → 系统拒绝了这次写入（权限被回收 / ROM 拦截）。
         // 不判失败的话后面会当它已生效，还拿这个错值当下课校验基准，表现就是全程没反应。
         if (before != null && accepted == before && accepted != targetState(mode)) {
-            Log.w(TAG, "takeOver rejected by system: mode=$mode state=$accepted target=${targetState(mode)}")
+            NexioLog.w(TAG, "takeOver rejected by system: mode=$mode state=$accepted target=${targetState(mode)}")
             return false
         }
 
@@ -273,7 +273,7 @@ object ClassDndHelper {
             putInt(KEY_APPLIED_MODE, mode)
             putInt(KEY_SET_STATE, accepted)
         }
-        Log.d(TAG, "takeOver mode=$mode state=$accepted")
+        NexioLog.d(TAG, "takeOver mode=$mode state=$accepted")
         return true
     }
 
@@ -296,14 +296,14 @@ object ClassDndHelper {
             val current = readCurrentState(context, mode)
             if (current == null) {
                 // 读不到就不还原，避免覆盖用户手动设置
-                Log.w(TAG, "handBack skipped: cannot read system state")
+                NexioLog.w(TAG, "handBack skipped: cannot read system state")
                 clearSession(context)
                 return
             }
             // 基准放宽：读回值可能因 ROM 同步延迟失真，目标值同样算「没被用户动过」
             val expected = appliedState(context, mode)
             if (current != expected && current != targetState(mode)) {
-                Log.d(TAG, "handBack skipped: user owns state now ($current != $expected)")
+                NexioLog.d(TAG, "handBack skipped: user owns state now ($current != $expected)")
                 clearSession(context)
                 return
             }
@@ -317,10 +317,10 @@ object ClassDndHelper {
         // 有快照却写不回去（多半是权限被回收）：保留会话等权限恢复，别把快照丢掉，
         // 否则手机就再也没有自动退出勿扰的机会了。没有快照则没什么可还原，正常收尾。
         if (hasSnapshot && !applyOriginalSnapshot(context, mode)) {
-            Log.w(TAG, "handBack deferred: keep session until state can be restored")
+            NexioLog.w(TAG, "handBack deferred: keep session until state can be restored")
             return
         }
-        Log.d(TAG, "handBack restored original state mode=$mode")
+        NexioLog.d(TAG, "handBack restored original state mode=$mode")
         clearSession(context)
     }
 
@@ -422,7 +422,7 @@ object ClassDndHelper {
         val expected = appliedState(context, mode)
         val current = readCurrentState(context, mode)
         if (current != null && current != expected) {
-            Log.d(TAG, "In class, user changed state ($current != $expected), leave it alone")
+            NexioLog.d(TAG, "In class, user changed state ($current != $expected), leave it alone")
         }
     }
 
@@ -537,7 +537,7 @@ object ClassDndHelper {
      */
     fun dropStaleSessionAfterReboot(context: Context) {
         if (!isDndAppliedByApp(context)) return
-        Log.w(TAG, "Drop stale DND session after reboot/update")
+        NexioLog.w(TAG, "Drop stale DND session after reboot/update")
         clearSession(context)
     }
 
@@ -560,7 +560,7 @@ object ClassDndHelper {
         )
         // 上课/下课属于课表边界，走 setAlarmClock 保证 Doze 下也准点
         CourseReminderHelper.setCourseBoundaryAlarm(alarmManager, triggerAt, pendingIntent)
-        Log.d(TAG, "scheduleOne OK action=$action at=" +
+        NexioLog.d(TAG, "scheduleOne OK action=$action at=" +
             java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(triggerAt)) +
             " rc=$requestCode")
     }

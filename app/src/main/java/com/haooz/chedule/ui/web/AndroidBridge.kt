@@ -4,7 +4,7 @@ package com.haooz.chedule.ui.web
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.widget.Toast
@@ -153,7 +153,7 @@ class AndroidBridge(
                     resolveJsPromise(promiseId, defaultSelectedIndex.toString())
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "解析单选列表失败: ${e.message}", e)
+                NexioLog.e(TAG, "解析单选列表失败: ${e.message}", e)
                 Toast.makeText(context, "选项数据错误", Toast.LENGTH_LONG).show()
                 rejectJsPromise(promiseId, "选项列表 JSON 无效: ${e.message}")
             }
@@ -163,7 +163,7 @@ class AndroidBridge(
     /** JS 调用：将课程数据传回 Android 端进行保存 */
     @JavascriptInterface
     fun saveImportedCourses(coursesJsonString: String, promiseId: String) {
-        Log.d(TAG, "接收到课程数据，大小: ${coursesJsonString.length / 1024} KB")
+        NexioLog.d(TAG, "接收到课程数据，大小: ${coursesJsonString.length / 1024} KB")
         handler.post {
             try {
                 val importedCourses = gson.fromJson<List<ImportCourseJsonModel>>(
@@ -215,8 +215,8 @@ class AndroidBridge(
                 onCourseImported(courses)
                 resolveJsPromise(promiseId, "true")
             } catch (e: Exception) {
-                Log.e(TAG, "课程导入解析失败", e)
-                Log.e(TAG, "原始JSON: $coursesJsonString")
+                NexioLog.e(TAG, "课程导入解析失败", e)
+                NexioLog.e(TAG, "原始JSON: $coursesJsonString")
                 Toast.makeText(context, "课程导入失败: ${e.message}", Toast.LENGTH_LONG).show()
                 rejectJsPromise(promiseId, "课程导入失败: ${e.message}")
             }
@@ -226,11 +226,11 @@ class AndroidBridge(
     /** JS 调用：将课表配置数据传回 Android 端进行保存 */
     @JavascriptInterface
     fun saveCourseConfig(configJsonString: String, promiseId: String) {
-        Log.d(TAG, "接收到课表配置数据，大小: ${configJsonString.length} 字节")
+        NexioLog.d(TAG, "接收到课表配置数据，大小: ${configJsonString.length} 字节")
         handler.post {
             try {
                 val config = gson.fromJson(configJsonString, CourseConfigJsonModel::class.java)
-                Log.d(TAG, "课表配置解析成功: semesterStartDate=${config.semesterStartDate}, totalWeeks=${config.semesterTotalWeeks}")
+                NexioLog.d(TAG, "课表配置解析成功: semesterStartDate=${config.semesterStartDate}, totalWeeks=${config.semesterTotalWeeks}")
 
                 val prefs = context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE)
                 val normalizedStart = com.haooz.chedule.data.CourseRepository
@@ -259,7 +259,7 @@ class AndroidBridge(
                 Toast.makeText(context, "课表配置导入成功", Toast.LENGTH_SHORT).show()
                 resolveJsPromise(promiseId, "true")
             } catch (e: Exception) {
-                Log.e(TAG, "课表配置解析失败: ${e.message}", e)
+                NexioLog.e(TAG, "课表配置解析失败: ${e.message}", e)
                 Toast.makeText(context, "配置导入失败: ${e.message}", Toast.LENGTH_LONG).show()
                 rejectJsPromise(promiseId, "配置导入失败: ${e.message}")
             }
@@ -286,7 +286,7 @@ class AndroidBridge(
                 Toast.makeText(context, "时间段导入成功", Toast.LENGTH_SHORT).show()
                 resolveJsPromise(promiseId, "true")
             } catch (e: Exception) {
-                Log.e(TAG, "时间段数据解析失败: ${e.message}", e)
+                NexioLog.e(TAG, "时间段数据解析失败: ${e.message}", e)
                 Toast.makeText(context, "时间段数据解析失败: ${e.message}", Toast.LENGTH_LONG).show()
                 rejectJsPromise(promiseId, "时间段数据解析失败: ${e.message}")
             }

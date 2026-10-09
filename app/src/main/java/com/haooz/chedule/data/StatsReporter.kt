@@ -14,7 +14,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import java.util.UUID
 
 object StatsReporter {
@@ -68,16 +68,16 @@ object StatsReporter {
                     val request = Request.Builder().url(API_URL).post(body).build()
                     client.newCall(request).execute()
                 }
-                Log.i(TAG, "上报响应(${attempt + 1}/$MAX_RETRY): code=${resp.code} successful=${resp.isSuccessful}")
+                NexioLog.i(TAG, "上报响应(${attempt + 1}/$MAX_RETRY): code=${resp.code} successful=${resp.isSuccessful}")
                 if (resp.isSuccessful) return true
                 last = IllegalStateException("HTTP ${resp.code}")
             } catch (e: Exception) {
                 last = e
-                Log.w(TAG, "上报失败(第${attempt + 1}次): ${e.message}")
+                NexioLog.w(TAG, "上报失败(第${attempt + 1}次): ${e.message}")
             }
             if (attempt < MAX_RETRY - 1) delay((1L shl attempt) * 1000L)
         }
-        Log.e(TAG, "上报重试 $MAX_RETRY 次后仍失败", last)
+        NexioLog.e(TAG, "上报重试 $MAX_RETRY 次后仍失败", last)
         return false
     }
 
@@ -89,7 +89,7 @@ object StatsReporter {
 
         CoroutineScope(Dispatchers.IO).launch {
             val json = buildPayload(context, "install")
-            Log.i(TAG, "上报 install: payload=${json}")
+            NexioLog.i(TAG, "上报 install: payload=${json}")
             if (postWithRetry(json)) {
                 prefs.edit { putBoolean("install_reported", true) }
             }
@@ -101,7 +101,7 @@ object StatsReporter {
 
         CoroutineScope(Dispatchers.IO).launch {
             val json = buildPayload(context, "active")
-            Log.i(TAG, "上报 active: payload=${json}")
+            NexioLog.i(TAG, "上报 active: payload=${json}")
             postWithRetry(json)
         }
     }

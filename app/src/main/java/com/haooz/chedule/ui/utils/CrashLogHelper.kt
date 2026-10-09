@@ -14,7 +14,7 @@ package com.haooz.chedule.ui.utils
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import androidx.core.content.FileProvider
 import java.io.File
 import java.io.PrintWriter
@@ -134,12 +134,12 @@ object CrashLogHelper {
                 val prev = defaultHandler
                 if (prev != null) prev.uncaughtException(thread, throwable)
                 else {
-                    Log.e(TAG, "Uncaught exception on ${thread.name}", throwable)
+                    NexioLog.e(TAG, "Uncaught exception on ${thread.name}", throwable)
                     Runtime.getRuntime().exit(2)
                 }
             }
         }.onFailure {
-            Log.w(TAG, "install failed", it)
+            NexioLog.w(TAG, "install failed", it)
         }
         // 恢复上次被中断的录制：涉及 SP 与文件，必须挪出启动路径
         Thread {
@@ -223,7 +223,7 @@ object CrashLogHelper {
                 }
             )
         }.onFailure {
-            Log.w(TAG, "startRecording write failed", it)
+            NexioLog.w(TAG, "startRecording write failed", it)
             return false
         }
         // 只保留最新一份录制：新文件已写成功，此前的 recording_*.txt 全部清掉。
@@ -372,7 +372,7 @@ object CrashLogHelper {
             )
             true
         }.getOrElse {
-            Log.w(TAG, "shareReadyRecording failed", it)
+            NexioLog.w(TAG, "shareReadyRecording failed", it)
             false
         }
     }
@@ -417,7 +417,7 @@ object CrashLogHelper {
             )
             true
         } catch (e: Exception) {
-            Log.w(TAG, "share failed", e)
+            NexioLog.w(TAG, "share failed", e)
             false
         }
     }

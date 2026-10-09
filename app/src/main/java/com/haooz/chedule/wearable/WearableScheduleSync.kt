@@ -1,7 +1,7 @@
 package com.haooz.chedule.wearable
 
 import android.content.Context
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import com.haooz.chedule.data.CourseRepository
 import com.xiaomi.xms.wearable.Wearable
 import com.xiaomi.xms.wearable.auth.AuthApi
@@ -55,7 +55,7 @@ object WearableScheduleSync {
                 pushSchedule("watch-request")
             }
         } catch (e: Exception) {
-            Log.w(TAG, "handle message fail: ${e.message}")
+            NexioLog.w(TAG, "handle message fail: ${e.message}")
         }
     }
 
@@ -69,13 +69,13 @@ object WearableScheduleSync {
             messageApi = Wearable.getMessageApi(appContext)
             authApi = Wearable.getAuthApi(appContext)
         } catch (e: Exception) {
-            Log.w(TAG, "wearable api init fail: ${e.message}")
+            NexioLog.w(TAG, "wearable api init fail: ${e.message}")
             initialized.set(false)
             return
         }
         tryResolveNode()
         startNodeWatcher()
-        Log.i(TAG, "init ok")
+        NexioLog.i(TAG, "init ok")
     }
 
     /** 课程/课表变更后调用（可多次，内部合帧） */
@@ -104,12 +104,12 @@ object WearableScheduleSync {
             if (!dir.exists()) dir.mkdirs()
             val file = java.io.File(dir, "nexio-watch-schedule.json")
             file.writeText(json, Charsets.UTF_8)
-            Log.i(TAG, "export json -> ${file.absolutePath}")
+            NexioLog.i(TAG, "export json -> ${file.absolutePath}")
             ensurePermissionThenPush("manual-export", scheduleName)
             onDone?.invoke(true, file.absolutePath)
             file.absolutePath
         } catch (e: Exception) {
-            Log.w(TAG, "export fail: ${e.message}")
+            NexioLog.w(TAG, "export fail: ${e.message}")
             onDone?.invoke(false, e.message ?: "export fail")
             null
         }
@@ -133,7 +133,7 @@ object WearableScheduleSync {
                 id = resolveNodeId()
             }
             if (id == null) {
-                Log.w(TAG, "push skip ($reason): no node, queued")
+                NexioLog.w(TAG, "push skip ($reason): no node, queued")
                 pendingPush.set(true)
                 pendingScheduleName = scheduleName
                 return@execute
@@ -143,13 +143,13 @@ object WearableScheduleSync {
                 return@execute
             }
             val auth = authApi ?: run {
-                Log.w(TAG, "authApi null")
+                NexioLog.w(TAG, "authApi null")
                 return@execute
             }
             auth.checkPermissions(id, arrayOf(Permission.DEVICE_MANAGER))
                 .addOnSuccessListener { flags ->
                     val granted = flags.isNotEmpty() && flags[0]
-                    Log.i(TAG, "checkPermission($id)=$granted")
+                    NexioLog.i(TAG, "checkPermission($id)=$granted")
                     if (granted) {
                         permissionGranted.set(true)
                         doPush(reason, scheduleName, id)
@@ -157,21 +157,21 @@ object WearableScheduleSync {
                         auth.requestPermission(id, Permission.DEVICE_MANAGER)
                             .addOnSuccessListener { perms ->
                                 val ok = perms.any { it == Permission.DEVICE_MANAGER }
-                                Log.i(TAG, "requestPermission result ok=$ok")
+                                NexioLog.i(TAG, "requestPermission result ok=$ok")
                                 permissionGranted.set(ok)
                                 if (ok) {
                                     doPush(reason, scheduleName, id)
                                 } else {
-                                    Log.w(TAG, "push fail ($reason): permission not granted")
+                                    NexioLog.w(TAG, "push fail ($reason): permission not granted")
                                 }
                             }
                             .addOnFailureListener { e ->
-                                Log.w(TAG, "requestPermission fail: ${e.message}")
+                                NexioLog.w(TAG, "requestPermission fail: ${e.message}")
                             }
                     }
                 }
                 .addOnFailureListener { e ->
-                    Log.w(TAG, "checkPermission fail: ${e.message}")
+                    NexioLog.w(TAG, "checkPermission fail: ${e.message}")
                 }
         }
     }
@@ -199,13 +199,13 @@ object WearableScheduleSync {
             val api = messageApi ?: return
             api.sendMessage(id, payload.toByteArray(Charsets.UTF_8))
                 .addOnSuccessListener {
-                    Log.i(TAG, "push ok ($reason), node=$id, bytes=${payload.length}")
+                    NexioLog.i(TAG, "push ok ($reason), node=$id, bytes=${payload.length}")
                 }
                 .addOnFailureListener { e ->
-                    Log.w(TAG, "push fail ($reason): ${e.message}")
+                    NexioLog.w(TAG, "push fail ($reason): ${e.message}")
                 }
         } catch (e: Exception) {
-            Log.w(TAG, "push error ($reason): ${e.message}")
+            NexioLog.w(TAG, "push error ($reason): ${e.message}")
         } finally {
             pushing.set(false)
         }
@@ -220,22 +220,22 @@ object WearableScheduleSync {
                     if (first != null) {
                         val changed = nodeId != first.id
                         nodeId = first.id
-                        Log.i(TAG, "node ready: ${first.id} changed=$changed pending=${pendingPush.get()}")
+                        NexioLog.i(TAG, "node ready: ${first.id} changed=$changed pending=${pendingPush.get()}")
                         bindMessageListener(first.id)
                         // 连上后补推排队的课表
                         if (changed || pendingPush.get()) {
                             ensurePermissionThenPush("node-ready", pendingScheduleName)
                         }
                     } else {
-                        Log.w(TAG, "connectedNodes empty")
+                        NexioLog.w(TAG, "connectedNodes empty")
                         nodeId = null
                     }
                 }
                 .addOnFailureListener { e ->
-                    Log.w(TAG, "getConnectedNodes fail: ${e.message}")
+                    NexioLog.w(TAG, "getConnectedNodes fail: ${e.message}")
                 }
         } catch (e: Exception) {
-            Log.w(TAG, "tryResolveNode fail: ${e.message}")
+            NexioLog.w(TAG, "tryResolveNode fail: ${e.message}")
         }
     }
 
@@ -250,19 +250,19 @@ object WearableScheduleSync {
         try {
             api.addListener(id, messageListener)
                 .addOnSuccessListener {
-                    Log.i(TAG, "message listener bound: $id")
+                    NexioLog.i(TAG, "message listener bound: $id")
                 }
                 .addOnFailureListener { e ->
                     // 已注册属正常（重连/重复 bind），不刷警告
                     val msg = e.message ?: ""
                     if (msg.contains("registered")) {
-                        Log.i(TAG, "message listener already bound")
+                        NexioLog.i(TAG, "message listener already bound")
                     } else {
-                        Log.w(TAG, "bind listener fail: $msg")
+                        NexioLog.w(TAG, "bind listener fail: $msg")
                     }
                 }
         } catch (e: Exception) {
-            Log.w(TAG, "bind listener error: ${e.message}")
+            NexioLog.w(TAG, "bind listener error: ${e.message}")
         }
     }
 

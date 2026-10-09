@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import androidx.core.content.edit
 import java.io.File
 import java.io.RandomAccessFile
@@ -105,7 +105,7 @@ internal object UpdateChecker {
             val response = client.newCall(request).execute()
 
             if (!response.isSuccessful) {
-                Log.e(TAG, "HTTP ${response.code}")
+                NexioLog.e(TAG, "HTTP ${response.code}")
                 return Pair(false, null)
             }
 
@@ -169,10 +169,10 @@ internal object UpdateChecker {
             val appVersion = currentVersion.removePrefix("v")
             val hasUpdate = isNewerVersion(tagVersion, appVersion)
 
-            Log.d(TAG, "检查完成: channel=$channel, hasUpdate=$hasUpdate, remote=$tagVersion, local=$appVersion")
+            NexioLog.d(TAG, "检查完成: channel=$channel, hasUpdate=$hasUpdate, remote=$tagVersion, local=$appVersion")
             Pair(hasUpdate, GiteeRelease(tagName, name, body, htmlUrl, apkUrl, createdAt, apkSha256, apkSize))
         } catch (e: Exception) {
-            Log.e(TAG, "检查更新失败", e)
+            NexioLog.e(TAG, "检查更新失败", e)
             Pair(false, null)
         }
     }
@@ -195,7 +195,7 @@ internal object UpdateChecker {
             putString("latest_date", release.createdAt)
         }
         if (release.apkUrl.isBlank()) {
-            Log.w(TAG, "release ${release.tagName} 未下发 APK 资产，下载时回源重查")
+            NexioLog.w(TAG, "release ${release.tagName} 未下发 APK 资产，下载时回源重查")
         }
     }
 
@@ -232,10 +232,10 @@ internal object UpdateChecker {
             val release = checkForUpdate(context, source, ch).second ?: continue
             if (release.tagName != tag || release.apkUrl.isBlank()) continue
             persistRelease(context, release)
-            Log.d(TAG, "回源解析到下载地址: ${release.tagName} channel=$ch source=$source")
+            NexioLog.d(TAG, "回源解析到下载地址: ${release.tagName} channel=$ch source=$source")
             return release.apkUrl
         }
-        Log.w(TAG, "未解析到 $tag 的下载地址（缓存与回源均失败）source=$source")
+        NexioLog.w(TAG, "未解析到 $tag 的下载地址（缓存与回源均失败）source=$source")
         return null
     }
 
@@ -279,7 +279,7 @@ internal object UpdateChecker {
         }
         digest.digest().joinToString("") { "%02x".format(it) }
     } catch (e: Exception) {
-        Log.e(TAG, "SHA-256 计算失败: ${file.name}", e)
+        NexioLog.e(TAG, "SHA-256 计算失败: ${file.name}", e)
         null
     }
 
@@ -333,7 +333,7 @@ internal object UpdateChecker {
         val archive = try {
             pm.getPackageArchiveInfo(file.absolutePath, PackageManager.GET_SIGNING_CERTIFICATES)
         } catch (e: Exception) {
-            Log.e(TAG, "解析安装包异常: ${file.name}", e)
+            NexioLog.e(TAG, "解析安装包异常: ${file.name}", e)
             return ApkCheck(false, "安装包解析失败：${e.message ?: e.javaClass.simpleName}")
         } ?: return ApkCheck(false, "安装包解析失败：包体损坏")
 
@@ -426,7 +426,7 @@ internal object UpdateChecker {
                 val tag = if (isPart) null else apkTagOrNull(name)
 
                 if (isPart) {
-                    if (file.delete()) Log.d(TAG, "清理下载中间态: $name")
+                    if (file.delete()) NexioLog.d(TAG, "清理下载中间态: $name")
                     continue
                 }
 
@@ -436,7 +436,7 @@ internal object UpdateChecker {
                 val check = verifyApk(context, file, expectedSha)
                 val complete = check.ok
                 if (!complete) {
-                    Log.w(TAG, "清理损坏APK: $name 原因=${check.reason}")
+                    NexioLog.w(TAG, "清理损坏APK: $name 原因=${check.reason}")
                 }
                 val shouldKeep = when {
                     keep != null && tag == keep && complete -> true
@@ -449,11 +449,11 @@ internal object UpdateChecker {
                     continue
                 }
                 if (file.delete()) {
-                    Log.d(TAG, "已清理APK: $name complete=$complete keepTag=$keep")
+                    NexioLog.d(TAG, "已清理APK: $name complete=$complete keepTag=$keep")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "清理旧APK失败", e)
+            NexioLog.e(TAG, "清理旧APK失败", e)
         }
     }
 

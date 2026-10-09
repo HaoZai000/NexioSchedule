@@ -4,7 +4,7 @@ package com.haooz.chedule.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayCountdown
 import com.haooz.chedule.data.HolidayManager
@@ -45,7 +45,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val type = intent.getIntExtra(CourseReminderHelper.EXTRA_REMINDER_TYPE, 0)
-        Log.d("CourseReminder", "AlarmReceiver: type=$type ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
+        NexioLog.d("CourseReminder", "AlarmReceiver: type=$type ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
         val repository = CourseRepository(context)
         val useIsland = repository.getIslandNotification() && IslandNotificationHelper.isIslandSupported(context)
 
@@ -74,14 +74,14 @@ class AlarmReceiver : BroadcastReceiver() {
 
                 // 去重检查：如果该课程最近已发送过，跳过本次（避免闹钟触发后重新调度导致双发）
                 if (CourseReminderHelper.isPreClassSentRecently(context, dedupId)) {
-                    Log.d("AlarmReceiver", "Pre-class notification already sent recently for $courseName, skipping")
+                    NexioLog.d("AlarmReceiver", "Pre-class notification already sent recently for $courseName, skipping")
                     CourseReminderHelper.onAlarmProcessed(context)
                     return
                 }
 
                 // 学期未开始（未到开学日期所在周的周一）：不发送，并重新调度清理残留闹钟
                 if (!CourseReminderHelper.isSemesterStarted(repository)) {
-                    Log.d("AlarmReceiver", "Semester not started yet, skipping pre-class notification for $courseName")
+                    NexioLog.d("AlarmReceiver", "Semester not started yet, skipping pre-class notification for $courseName")
                     CourseReminderHelper.onAlarmProcessed(context)
                     return
                 }
@@ -93,7 +93,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     .firstOrNull { it.id == courseId }
                 if (matched == null) {
                     // 课表可能已变更（或闹钟没带 courseId）：全量重注册，清掉过期闹钟
-                    Log.d("AlarmReceiver", "Stale alarm: $courseName($startTime) no longer in today's schedule")
+                    NexioLog.d("AlarmReceiver", "Stale alarm: $courseName($startTime) no longer in today's schedule")
                     CourseReminderHelper.onAlarmProcessed(context, fullReschedule = true)
                     return
                 }
@@ -104,7 +104,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 val endMillis = CourseReminderHelper.parseTimeToTodayMillis(freshEndTime)
 
                 if (startMillis <= 0L) {
-                    Log.d("AlarmReceiver", "Invalid start time for ${matched.name}, skipped")
+                    NexioLog.d("AlarmReceiver", "Invalid start time for ${matched.name}, skipped")
                     CourseReminderHelper.onAlarmProcessed(context, fullReschedule = true)
                     return
                 }
@@ -156,7 +156,7 @@ class AlarmReceiver : BroadcastReceiver() {
                             holidayStartMessage(entriesByYear, tomorrow),
                         )
                     } else {
-                        Log.d("AlarmReceiver", "Holiday in progress, skipping next-day reminder for $tomorrow")
+                        NexioLog.d("AlarmReceiver", "Holiday in progress, skipping next-day reminder for $tomorrow")
                     }
                     CourseReminderHelper.scheduleNextDayOnly(context)
                     CourseReminderHelper.onAlarmProcessed(context)
@@ -166,7 +166,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 // 学期未开始：默认静默，整个假期不打扰；
                 // 但明天确有课时照常发送 —— 返校/开学前一天正是这一条
                 if (!CourseReminderHelper.isSemesterStarted(repository) && tomorrowCourses.isEmpty()) {
-                    Log.d("AlarmReceiver", "Semester not started and no courses tomorrow, skipping next-day reminder")
+                    NexioLog.d("AlarmReceiver", "Semester not started and no courses tomorrow, skipping next-day reminder")
                     CourseReminderHelper.onAlarmProcessed(context)
                     return
                 }

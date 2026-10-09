@@ -6,7 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -279,7 +279,7 @@ class WakeUpHeadlessBridge(
 
     @JavascriptInterface
     fun showToast(message: String?) {
-        Log.d(TAG, "WakeUp: $message")
+        NexioLog.d(TAG, "WakeUp: $message")
         val text = message.orEmpty()
         if (text.contains("失败") || text.contains("无效") || text.contains("无法") ||
             text.contains("不能为空") || text.contains("未检测到")
@@ -687,7 +687,7 @@ object ThirdPartyShareImporter {
                                         }
                                     }
                                 } catch (e: Exception) {
-                                    Log.e(TAG, "WakeUp 脚本启动失败", e)
+                                    NexioLog.e(TAG, "WakeUp 脚本启动失败", e)
                                     failOnce(e.message ?: "WakeUp 脚本启动失败")
                                 }
                             }
@@ -706,7 +706,7 @@ object ThirdPartyShareImporter {
                     wv
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "WakeUp WebView 创建失败", e)
+                NexioLog.e(TAG, "WakeUp WebView 创建失败", e)
                 failOnce(e.message ?: "WakeUp WebView 创建失败")
             }
 

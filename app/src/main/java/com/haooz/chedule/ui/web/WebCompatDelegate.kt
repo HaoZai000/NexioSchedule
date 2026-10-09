@@ -3,7 +3,7 @@ package com.haooz.chedule.ui.web
 
 import android.graphics.Bitmap
 import android.os.Build
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import android.webkit.CookieManager
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
@@ -187,7 +187,7 @@ class WebCompatDelegate(private val webView: WebView) {
         // 提前注入会让 Chrome 只认width、不认initial-scale（inner=1283 但缩放 100%），
         // 页面放大到只看得见 28%；晚注入则两者一起生效（缩放 0.28，正好一屏）。
         // 这里 return false 同时让 onPageFinished 的兜底注入保持开启 —— 别改回去。
-        Log.d(TAG, "applyDesktopViewportOverride: 桌面版仅用onPageFinished 兜底注入")
+        NexioLog.d(TAG, "applyDesktopViewportOverride: 桌面版仅用onPageFinished 兜底注入")
         return false
     }
 
@@ -309,7 +309,7 @@ class WebCompatDelegate(private val webView: WebView) {
                                 .toList()
                             val actual = nums.getOrNull(0)?.toIntOrNull() ?: return@evaluateJavascript
                             val vvScale = nums.getOrNull(1)?.toDoubleOrNull() ?: -1.0
-                            Log.d(TAG, "viewport: inner=$actual vvScale=$vvScale retried=$viewportRetried")
+                            NexioLog.d(TAG, "viewport: inner=$actual vvScale=$vvScale retried=$viewportRetried")
                             val contentWider = actual > viewportWidthInCssPx() + 1
                             val zoomOk = vvScale > 0.05 && vvScale < 0.95
                             if (contentWider && !zoomOk && !viewportRetried) {

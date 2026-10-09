@@ -11,8 +11,7 @@ package com.haooz.chedule.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
-
+import com.haooz.chedule.data.NexioLog
 class ClassDndReceiver : BroadcastReceiver() {
 
     companion object {
@@ -29,11 +28,11 @@ class ClassDndReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             ACTION_TOGGLE -> {
-                Log.d(TAG, "Toggle class DND from notification")
+                NexioLog.d(TAG, "Toggle class DND from notification")
                 ClassDndHelper.toggleFromNotification(context)
             }
             ACTION_CLASS_START, ACTION_CLASS_END -> {
-                Log.d(TAG, "Class ${if (intent.action == ACTION_CLASS_START) "start" else "end"} alarm, syncing DND state")
+                NexioLog.d(TAG, "Class ${if (intent.action == ACTION_CLASS_START) "start" else "end"} alarm, syncing DND state")
                 ClassDndHelper.applyCurrentState(context)
             }
         }

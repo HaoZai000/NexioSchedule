@@ -1,7 +1,7 @@
 package com.haooz.chedule.data
 
 import android.content.Context
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CoroutineScope
@@ -79,7 +79,7 @@ class SyncManager private constructor(private val context: Context) {
     fun start(repository: CourseRepository, webDavManager: WebDavManager) {
         this.repository = repository
         this.webDavManager = webDavManager
-        Log.d(TAG, "SyncManager started")
+        NexioLog.d(TAG, "SyncManager started")
     }
 
     suspend fun backupNow(): SyncOperationState {
@@ -89,7 +89,7 @@ class SyncManager private constructor(private val context: Context) {
         if (_syncState.value is SyncOperationState.Running) return SyncOperationState.Error("正在执行操作，请稍候")
 
         _syncState.value = SyncOperationState.Running
-        Log.d(TAG, "Starting backup...")
+        NexioLog.d(TAG, "Starting backup...")
 
         try {
             val result = mgr.backupAllData(repo)
@@ -98,16 +98,16 @@ class SyncManager private constructor(private val context: Context) {
                 is BackupResult.Success -> {
                     _syncState.value = SyncOperationState.BackupSuccess(result.backupId)
                     onSyncCompleted?.invoke()
-                    Log.d(TAG, "Backup completed: ${result.backupId}")
+                    NexioLog.d(TAG, "Backup completed: ${result.backupId}")
                 }
                 is BackupResult.Error -> {
                     _syncState.value = SyncOperationState.Error(result.message)
-                    Log.e(TAG, "Backup failed: ${result.message}")
+                    NexioLog.e(TAG, "Backup failed: ${result.message}")
                 }
             }
         } catch (e: Exception) {
             _syncState.value = SyncOperationState.Error("备份异常: ${e.message}")
-            Log.e(TAG, "Backup exception", e)
+            NexioLog.e(TAG, "Backup exception", e)
         }
 
         return _syncState.value
@@ -120,7 +120,7 @@ class SyncManager private constructor(private val context: Context) {
         if (_syncState.value is SyncOperationState.Running) return SyncOperationState.Error("正在执行操作，请稍候")
 
         _syncState.value = SyncOperationState.Running
-        Log.d(TAG, "Starting restore...")
+        NexioLog.d(TAG, "Starting restore...")
 
         try {
             val result = mgr.restoreLatestBackup(repo)
@@ -129,16 +129,16 @@ class SyncManager private constructor(private val context: Context) {
                 is RestoreResult.Success -> {
                     _syncState.value = SyncOperationState.RestoreSuccess(result.backupTime)
                     onSyncCompleted?.invoke()
-                    Log.d(TAG, "Restore completed from ${result.backupTime}")
+                    NexioLog.d(TAG, "Restore completed from ${result.backupTime}")
                 }
                 is RestoreResult.Error -> {
                     _syncState.value = SyncOperationState.Error(result.message)
-                    Log.e(TAG, "Restore failed: ${result.message}")
+                    NexioLog.e(TAG, "Restore failed: ${result.message}")
                 }
             }
         } catch (e: Exception) {
             _syncState.value = SyncOperationState.Error("恢复异常: ${e.message}")
-            Log.e(TAG, "Restore exception", e)
+            NexioLog.e(TAG, "Restore exception", e)
         }
 
         return _syncState.value
@@ -297,14 +297,14 @@ class WebDavManager(private val context: Context) {
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     lastSyncTime = System.currentTimeMillis()
-                    Log.d(TAG, "Backup succeeded: $backupId")
+                    NexioLog.d(TAG, "Backup succeeded: $backupId")
                     BackupResult.Success(backupId)
                 } else {
                     BackupResult.Error("上传备份失败: ${response.code}")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Backup exception", e)
+            NexioLog.e(TAG, "Backup exception", e)
             BackupResult.Error("备份异常: ${e.message}")
         }
     }
@@ -344,7 +344,7 @@ class WebDavManager(private val context: Context) {
                         repository.importAllPreferences(data)
                         com.haooz.chedule.reminder.CourseReminderHelper.onHolidayDataChanged(context)
                         lastSyncTime = System.currentTimeMillis()
-                        Log.d(TAG, "Restore succeeded from ${latest.backupTime}")
+                        NexioLog.d(TAG, "Restore succeeded from ${latest.backupTime}")
                         RestoreResult.Success(latest.backupTime)
                     }
                     response.code == 404 -> RestoreResult.Error("备份文件不存在")
@@ -352,7 +352,7 @@ class WebDavManager(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Restore exception", e)
+            NexioLog.e(TAG, "Restore exception", e)
             RestoreResult.Error("恢复异常: ${e.message}")
         }
     }
@@ -395,7 +395,7 @@ class WebDavManager(private val context: Context) {
                 backups
             }
         } catch (e: Exception) {
-            Log.e(TAG, "List backups exception", e)
+            NexioLog.e(TAG, "List backups exception", e)
             emptyList()
         }
     }

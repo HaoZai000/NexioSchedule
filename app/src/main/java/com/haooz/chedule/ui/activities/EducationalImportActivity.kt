@@ -3,7 +3,7 @@ package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.os.Bundle
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import android.widget.Toast
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -129,7 +129,7 @@ class EducationalImportActivity : ComponentActivity() {
                     )
                     prefs.edit().putLong(KEY_LAST_UPDATE_TIME, System.currentTimeMillis()).apply()
                 } catch (e: Exception) {
-                    Log.e(TAG, "更新失败: ${e.message}")
+                    NexioLog.e(TAG, "更新失败: ${e.message}")
                 } finally {
                     _isUpdating.value = false
                     _dataVersion.value++
@@ -159,7 +159,7 @@ class EducationalImportActivity : ComponentActivity() {
                         prefs.edit { putLong(KEY_LAST_UPDATE_TIME, System.currentTimeMillis()) }
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "手动更新失败: ${e.message}")
+                    NexioLog.e(TAG, "手动更新失败: ${e.message}")
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "更新失败", Toast.LENGTH_SHORT).show()
                     }
@@ -615,7 +615,7 @@ class EducationalImportActivity : ComponentActivity() {
 
             prefs.edit {remove("preset_time_slots")}
         } catch (e: Exception) {
-            Log.e("EduImport", "应用预设时间段失败: ${e.message}")
+            NexioLog.e("EduImport", "应用预设时间段失败: ${e.message}")
         }
     }
 
@@ -646,9 +646,9 @@ class EducationalImportActivity : ComponentActivity() {
                     .setClassStartTime(targetScheduleId, startDate)
             }
             applied = true
-            Log.d("EduImport", "应用开学日: raw=$rawStart -> $startDate target=$targetScheduleId")
+            NexioLog.d("EduImport", "应用开学日: raw=$rawStart -> $startDate target=$targetScheduleId")
         } else if (!rawStart.isNullOrBlank()) {
-            Log.w("EduImport", "开学日无法解析，已忽略: $rawStart")
+            NexioLog.w("EduImport", "开学日无法解析，已忽略: $rawStart")
         }
         if (totalWeeks > 0) {
             if (isTargetCurrent) {
@@ -665,7 +665,7 @@ class EducationalImportActivity : ComponentActivity() {
                 remove("semester_total_weeks")
                 remove("target_schedule_id")
             }
-            Log.d("EduImport", "应用课表配置成功: 开学时间=$startDate, 总周数=$totalWeeks, target=$targetScheduleId")
+            NexioLog.d("EduImport", "应用课表配置成功: 开学时间=$startDate, 总周数=$totalWeeks, target=$targetScheduleId")
         }
     }
 }

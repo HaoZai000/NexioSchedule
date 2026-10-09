@@ -5,6 +5,7 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
 import org.json.JSONArray
 import org.json.JSONObject
+import com.haooz.chedule.data.NexioLog
 
 /**
  * 手机端 → 手表端 课表 JSON 组装，协议 version=4 整表推送。
@@ -80,7 +81,7 @@ object WatchPayload {
             .put("evening", periodTimesJson(repository, "evening", sid))
 
         val holidaysArr = buildHolidaysJson(context)
-        android.util.Log.i(
+        NexioLog.i(
             "WatchPayload",
             "buildFull sid=$sid total=${all.size} packed=${courseArr.length()} " +
                 "week=${settings.optInt("current_week")}/${settings.optInt("total_weeks")} " +

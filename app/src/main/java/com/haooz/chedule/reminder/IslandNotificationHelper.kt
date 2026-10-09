@@ -8,7 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
 import android.os.Bundle
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import androidx.core.content.edit
 import com.haooz.chedule.R
 import com.haooz.chedule.shizuku.ShizukuManager
@@ -216,25 +216,25 @@ object IslandNotificationHelper {
             val disabled = try {
                 ShizukuManager.setXmsfNetworkingEnabled(context, false)
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to disable XMSF networking", e)
+                NexioLog.e(TAG, "Failed to disable XMSF networking", e)
                 sendNotificationDirect(context, notificationId, notification)
                 return@withLock
             }
             if (!disabled) {
-                Log.w(TAG, "Failed to disable XMSF networking, sending notification anyway")
+                NexioLog.w(TAG, "Failed to disable XMSF networking, sending notification anyway")
                 sendNotificationDirect(context, notificationId, notification)
                 return@withLock
             }
             try {
-                Log.d(TAG, "XMSF networking disabled, sending notification")
+                NexioLog.d(TAG, "XMSF networking disabled, sending notification")
                 sendNotificationDirect(context, notificationId, notification)
                 delay(100.milliseconds)
             } finally {
                 try {
                     ShizukuManager.setXmsfNetworkingEnabled(context, true)
-                    Log.d(TAG, "XMSF networking restored")
+                    NexioLog.d(TAG, "XMSF networking restored")
                 } catch (e: Exception) {
-                    Log.e(TAG, "CRITICAL: Failed to restore XMSF networking!", e)
+                    NexioLog.e(TAG, "CRITICAL: Failed to restore XMSF networking!", e)
                 }
             }
         }
@@ -795,7 +795,7 @@ object IslandNotificationHelper {
 
         // 开始时间已过：不要画永远走不完的倒计时，直接走分流入口
         if (courseStartMillis <= System.currentTimeMillis()) {
-            Log.w(TAG, "sendPreClassIslandNotification: start time already passed ($startTime), fallback to class start")
+            NexioLog.w(TAG, "sendPreClassIslandNotification: start time already passed ($startTime), fallback to class start")
             IslandState.save(
                 context, notificationId, courseName, classroom, section,
                 startTime, endTime ?: "", courseStartMillis, courseEndMillis
@@ -847,7 +847,7 @@ object IslandNotificationHelper {
 
     fun sendTestIslandNotification(context: Context) {
         if (!isIslandSupported(context)) {
-            Log.w(TAG, "Island not supported on this device")
+            NexioLog.w(TAG, "Island not supported on this device")
             return
         }
 
@@ -1034,7 +1034,7 @@ object IslandNotificationHelper {
         if (IslandState.isSwitched(context, testMode = effectiveTestMode) &&
             IslandState.snapshot(context, effectiveTestMode)?.notificationId == startedId
         ) {
-            Log.d(TAG, "Already switched to started state, skip duplicate update")
+            NexioLog.d(TAG, "Already switched to started state, skip duplicate update")
             return
         }
 
@@ -1091,7 +1091,7 @@ object IslandNotificationHelper {
         val endMillis = state?.endMillis ?: 0L
         val now = System.currentTimeMillis()
         if (endMillis <= now) {
-            Log.w(TAG, "sendInClass: already past end, skip")
+            NexioLog.w(TAG, "sendInClass: already past end, skip")
             return
         }
 
@@ -1180,7 +1180,7 @@ object IslandNotificationHelper {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
             CourseReminderHelper.scheduleNextWidgetRefresh(context, alarmManager)
         } catch (_: Exception) {
-            Log.w(TAG, "Failed to kick widget refresh")
+            NexioLog.w(TAG, "Failed to kick widget refresh")
         }
     }
 

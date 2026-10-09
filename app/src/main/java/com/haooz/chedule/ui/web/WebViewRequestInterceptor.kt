@@ -1,7 +1,7 @@
 /** WebView 请求拦截器 - 拦截和处理 WebView 网络请求 */
 package com.haooz.chedule.ui.web
 
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
@@ -195,7 +195,7 @@ class WebViewRequestInterceptor {
                 body.byteStream()
             )
         } catch (e: Exception) {
-            Log.e("WebViewInterceptor", "Error intercepting request: $url", e)
+            NexioLog.e("WebViewInterceptor", "Error intercepting request: $url", e)
             return null
         }
     }

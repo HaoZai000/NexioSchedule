@@ -2,7 +2,7 @@ package com.haooz.chedule.ui.utils
 
 import android.content.Context
 import android.content.Intent
-import android.util.Log
+import com.haooz.chedule.data.NexioLog
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.haooz.chedule.shizuku.ShizukuManager
@@ -40,7 +40,7 @@ internal object UpdateInstaller {
         val check = UpdateChecker.verifyApk(context, file, UpdateChecker.rememberedApkSha256(context, tag))
         if (!check.ok) {
             if (file.exists()) {
-                Log.w(TAG, "本地APK无效，已删除重下: $tag 原因=${check.reason}")
+                NexioLog.w(TAG, "本地APK无效，已删除重下: $tag 原因=${check.reason}")
                 runCatching { file.delete() }
             }
             return false
@@ -96,7 +96,7 @@ internal object UpdateInstaller {
             }
             if (fileSize <= 0) {
                 // 未声明长度（如分块传输）时无法用体积判定，交给完整校验
-                Log.w(TAG, "服务端未声明长度，改用解析级校验: $tag")
+                NexioLog.w(TAG, "服务端未声明长度，改用解析级校验: $tag")
             }
 
             // 优先用服务端下发的 SHA-256 做字节级校验，没有则退回解析级校验
@@ -143,7 +143,7 @@ internal object UpdateInstaller {
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                     onFinished?.invoke()
                 } else {
-                    Log.w(TAG, "静默安装失败，回退系统安装器: $message")
+                    NexioLog.w(TAG, "静默安装失败，回退系统安装器: $message")
                     Toast.makeText(context, "静默安装失败，已改用系统安装器", Toast.LENGTH_SHORT).show()
                     // 关键：先解除 installing 状态再拉起安装器。
                     // 否则用户在系统安装器里点取消后，弹窗会永久停在「安装中」且无法关闭。

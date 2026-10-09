@@ -25,6 +25,7 @@ import com.haooz.chedule.ui.activities.MainActivity
 import com.haooz.chedule.widget.WidgetUpdateCache
 import java.time.LocalDate
 import java.util.Calendar
+import com.haooz.chedule.data.NexioLog
 
 object CourseReminderHelper {
 
@@ -58,7 +59,7 @@ object CourseReminderHelper {
     }
 
     private fun logD(context: Context, message: String) {
-        if (debugEnabled(context)) android.util.Log.d(TAG, message)
+        if (debugEnabled(context)) NexioLog.d(TAG, message)
     }
 
     const val EXTRA_REMINDER_TYPE = "reminder_type"
@@ -1894,10 +1895,10 @@ object CourseReminderHelper {
             // 连堂课间为 0 时触发点可能已过上课时刻：落"已上课"；超宽限期则不再打扰
             val elapsed = nowMs - courseStartMillis
             if (elapsed > ISLAND_START_GRACE_MS) {
-                android.util.Log.d(TAG, "sendPreClass: ${course.name} started ${elapsed}ms ago, too late, skip")
+                NexioLog.d(TAG, "sendPreClass: ${course.name} started ${elapsed}ms ago, too late, skip")
                 return
             }
-            android.util.Log.d(TAG, "sendPreClass: ${course.name} just started, show started state")
+            NexioLog.d(TAG, "sendPreClass: ${course.name} just started, show started state")
             if (useIsland) {
                 IslandNotificationHelper.sendPreClassIslandNotification(
                     context = context,
@@ -1994,7 +1995,7 @@ object CourseReminderHelper {
                 IslandNotificationHelper.cancelIslandNotifications(context)
                 IslandNotificationHelper.IslandState.clear(context)
                 IslandNotificationHelper.IslandState.clear(context, testMode = true)
-                android.util.Log.d(TAG, "reconcileIsland: island disabled, dismissed")
+                NexioLog.d(TAG, "reconcileIsland: island disabled, dismissed")
             }
             return
         }
@@ -2020,7 +2021,7 @@ object CourseReminderHelper {
             // 连带收起另一半（倒计时/已上课），避免残留岛一直停在 00:00
             IslandNotificationHelper.cancelIslandState(context, state.notificationId)
             IslandNotificationHelper.IslandState.clear(context, testMode)
-            android.util.Log.d(TAG, "reconcileIsland: dismissed test=$testMode end=$expiredByEnd show=$expiredByShow")
+            NexioLog.d(TAG, "reconcileIsland: dismissed test=$testMode end=$expiredByEnd show=$expiredByShow")
             return
         }
 
@@ -2030,10 +2031,10 @@ object CourseReminderHelper {
                 // 隔夜或重启后残留的状态：不要再补一个过期的"已上课"，直接收起
                 IslandNotificationHelper.cancelIslandState(context, state.notificationId)
                 IslandNotificationHelper.IslandState.clear(context, testMode)
-                android.util.Log.d(TAG, "reconcileIsland: stale state dismissed for ${state.courseName}")
+                NexioLog.d(TAG, "reconcileIsland: stale state dismissed for ${state.courseName}")
                 return
             }
-            android.util.Log.d(TAG, "reconcileIsland: late switch for ${state.courseName}")
+            NexioLog.d(TAG, "reconcileIsland: late switch for ${state.courseName}")
             IslandNotificationHelper.onClassStart(
                 context = context,
                 courseName = state.courseName,
