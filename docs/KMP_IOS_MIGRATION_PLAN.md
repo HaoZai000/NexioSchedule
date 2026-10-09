@@ -44,11 +44,18 @@
 
 | 候选 | 阻塞 / 前提 | 风险 |
 |---|---|---|
-| **拆 `Holidays.kt` 的类型集群**（1782 行巨石） | 无外部依赖，但它挡着 `CourseScheduleDateBounds`（293 行纯日期文件） | 中 —— 该文件承载节假日设置与备份导入导出 |
+| ✅ **拆 `Holidays.kt` 的类型集群** | **已完成**（2026-10-09）：1782 行拆成 4 个文件，6 个平台中立类型已下沉 `:core`（详见「当前进展 ⑦」） | — |
+| **`java.time` → kotlinx-datetime**（阶段 2.1，19~21 文件 / 34 处 import） | 无外部数据依赖，但**它是整个节假日集群 + `CourseScheduleDateBounds` 进 `:core` 的唯一挡路石**；`DateTimeFormatter` / `SimpleDateFormat` 需手写替换（风险 **R5**） | 中高 —— 日期静默算错，**编译永远绿** |
 | **Gson 迁移**（文档风险表里的 **R2，最高**） | **必须先有真实用户备份做 round-trip 回归**；需 `@Serializable` + 显式字段清单 | 高 —— 数据格式一变，存量用户读不出来 |
 | **Native HTTP** | 需 macOS 定 iOS target；引入 Ktor 会顶掉协程版本（见下方决定表） | 高，但属 iOS 侧独立交付 |
 
-**建议顺序**：先 `Holidays.kt`（不依赖外部数据、解锁文件最多）→ 再 Gson（等拿到真实备份）。
+**建议顺序**：先 `java.time` 转换（解锁节假日集群与 `CourseScheduleDateBounds`）→ 再 Gson（等拿到真实备份）。
+
+> ⚠ **为什么下一步必须是日期转换，而不是继续拆文件**：`java.time.LocalDate` 与
+> kotlinx-datetime 的 `LocalDate` 是两个**不兼容的类型**。只要节假日集群的任何一个
+> 对外 API 还带 `LocalDate`，把它搬进 `:core` 就会强迫所有 `:app` 调用点做类型转换
+> —— 那是 46 处 `TeachingWeekReorganization` + 14 处 `HolidayCourseExclusion` 的调用点，
+> 分散在 12 个文件里。**先把日期统一成 kotlinx-datetime，后面每个文件才是真正的「搬」而不是「改」。**
 
 ### 4. 每次改完必跑
 
@@ -205,7 +212,7 @@ AppFiles.init(
 | 说法 | 真实程度 |
 |---|---|
 | `:core/commonMain` 平台中立 | ✅ **编译器验证**：`:core` 挂了 `linuxX64`（Native）目标，`compileKotlinLinuxX64` + `compileTestKotlinLinuxX64` 通过 |
-| `:miuix` / `:backdrop` 的 commonMain + skikoMain 平台中立 | ⚠ **仅静态检查**：CMP 不支持 linuxX64、iOS 目标又需 macOS，只能用根项目的 `checkKmpPurity` 扫**已知模式**（171 个文件）。**未知 API 查不出来** |
+| `:miuix` / `:backdrop` 的 commonMain + skikoMain 平台中立 | ⚠ **仅静态检查**：CMP 不支持 linuxX64、iOS 目标又需 macOS，只能用根项目的 `checkKmpPurity` 扫**已知模式**（173 个文件）。**未知 API 查不出来** |
 | skikoMain 能在 iOS 跑 | ❌ **从未编译过**，只被 jvm 复用（见 C 第 2 条） |
 | iOS 已可用 | ❌ 网络层是抛异常的占位；没有 iOS target；没有 Xcode 工程 |
 
@@ -259,7 +266,7 @@ AppFiles.init(
 
 | 模块 | 源文件 | 行数 | 源集 | 状态 |
 |---|---:|---:|---|---|
-| `:core` | 21 (+12 平台实现) | ~2,987 | common / android / **jvm / linuxX64(门禁)** | 数据层下沉 + 7 套跨平台抽象 |
+| `:core` | 22 (+12 平台实现) | ~3,067 | common / android / **jvm / linuxX64(门禁)** | 数据层下沉 + 7 套跨平台抽象 + 节假日中立类型（见 ⑦） |
 | `:backdrop` | 64 | 5,458 | common / android / skiko | KMP 化，含 edgelight + capsule；**skikoMain 未针对 Native 编译过** |
 | `:miuix` | 103 | 26,464 | common / android / skiko | KMP 化；**skikoMain 未针对 Native 编译过** |
 | `:app` | 148 | 69,983 | android | Android-only，**剩余迁移主体** |
@@ -378,6 +385,53 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 顺手修掉：这两个仓库原本各自 `new OkHttpClient()`（第 11、12 套连接池），现在复用 `HttpService`。
 
+### ✅ 已完成批次 · ⑦ 拆 `Holidays.kt` 类型集群 + 6 个中立类型下沉（2026-10-09）
+
+**做法：先机械拆、再挑零成本的部分搬。** 两件事分开做，各有一条独立的验证手段。
+
+**⑦-a 拆分（逐字搬运，零语义变更）**
+
+`app/.../data/Holidays.kt`（1782 行单文件全包）按类型集群拆成 4 个文件：
+
+| 文件 | 行数 | 内容 | 挡路的东西 |
+|---|---:|---|---|
+| `HolidayManager.kt`（`git mv` 自 `Holidays.kt`） | 901 | 存储 + 备份 + 数据源 | `Context` / `SharedPreferences` / `org.json` / Gson / `@Synchronized` |
+| `TeachingWeekReorganization.kt` | 380 | 调休改周规则（纯日期映射 + 严格编解码） | `java.time.LocalDate` / `ChronoUnit` / Gson |
+| `HolidayCourseExclusion.kt` | 236 | 假期课程剔除与逐日裁决 | `java.time.LocalDate` / `LocalTime` |
+| `HolidayCountdown.kt` | 255 | 假期倒计时（今日页） | `LocalDate/LocalTime/LocalDateTime/Duration` |
+
+> **验证手段**（拆分这种"理应无变化"的改动必须机械验证，不能靠"编过了"）：
+> 用 `sed -n` 从 HEAD 原文按行区间抽出四段，与新文件**去掉文件头后逐行 `diff`** ——
+> 四段全部零差异。`:app:assembleDebug` 通过。
+> 保留 rename 历史：`git mv Holidays.kt HolidayManager.kt`。
+
+**⑦-b 下沉 6 个平台中立类型 → `core/.../data/HolidayTypes.kt`**
+
+`TeachingWeekReorganizationRule` / `TeachingWeekPosition` / `HolidayEndCourseExclusion` /
+`HolidayBeforeCourseExclusion` / `HolidayDayCourseResolution` / `HolidayCourseDisplaySelection`
+
+它们的共同点：**只由 Int / Long / Boolean / String / `Course` 构成**，不碰
+`android.*`、`java.time`、`org.json`、Gson —— 所以**不需要等任何转换**就能进 commonMain。
+包名保持 `com.haooz.chedule.data` 不变，**`:app` 侧 import 一行没改**（同包直接可见）。
+
+> ⚠ 刻意**没有**放进 `com.haooz.chedule.data.holiday` 之类子包：一旦分包，
+> `:app` 里同包的调用点就要逐个加 import，那是纯噪音 diff，会掩盖真正有意义的改动。
+> 等整个集群搬完再考虑分包。
+
+**⑦-c 剩余部分为什么不能一起搬（下次接手直接看这张表，别重新分析）**
+
+| 剩余部分 | 挡路的东西 | 处理难度 |
+|---|---|---|
+| `HolidayManager` | `Context`（→ 已有 `AppStorage`）、`org.json`（→ 已有 `JsonSupport`）、Gson、`@Synchronized`、**`CourseRepository` 依赖**（`migrateLegacyFollowDates` 里构造它）、`System.currentTimeMillis()` | 中。`@Synchronized` 在 Kotlin/Native **不存在**，需另找方案（见下） |
+| `TeachingWeekReorganization` object | `java.time` + Gson 的 `Map<String, Any>` 编解码 | 中。`encode()` 的输出是**持久化数据**，换 JSON 库必须逐字对齐 |
+| `HolidayCourseExclusion` object | `LocalDate` / `LocalTime` | 低，但调用点传 `LocalDate` |
+| `HolidayCountdown` | 4 个 `java.time` 类型 + `LocalDate.MIN/MAX`（kotlinx-datetime **没有** MIN/MAX 常量）+ `Math.addExact`（`java.lang.Math` 在 Native 上不存在） | 中高 |
+
+> ⚠ **`LocalDate.MIN` / `LocalDate.MAX` / `Math.addExact`** 是这次盘点新发现的两个坑，
+> 之前文档没记。`HolidayCountdown` 与 `CourseScheduleDateBounds` 都用 `LocalDate.MIN/MAX`
+> 做边界哨兵，`TeachingWeekReorganization` 用 `Math.addExact` 做溢出保护（外面套 `runCatching`）。
+> kotlinx-datetime 需要自建常量与溢出安全的加减helper。
+
 ### 🔍 独立核对结论（提交 `7c88e5a` 前做过，别再重复验证）
 
 对最高风险的逐字移植部分做了**独立交叉核对**（另一个 agent 用 `git diff --no-index`
@@ -418,8 +472,9 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 按阻塞类型分组：
 
-- **纯日期**：`CourseScheduleDateBounds`（293 行，只有 `java.time`）—— 但被 `Holidays.kt` 的
-  **类型集群**挡住（`HolidayManager` / `TeachingWeekReorganization` 等类型都定义在那个 1782 行的文件里）
+- **纯日期**：`CourseScheduleDateBounds`（293 行，只有 `java.time`）—— 原先被 `Holidays.kt`
+  的**类型集群**挡住，**该集群已拆开**（见 ⑦）。现在唯一挡路的是 **`java.time` 本身**：
+  换成 kotlinx-datetime 才是它进 `:core` 的前置条件
 - **Gson**：`CourseRepository` / `ScheduleAppearance` / `TimeConfigSnapshotParser` … ——
   需 `@Serializable` + **显式字段清单**，属**最高风险 R2**，必须有真实用户备份做 round-trip 回归
 - **文件 IO**：`ScheduleBackup`（还差 WebDAV + 提醒依赖）；其余 `java.io` 引用多为导入导出
@@ -745,7 +800,7 @@ Android actual **必须继续走 SharedPreferences**，否则老用户数据全�
 | 文件                                                   |    行数 | 难点                                                |
 | ---------------------------------------------------- | ----: | ------------------------------------------------- |
 | `CourseRepository.kt`                                | 2,810 | 全局单例 → KN 线程模型，需改显式注入                             |
-| `Holidays.kt`                                        | 1,781 | 3 处 android import（Context/Log/SharedPreferences） |
+| ~~`Holidays.kt`~~                                    | 1,781 | **已拆成 4 个文件**（见 ⑦）；`HolidayManager.kt` 仍差 Context/SharedPreferences/org.json/Gson，`TeachingWeekReorganization.kt` 差 `java.time`+Gson |
 | `ScheduleAppearance.kt`                              |   610 | 9 处 android import，含 Bitmap 处理                    |
 | `ScheduleBackup.kt`                                  |   450 | 文件 IO                                             |
 | `SchoolIndex` / `ScriptRepository` / `StatsReporter` |   522 | OkHttp + 文件                                       |
@@ -884,7 +939,7 @@ nativeMain   **未实现，调用即抛** → 接 iOS 前必须替换（见下�
 这两个模块做不到编译门禁 —— **Compose Multiplatform 不支持 `linuxX64`**，
 而 iOS 目标需要 macOS 宿主。退化为根项目的 `checkKmpPurity` 任务：
 
-- 扫描 `core` / `backdrop` / `miuix` 的 `commonMain` + `skikoMain`（171 个文件）
+- 扫描 `core` / `backdrop` / `miuix` 的 `commonMain` + `skikoMain`（173 个文件）
 - 规则覆盖已发现的全部坑：`@Volatile`（无限定时）、`synchronized`、`Dispatchers.IO`、
   `java.*` / `kotlin.jvm.*` 导入、`System.currentTimeMillis`、`String.format`、
   `String.toByteArray()`、`::class.java`、`java.io.*`、`Thread`
@@ -940,7 +995,7 @@ nativeMain   **未实现，调用即抛** → 接 iOS 前必须替换（见下�
 2. 按「剩余工作量」那张表挑一个**阻塞簇**做，别挑单个文件：
    - 想解锁最多文件 → **Gson / `java.time` 的阻塞簇**（文件与网络抽象已就位，见「阶段 3.1」）
    - 想降低最大风险 → **Gson 迁移**（R2），但**必须先有真实用户备份做 round-trip 回归**
-   - 想推进日期 → 得先拆 `Holidays.kt` 的类型集群，否则 `CourseScheduleDateBounds` 动不了
+   - 想推进日期 → **直接做 `java.time` → kotlinx-datetime**（`Holidays.kt` 的类型集群已拆完，不再是前提）
 3. 每批结束都要：`:app:assembleDebug` 通过 + 门禁三条绿 + 真机过一遍受影响的界面
 
 ### 如果你是 iOS 侧开发者
