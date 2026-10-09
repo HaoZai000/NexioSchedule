@@ -122,12 +122,10 @@ import top.yukonga.miuix.kmp.basic.VerticalDivider
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Album
 import top.yukonga.miuix.kmp.icon.extended.Background
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Image
-import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
@@ -208,9 +206,8 @@ fun CustomizeScheduleScreen(
     appearance: AppearanceConfig = AppearanceConfig(),
     onAppearanceChange: (AppearanceConfig) -> Unit = {},
     hasWallpaper: Boolean = false,
-    /** 预览页：0=今日，1=课程表；椭圆滑块与取消/应用同一行 */
+    /** 预览页：0=今日，1=课程表 */
     previewPage: Int = 0,
-    onPreviewPageChange: (Int) -> Unit = {},
 ) {
     val densityObj = LocalDensity.current
     val density = densityObj.density
@@ -981,18 +978,6 @@ fun CustomizeScheduleScreen(
                         val applyHighlight =
                             remember(animationScope) { InteractiveHighlight(animationScope) }
                         val hapticFeedback = LocalHapticFeedback.current
-                        val resolvedPreview = previewPage.coerceIn(0, 1)
-                        // 选中滑块位置动画：0=今日，1=课程表
-                        val thumbProgress = remember { Animatable(if (previewPage.coerceIn(0, 1) == 1) 1f else 0f) }
-                        LaunchedEffect(resolvedPreview) {
-                            thumbProgress.animateTo(
-                                targetValue = if (resolvedPreview == 1) 1f else 0f,
-                                animationSpec = tween(
-                                    durationMillis = 280,
-                                    easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
-                                )
-                            )
-                        }
                         Box(
                             modifier = Modifier
                                 .width(84.dp)
@@ -1045,85 +1030,6 @@ fun CustomizeScheduleScreen(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium
                             )
-                        }
-                        // 中段：今日 / 课程表 预览切换（椭圆滑块，与取消/应用同行）
-                        Box(
-                            modifier = Modifier
-                                .width(120.dp)
-                                .height(40.dp)
-                                .drawBackdrop(
-                                    backdrop = liquidGlassBackdrop,
-                                    shape = { ContinuousCapsule() },
-                                    effects = {
-                                        vibrancy()
-                                    },
-                                    highlight = null,
-                                    shadow = { Shadow(alpha = 0.3f) },
-                                    onDrawSurface = { drawRect(exitContainerColor) }
-                                )
-                                .padding(3.dp)
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                // 滑块：0.1f 白底，叠在图标下方左右滑动
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .fillMaxWidth(0.5f)
-                                        .graphicsLayer {
-                                            translationX = thumbProgress.value * size.width
-                                        }
-                                        .clip(ContinuousCapsule())
-                                        .background(Color.White.copy(alpha = 0.1f))
-                                )
-                                Row(modifier = Modifier.fillMaxSize()) {
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxHeight()
-                                            .clickable(
-                                                interactionSource = null,
-                                                indication = null,
-                                                role = Role.Button,
-                                                onClick = {
-                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                                    if (resolvedPreview != 0) onPreviewPageChange(0)
-                                                }
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = MiuixIcons.Album,
-                                            contentDescription = "今日",
-                                            modifier = Modifier.size(20.dp),
-                                            tint = if (resolvedPreview == 0) Color.White
-                                            else Color.White.copy(alpha = 0.75f)
-                                        )
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxHeight()
-                                            .clickable(
-                                                interactionSource = null,
-                                                indication = null,
-                                                role = Role.Button,
-                                                onClick = {
-                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                                    if (resolvedPreview != 1) onPreviewPageChange(1)
-                                                }
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = MiuixIcons.Months,
-                                            contentDescription = "课程表",
-                                            modifier = Modifier.size(20.dp),
-                                            tint = if (resolvedPreview == 1) Color.White
-                                            else Color.White.copy(alpha = 0.75f)
-                                        )
-                                    }
-                                }
-                            }
                         }
                         Box(
                             modifier = Modifier
@@ -1439,18 +1345,20 @@ fun CustomizeScheduleScreen(
                     }
                     SheetCard {
                         Column {
-                            SliderItem(
-                                label = "卡片着色程度",
-                                value = cardAlphaValue,
-                                valueRange = 0f..1f,
-                                keyPoints = listOf(0.15f),
-                                enabled = true,
-                                onValueChange = { cardAlphaValue = it },
-                                quantize = { (it * 100f).roundToInt() / 100f },
-                                suffix = "%",
-                                displayValue = { (it * 100).roundToInt().toString() },
-                                parseInput = { it.toFloatOrNull()?.let { v -> (v / 100f).coerceIn(0f, 1f) } }
-                            )
+                            if (previewPage == 1) {
+                                SliderItem(
+                                    label = "卡片着色程度",
+                                    value = cardAlphaValue,
+                                    valueRange = 0f..1f,
+                                    keyPoints = listOf(0.15f),
+                                    enabled = true,
+                                    onValueChange = { cardAlphaValue = it },
+                                    quantize = { (it * 100f).roundToInt() / 100f },
+                                    suffix = "%",
+                                    displayValue = { (it * 100).roundToInt().toString() },
+                                    parseInput = { it.toFloatOrNull()?.let { v -> (v / 100f).coerceIn(0f, 1f) } }
+                                )
+                            }
                             SliderItem(
                                 label = "卡片不透明度",
                                 value = cardSurfaceAlphaValue,
@@ -1485,102 +1393,106 @@ fun CustomizeScheduleScreen(
                     }
                 }
                 val customizeSheetContent: @Composable () -> Unit = {
-                    SheetCard {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "显示语录卡片",
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 17.sp,
-                                color = MiuixTheme.colorScheme.onSurface
-                            )
-                            Switch(
-                                checked = showQuoteCardValue,
-                                onCheckedChange = { showQuoteCardValue = it }
-                            )
+                    if (previewPage == 0) {
+                        SheetCard {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "显示语录卡片",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 17.sp,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = showQuoteCardValue,
+                                    onCheckedChange = { showQuoteCardValue = it }
+                                )
+                            }
                         }
                     }
-                    SheetCard {
-                        Column {
-                            SliderItem(
-                                label = "课程卡片高度",
-                                value = cardHeightValue,
-                                valueRange = 34f..92f,
-                                keyPoints = listOf(54f),
-                                enabled = true,
-                                onValueChange = { cardHeightValue = it },
-                                quantize = { (it.roundToInt() / 2 * 2).toFloat() },
-                                suffix = "dp",
-                                displayValue = { it.roundToInt().toString() },
-                                parseInput = { it.toFloatOrNull()?.coerceIn(34f, 92f) }
-                            )
-                            SliderItem(
-                                label = "课程卡片圆角",
-                                value = cardCornerRadiusValue,
-                                valueRange = 0f..48f,
-                                keyPoints = listOf(10f),
-                                enabled = true,
-                                onValueChange = { cardCornerRadiusValue = it },
-                                quantize = { it.roundToInt().toFloat() },
-                                suffix = "dp",
-                                displayValue = { it.roundToInt().toString() },
-                                parseInput = { it.toFloatOrNull()?.coerceIn(0f, 48f) }
-                            )
+                    if (previewPage == 1) {
+                        SheetCard {
+                            Column {
+                                SliderItem(
+                                    label = "课程卡片高度",
+                                    value = cardHeightValue,
+                                    valueRange = 34f..92f,
+                                    keyPoints = listOf(54f),
+                                    enabled = true,
+                                    onValueChange = { cardHeightValue = it },
+                                    quantize = { (it.roundToInt() / 2 * 2).toFloat() },
+                                    suffix = "dp",
+                                    displayValue = { it.roundToInt().toString() },
+                                    parseInput = { it.toFloatOrNull()?.coerceIn(34f, 92f) }
+                                )
+                                SliderItem(
+                                    label = "课程卡片圆角",
+                                    value = cardCornerRadiusValue,
+                                    valueRange = 0f..48f,
+                                    keyPoints = listOf(10f),
+                                    enabled = true,
+                                    onValueChange = { cardCornerRadiusValue = it },
+                                    quantize = { it.roundToInt().toFloat() },
+                                    suffix = "dp",
+                                    displayValue = { it.roundToInt().toString() },
+                                    parseInput = { it.toFloatOrNull()?.coerceIn(0f, 48f) }
+                                )
+                            }
                         }
-                    }
-                    SheetCard {
-                        Column {
-                            val contentAlignmentEntry = DropdownEntry(
-                                items = CardContentAlignment.entries.map { alignment ->
-                                    DropdownItem(
-                                        text = alignment.label,
-                                        selected = cardContentAlignmentValue == alignment,
-                                        onClick = { cardContentAlignmentValue = alignment }
-                                    )
-                                }
-                            )
-                            OverlayDropdownMenu(
-                                title = "卡片内容对齐方式",
-                                entry = contentAlignmentEntry,
-                                collapseOnSelection = true,
-                                liquidGlassBackdrop = LocalSheetContentBackdrop.current
-                                    ?: liquidGlassBackdrop,
-                                dropdownColors = liquidGlassDropdownColors,
-                            )
-                            val textColorEntry = DropdownEntry(
-                                items = CardTextColor.entries.map { color ->
-                                    DropdownItem(
-                                        text = color.label,
-                                        selected = cardTextColorValue == color,
-                                        onClick = { cardTextColorValue = color }
-                                    )
-                                }
-                            )
-                            OverlayDropdownMenu(
-                                title = "卡片文字颜色",
-                                entry = textColorEntry,
-                                collapseOnSelection = true,
-                                liquidGlassBackdrop = LocalSheetContentBackdrop.current
-                                    ?: liquidGlassBackdrop,
-                                dropdownColors = liquidGlassDropdownColors,
-                            )
-                            SliderItem(
-                                label = "卡片文字缩放比例",
-                                value = cardTextScaleValue,
-                                valueRange = 0.5f..2.0f,
-                                keyPoints = listOf(1.0f),
-                                enabled = true,
-                                onValueChange = { cardTextScaleValue = it },
-                                quantize = { (it * 10f).roundToInt() / 10f },
-                                suffix = "x",
-                                displayValue = { "%.1f".format(it) },
-                                parseInput = { it.replace(',', '.').toFloatOrNull()?.coerceIn(0.5f, 2.0f) }
-                            )
+                        SheetCard {
+                            Column {
+                                val contentAlignmentEntry = DropdownEntry(
+                                    items = CardContentAlignment.entries.map { alignment ->
+                                        DropdownItem(
+                                            text = alignment.label,
+                                            selected = cardContentAlignmentValue == alignment,
+                                            onClick = { cardContentAlignmentValue = alignment }
+                                        )
+                                    }
+                                )
+                                OverlayDropdownMenu(
+                                    title = "卡片内容对齐方式",
+                                    entry = contentAlignmentEntry,
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = LocalSheetContentBackdrop.current
+                                        ?: liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                                val textColorEntry = DropdownEntry(
+                                    items = CardTextColor.entries.map { color ->
+                                        DropdownItem(
+                                            text = color.label,
+                                            selected = cardTextColorValue == color,
+                                            onClick = { cardTextColorValue = color }
+                                        )
+                                    }
+                                )
+                                OverlayDropdownMenu(
+                                    title = "卡片文字颜色",
+                                    entry = textColorEntry,
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = LocalSheetContentBackdrop.current
+                                        ?: liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                                SliderItem(
+                                    label = "卡片文字缩放比例",
+                                    value = cardTextScaleValue,
+                                    valueRange = 0.5f..2.0f,
+                                    keyPoints = listOf(1.0f),
+                                    enabled = true,
+                                    onValueChange = { cardTextScaleValue = it },
+                                    quantize = { (it * 10f).roundToInt() / 10f },
+                                    suffix = "x",
+                                    displayValue = { "%.1f".format(it) },
+                                    parseInput = { it.replace(',', '.').toFloatOrNull()?.coerceIn(0.5f, 2.0f) }
+                                )
+                            }
                         }
                     }
                     SheetCard {
@@ -1623,24 +1535,26 @@ fun CustomizeScheduleScreen(
                             }
                         }
                     }
-                    SheetCard {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "午休晚休分界线",
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 17.sp,
-                                color = MiuixTheme.colorScheme.onSurface
-                            )
-                            Switch(
-                                checked = showBreakDividersValue,
-                                onCheckedChange = { showBreakDividersValue = it }
-                            )
+                    if (previewPage == 1) {
+                        SheetCard {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "午休晚休分界线",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 17.sp,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = showBreakDividersValue,
+                                    onCheckedChange = { showBreakDividersValue = it }
+                                )
+                            }
                         }
                     }
                 }

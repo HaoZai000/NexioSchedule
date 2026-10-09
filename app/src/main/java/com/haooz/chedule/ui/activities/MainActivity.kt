@@ -4773,24 +4773,6 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
                     },
                     hasWallpaper = wallpaperBitmap != null,
                     previewPage = if (selectedTab == 1) 1 else 0,
-                    onPreviewPageChange = { page ->
-                        val target = if (page == 1) 1 else 0
-                        if (selectedTab != target) {
-                            mainTabProgrammatic = true
-                            selectedTab = target
-                            coroutineScope.launch {
-                                try {
-                                    if (navBarStyle == "rail") {
-                                        mainPagerState.scrollToPage(target)
-                                    } else {
-                                        mainPagerState.animateMainTabTo(target)
-                                    }
-                                } finally {
-                                    mainTabProgrammatic = false
-                                }
-                            }
-                        }
-                    },
                 )
             }
         }
