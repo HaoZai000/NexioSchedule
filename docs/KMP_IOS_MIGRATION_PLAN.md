@@ -3,11 +3,99 @@
 > 目标平台：**iOS**（iPad 一并覆盖）  
 > 策略：渐进式，全程不打断 1.6.x 正常发版  
 > 制定日期：2026-10-08 · 最近更新：2026-10-09（Kotlin 2.4.10，AGP 9.2.1，CMP 1.12.0）  
-> 代码状态：`master` `dcd2a92`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
+> 代码状态：`master` `7c88e5a`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
 
 ---
 
-## 🤝 给 iOS 开发者的交接清单（先读这一节）
+## 🔄 接手须知（新会话 / 新人从这一节开始）
+
+> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `7c88e5a`。
+> 三条最重要的事实：**① 有测试没入库 ② 别推翻下面那几条决定 ③ 网络层的 Native 实现是空壳。**
+
+### 1. 现状一句话
+
+`:app` 仍是 Android-only（迁移主体，545 处 Android 专用 import / 111 文件）；
+数据层与 `data/school/` 已整体下沉 `:core`；`:miuix` / `:backdrop` 已是 KMP 模块，
+但 **`skikoMain` 从未针对 Native 编译过**；**iOS 尚未接入** —— 没有 iOS target、没有 Xcode 工程，
+且 `:core` 的 Native HTTP 实现是一个**调用即抛 `NotImplementedError` 的占位**。
+
+### 2. ⚠ 有 15 个测试文件没进版本库（先看这条）
+
+工作区里 `core/src/commonTest/`（10 个）与 `core/src/jvmTest/`（5 个）**未跟踪**，
+共 **160 个用例、全绿**。这是用户的要求（测试不入库），不是遗漏 —— 但它很脆：
+
+| 目录 | 覆盖什么 |
+|---|---|
+| `commonTest` | 存储 round-trip / HTTP 契约 / JSON 语义 / 上报字段契约 / 索引解析 / 隐私同意 / `readAtMost` 边界 |
+| `jvmTest` | 日期等价（73,049 天逐日比对）/ 真实 248 校生产索引 / School·ScriptRepository 行为等价 / **真实 HTTP 实现**的 8MB 上限 |
+
+> **别删、别 `git clean -fd`。** 它们覆盖的正是「错了就丢用户数据」的点
+> （落盘路径、偏好名与键、8MB 上限、日期换算），而且**已经在开发过程中抓到过真实错误**
+> （一次是字段名被抄错、一次是移植时把版本比较改成了数字提取）。
+>
+> 跑法：`./gradlew :core:jvmTest --rerun-tasks`
+>
+> ⚠ **已知不一致，需要拍板**：`core/build.gradle.kts` **已经提交**了测试依赖
+> （`kotlin("test")` + `coroutines-test`）与 `jvmTest` 源集接线，但测试源码没提交。
+> 于是新克隆的仓库里 `:core:check` 跑不到任何测试。要么补提交测试，要么把依赖一并去掉，
+> 别让它一直悬着。
+
+### 3. 下一步做什么（三个候选，各自的阻塞）
+
+| 候选 | 阻塞 / 前提 | 风险 |
+|---|---|---|
+| **拆 `Holidays.kt` 的类型集群**（1782 行巨石） | 无外部依赖，但它挡着 `CourseScheduleDateBounds`（293 行纯日期文件） | 中 —— 该文件承载节假日设置与备份导入导出 |
+| **Gson 迁移**（文档风险表里的 **R2，最高**） | **必须先有真实用户备份做 round-trip 回归**；需 `@Serializable` + 显式字段清单 | 高 —— 数据格式一变，存量用户读不出来 |
+| **Native HTTP** | 需 macOS 定 iOS target；引入 Ktor 会顶掉协程版本（见下方决定表） | 高，但属 iOS 侧独立交付 |
+
+**建议顺序**：先 `Holidays.kt`（不依赖外部数据、解锁文件最多）→ 再 Gson（等拿到真实备份）。
+
+### 4. 每次改完必跑
+
+```bash
+./gradlew :app:assembleDebug          # Android 零回归 —— 这是红线，不许破
+./gradlew :core:check :miuix:check :backdrop:check
+./gradlew :core:compileKotlinLinuxX64 :core:compileTestKotlinLinuxX64   # commonMain/Test 是否平台中立
+./gradlew checkKmpPurity              # 已知 JVM 专有 API 静态扫描
+./gradlew :core:jvmTest --rerun-tasks # 本地测试（未入库，见第 2 条）
+```
+
+> **「能编过」必须问清楚是哪个目标能编过。** 这个项目踩过一次大坑：
+> `:core` 一度只有 android + jvm 两个 **JVM** 目标，commonMain 从未被平台中立的 stdlib
+> 检查过，于是 6 类 JVM 专有 API 共 13 处一路绿灯，真正编 iOS 时会全部失败。
+
+### 5. 本机环境（不看会白踩半天）
+
+| 事项 | 说明 |
+|---|---|
+| PowerShell | **必须是 pwsh 7**；5.1 会把中文输出弄成乱码 |
+| `JAVA_TOOL_OPTIONS` | 跑 `java.exe` 前先 `Remove-Item Env:\JAVA_TOOL_OPTIONS`，否则 `-Dfile.encoding` 被污染 |
+| Python | PATH 里**没有** `python`；用 `C:\Users\43908\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe` |
+| `JAVA_HOME` | `D:\JDK` |
+| 内嵌中文的 pwsh 脚本 | 存成 UTF-8 **带 BOM**，否则 pwsh 7 可能按 ANSI 读 |
+| `.workbuddy/` | 在 `.gitignore` 里 |
+
+### 6. 本地长期笔记（不进 git，换机器就没了）
+
+`.workbuddy/memory/`：`MEMORY.md` 是索引，另有按日期（`2026-10-03` … `2026-10-09`）的详细笔记。
+里面记录了**数据兼容基线 1.5.6 的判据**、时间配置丢失事故的根因、调休补课映射规则、
+TimeConfig 的 4 条序列化通道、服务端部署流程等 —— 都是踩出来的，**建议接手前先读一遍**。
+
+### 7. 已定型、别推翻的决定
+
+| 决定 | 原因 |
+|---|---|
+| 存储 / 文件用**接口 + 启动注入**，不用 expect/actual | 让 `:core` 的 commonMain 保持零平台实现，`linuxX64` 编译门禁才编得过 |
+| **不引入 Ktor** | 实测任何现代 Ktor 都会把全 app 的 `kotlinx-coroutines` 从 1.9.0 顶到 1.10.2 / 1.11.0，而提醒·闹钟·同步·小组件全压在协程上 |
+| 偏好文件名**不做集中常量表** | 手抄错名字 = 老用户数据静默读不出来（曾把 `holiday_settings` 误写成 `holiday_prefs`）；项目共 **17 个**偏好文件名 |
+| Android actual 必须继续走 SharedPreferences / `java.io.File` | 换实现 = 存量用户数据读不出来 |
+| 不引入 `withHostTest {}` | 实测会让 8 个测试因 `Build.MODEL` 为 null 而失败 |
+| `wearable/` 不动 | 不由用户维护 |
+| 版本号由用户自己管 | 审查时不提醒 |
+
+---
+
+## 🤝 给 iOS 开发者的交接清单
 
 > 本节写给接手 iOS 的人：**哪些必须由你实现、哪些已经能直接用、当前验证到什么程度**。
 > 基于 2026-10-09 的代码状态。带 ⚠ 的都是会踩的坑。
@@ -139,7 +227,7 @@ AppFiles.init(
 
 ---
 
-## 📍 当前进展（更新于 2026-10-09 · 已合入 master `dcd2a92`）
+## 📍 当前进展（更新于 2026-10-09 · 已合入 master `7c88e5a`）
 
 > **安全网**：`master` 上打了永久标签 `backup/pre-merge-20261009`（合并前的状态）。
 > 万一发现遗漏，`git branch <名字> backup/pre-merge-20261009` 即可恢复 —— 
@@ -272,6 +360,45 @@ expect 封装写成了两个独立函数，各自调了一次 `rememberNavigatio
 > ⚠ 这套公式差异**只在存在特殊块时**才产生偏移。默认作息 `specialBlocks = null`
 > （即默认没有），所以不是所有用户都会遇到。
 
+**⑥ `ScriptRepository` 下沉 + HTTP 层补齐响应体上限**（提交 `7c88e5a`）
+
+`ScriptRepository`（249 行）不只差 `Context`/`File`/OkHttp，还带两个 JVM 专有依赖
+（`java.io.IOException`、`ByteArrayOutputStream`）。迁移时**逐字移植**了这些易错逻辑，
+未做任何「顺手优化」：防盗链判定、签名链接提取、版本比较（**字符串比较**，不是数字提取）、
+`remoteBase` 的 `.git` 后缀处理、`updateAll` 的三分支与全部 14 条日志文本。
+
+**HTTP 层补齐 `maxBytes`（这一步不能省）**：原实现用 `byteStream()` 边读边计数、
+超过 8MB 立即中止。而「一次性读入内存」的 `HttpService` 无法表达这件事 ——
+直接迁移会把「读取中停手」退化成「读完再检查」，**OOM 已经发生**。因此把上限下推到接口：
+
+```kotlin
+suspend fun get(url, headers = emptyMap(), maxBytes: Long = -1): HttpResult
+class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=true，不抛异常
+```
+
+顺手修掉：这两个仓库原本各自 `new OkHttpClient()`（第 11、12 套连接池），现在复用 `HttpService`。
+
+### 🔍 独立核对结论（提交 `7c88e5a` 前做过，别再重复验证）
+
+对最高风险的逐字移植部分做了**独立交叉核对**（另一个 agent 用 `git diff --no-index`
+机械对照新旧实现 + 边界推演，不依赖注释）。结论：
+
+- **无 BUG**。以下经机械 diff 确认逐字等价：防盗链判定 / 签名链接提取 / 版本比较 /
+  `remoteBase` / 偏好文件名与键 / `updateAll` 三分支与日志 / 8MB 上限的四种组合 / 落盘路径。
+- 提出 3 处并**已全部处理**：
+  1. `IOException → Exception` 会吞掉 `CancellationException` → 两处 catch 显式透传取消。
+     同时把「不完全等价」的两处可观测后果写进 `ScriptRepository` 的 KDoc
+     （不再声称「行为等价」）：`ensureScript` 非 `IOException` 不再逃逸（三个调用点都没有
+     try/catch，以前会崩）；`updateAll` 返回 -1 后调用方会写 `last_update_time`（抑制 7 天自动更新）。
+  2. Android 与 JVM 在「声明长度超限」上不一致（前者空字节、后者部分字节）→ JVM 侧改为同样预检即拒。
+  3. 清理两处因参数移除而变成死变量的 `LocalContext`。
+- 已知**接受**的差异（返回值不变，仅记录）：非 2xx 时新实现会把响应体读进内存后才判状态码
+  （旧实现读过之前就返回）；`readAtMost` 的 `maxBytes <= 0` 分支对生产代码是死代码。
+
+> 关于「测试没覆盖真实实现」这条意见：已补
+> `HttpServiceRealImplTest`（起本地 socket 服务器直打 JVM 真实实现），
+> 覆盖声明长度已知 / chunked 未知长度 / 正好等于上限 / 错误响应四种情形。
+
 ### ⚠️ 仍需真机确认
 
 1. **描边亮度** —— `setColorUniform` 改用 `copy(alpha = 1f)`（alpha 已由
@@ -285,9 +412,9 @@ expect 封装写成了两个独立函数，各自调了一次 `rememberNavigatio
 | 工作量 | 数量 |
 |---|---|
 | `:app` 的 Android 专用 import | **545 处 / 111 文件**（`android.*` / `androidx.core` / `navigationevent` / `activity` …）|
-| `java.time`（阶段 2 日期迁移） | 34 处 |
-| Gson 引用（风险 R2） | 33 处 / 14 文件 |
-| `java.io` 引用 | 20 处 / 12 文件 |
+| `java.time`（阶段 2 日期迁移） | **34 处 import / 19 文件**（含全限定引用则 49 处 / 21 文件）|
+| Gson 引用（**风险 R2**） | 33 处 / 14 文件 |
+| `java.io` 引用 | 18 处（import）/ 11 文件 |
 
 按阻塞类型分组：
 
