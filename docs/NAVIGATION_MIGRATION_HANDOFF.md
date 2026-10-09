@@ -12,22 +12,22 @@
 为什么必须做：CMP 在 iOS 上跑在 `UIViewController` 里，没有 Activity；
 **导航状态原本活在 Android 的 Activity back stack 里，iOS 拿不到**。
 
-**现状：Manifest 23 → 5**
+**现状：Manifest 23 → 4**
 
 | 剩余 Activity | 行数 | 状态 |
 |---|---:|---|
 | `MainActivity` | 5903 | ✅ **宿主**（3 页 pager 常驻底座 + `AppNavHost` 叠加层） |
-| `CourseManageActivity` | 571 | ⬜ 待迁（快捷菜单 + 删除确认 + 课程编辑） |
 | `SwitchScheduleActivity` | 1928 | ⬜ 待迁（**内联 5 个 Composable**，需先抽 `SwitchScheduleScreen`） |
 | `EducationalImportActivity` | 671 | ⛔ **按决定保留**（WebView + `@JavascriptInterface` 平台页） |
 | `ImportAlias` | — | Manifest alias（指向 MainActivity，保留） |
 
-已迁 **15 条路由**：About / Changelog / License / PrivacyPolicy / PreferenceSettings /
+已迁 **16 条路由**：About / Changelog / License / PrivacyPolicy / PreferenceSettings /
 UpdateSettings / Communication / LocalBackup / AppreciateAuthor / ScheduleImport /
 ScheduleExport / ScheduleBackup / AiImport / WidgetIntro / CourseReminder / HolidaySettings /
-WebDavSettings / CourseTimeSettings。
+WebDavSettings / CourseTimeSettings / CourseManage。
 
-代码基线：`master` `fcb77c1` → 增量 6 在 `1c6d2e7` 之上（未提交的增量见 `git status`）。
+代码基线：`master` `fcb77c1`；增量 6（CourseTimeSettings `da3bdf9`）、增量 7（CourseManage）
+都在 `1c6d2e7` 之上。
 
 ---
 
@@ -126,6 +126,24 @@ MainActivity.setContent
     都注册了该监听 → **刷新本来就会发生**，回调是冗余的。
     ⇒ 迁移时先确认写路径有没有发广播，**有就直接删回调**，不要再造路由结果机制。
 
+11. **`DocumentPageScaffold` 的 `overlay` 在模糊层「内部」**
+    课程管理页的快捷菜单（长按卡片弹出：遮罩 + 卡片快照 + `ShortcutMenu`）在原 Activity 里
+    是**根 Box 的兄弟**、不跟着背景一起模糊/缩放。它不能塞进 `overlay`
+    （`overlay` 在采样层里、且会被外层的 `Modifier.blur` 吃到），
+    必须留在 route 函数的根 `Box` 里当外层 `Box` 的兄弟。
+    判据很简单：**这块内容要不要跟着背景一起模糊** —— 要就用 `overlay`，不要就放根 Box。
+
+12. **`DisposableEffect` 的清理时机从「Activity finish」变成「路由弹出」**
+    课程管理页用它在离开时删掉「本次新建但没编辑过」的空课程。
+    路由弹出 → 组合退出 → `onDispose` 触发，语义一致。
+    ⚠ 但要注意：宿主重建（旋转、进程回收）也会走一次 dispose → 清理，
+    这与原 Activity 行为相同，不是新增问题。
+
+13. **子页里的 `viewModel()` 现在拿到的是宿主的实例**
+    原来每个 Activity 有独立 ViewModelStore，`CourseManageActivity` 里的 `CourseViewModel`
+    是新实例；单宿主后与 `MainActivity` 共用同一个。好处是改完课返回主界面立刻是新的；
+    ⚠ 若某页依赖「自己的 ViewModel 是干净的」，要显式传或自己 `viewModel(key=...)`。
+
 ---
 
 ## 五、顺带修掉的真实缺陷（与导航无关，记档）
@@ -143,12 +161,13 @@ MainActivity.setContent
 1. ✅ **迁 `CourseTimeSettingsActivity`**（332 行）—— 已完成。
    它不是普通文档页：外层「背景缩放 + 模糊」动画 + 二级编辑页渲染在 `Scaffold` 外，
    迁移时整体搬进了 `CourseTimeSettingsRoute`，骨架套 `DocumentPageScaffold`。
-2. **迁 `CourseManageActivity`**（571 行）：快捷菜单、删除确认、课程编辑全在 Activity 里，
-   结构与上一页同构（可直接照抄 `CourseTimeSettingsRoute`）。
+2. ✅ **迁 `CourseManageActivity`**（571 行）—— 已完成。快捷菜单、删除确认、课程编辑
+   全在 Activity 里，结构与时间设置页同构；多出来的三块叠加内容
+   （`CourseEditScreen` / 快捷菜单遮罩+快照 / `ShortcutMenu`）留在根 `Box`（见坑 11）。
 3. **迁 `SwitchScheduleActivity`**（1928 行）：先把内联的 `SwitchScheduleScreen`
    （5 个 Composable）抽成独立文件，再按套路走。
 4. 之后：`HttpService.native`（iOS 硬阻塞）/ 建 `:ui-shared`（`AppRouteContent`、
-   `DocumentPageScaffold`、15 个 Screen 的归宿）。
+   `DocumentPageScaffold`、16 个 Screen 的归宿）。
 5. **别动**：`EducationalImportActivity`（WebView 平台页）；Gson 的 10 个文件全在
    `:app` UI 层，**现阶段不需要动**（阶段 5 搬 UI 时才必须清）。
 

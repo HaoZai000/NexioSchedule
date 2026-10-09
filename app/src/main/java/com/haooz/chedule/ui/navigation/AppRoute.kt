@@ -130,6 +130,11 @@ sealed interface AppRoute {
         override val id: String get() = "course_time_settings"
     }
 
+    /** 课程管理（「课程管理」）。 */
+    data object CourseManage : AppRoute {
+        override val id: String get() = "course_manage"
+    }
+
     companion object {
         /** 按 [id] 还原路由；未知 id 返回 null（版本回退/脏数据时由调用方兜底）。 */
         fun fromId(id: String): AppRoute? = when (id) {
@@ -151,6 +156,7 @@ sealed interface AppRoute {
             HolidaySettings.id -> HolidaySettings
             WebDavSettings.id -> WebDavSettings
             CourseTimeSettings.id -> CourseTimeSettings
+            CourseManage.id -> CourseManage
             else -> null
         }
     }

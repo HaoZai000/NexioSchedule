@@ -3182,6 +3182,8 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
                         // 「更多」与顶栏同源问题：外层 chrome 主题跟 selectedTab 变，
                         // 切到设置页时未移出屏幕的「更多」会跳色。今日/课程表壁纸已恒同步
                         PageLockedTopBarTheme(wallpaperForcedDark) {
+                        // LocalAppRouter.current 必须在组合层取（onClick lambda 里取不到）
+                        val popupRouter = LocalAppRouter.current
                         MorePopupMenus(
                                     showMorePopup = showMorePopup,
                                     onMorePopupDismiss = { showMorePopup = false },
@@ -3205,8 +3207,9 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
                                     // 外面再 snapTo/animateTo 一遍会和它互相 cancel，动画直接卡死。
                                     onJumpWeek = { viewModel.showJumpWeekDialog() },
                                     onCourseManage = {
-                                        val intent = Intent(context, CourseManageActivity::class.java)
-                                        context.startActivity(intent)
+                                        popupRouter.navigate(
+                                            com.haooz.chedule.ui.navigation.AppRoute.CourseManage
+                                        )
                                     },
                                     onEnterCustomize = {
                                         coroutineScope.launch {
