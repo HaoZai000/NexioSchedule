@@ -91,25 +91,36 @@
 为什么必须做：CMP 在 iOS 上跑在 `UIViewController` 里，没有 Activity；
 **导航状态原本活在 Android 的 Activity back stack 里，iOS 拿不到**。
 
-**现状：Manifest 23 → 3 —— Activity 侧已收工**
+**现状：Manifest 23 → 2 —— Activity 侧已彻底收工**（2026-10-10 更新）
 
 | 剩余 Activity | 行数 | 状态 |
 |---|---:|---|
-| `MainActivity` | 5903 | ✅ **宿主**（3 页 pager 常驻底座 + `AppNavHost` 叠加层） |
-| `EducationalImportActivity` | 671 | ⛔ **按决定保留**（WebView + `@JavascriptInterface` 平台页） |
+| `MainActivity` | 5903 | ✅ **唯一宿主**（3 页 pager 常驻底座 + `AppNavHost` 叠加层） |
 | `ImportAlias` | — | Manifest alias（指向 MainActivity，保留） |
 
+> **`EducationalImportActivity` 已删除**（2026-10-10）。原「⛔ 按决定保留」被**推翻** ——
+> 用户明确「彻底单 Activity，只能有 MainActivity 一个」。去向：
+> - 页面 UI → `ui/screens/EducationalImportScreen.kt`（约 480 行，两个分支：学校选择 + WebView 导入）
+> - 脚本索引更新器（原 companion 的 updateScope/状态流/startUpdate/forceUpdate）→ 同文件的
+>   `EduImportUpdater` 对象，逻辑逐字保留
+> - 启动方式：`AppRoute.EducationalImport` 路由（进入路由即触发过期自动更新，原 onCreate 时机）
+> - 返回 = `router.popBack()`；多窗状态 = 宿主 MainActivity 的 `isInFreeformWindow`；
+>   系统栏 / `adjustResize` / `configChanges` 与原 Manifest 条目逐项同款（宿主已覆盖）
+> - 两个 `startActivity` 启动点改为 `router.navigate`：`BackupAndMigrationScreen`（手机设置页）/
+>   `TabletSettingsScreen`（平板设置左栏 jumpActivity 分支）
+> - WebView 注入（`@JavascriptInterface` 链路）**原样留在 Screen 文件内**，注入细节后置处理
+>
 > **`SwitchScheduleActivity` 是死代码，已直接删除**（见坑 15）。它没有路由 —— 也不需要：
 > 手机端在 `MainActivity` 里内联渲染 `SwitchScheduleScreen`（带卡片形变动画，与路由转场冲突），
 > 平板走 `TabletSwitchSchedulePane`。**不是所有 Activity 都要变成路由。**
 
-已迁 **19 条路由**（`AppRoute.kt` 实测 `data object` 数量，早期文档写的 16 条是旧数，以这条为准）：
+已迁 **20 条路由**（`AppRoute.kt` 实测 `data object` 数量，早期文档写的 16/19 条是旧数，以这条为准）：
 About / Changelog / License / PrivacyPolicy / PreferenceSettings / UpdateSettings /
 Communication / LocalBackup / AppreciateAuthor / ScheduleImport / ScheduleExport /
 ScheduleBackup / AiImport / WidgetIntro / CourseReminder / HolidaySettings / WebDavSettings /
-CourseTimeSettings / CourseManage。
+CourseTimeSettings / CourseManage / **EducationalImport**。
 
-（19 条 = 「About 系 4 + 设置系 4 + 数据管理 3 + 带额外元素 8」；课程管理/时间设置是带内部
+（20 条 = 「About 系 4 + 设置系 4 + 数据管理 3 + 带额外元素 9」；课程管理/时间设置是带内部
 二级页的两个大页，也走路由。**切换课表不走路由**，原因见下方坑 14。）
 
 代码基线：`master` `6367c55`。导航侧最后一个提交是

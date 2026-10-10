@@ -68,7 +68,6 @@ import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
-import android.content.Intent
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.activities.AboutScreen
@@ -490,6 +489,8 @@ fun TabletSettingsScreen(
                                     insideMargin = PaddingValues(0.dp)
                                 ) {
                                     Column(modifier = Modifier.fillMaxWidth()) {
+                                        // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
+                                        val settingsRouter = LocalAppRouter.current
                                         dests.filterNot { it in StandaloneDests || it in BottomMoreDests }
                                             .forEach { dest ->
                                                 val jumpActivity =
@@ -499,12 +500,8 @@ fun TabletSettingsScreen(
                                                     isSelected = !jumpActivity && dest == selected,
                                                     onSelect = {
                                                         if (jumpActivity) {
-                                                            context.startActivity(
-                                                                android.content.Intent(
-                                                                    context,
-                                                                    com.haooz.chedule.ui.activities.EducationalImportActivity::class.java
-                                                                )
-                                                            )
+                                                            // 单 Activity：教务导入走路由，不再 startActivity
+                                                            settingsRouter.navigate(AppRoute.EducationalImport)
                                                         } else {
                                                             TabletSettingsUiState.selected = dest
                                                         }

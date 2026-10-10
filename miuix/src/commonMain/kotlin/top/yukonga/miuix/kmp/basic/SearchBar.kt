@@ -3,9 +3,6 @@
 
 package top.yukonga.miuix.kmp.basic
 
-import android.annotation.SuppressLint
-import android.graphics.BlurMaskFilter
-import android.graphics.Paint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.Animatable
@@ -53,11 +50,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -70,9 +64,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigationevent.NavigationEventInfo
-import androidx.navigationevent.compose.NavigationBackHandler
-import androidx.navigationevent.compose.rememberNavigationEventState
 import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.edgelight.rememberDefaultEdgeLight
 import com.kyant.backdrop.edgelight.isSystemLightTheme
@@ -88,6 +79,8 @@ import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.basic.SearchCleanup
+import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
+import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.hasFocusReassignBug
@@ -127,7 +120,6 @@ fun SearchBar(
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
-    val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
     // 折射随材质档位：最佳保留，均衡及更省档关闭（与液态玻璃按钮一致）
     val chromeLens = chromeLensEnabled
 
@@ -238,12 +230,14 @@ fun SearchBar(
         }
     }
 
-    NavigationBackHandler(
-        state = navigationEventState,
-        isBackEnabled = expanded,
+    // 收起搜索走模块内 expect 封装（commonMain 不直接依赖 AndroidX navigationevent）。
+    // 本组件不读手势进度，用只处理完成态的便捷入口即可。
+    NavigationBackHandlerFor(
+        enabled = expanded,
         onBackCompleted = {
             currentOnExpandedChange(false)
         },
+        onBackCancelled = {},
     )
 }
 
@@ -263,7 +257,6 @@ fun SearchBar(
  * @param trailingIcon 后置图标
  * @param interactionSource 交互源
  */
-@SuppressLint("UseKtx")
 @Composable
 fun InputField(
     query: String,
@@ -387,8 +380,8 @@ fun InputField(
             val isLightTheme = resolveIsLightTheme()
             val containerColor = if (isLightTheme) Color(0xFFFAFAFA).copy(0.76f)
                 else Color(0xFF242424).copy(0.84f)
-            val shadowColor = if (isLightTheme) android.graphics.Color.parseColor("#12000000")
-                else android.graphics.Color.parseColor("#20000000")
+            // 与原 android.graphics.Color.parseColor("#12000000"/"#20000000") 等价（同 ARGB 值）
+            val shadowColor = if (isLightTheme) Color(0x12000000) else Color(0x20000000)
             // 记得住引用：drawBackdrop 按引用比较 effects，每帧新建会导致重新录制采样层
             val containerEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens) {
                 {
@@ -414,22 +407,12 @@ fun InputField(
                                             is Outline.Rectangle -> addRect(outline.rect)
                                         }
                                     }
-                                    val path = composePath.asAndroidPath()
-                                    val paint = Paint().apply {
-                                        color = android.graphics.Color.argb(
-                                            (android.graphics.Color.alpha(shadowColor) * 1f).coerceAtMost(255f).toInt(),
-                                            android.graphics.Color.red(shadowColor),
-                                            android.graphics.Color.green(shadowColor),
-                                            android.graphics.Color.blue(shadowColor)
-                                        )
-                                        maskFilter = BlurMaskFilter(
-                                            blurRadius.coerceAtLeast(0.1f),
-                                            BlurMaskFilter.Blur.NORMAL
-                                        )
-                                    }
-                                    drawIntoCanvas { canvas ->
-                                        canvas.nativeCanvas.drawPath(path, paint)
-                                    }
+                                    // 模糊阴影走跨平台绘制（android=BlurMaskFilter / skiko=Skia MaskFilter）
+                                    drawBlurredPathShadow(
+                                        path = composePath,
+                                        color = shadowColor,
+                                        blurRadius = blurRadius.coerceAtLeast(0.1f),
+                                    )
                                 }
                             }
                         } else Modifier

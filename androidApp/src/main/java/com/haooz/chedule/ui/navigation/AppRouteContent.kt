@@ -91,6 +91,8 @@ import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.CourseEditScreen
+import com.haooz.chedule.ui.screens.EduImportUpdater
+import com.haooz.chedule.ui.screens.EducationalImportScreen
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
 import com.haooz.chedule.ui.utils.ApiCompat
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
@@ -228,6 +230,7 @@ fun AppRouteContent(
         AppRoute.WebDavSettings -> WebDavSettingsRoute(router)
         AppRoute.CourseTimeSettings -> CourseTimeSettingsRoute(router)
         AppRoute.CourseManage -> CourseManageRoute(router)
+        AppRoute.EducationalImport -> EducationalImportRoute(router)
     }
 }
 
@@ -1214,5 +1217,31 @@ private fun AboutRoute(router: AppRouter) {
         onBack = { router.popBack() },
         liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(),
         onNavigate = { router.navigate(it) },
+    )
+}
+
+/**
+ * 教务系统导入（原 `EducationalImportActivity`，673 行，2026-10-10 并入单 Activity 路由）。
+ *
+ * 与原 Activity 的对应关系：
+ * - `onCreate` 里的 `startUpdate(this)` → 进入路由即 `startUpdateIfNeeded()`（原时机）
+ * - `finish()` → `router.popBack()`（原「退出页面」语义；WebView 分支的内部返回由 Screen 自管）
+ * - `onMultiWindowModeChanged` → 宿主 MainActivity 的 `isInFreeformWindow`（经 [isInFreeformWindow] 读取）
+ * - `forceUpdate(context)`（Toast 结果）→ [EduImportUpdater.forceUpdate]，Context 用组合期的 LocalContext
+ * - 系统栏 / adjustResize / configChanges：MainActivity 的 Manifest 条目已覆盖（与原条目逐项同款）
+ */
+@Composable
+private fun EducationalImportRoute(router: AppRouter) {
+    LaunchedEffect(Unit) { EduImportUpdater.startUpdateIfNeeded() }
+    val isUpdating by EduImportUpdater.isUpdating.collectAsState()
+    val dataVersion by EduImportUpdater.dataVersion.collectAsState()
+    val toastContext = LocalContext.current
+
+    EducationalImportScreen(
+        isInFreeformWindow = isInFreeformWindow(),
+        isUpdating = isUpdating,
+        dataVersion = dataVersion,
+        onForceUpdate = { EduImportUpdater.forceUpdate(toastContext) },
+        onFinish = { router.popBack() },
     )
 }

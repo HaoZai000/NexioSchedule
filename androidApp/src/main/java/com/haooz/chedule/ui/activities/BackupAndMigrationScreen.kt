@@ -4,7 +4,6 @@ package com.haooz.chedule.ui.activities
 import com.haooz.chedule.data.HolidayEntry
 
 import android.annotation.SuppressLint
-import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -300,9 +299,8 @@ fun BackupAndMigrationScreen(
                                 title = "教务系统导入",
                                 summary = "从学校教务系统一键拉取课表",
                                 onClick = {
-                                    context.startActivity(
-                                        Intent(context, EducationalImportActivity::class.java)
-                                    )
+                                    // 单 Activity：教务导入走路由，不再 startActivity
+                                    aiImportRouter.navigate(AppRoute.EducationalImport)
                                 }
                             )
                         }

@@ -135,6 +135,17 @@ sealed interface AppRoute {
         override val id: String get() = "course_manage"
     }
 
+    /**
+     * 教务系统导入（「教务系统导入」）。
+     *
+     * 2026-10-10 由独立的 `EducationalImportActivity` 并入单 Activity 路由系统
+     *（按「全应用只能有 MainActivity 一个 Activity」的决定）。页面本体见
+     * `ui/screens/EducationalImportScreen.kt`；WebView 注入仍为 Android 专有。
+     */
+    data object EducationalImport : AppRoute {
+        override val id: String get() = "educational_import"
+    }
+
     companion object {
         /** 按 [id] 还原路由；未知 id 返回 null（版本回退/脏数据时由调用方兜底）。 */
         fun fromId(id: String): AppRoute? = when (id) {
@@ -157,6 +168,7 @@ sealed interface AppRoute {
             WebDavSettings.id -> WebDavSettings
             CourseTimeSettings.id -> CourseTimeSettings
             CourseManage.id -> CourseManage
+            EducationalImport.id -> EducationalImport
             else -> null
         }
     }
