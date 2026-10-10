@@ -29,7 +29,10 @@ enum class NavDirection { Push, Pop }
  * ## 「叠加」而不是「替换」—— 这是本次设计里最重要的一个决定
  *
  * 主界面（`CourseScheduleApp`）**永远保持组合**，不参与路由的 save/restore。
- * 子页（关于 / 更新日志 / …）以叠加层的方式压在主界面**之上**，出栈时销毁。
+ * 子页（关于 / 更新日志 / …）以叠加层的方式压在主界面**之上**；
+ * **栈内全部子页整栈常驻组合**（2026-10-10 起），出栈时组合才销毁
+ * （saveable 状态由 SaveableStateHolder 继续托管，见 AppNavHost）。
+ * 静止时底层页暂停绘制 —— 等价 Activity back stack：实例全活着，stop 的不画。
  *
  * 这么做的原因：拆 Activity 时代跳到子页，主 Activity 只是 **stop、没有销毁**，
  * 它的**全部组合状态**（pager 位置、壁纸映射、非 saveable 的临时状态）都原样保留。
@@ -74,6 +77,15 @@ class AppRouter {
 
     /** 栈顶下面那一层；不足两层时为 null（此时下层是主界面，不在路由里）。 */
     val underTop: AppRoute? get() = if (stack.size >= 2) stack[stack.size - 2] else null
+
+    /**
+     * 当前路由栈的**只读视图**（下标 0 = 最深的子页，末位 = 栈顶）。
+     *
+     * 供 [AppNavHost] 整栈常驻渲染：栈内每一层都保持组合（像 Activity back stack
+     * 实例全活着），静止时暂停绘制（见 AppNavHost 的绘制三档策略）。
+     * 直接改这个 list 是不允许的 —— 走 [navigate] / [popBack]。
+     */
+    val routes: List<AppRoute> get() = stack
 
     /** 入栈。同一个路由重复入栈是允许的（对应原来重复 startActivity）。 */
     fun navigate(route: AppRoute) {

@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -45,7 +46,12 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * 子页叠加层：渲染当前叠加路由 + 在有子页时接管系统返回。
+ * 子页叠加层：**整栈常驻渲染** + 在有子页时接管系统返回。
+ *
+ * **整栈常驻**（2026-10-10 起，对齐 Activity back stack 的实例语义）：
+ * 栈内每一层都保持组合，任意深度 pop 回去都是活页而非重建；
+ * 静止时按三档暂停绘制（栈顶常画 / 直接下层只在转场·手势时画 / 更深层永不画），
+ * 等价 stop 的 Activity：实例全活着、窗口不画。
  *
  * **转场只有一个进度 `p`**（对齐 1da9c0a8 的 `SecondaryPageTransitionController`）：
  * 栈顶页 `(1-p)×W`、下一层 `-0.24×p×W`、黑幕 `alpha = 0.42×p`。
@@ -58,8 +64,8 @@ import kotlin.math.roundToInt
  * 是 suspend，赶不上当帧绘制，新页会先在最终位置闪一帧）；pop 结束时清 `outgoing`
  * 与 p 拉回 1 也要同帧，否则新栈顶会按 `(1-0)×W` 被摆到屏外。
  *
- * ⚠ 必须用 `SaveableStateHolder`：拆 Activity 时子页是独立 Activity（父 Activity 只 stop），
- * 合并成单宿主后，离开组合的页面必须显式托管，否则返回后滚动位置/折叠进度全丢。
+ * ⚠ 仍必须用 `SaveableStateHolder`：整栈常驻只覆盖**在栈期间**；出栈的页面组合销毁，
+ * 滚动位置/折叠进度由 holder 按 route.id 托管，重开同一页时恢复。
  * 已知取舍：出栈不清状态，重开同一页会回到上次位置（文档页可接受）。
  *
  * 栈空时 `isBackEnabled` 变 false，返回键交还 Android 宿主（MainActivity 的
@@ -174,9 +180,11 @@ fun AppNavHost(
         }
     }
 
-    val topRoute = outgoing ?: router.current
-    // pop 期间「下一层」是新的栈顶；push / 稳定态才是栈顶下面那层
-    val underRoute = if (outgoing != null) router.current else router.underTop
+    // pop 期间仍在屏幕上的那一层已出栈，由 outgoing 单独渲染；栈内其余层走下面的整栈循环
+    val routes = router.routes
+    val lastIndex = routes.lastIndex
+    // 直接下层：push/稳定态是栈顶下面那层；pop 期间是被揭开的层（即当前栈顶）
+    val underIndex = if (outgoing != null) lastIndex else lastIndex - 1
 
     // 屏幕圆角：转场中间态把上层裁成圆角，让它像一张卡片从右边推进来。
     // 只对上层做 —— 下层是被揭开的那一层，不该有轮廓。
@@ -195,9 +203,34 @@ fun AppNavHost(
     }
 
     Box(modifier.fillMaxSize()) {
-        if (underRoute != null) {
-            PageLayer(fraction = { -NAV_PARALLAX * progress.value }) {
-                stateHolder.SaveableStateProvider(underRoute.id) { content(underRoute) }
+        // ── 整栈常驻（2026-10-10 起）：栈内每一层都保持组合，像 Activity back stack
+        // 实例全活着 —— 任意深度 pop 回去都是活页，不是重建。
+        // 绘制三档（等价 stop 的 Activity 不画窗口）：
+        //   栈顶     → 常画
+        //   直接下层 → 只在转场/手势进行中（0<p<1）画 —— 预测性返回露出的是活页
+        //   更深层   → 永远不画（任何 p 下都被完全遮住），只保留组合与状态
+        for (index in routes.indices) {
+            val route = routes[index]
+            val isTop = outgoing == null && index == lastIndex
+            val isDirectUnder = index == underIndex
+            val fraction: () -> Float = when {
+                isTop -> ({ 1f - progress.value })
+                isDirectUnder -> ({ -NAV_PARALLAX * progress.value })
+                // 更深层固定停靠位：p 永远不影响它们
+                else -> ({ -NAV_PARALLAX })
+            }
+            val paused: () -> Boolean = when {
+                isTop -> ({ false })
+                isDirectUnder -> ({ !inFlight() })
+                else -> ({ true })
+            }
+            PageLayer(
+                fraction = fraction,
+                paused = paused,
+                clipShape = if (isTop) screenClipShape else null,
+                inFlight = inFlight,
+            ) {
+                stateHolder.SaveableStateProvider(route.id) { content(route) }
             }
         }
 
@@ -216,13 +249,16 @@ fun AppNavHost(
             )
         }
 
-        if (topRoute != null) {
+        // pop 期间：被弹出的那层（已出栈）仍在屏上，把退出动画播完
+        val outgoingRoute = outgoing
+        if (outgoingRoute != null) {
             PageLayer(
                 fraction = { 1f - progress.value },
+                paused = { false },
                 clipShape = screenClipShape,
                 inFlight = inFlight,
             ) {
-                stateHolder.SaveableStateProvider(topRoute.id) { content(topRoute) }
+                stateHolder.SaveableStateProvider(outgoingRoute.id) { content(outgoingRoute) }
             }
         }
     }
@@ -261,6 +297,7 @@ private fun rememberScreenCornerRadiusPx(): Float {
 @Composable
 private fun PageLayer(
     fraction: () -> Float,
+    paused: () -> Boolean = { false },
     clipShape: Shape? = null,
     inFlight: () -> Boolean = { false },
     content: @Composable () -> Unit,
@@ -268,6 +305,9 @@ private fun PageLayer(
     Box(
         Modifier
             .fillMaxSize()
+            // 暂停绘制：层还在组合里（状态、协程全活着），只是不进渲染管线 ——
+            // 等价 stop 的 Activity 不画窗口。放最外层：暂停时连内层 clip 都跳过。
+            .skipDrawWhen(paused)
             // ⚠ 顺序关键：clip 必须在 layout **之后**（更内层）。
             // 位移是 layout 在「摆放阶段」做的，clip 在内层时它的坐标系跟着
             // 页面一起平移 —— 圆角长在页面自己的角上，整个滑动过程都是圆角卡片
@@ -294,6 +334,36 @@ private fun PageLayer(
  */
 private fun Modifier.clipDuringTransition(shape: Shape?, inFlight: () -> Boolean): Modifier =
     if (shape == null) this else this then TransitionClipElement(shape, inFlight)
+
+/**
+ * 暂停绘制（「整栈常驻」策略的一半，另一半是栈内每层都保持组合）。
+ *
+ * [paused] 在 draw 阶段读 —— 恢复绘制时由 draw 阶段的快照观察自动失效重画；
+ * [SkipDrawElement.update] 里显式 `invalidateDraw()`，覆盖「层角色变化但无进度
+ * 变化」的场景：pop 刚结束时某层从「更深层」升为「栈顶」，paused lambda 整个
+ * 换了引用但没有任何进度帧在跑，不显式失效就没人叫它重画。
+ */
+private fun Modifier.skipDrawWhen(paused: () -> Boolean): Modifier =
+    this then SkipDrawElement(paused)
+
+private data class SkipDrawElement(
+    private val paused: () -> Boolean,
+) : ModifierNodeElement<SkipDrawNode>() {
+    override fun create() = SkipDrawNode(paused)
+    override fun update(node: SkipDrawNode) {
+        node.paused = paused
+        node.invalidateDraw()
+    }
+}
+
+private class SkipDrawNode(
+    var paused: () -> Boolean,
+) : Modifier.Node(), DrawModifierNode {
+    override fun ContentDrawScope.draw() {
+        if (!paused()) drawContent()
+        // paused 时什么都不画：组合、状态、协程全部保留，只是不进渲染
+    }
+}
 
 private data class TransitionClipElement(
     private val shape: Shape,

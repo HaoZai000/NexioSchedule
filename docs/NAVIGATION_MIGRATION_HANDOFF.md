@@ -147,9 +147,15 @@ MainActivity.setContent
 |---|---|
 | `AppRoute.kt` | 路由表。`id` 是持久化契约（`rememberSaveable` 用），**已发布的别改** |
 | `AppRouter.kt` | 返回栈 + `LocalAppRouter`。栈**从空开始**（主界面是底座不是路由） |
-| `AppNavHost.kt` | **单进度 `p` 驱动两层位移 + 黑幕** + `NavigationBackHandler`（含预测性返回）+ `SaveableStateHolder` |
+| `AppNavHost.kt` | **单进度 `p` 驱动整栈位移 + 黑幕** + `NavigationBackHandler`（含预测性返回）+ `SaveableStateHolder`；**整栈常驻 + 三档暂停绘制**（2026-10-10 起，见下） |
 | `NavTransitionState.kt` | 进度持有者（`value` / `animateTo` / `snapTo`）+ 主界面容器 `MainLayerTransition` |
 | `AppRouteContent.kt` | **路由→页面映射表**，阶段 5 整体搬 `:ui-shared` |
+
+> **2026-10-10 更新：路由页改为整栈常驻**。栈内每一层都保持组合（`AppRouter.routes`
+> 只读视图暴露整栈），任意深度 pop 回去都是**活页**而非重建；
+> 静止时按三档暂停绘制（`SkipDrawNode`）：**栈顶常画 / 直接下层只在转场·手势进行中画 /
+> 更深层永不画** —— 等价 Activity back stack：实例全活着、stop 的不画窗口。
+> ⚠ 代价：深层页的 `LaunchedEffect` 也会一直活着（与 stop 的 Activity 同语义）。
 
 ⚠ **转场只有一个进度 `p`**，三层全部由它驱动（对齐 1da9c0a8 的
 `SecondaryPageTransitionController`，它当初在 `ui/utils/ActivityTransitions.kt`）：
