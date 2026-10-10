@@ -1,5 +1,10 @@
 package com.haooz.chedule.ui.navigation
 
+import android.app.Activity
+import android.content.Context
+import android.os.Build
+import android.view.RoundedCorner
+import android.view.WindowManager
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -16,7 +21,17 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
@@ -24,6 +39,7 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutSoftStartEasing
 import com.haooz.chedule.ui.effects.motion.SecondaryPageExitEasing
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -162,6 +178,22 @@ fun AppNavHost(
     // pop 期间「下一层」是新的栈顶；push / 稳定态才是栈顶下面那层
     val underRoute = if (outgoing != null) router.current else router.underTop
 
+    // 屏幕圆角：转场中间态把上层裁成圆角，让它像一张卡片从右边推进来。
+    // 只对上层做 —— 下层是被揭开的那一层，不该有轮廓。
+    val density = LocalDensity.current
+    val cornerRadiusPx = rememberScreenCornerRadiusPx()
+    val screenClipShape = remember(cornerRadiusPx, density) {
+        if (cornerRadiusPx > 0f) {
+            with(density) { ContinuousRoundedRectangle(cornerRadiusPx.toDp()) }
+        } else {
+            null
+        }
+    }
+    val inFlight: () -> Boolean = {
+        val p = progress.value
+        p > 0f && p < 1f
+    }
+
     Box(modifier.fillMaxSize()) {
         if (underRoute != null) {
             PageLayer(fraction = { -NAV_PARALLAX * progress.value }) {
@@ -185,9 +217,36 @@ fun AppNavHost(
         }
 
         if (topRoute != null) {
-            PageLayer(fraction = { 1f - progress.value }) {
+            PageLayer(
+                fraction = { 1f - progress.value },
+                clipShape = screenClipShape,
+                inFlight = inFlight,
+            ) {
                 stateHolder.SaveableStateProvider(topRoute.id) { content(topRoute) }
             }
+        }
+    }
+}
+
+/** 屏幕圆角半径（px）；拿不到时为 0，此时不做裁切。多窗口/自由窗口用固定 20dp。 */
+@Composable
+private fun rememberScreenCornerRadiusPx(): Float {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    return remember(context, density) {
+        try {
+            if ((context as? Activity)?.isInMultiWindowMode == true) {
+                20f * density.density
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val wm = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+                wm?.currentWindowMetrics?.windowInsets
+                    ?.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)?.radius?.toFloat()
+                    ?: 0f
+            } else {
+                0f
+            }
+        } catch (_: Exception) {
+            0f
         }
     }
 }
@@ -202,11 +261,14 @@ fun AppNavHost(
 @Composable
 private fun PageLayer(
     fraction: () -> Float,
+    clipShape: Shape? = null,
+    inFlight: () -> Boolean = { false },
     content: @Composable () -> Unit,
 ) {
     Box(
         Modifier
             .fillMaxSize()
+            .clipDuringTransition(clipShape, inFlight)
             .layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints)
                 layout(placeable.width, placeable.height) {
@@ -214,6 +276,46 @@ private fun PageLayer(
                 }
             },
     ) { content() }
+}
+
+/**
+ * 转场中间态才把页面裁成屏幕圆角，到位后恢复直角 —— 系统窗口本身已有圆角，
+ * Compose 再裁一次会在角上叠出双圆角（1da9c0a8 的 `applyScreenClipDuringTransition`）。
+ *
+ * ⚠ 在 draw 阶段自己 `clipPath`，**不用** `graphicsLayer { clip = true }`：
+ * 后者会给整页套一层离屏 layer，可能干扰页内的 `layerBackdrop` 采样。
+ */
+private fun Modifier.clipDuringTransition(shape: Shape?, inFlight: () -> Boolean): Modifier =
+    if (shape == null) this else this then TransitionClipElement(shape, inFlight)
+
+private data class TransitionClipElement(
+    private val shape: Shape,
+    private val inFlight: () -> Boolean,
+) : ModifierNodeElement<TransitionClipNode>() {
+    override fun create() = TransitionClipNode(shape, inFlight)
+    override fun update(node: TransitionClipNode) {
+        node.shape = shape
+        node.inFlight = inFlight
+    }
+}
+
+private class TransitionClipNode(
+    var shape: Shape,
+    var inFlight: () -> Boolean,
+) : Modifier.Node(), DrawModifierNode {
+    private val path = Path()
+
+    // inFlight() 在这里读进度 → 只 invalidate draw，不会触发重组
+    override fun ContentDrawScope.draw() {
+        if (!inFlight() || size.isEmpty()) {
+            drawContent()
+            return
+        }
+        path.rewind()
+        path.addOutline(shape.createOutline(size, layoutDirection, this))
+        // clipPath 的 block receiver 是 DrawScope，drawContent() 得指名外层
+        clipPath(path) { this@draw.drawContent() }
+    }
 }
 
 /**
