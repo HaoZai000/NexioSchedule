@@ -190,3 +190,62 @@ subprojects {
         dependsOn(purityCheckTask)
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Kotlin/Wasm：不要从 nodejs.org 下载 Node 发行版，用本机已装的
+//
+// 背景：`:backdrop` / `:miuix` 挂了 wasmJs 编译门禁（见各自 build.gradle.kts）。
+// Kotlin/Wasm 插件会为 `kotlinWasmNodeJsSetup` 任务自行注册 Distributions 仓库，
+// 与 settings.gradle.kts 的 FAIL_ON_PROJECT_REPOS 直接冲突：
+//   "repository 'Distributions at https://nodejs.org/dist' was added by unknown code"
+//
+// 官方做法（kotlinlang.org/docs/js-project-setup.html#use-pre-installed-node-js）是
+// 把 EnvSpec.download 置为 false —— 本机 Node v24.16.0 已在 PATH 中。
+//
+// ⚠ 实测（2026-10-10）只做这一步**不够**：即使 download=false，
+// 该仓库仍在配置阶段被注册（注册动作发生在读取 download 之前），冲突依旧。
+// 所以 wasmJs 门禁**刻意不挂在 check 上**，而是独立命令跑：
+//     ./gradlew checkKmpWasmJs
+// 这样 `--offline` 的 Android 零回归门禁（:core:check / :miuix:check / :backdrop:check）
+// 完全不受影响 —— 红线不脏。
+// ─────────────────────────────────────────────────────────────────────────────
+subprojects {
+    plugins.withType<org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsPlugin> {
+        extensions.getByType<org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsEnvSpec>()
+            .download = false
+    }
+}
+
+// wasmJs 编译门禁：独立任务，**不挂 check**（原因见上）。
+//
+// ⚠ 两个 property 必须**同时**给 —— wasmJs 目标默认不存在，只给
+// `-Pnexio.wasm=true` 但目标没声明时，下面 tasks.named 会找不到任务而失败。
+// 所以本任务自己也读 nexio.wasm 来决定要不要配置依赖。
+//
+// 用法：./gradlew -Pnexio.wasm=true checkKmpWasmJs   （首次需联网，需 PATH 中有 Node）
+val wasmGateEnabled = (project.findProperty("nexio.wasm") as? String)?.toBoolean() ?: false
+if (wasmGateEnabled) {
+    tasks.register("checkKmpWasmJs") {
+        group = "verification"
+        description = "编译 wasmJs 目标，验证 commonMain/skikoMain 不含 JVM 专有 API（iOS 移植前的非 JVM 编译门禁）"
+        dependsOn(
+            project(":backdrop").tasks.named("compileKotlinWasmJs"),
+            project(":miuix").tasks.named("compileKotlinWasmJs"),
+        )
+    }
+} else {
+    // 目标不存在时注册一个占位任务，让 `./gradlew checkKmpWasmJs` 不至于
+    // 报 "Task 'checkKmpWasmJs' not found" —— 而是给出明确提示。
+    tasks.register("checkKmpWasmJs") {
+        group = "verification"
+        description = "wasmJs 编译门禁（需 -Pnexio.wasm=true 开启）"
+        doLast {
+            logger.lifecycle(
+                "checkKmpWasmJs: wasmJs 目标默认关闭。请改用：\n" +
+                    "    ./gradlew -Pnexio.wasm=true checkKmpWasmJs\n" +
+                    "（原因见 build.gradle.kts 里 wasmJs 目标处的注释：Kotlin/Wasm 插件会在配置阶段\n" +
+                    " 注册 Distributions 仓库，与 FAIL_ON_PROJECT_REPOS 冲突，导致 --offline 的 Android 门禁跑不了）",
+            )
+        }
+    }
+}

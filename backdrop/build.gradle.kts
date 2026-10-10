@@ -30,13 +30,48 @@ kotlin {
         minSdk = 26
     }
     jvm()
-    // ── 实验性：wasmJs 编译门禁─────────────────────────────────────────────
-    // 目的：skikoMain 只被 jvm 复用，从未针对非 JVM 目标编译过（静态检查挡不住未知 API）。
-    // linuxX64 不可行 —— 实测 CMP 1.12.0 发布的变体只有
+    // ── wasmJs 编译门禁：**默认关闭**，用 -Pnexio.wasm=true 显式开启 ───────────
+    // 目的：skikoMain 此前只被 jvm 目标复用，从未针对非 JVM 目标编译过，
+    // 静态检查（checkKmpPurity）挡不住未知 API。wasmJs 同为非 JVM 目标
+    //（没有 kotlin.jvm.* 默认导入），能拦 @Volatile / synchronized /
+    // Dispatchers.IO 这类「JVM 全绿但 Native 编不过」的污染。
+    //
+    // 为什么不是 linuxX64：实测证伪。CMP 1.12.0 发布的变体只有
     // android / desktop(jvm) / iosArm64 / iosSimulatorArm64 / js / macosArm64 / wasmJs，
-    // 无任何 linux 目标。能在 Windows 上编译的非 JVM 目标只剩 js / wasmJs。
-    wasmJs {
-        browser()
+    // 无任何 linux 目标。挂 linuxX64() 会直接依赖解析失败
+    //（Couldn't resolve ... Unresolved platforms: [linuxX64]）。
+    // 本机 konan 虽有 x86_64-unknown-linux-gnu-gcc 交叉工具链，但没有可链的 klib 变体。
+    //
+    // ⚠ 为什么默认关（实测，与 iOS target 同理）：**只要 wasmJs 目标存在于构建中**，
+    // Kotlin/Wasm 插件就会在**配置阶段**为 `kotlinWasmNodeJsSetup` 注册
+    // Distributions 仓库，与 settings.gradle.kts 的 FAIL_ON_PROJECT_REPOS 硬冲突：
+    //   "repository 'Distributions at https://nodejs.org/dist' was added by unknown code"
+    // 这是配置期失败，与挂不挂 check 无关 —— 连 `--offline` 的 Android 门禁都跑不了。
+    // 把 EnvSpec.download 置 false 也没用（注册发生在读取 download 之前）。
+    // 所以只能让目标默认不存在。
+    //
+    // 用法（首次需联网，且需本机 PATH 中有 Node）：
+    //     ./gradlew -Pnexio.wasm=true checkKmpWasmJs
+    val enableWasm = (project.findProperty("nexio.wasm") as? String)?.toBoolean() ?: false
+    if (enableWasm) {
+        wasmJs {
+            browser()
+        }
+    }
+    // ── iOS target：**默认关闭**，用 -Pnexio.ios=true 显式开启 ──────────────────
+    // 为什么默认关（与 :core 同理，已实测）：一旦声明 iOS target，
+    // `:backdrop:check` / `:miuix:check` 就会去解析 iOS 的 klib 依赖，
+    // 而门禁是 `--offline` 跑的 —— 本地没有这些变体的缓存，直接失败，
+    // 把「Android 零回归」这条红线弄脏。Windows 上本来也编译不了 iOS。
+    //
+    // 已验证可用（2026-10-10，Windows 上纯依赖解析，不需 macOS）：
+    // 声明 iosArm64() 后 `:miuix:dependencies --configuration iosArm64CompileKlibraries`
+    // 全链解析成功 —— 官方 miuix 5 个 artifact **都有 -iosarm64 变体**：
+    //   miuix-squircle / miuix-icons / miuix-blur / miuix-preference / miuix-navigation3-ui
+    // 风险 R6「Miuix 是 fork 的 -android 变体会阻断跨平台」**就此排除**。
+    val enableIos = (project.findProperty("nexio.ios") as? String)?.toBoolean() ?: false
+    if (enableIos) {
+        iosArm64()
     }
 
     sourceSets {
@@ -50,13 +85,22 @@ kotlin {
             // 与 :miuix 一致显式声明，见 miuix/build.gradle.kts:40。
             api("org.jetbrains:annotations:26.1.0")
         }
-        // jvm / wasmJs 目标复用 skikoMain（Skia 实现）。用 srcDir 而不是拷贝一份，
-        // 将来加 iOS/desktop target 时同一份 SkSL 代码直接共享。
+        // jvm 复用 skikoMain（Skia 实现）。用 srcDir 而不是拷贝一份，
+        // 同一份 SkSL 代码跨 Skia 后端共享（wasmJs / iosMain 见下方条件块）。
         jvmMain {
             kotlin.srcDir("src/skikoMain/kotlin")
         }
-        wasmJsMain {
-            kotlin.srcDir("src/skikoMain/kotlin")
+        // 必须条件式：wasmJs / iOS target 默认关闭，此时这些源集不存在，
+        // 无条件引用会配置失败（Unresolved reference 'wasmJsMain' / 'iosMain'）。
+        if (enableWasm) {
+            wasmJsMain {
+                kotlin.srcDir("src/skikoMain/kotlin")
+            }
+        }
+        if (enableIos) {
+            iosMain {
+                kotlin.srcDir("src/skikoMain/kotlin")
+            }
         }
     }
 }
