@@ -5,10 +5,11 @@
 > **②Android 数据层的 KMP 收口**（七节，**D1/D2 已完成**，执行记录见 7.7）。
 > 宏观 KMP 迁移计划见 `docs/KMP_IOS_MIGRATION_PLAN.md`（含 ⑦–⑬ 数据层批次记录），本文不重复。
 >
-> **代码基线**：`master` `057d6ab` + `ca95feb`（**工作区已干净，全部已提交**）。
+> **代码基线**：`master` `057d6ab` + `ca95feb` + `b974cf2`（**工作区已干净，全部已提交**）。
 > Android `assembleDebug` 通过 · `:core:jvmTest` **241 用例全绿（已入库）** ·
 > `checkKmpPurity` 185 文件通过 · `:core:compileKotlinLinuxX64` 通过 ·
-> `:backdrop` / `:miuix` `compileKotlinWasmJs` 通过（`-Pnexio.wasm=true`）。
+> `:backdrop` / `:miuix` `compileKotlinWasmJs` 通过（`-Pnexio.wasm=true`）·
+> `:core:compileKotlinIosArm64` / `IosSimulatorArm64` **在 Windows 上编译通过**（`b974cf2`）。
 
 ## ⚡ 下一手要做的（按优先级）
 
@@ -17,17 +18,20 @@
 
 1. **`:core` 声明 `binaries.framework`** —— iOS 侧 Swift 才能 `import Shared`。
    **不做则 `compileKotlinIosArm64` 绿了也没用**。代码片段见 KMP 计划文档 **A0-1**。
-2. **iOS 首次编译验证（需 macOS）**：`./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64`（要联网）。
-   重点确认 `UserDefaultsStore` 的三处，见 7.7 节末「iOS 侧首次编译必须重点验证的三点」。
-   ⚠ Windows 上跑不了，也别把 iOS target 改成默认开启 —— 会让 `--offline` 门禁挂掉（原因见 7.7）。
+2. **iOS 运行时验证（需 macOS）** —— ✅ **编译部分已在 Windows 上完成**（`b974cf2`，
+   `-Pnexio.ios=true :core:compileKotlinIosArm64` + `IosSimulatorArm64` 均通过，
+   `UserDefaultsStore` / `HttpService.ios` 都已被编译器验证）。
+   macOS 只剩**链接与运行**：跑 7.7 节末的三条运行时验证（NSNumber 装箱等）+ 真机联网。
+   ⚠ iOS target 仍是默认关 —— 开启会让 `--offline` 门禁挂掉（原因见 7.7）。
 3. **建 Xcode 工程时同时做两件事**（漏了会白跑）：
    - `Info.plist` 加 `CADisableMinimumFrameDurationOnPhone = true` —— 否则**一启动就崩**（CMP 1.7.3 强制）
    - 提交 `YourApp.xcodeproj/xcshareddata/xcschemes/` —— 否则 CI 上 `xcodebuild` 报 scheme not found
 4. **接 iOS 启动注入**：iOS 侧对应 `NexioApplication.onCreate` 的三件事 ——
    `AppStorage.init { name -> UserDefaultsStore(name) }`、`AppFiles.init(root, readAsset)`、
    `ScheduleAppearance.init`。参考 KMP 计划文档「给 iOS 开发者的交接清单 A 节」。
-5. **`HttpService.native`**（现在是「调用即抛」的占位）—— **iOS 的硬阻塞**，WebDAV 只等这一处。
-   引入 Ktor 前先读 KMP 计划文档 **A1** 的协程版本警告（会顶掉 1.9.0 → 1.10/1.11）。
+5. ~~**`HttpService.native`**~~ ✅ **已完成**（`b974cf2`）：`iosMain/HttpService.ios.kt`
+   （NSURLSession delegate 流式读，零第三方依赖，**未引入 Ktor**），双 iOS 目标编译通过；
+   占位挪到 `linuxX64Main`。剩下的是**真机运行验证**（WebDAV PROPFIND / 8MB 截断 / 断网抛错）。
 6. **剩余 46 处 `getSharedPreferences` 不要动**（类别 C，理由见 7.7 末）。要动就独立批次 + 真机回归。
 
 ### ✅ 已消除的阻塞（2026-10-10）
@@ -39,6 +43,8 @@
 | `skikoMain` 从未针对非 JVM 目标编译过 | ✅ **已收窄**（`ca95feb`）：wasmJs 编译通过。Native 特有 API（cinterop 等）仍需 macOS |
 | `skikoMain` 未接给 iOS 源集，首次编译必撞 | ✅ **已闭环**：接线代码已写（条件式），且在 wasmJs 上验证过（曾报 10 处 `no actual declaration`，已修） |
 | R6：Miuix 是 fork 的 `-android` 变体会阻断跨平台 | ✅ **已排除**：官方 5 个 artifact 都有 `-iosarm64` 变体（Windows 上纯依赖解析验证） |
+| `HttpService` Native 实现是「调用即抛」占位 → iOS 无法联网 | ✅ **已消除**（`b974cf2`）：NSURLSession delegate 实现，双 iOS 目标编译通过 |
+| 「Windows 上编译不了 iOS」→ iOS 代码只能盲写 | ✅ **推翻一半**（`b974cf2` 实测）：klib **编译**在 Windows 可行（只有链接需 macOS），iOS 代码从此可本机迭代验证 |
 
 ### ⚠ 新增的已知限制：wasmJs 门禁与 `check` 互斥
 
