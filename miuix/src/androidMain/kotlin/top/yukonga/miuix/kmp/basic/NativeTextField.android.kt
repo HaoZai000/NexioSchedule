@@ -1,4 +1,4 @@
-/** 原生 EditText 包装，使用系统原生长按菜单样式 */
+/** 原生 EditText 包装，使用系统原生长按菜单样式 —— [NativeTextField] 的 Android actual（默认值声明在 expect 侧）。 */
 package top.yukonga.miuix.kmp.basic
 
 import android.graphics.Typeface
@@ -20,17 +20,17 @@ import androidx.compose.ui.viewinterop.AndroidView
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun NativeTextField(
+actual fun NativeTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    hint: String = "",
-    textStyle: TextStyle = TextStyle.Default,
-    singleLine: Boolean = true,
-    maxLines: Int = 1,
-    maxLength: Int = Int.MAX_VALUE,
-    textAlign: TextAlign = TextAlign.Start,
-    enabled: Boolean = true
+    modifier: Modifier,
+    hint: String,
+    textStyle: TextStyle,
+    singleLine: Boolean,
+    maxLines: Int,
+    maxLength: Int,
+    textAlign: TextAlign,
+    enabled: Boolean
 ) {
     val textColor = textStyle.color.takeIf { it != Color.Unspecified }
         ?: MiuixTheme.colorScheme.onSurface

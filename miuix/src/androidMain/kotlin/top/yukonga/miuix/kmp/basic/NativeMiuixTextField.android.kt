@@ -51,23 +51,23 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
-fun NativeMiuixTextField(
+actual fun NativeMiuixTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    insideMargin: DpSize = DpSize(16.dp, 16.dp),
-    cornerRadius: Dp = 20.dp,
-    label: String = "",
-    useLabelAsPlaceholder: Boolean = false,
-    enabled: Boolean = true,
-    readOnly: Boolean = false,
-    textStyle: TextStyle = MiuixTheme.textStyles.main,
-    leadingIcon: @Composable (() -> Unit)? = null,
-    trailingIcon: @Composable (() -> Unit)? = null,
-    singleLine: Boolean = false,
-    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
-    minLines: Int = 1,
-    requestFocus: Boolean = false,
+    modifier: Modifier,
+    insideMargin: DpSize,
+    cornerRadius: Dp,
+    label: String,
+    useLabelAsPlaceholder: Boolean,
+    enabled: Boolean,
+    readOnly: Boolean,
+    textStyle: TextStyle,
+    leadingIcon: @Composable (() -> Unit)?,
+    trailingIcon: @Composable (() -> Unit)?,
+    singleLine: Boolean,
+    maxLines: Int,
+    minLines: Int,
+    requestFocus: Boolean,
 ) {
     val isFocused = remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
@@ -281,23 +281,23 @@ fun NativeMiuixTextField(
  * TextFieldValue 版本，用于需要访问光标位置等场景
  */
 @Composable
-fun NativeMiuixTextField(
+actual fun NativeMiuixTextField(
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
-    modifier: Modifier = Modifier,
-    insideMargin: DpSize = DpSize(16.dp, 16.dp),
-    cornerRadius: Dp = 20.dp,
-    label: String = "",
-    useLabelAsPlaceholder: Boolean = false,
-    enabled: Boolean = true,
-    readOnly: Boolean = false,
-    textStyle: TextStyle = MiuixTheme.textStyles.main,
-    leadingIcon: @Composable (() -> Unit)? = null,
-    trailingIcon: @Composable (() -> Unit)? = null,
-    singleLine: Boolean = false,
-    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
-    minLines: Int = 1,
-    requestFocus: Boolean = false,
+    modifier: Modifier,
+    insideMargin: DpSize,
+    cornerRadius: Dp,
+    label: String,
+    useLabelAsPlaceholder: Boolean,
+    enabled: Boolean,
+    readOnly: Boolean,
+    textStyle: TextStyle,
+    leadingIcon: @Composable (() -> Unit)?,
+    trailingIcon: @Composable (() -> Unit)?,
+    singleLine: Boolean,
+    maxLines: Int,
+    minLines: Int,
+    requestFocus: Boolean,
 ) {
     val isFocused = remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }

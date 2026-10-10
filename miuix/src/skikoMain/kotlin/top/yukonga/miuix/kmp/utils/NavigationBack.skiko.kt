@@ -15,8 +15,8 @@ import androidx.compose.runtime.remember
  *
  * handler 为空实现（不注册任何手势，**不会误触发**）：iOS 的系统返回手势由宿主 UIKit
  * 接管，Kotlin 侧拿不到事件。将来在 iOS 入口层接上系统手势后，只需替换这里的
- * `onHandler`，与 Android 侧同形 —— 调用点（DialogContentLayout /
- * BottomSheetContentLayout / ListPopupLayout）无需再改。
+ * `onHandler`，与 Android 侧同形 —— 调用点（DialogContentLayout / ListPopupLayout /
+ * BlurBottomSheet / BlurBottomSheetTablet，后两者 2026-10-10 起也走本封装）无需再改。
  */
 @Composable
 actual fun rememberNavigationBack(): NavigationBackState = remember {

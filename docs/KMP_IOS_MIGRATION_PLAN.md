@@ -545,8 +545,8 @@ wasmJs 同为非 JVM 目标（没有 `kotlin.jvm.*` 默认导入），因此同�
 | 模块 | 源文件 | 行数 | 源集 | 状态 |
 |---|---:|---:|---|---|
 | `:core` | 34 (+15 平台实现) | ~9,365 | common / android / **jvm / linuxX64(门禁)** | **整个数据层**（课程/时间配置/节假日/课表名/文件夹/备份/WebDAV）+ 9 套跨平台抽象 |
-| `:backdrop` | 64 | 5,458 | common / android / skiko | KMP 化，含 edgelight + capsule；**skikoMain 未针对 Native 编译过** |
-| `:miuix` | 103 | 26,464 | common / android / skiko | KMP 化；**skikoMain 未针对 Native 编译过** |
+| `:backdrop` | 64 | 5,458 | common / android / skiko | KMP 化，含 edgelight + capsule；skikoMain 已经 **wasmJs + iOS 编译验证**（2026-10-10） |
+| `:miuix` | 105 | 26,032 | common / android / skiko | KMP 化；**2026-10-10 又推进一批**（见下）：`BlurBottomSheet`×2 迁 commonMain、`NativeTextField`/`NativeMiuixTextField` 改 expect/actual、删除 `OverlayBottomSheet` 死代码 —— 四目标（android/jvm/wasmJs/iosArm64）编译通过，androidMain 从 11 文件/2,917 行瘦身到 **9 文件/1,571 行** |
 | `:androidApp` | 148 | 69,983 | android | Android-only，**剩余迁移主体** |
 
 `:core` 已有的 8 套跨平台能力：`NexioLog`（日志）/ `KeyValueStore`+`AppStorage`（存储）/
@@ -564,9 +564,49 @@ wasmJs 同为非 JVM 目标（没有 `kotlin.jvm.*` 默认导入），因此同�
 
 **编译验证**（务必按目标区分，别笼统说「编得过」）：
 - `:core/commonMain` → `compileKotlinLinuxX64` 通过 ⇒ **Native 目标也能编**（`commonTest` 同）
-- `:backdrop` / `:miuix` 的 `commonMain` + `skikoMain` → 只有 `compileKotlinJvm` / `compileAndroidMain`，
-  **从未针对 Native 编译**；平台专有 API 靠 `checkKmpPurity` 静态兜底
+- `:backdrop` / `:miuix` 的 `commonMain` + `skikoMain` → `compileKotlinWasmJs` +
+  `compileKotlinIosArm64` 均通过（2026-10-10 起，此前「从未针对 Native 编译」已作废）；
+  平台专有 API 仍靠 `checkKmpPurity` 静态兜底（189 文件）
 - `:androidApp:assembleDebug` 通过（APK 19.96MB）
+
+### ✅ 已完成批次 · miuix 收尾（Sheet / 输入框进 commonMain + 死代码清理，2026-10-10）
+
+目标：**让 `:androidApp` 更多 UI 文件能迁进 commonMain** —— 摸底发现约 20 个调用文件
+被三个只存在于 `:miuix/androidMain` 的组件卡住（`NativeMiuixTextField` 16 个 /
+`BlurBottomSheet(Tablet)` 7 个 / `NativeTextField` 4 个）。本批处理：
+
+**① `BlurBottomSheet` / `BlurBottomSheetTablet`（1,234 行）→ commonMain**
+- 两个文件除 `import android.os.Build`（实为**未使用**）外零 Android 依赖
+- 返回手势处理从**直接依赖 androidx.navigationevent** 改为模块内
+  `rememberNavigationBack()` expect 封装 —— 语义逐字等价（`backProgress()` 就是
+  原 `transitionState` 过滤 BACK 方向的同一段代码），且遵守「commonMain 不直接
+  依赖 AndroidX navigationevent」的既有决定。零依赖变更（androidApp 的
+  navigationevent 1.1.2 完全没动，无重复类风险）
+- 参考模板：commonMain `DialogContentLayout` 里已在生产验证的同款写法
+
+**② `NativeTextField` / `NativeMiuixTextField` → expect/actual**
+- commonMain：expect 声明（默认值全部在 expect 侧）
+- androidMain：**原实现逐字保留**（仅加 `actual`、去默认值）—— Android 行为零变化
+  （EditText 原生长按菜单 / InputMethodManager 弹收键盘 / 光标着色是当初选它的理由）
+- skikoMain（jvm/wasm/iOS 共享）：`BasicTextField` 兜底实现。外壳（浮动 label 状态机、
+  超椭圆背景、聚焦描边 0→2dp、前后图标）与 Android 同一套逻辑，输入区换 CMP 文本框
+- 调用方 20 个文件**一行未改**（签名与默认值完全兼容）
+
+**③ 删除死代码：`OverlayBottomSheet` + `BottomSheetContentLayout`（990 行）**
+- 用户确认：`BlurBottomSheet` 就是 `OverlayBottomSheet` 的改造版，后者已零调用
+  （仅 KDoc 引用），被前者完全替代；`BottomSheetContentLayout`（889 行）只有它一个调用方
+- 级联清理：`DismissState` 的 import/KDoc、`NavigationBack.skiko` 的过时提及
+- ⚠ `LocalDismissState` **保留** —— DialogContentLayout / ListPopupLayout 还在用
+- ⚠ `ResizableBlurBottomSheet.kt` 半死：其中 `BlurBottomSheetDetentState` 被两个 Sheet 用
+  （活），`fun ResizableBlurBottomSheet` 本身零引用（未动，另行处理）
+
+**结果**：`:miuix/androidMain` 11 文件/2,917 行 → **9 文件/1,571 行**；
+四目标（android / jvm / wasmJs / iosArm64）编译全绿；纯度扫描 189 文件通过。
+剩余 androidMain 构成：`DynamicColors`（336，Monet 取色）、`SearchBar`（521，
+仅教务导入页用、按约定留 Android）、4 个 expect/actual 的 android 端、
+`TextFieldCompat`（EditText 兼容层）、`NativeTextField/android`、`NativeMiuixTextField/android`。
+> 顺带发现：`top.yukonga.miuix.kmp.window.*` 来自官方 miuix-ui 的**传递依赖**
+>（fork 只保留 `Overlay*`），所以 `DismissState` 里那些 import 能解析 —— 不是悬空引用。
 
 ### ✅ 已完成批次 · 模块拆分（`:miuix` 建立与反向依赖解除）
 
