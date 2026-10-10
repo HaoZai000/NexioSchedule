@@ -26,6 +26,14 @@ kotlin {
         minSdk = 26
     }
     jvm()
+    // ── wasmJs 编译门禁（与 :backdrop 同思路）────────────────────────────────
+    // 目的：skikoMain 只被 jvm 复用，从未针对非 JVM 目标编译过（静态检查挡不住未知 API）。
+    // linuxX64 不可行 —— 实测 CMP 1.12.0 发布的变体只有
+    // android / desktop(jvm) / iosArm64 / iosSimulatorArm64 / js / macosArm64 / wasmJs，
+    // 无任何 linux 目标。能在 Windows 上编译的非 JVM 目标只剩 js / wasmJs。
+    wasmJs {
+        browser()
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -52,9 +60,12 @@ kotlin {
             // SearchBar / BottomSheet 的返回键处理，CMP 无对应库，Android 侧走原生实现
             implementation(libs.navigationevent.compose)
         }
-        // jvm 目标复用 skikoMain（Skia 实现）。用 srcDir 而不是拷贝一份，
-        // 将来加 iOS/desktop/wasm target 时同一份 SkSL 代码直接共享。
+        // jvm / wasmJs 目标复用 skikoMain（Skia 实现）。用 srcDir 而不是拷贝一份，
+        // 将来加 iOS/desktop target 时同一份 SkSL 代码直接共享。
         jvmMain {
+            kotlin.srcDir("src/skikoMain/kotlin")
+        }
+        wasmJsMain {
             kotlin.srcDir("src/skikoMain/kotlin")
         }
     }

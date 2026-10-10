@@ -30,6 +30,14 @@ kotlin {
         minSdk = 26
     }
     jvm()
+    // ── 实验性：wasmJs 编译门禁─────────────────────────────────────────────
+    // 目的：skikoMain 只被 jvm 复用，从未针对非 JVM 目标编译过（静态检查挡不住未知 API）。
+    // linuxX64 不可行 —— 实测 CMP 1.12.0 发布的变体只有
+    // android / desktop(jvm) / iosArm64 / iosSimulatorArm64 / js / macosArm64 / wasmJs，
+    // 无任何 linux 目标。能在 Windows 上编译的非 JVM 目标只剩 js / wasmJs。
+    wasmJs {
+        browser()
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -37,10 +45,17 @@ kotlin {
             implementation(compose.ui)
             // 上游用来做形状运算的库，本项目 ui/effects/shapes 与之同源
             api(libs.kyant.shapes)
+            // @Language("AGSL") 注解（RuntimeShader / RuntimeShaderCache / RenderEffect / Shaders
+            // 共 8 处）。wasmJs 目标上没有该依赖时会报 Unresolved reference 'intellij'；
+            // 与 :miuix 一致显式声明，见 miuix/build.gradle.kts:40。
+            api("org.jetbrains:annotations:26.1.0")
         }
-        // jvm 目标复用 skikoMain（Skia 实现）。用 srcDir 而不是拷贝一份，
-        // 将来加 iOS/desktop/wasm target 时同一份 SkSL 代码直接共享。
+        // jvm / wasmJs 目标复用 skikoMain（Skia 实现）。用 srcDir 而不是拷贝一份，
+        // 将来加 iOS/desktop target 时同一份 SkSL 代码直接共享。
         jvmMain {
+            kotlin.srcDir("src/skikoMain/kotlin")
+        }
+        wasmJsMain {
             kotlin.srcDir("src/skikoMain/kotlin")
         }
     }
