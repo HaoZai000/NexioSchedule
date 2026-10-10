@@ -1,0 +1,673 @@
+/** 教务系统导入页面 */
+package com.haooz.chedule.ui.activities
+
+import android.annotation.SuppressLint
+import android.os.Bundle
+import com.haooz.chedule.data.AppStorage
+import com.haooz.chedule.data.NexioLog
+import com.haooz.chedule.data.getStringOrNull
+import android.widget.Toast
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import com.haooz.chedule.ui.utils.isAppDarkTheme
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.school.AdapterData
+import com.haooz.chedule.data.school.SchoolData
+import com.haooz.chedule.data.school.ScriptRepository
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
+import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.screens.SchoolSelectionScreen
+import com.haooz.chedule.ui.screens.WebViewScreen
+import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.ScheduleViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.capsule.ContinuousCapsule
+import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.InputField
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SearchBar
+import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.Update
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import com.haooz.chedule.ui.theme.CourseScheduleTheme
+
+class EducationalImportActivity : ComponentActivity() {
+
+    var isInFreeformWindow by mutableStateOf(false)
+        private set
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        isInFreeformWindow = isInMultiWindowMode
+    }
+
+    companion object {
+        private const val TAG = "EduImport"
+        private const val PREFS_NAME = "edu_import_prefs"
+        private const val KEY_LAST_UPDATE_TIME = "last_update_time"
+        private const val AUTO_UPDATE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000L
+
+        private val updateScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val _isUpdating = MutableStateFlow(false)
+        private val _dataVersion = MutableStateFlow(0)
+
+        @SuppressLint("UseKtx")
+        fun startUpdate(context: android.content.Context) {
+            if (_isUpdating.value) return
+
+            val prefs = AppStorage.store(PREFS_NAME)
+            val lastUpdateTime = prefs.getLong(KEY_LAST_UPDATE_TIME, 0)
+            val now = System.currentTimeMillis()
+            val needsUpdate = lastUpdateTime == 0L || (now - lastUpdateTime > AUTO_UPDATE_INTERVAL_MS)
+
+            if (!needsUpdate) {
+                return
+            }
+
+            _isUpdating.value = true
+            updateScope.launch {
+                try {
+                    ScriptRepository(ScriptRepository.getRepoUrl()).updateAll(
+                        onLog = { }
+                    )
+                    prefs.edit { putLong(KEY_LAST_UPDATE_TIME, System.currentTimeMillis()) }
+                } catch (e: Exception) {
+                    NexioLog.e(TAG, "更新失败: ${e.message}")
+                } finally {
+                    _isUpdating.value = false
+                    _dataVersion.value++
+                }
+            }
+        }
+
+        fun forceUpdate(context: android.content.Context) {
+            if (_isUpdating.value) return
+            _isUpdating.value = true
+            updateScope.launch {
+                try {
+                    val result = ScriptRepository(ScriptRepository.getRepoUrl()).updateAll(
+                        onLog = { }
+                    )
+                    val msg = when (result) {
+                        0 -> "已是最新版本"
+                        1 -> "更新完成"
+                        -1 -> "更新失败，请检查网络连接"
+                        else -> "更新失败"
+                    }
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                    }
+                    if (result >= 0) {
+                        val prefs = AppStorage.store(PREFS_NAME)
+                        prefs.edit { putLong(KEY_LAST_UPDATE_TIME, System.currentTimeMillis()) }
+                    }
+                } catch (e: Exception) {
+                    NexioLog.e(TAG, "手动更新失败: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "更新失败", Toast.LENGTH_SHORT).show()
+                    }
+                } finally {
+                    _isUpdating.value = false
+                    _dataVersion.value++
+                }
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
+        applyThemeAwareSystemBars()
+        startUpdate(this)
+        setContent {
+            CourseScheduleTheme {
+            EducationalImportApp()
+        
+        }
+        }
+    }
+
+    @SuppressLint("ConfigurationScreenWidthHeight")
+    @Composable
+    private fun EducationalImportApp() {
+        val isUpdating by _isUpdating.collectAsState()
+        val dataVersion by _dataVersion.collectAsState()
+
+        val courseViewModel: CourseViewModel = viewModel()
+        val scheduleViewModel: ScheduleViewModel = viewModel()
+        val settingsViewModel: SettingsViewModel = viewModel()
+
+        val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
+        val currentScheduleName by scheduleViewModel.currentScheduleName.collectAsState()
+
+        val backgroundColor = MiuixTheme.colorScheme.surface
+        val backdrop = rememberLayerBackdrop {
+            drawRect(backgroundColor)
+            drawContent()
+        }
+        val liquidGlassBackdrop: LayerBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+        val scrollBehavior = rememberSharedScrollBehavior()
+
+        var currentScreen by remember { mutableStateOf("selection") }
+        var selectedSchool by remember { mutableStateOf<SchoolData?>(null) }
+        var selectedAdapter by remember { mutableStateOf<AdapterData?>(null) }
+
+        var searchQuery by remember { mutableStateOf("") }
+        var searchExpanded by remember { mutableStateOf(false) }
+        var selectedTab by remember { mutableIntStateOf(0) }
+
+        // 点击搜索框时收起标题栏
+        LaunchedEffect(searchExpanded) {
+            if (searchExpanded) {
+                scrollBehavior.collapse()
+            }
+        }
+
+        var isDesktopMode by remember { mutableStateOf(false) }
+        var currentAssetJsPath by remember { mutableStateOf<String?>(null) }
+        var executeImportAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+        var toggleDesktopModeAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+        var webPageTitle by remember { mutableStateOf("加载中...") }
+        // 页面顶部取色：按亮度定顶栏标题/图标的黑白，不跟应用深浅色主题
+        var webTopColor by remember { mutableStateOf(Color.White) }
+        val webTopIsLight = remember(webTopColor) {
+            val lum = 0.299f * webTopColor.red + 0.587f * webTopColor.green + 0.114f * webTopColor.blue
+            lum >= 0.55f
+        }
+        val webBarContentColor = if (webTopIsLight) Color.Black else Color.White
+        var reloadWebViewAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+        val webViewScrollBehavior = rememberSharedScrollBehavior()
+
+        when (currentScreen) {
+            "selection" -> {
+                val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+                val tabletHorizontalPadding = if (isTablet) {
+                    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+                    ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+                } else 0.dp
+                val hapticFeedback = LocalHapticFeedback.current
+                val displayTabs = listOf("学校导入", "通用工具")
+
+                Scaffold { paddingValues ->
+                    val topBarHeightDp = with(androidx.compose.ui.platform.LocalDensity.current) {
+                        (scrollBehavior.currentHeightPx).toDp()
+                    }
+                    val statusBarHeight = WindowInsets.statusBars
+                        .asPaddingValues().calculateTopPadding()
+                    val blurHeight = 80.dp + statusBarHeight + 120.dp
+
+                    var searchBackdropAlpha by remember { mutableFloatStateOf(0f) }
+                    var searchShadowAlpha by remember { mutableFloatStateOf(0f) }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .layerBackdrop(backdrop)
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize().then(
+                                    Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                                )
+                            ) {
+                                SchoolSelectionScreen(
+                                    modifier = Modifier.fillMaxSize(),
+                                    isUpdating = isUpdating,
+                                    dataVersion = dataVersion,
+                                    isInFreeformWindow = isInFreeformWindow,
+                                    scrollBehavior = scrollBehavior,
+                                    searchQuery = searchQuery,
+                                    selectedTab = selectedTab,
+                                    topContentPadding = paddingValues.calculateTopPadding() + topBarHeightDp + 100.dp,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    onAdapterSelected = { school, adapter ->
+                                        selectedSchool = school
+                                        selectedAdapter = adapter
+                                        currentScreen = "webview"
+                                    }
+                                )
+                            }
+                        }
+
+                        ProgressiveBlurTopBar(
+                            backdrop = liquidGlassBackdrop,
+                            height = blurHeight,
+                        ) {
+                            CollapsibleTopAppBar(
+                                title = "选择学校",
+                                largeTitle = "选择学校",
+                                modifier = Modifier,
+                                scrollBehavior = scrollBehavior,
+                                contentPadding = {},
+                                gradientMaskHeight = CollapsedHeight + 190.dp,
+                                onAlphaChanged = { bd, sh ->
+                                    searchBackdropAlpha = bd
+                                    searchShadowAlpha = sh
+                                },
+                                startAction = { backdropAlpha, shadowAlpha ->
+                                    LiquidTopBarButton(
+                                        onClick = { finish() },
+                                        backdrop = liquidGlassBackdrop,
+                                        icon = MiuixIcons.ChevronBackward,
+                                        contentDescription = "返回",
+                                        performHapticFeedback = false,
+                                        iconSize = 25.dp,
+                                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                        backdropAlpha = backdropAlpha,
+                                        shadowAlpha = shadowAlpha,
+                                    )
+                                },
+                                endAction = { backdropAlpha, shadowAlpha ->
+                                    if (isUpdating) {
+                                        Box(
+                                            modifier = Modifier
+                                                .offset(x = (-6).dp, y = (-4).dp)
+                                                .size(40.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                            )
+                                        }
+                                    } else {
+                                        LiquidTopBarButton(
+                                            onClick = {
+                                                forceUpdate(this@EducationalImportActivity)
+                                            },
+                                            backdrop = liquidGlassBackdrop,
+                                            icon = MiuixIcons.Normal.Update,
+                                            contentDescription = "更新",
+                                            iconSize = 28.dp,
+                                            backdropAlpha = backdropAlpha,
+                                            shadowAlpha = shadowAlpha,
+                                        )
+                                    }
+                                },
+                            )
+                        }
+
+                        // 迁移前 InputField 内部直接读 isAppDarkTheme()；现在 :miuix 拿不到 App 偏好，
+// 需显式传入，否则会退回「跟随系统」—— 强制深浅色时底色会与文字对不上。
+// isAppDarkTheme 是 @Composable，必须在组合期先取好，不能塞进下面那个 lambda。
+                        val searchIsLightTheme = !isAppDarkTheme()
+                        Column(
+                            modifier = Modifier
+                                .padding(top = paddingValues.calculateTopPadding() + topBarHeightDp)
+                                .fillMaxWidth()
+                        ) {
+                            SearchBar(
+                                modifier = Modifier.padding(
+                                    top = 8.dp,
+                                    bottom = 6.dp,
+                                    start = 6.dp + tabletHorizontalPadding,
+                                    end = 6.dp + tabletHorizontalPadding
+                                ),
+                                inputField = {
+                                    InputField(
+                                        query = searchQuery,
+                                        onQueryChange = { searchQuery = it },
+                                        onSearch = { searchExpanded = false },
+                                        expanded = searchExpanded,
+                                        onExpandedChange = { searchExpanded = it },
+                                        label = "搜索学校",
+                                        backdrop = liquidGlassBackdrop,
+                                        backdropAlpha = searchBackdropAlpha,
+                                        shadowAlpha = searchShadowAlpha,
+                                        isLightTheme = { searchIsLightTheme },
+                                    )
+                                },
+                                expanded = searchExpanded,
+                                onExpandedChange = { searchExpanded = it },
+                                actionIcon = MiuixIcons.Normal.Close,
+                                onActionClick = {
+                                    searchExpanded = false
+                                    searchQuery = ""
+                                },
+                                backdrop = liquidGlassBackdrop,
+                                backdropAlpha = searchBackdropAlpha,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(horizontal = 20.dp + tabletHorizontalPadding, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                displayTabs.forEachIndexed { index, tabName ->
+                                    val isSelected = selectedTab == index
+                                    Surface(
+                                        modifier = Modifier
+                                            .clip(ContinuousRoundedRectangle(20.dp))
+                                            .clickable {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                selectedTab = index
+                                            },
+                                        color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.surfaceVariant
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.padding(horizontal = 16.dp).height(35.dp).clip(ContinuousCapsule()),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = tabName,
+                                                fontSize = 14.sp,
+                                                color = if (isSelected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            "webview" -> {
+                val school = selectedSchool
+                val adapter = selectedAdapter
+                if (school != null && adapter != null) {
+                    val hapticFeedback = LocalHapticFeedback.current
+
+                    Scaffold { paddingValues ->
+                        val topBarHeightDp = with(androidx.compose.ui.platform.LocalDensity.current) {
+                            (webViewScrollBehavior.currentHeightPx).toDp()
+                        }
+                        val statusBarHeight = WindowInsets.statusBars
+                            .asPaddingValues().calculateTopPadding()
+                        val blurHeight = statusBarHeight + CollapsedHeight + 40.dp
+                        // 顶栏与底部胶囊共用：录的是 WebView Offscreen 层
+                        val webContentBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            WebViewScreen(
+                                school = school,
+                                adapterId = adapter.adapterId,
+                                importUrl = adapter.importUrl,
+                                assetJsPath = adapter.assetJsPath,
+                                webContentBackdrop = webContentBackdrop,
+                                // 与选择页同构：Scaffold padding + 顶栏高度，内容贴在顶栏下
+                                contentTopPadding = (
+                                    paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp
+                                ).coerceAtLeast(0.dp),
+                                scheduleNames = scheduleNames,
+                                currentScheduleName = currentScheduleName,
+                                onBack = {
+                                    selectedSchool = null
+                                    currentScreen = "selection"
+                                },
+                                onImportComplete = { courses ->
+                                    // AndroidBridge 已为导入课程设置 scheduleId（目标课表，空为当前课表）
+                                    val targetScheduleId = courses.firstOrNull()?.scheduleId?.takeIf { it.isNotEmpty() }
+                                    if (targetScheduleId != null && targetScheduleId != currentScheduleName) {
+                                        scheduleViewModel.saveCoursesToSchedule(targetScheduleId, courses)
+                                    } else {
+                                        courseViewModel.replaceCourses(courses)
+                                    }
+                                    scheduleViewModel.refreshScheduleList()
+                                    Toast.makeText(this@EducationalImportActivity, "课程已保存，共 ${courses.size} 门课程", Toast.LENGTH_SHORT).show()
+                                },
+                                onTaskCompleted = {
+                                    val prefs = AppStorage.store("edu_import_prefs")
+                                    val hasPresetTimeSlots = prefs.getStringOrNull("preset_time_slots") != null
+                                    val targetScheduleId = prefs.getStringOrNull("target_schedule_id")
+
+                                    if (hasPresetTimeSlots) {
+                                        applyPresetTimeSlots(settingsViewModel, scheduleViewModel, targetScheduleId)
+                                    }
+                                    val hasStartDate = prefs.getStringOrNull("semester_start_date") != null
+                                    val hasTotalWeeks = prefs.getInt("semester_total_weeks", -1) > 0
+                                    if (hasStartDate || hasTotalWeeks) {
+                                        applyImportedScheduleConfig(courseViewModel, scheduleViewModel)
+                                    }
+                                },
+                                onPageTitleChanged = { webPageTitle = it },
+                                onDesktopModeChanged = { isDesktopMode = it },
+                                onTopColorChanged = { webTopColor = it },
+                                onAssetJsPathChanged = { currentAssetJsPath = it },
+                                onExecuteImportRef = { action -> executeImportAction = action },
+                                onToggleDesktopModeRef = { action -> toggleDesktopModeAction = action },
+                                onReloadRef = { action -> reloadWebViewAction = action }
+                            )
+
+                            ProgressiveBlurTopBar(
+                                backdrop = webContentBackdrop,
+                                height = blurHeight,
+                                // 教务页多为白底：默认 surface 暗色 tint 会在顶上压一层黑罩
+                                tintIntensity = 0f,
+                            ) {
+                                CollapsibleTopAppBar(
+                                    title = webPageTitle,
+                                    showLargeTitle = false,
+                                    // 教务页自带顶栏空白区色条，不需要 AppBar 再叠黑白渐变遮罩
+                                    showShadow = false,
+                                    showGradientOverlay = false,
+                                    titleColor = webBarContentColor,
+                                    modifier = Modifier,
+                                    scrollBehavior = webViewScrollBehavior,
+                                    contentPadding = {},
+                                    startAction = { backdropAlpha, shadowAlpha ->
+                                        LiquidTopBarButton(
+                                            onClick = {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                selectedSchool = null
+                                                currentScreen = "selection"
+                                            },
+                                            backdrop = liquidGlassBackdrop,
+                                            icon = MiuixIcons.Close,
+                                            iconTint = webBarContentColor.copy(alpha = 0.85f),
+                                            contentDescription = "关闭",
+                                            performHapticFeedback = false,
+                                            iconSize = 22.dp,
+                                            backdropAlpha = backdropAlpha,
+                                            shadowAlpha = shadowAlpha,
+                                        )
+                                    },
+                                    endAction = { backdropAlpha, shadowAlpha ->
+                                        LiquidTopBarButton(
+                                            onClick = {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                reloadWebViewAction?.invoke()
+                                            },
+                                            backdrop = liquidGlassBackdrop,
+                                            icon = MiuixIcons.Refresh,
+                                            iconTint = webBarContentColor.copy(alpha = 0.85f),
+                                            contentDescription = "刷新",
+                                            performHapticFeedback = false,
+                                            iconSize = 24.dp,
+                                            backdropAlpha = backdropAlpha,
+                                            shadowAlpha = shadowAlpha,
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun applyPresetTimeSlots(
+        settingsViewModel: SettingsViewModel,
+        scheduleViewModel: ScheduleViewModel,
+        targetScheduleId: String?
+    ) {
+        val prefs = AppStorage.store("edu_import_prefs")
+        val timeSlotsJson = prefs.getStringOrNull("preset_time_slots") ?: return
+        try {
+            val timeSlots = Gson().fromJson<List<Map<String, Any>>>(
+                timeSlotsJson,
+                object : TypeToken<List<Map<String, Any>>>() {}.type
+            ) ?: return
+            if (timeSlots.isEmpty()) return
+
+            val isTargetCurrent = targetScheduleId.isNullOrEmpty() ||
+                targetScheduleId == scheduleViewModel.currentScheduleName.value
+            val repository = if (isTargetCurrent) null else CourseRepository()
+
+            val morningSections: Int
+            val afternoonSections: Int
+            val eveningSections: Int
+            if (isTargetCurrent) {
+                morningSections = settingsViewModel.morningSections.value
+                afternoonSections = settingsViewModel.afternoonSections.value
+                eveningSections = settingsViewModel.eveningSections.value
+            } else {
+                val sid = targetScheduleId
+                morningSections = repository!!.getMorningSections(sid)
+                afternoonSections = repository.getAfternoonSections(sid)
+                eveningSections = repository.getEveningSections(sid)
+            }
+
+            val morningTimes = mutableMapOf<Int, String>()
+            val afternoonTimes = mutableMapOf<Int, String>()
+            val eveningTimes = mutableMapOf<Int, String>()
+
+            for (slot in timeSlots) {
+                val number = (slot["number"] as? Number)?.toInt() ?: continue
+                val startTime = slot["startTime"] as? String ?: ""
+                val endTime = slot["endTime"] as? String ?: ""
+                if (startTime.isEmpty() || endTime.isEmpty()) continue
+                val timeStr = "$startTime-$endTime"
+
+                when {
+                    number <= morningSections -> morningTimes[number] = timeStr
+                    number <= morningSections + afternoonSections -> afternoonTimes[number - morningSections] = timeStr
+                    else -> eveningTimes[number - morningSections - afternoonSections] = timeStr
+                }
+            }
+
+            if (isTargetCurrent) {
+                if (morningTimes.isNotEmpty()) settingsViewModel.saveMorningTimes(morningTimes)
+                if (afternoonTimes.isNotEmpty()) settingsViewModel.saveAfternoonTimes(afternoonTimes)
+                if (eveningTimes.isNotEmpty()) settingsViewModel.saveEveningTimes(eveningTimes)
+                settingsViewModel.applyTimeImportToCurrentSchedule(
+                    morningSections, afternoonSections, eveningSections,
+                    morningTimes, afternoonTimes, eveningTimes
+                )
+            } else {
+                val sid = targetScheduleId
+                repository!!.applyTimeImportToSchedule(
+                    sid, morningSections, afternoonSections, eveningSections,
+                    morningTimes, afternoonTimes, eveningTimes
+                )
+            }
+
+            prefs.edit {remove("preset_time_slots")}
+        } catch (e: Exception) {
+            NexioLog.e("EduImport", "应用预设时间段失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 应用教务脚本通过 saveCourseConfig 传回的课表配置（开学时间、总周数）。
+     * 与 applyPresetTimeSlots 一致，仅在导入完成时消费一次性标记，避免重复/旧数据覆盖。
+     * 开学日写入目标课表（可能非当前课表）；日期先规范化，防止被读路径重置成今天。
+     */
+    private fun applyImportedScheduleConfig(
+        courseViewModel: CourseViewModel,
+        scheduleViewModel: ScheduleViewModel,
+    ) {
+        val prefs = AppStorage.store("edu_import_prefs")
+        val rawStart = prefs.getStringOrNull("semester_start_date")
+        val startDate = CourseRepository.normalizeClassStartDate(rawStart)
+        val totalWeeks = prefs.getInt("semester_total_weeks", -1)
+        val targetScheduleId = prefs.getStringOrNull("target_schedule_id")
+        val isTargetCurrent = targetScheduleId.isNullOrEmpty() ||
+            targetScheduleId == scheduleViewModel.currentScheduleName.value
+
+        var applied = false
+        if (startDate != null) {
+            if (isTargetCurrent) {
+                courseViewModel.setClassStartTime(startDate)
+            } else if (!targetScheduleId.isNullOrEmpty()) {
+                // 只写目标课表存储，不 refreshEssentialData：当前 UI/提醒不应被非当前课表改动触发
+                CourseRepository.getInstance()
+                    .setClassStartTime(targetScheduleId, startDate)
+            }
+            applied = true
+            NexioLog.d("EduImport", "应用开学日: raw=$rawStart -> $startDate target=$targetScheduleId")
+        } else if (!rawStart.isNullOrBlank()) {
+            NexioLog.w("EduImport", "开学日无法解析，已忽略: $rawStart")
+        }
+        if (totalWeeks > 0) {
+            if (isTargetCurrent) {
+                courseViewModel.setTotalWeeks(totalWeeks)
+            } else if (!targetScheduleId.isNullOrEmpty()) {
+                CourseRepository.getInstance()
+                    .setTotalWeeks(targetScheduleId, totalWeeks)
+            }
+            applied = true
+        }
+        if (applied) {
+            prefs.edit {
+                remove("semester_start_date")
+                remove("semester_total_weeks")
+                remove("target_schedule_id")
+            }
+            NexioLog.d("EduImport", "应用课表配置成功: 开学时间=$startDate, 总周数=$totalWeeks, target=$targetScheduleId")
+        }
+    }
+}

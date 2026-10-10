@@ -9,21 +9,27 @@
 
 ## 🔄 接手须知（新会话 / 新人从这一节开始）
 
-> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `90b0754`。
+> 这一节是为了让**没有任何历史上下文的人**能直接接手。
+> 代码状态：`master` = `6367c55` + **2026-10-10 未提交的存储层收口改动**
+> （清单见 `docs/NAVIGATION_MIGRATION_HANDOFF.md` 顶部的「本轮工作区改动尚未提交」）。
 > 三条最重要的事实：**① 有测试没入库 ② 别推翻下面那几条决定 ③ 网络层的 Native 实现是空壳。**
 
 ### 1. 现状一句话
 
-`:app` 仍是 Android-only（迁移主体，499 处 Android 专用 import，143 个文件）；
+`:androidApp` 仍是 Android-only（迁移主体，499 处 Android 专用 import，143 个文件）；
 数据层与 `data/school/` 已整体下沉 `:core`，**节假日纯逻辑集群也已全部下沉**（⑨）；
-`:miuix` / `:backdrop` 已是 KMP 模块，
-但 **`skikoMain` 从未针对 Native 编译过**；**iOS 尚未接入** —— 没有 iOS target、没有 Xcode 工程，
+**存储层已三平台闭环**（2026-10-10，见 handoff 文档 7.7）：`KeyValueStore` 的 Android 实现
+（`SharedPreferencesStore`）搬到了 `core/src/androidMain`，iOS 实现
+（`core/src/iosMain/.../UserDefaultsStore.kt`）已写好 —— **但 Windows 上编译不了 iOS，尚未被编译器验证**；
+`:miuix` / `:backdrop` 已是 KMP 模块，但 **`skikoMain` 从未针对 Native 编译过**；
+**iOS target 已声明但默认关闭**（`-Pnexio.ios=true` 开启，原因见 C 节），**仍无 Xcode 工程**；
 且 `:core` 的 Native HTTP 实现是一个**调用即抛 `NotImplementedError` 的占位**。
 
 ### 2. ⚠ 有 15 个测试文件没进版本库（先看这条）
 
 工作区里 `core/src/commonTest/`（10 个）与 `core/src/jvmTest/`（5 个）**未跟踪**，
-共 **160 个用例、全绿**。这是用户的要求（测试不入库），不是遗漏 —— 但它很脆：
+共 **241 个用例、全绿**（2026-10-10 用 `./gradlew :core:jvmTest --rerun-tasks` 实测：22 个测试类 / 0 失败；
+早先写的「160 个」是旧口径）。这是用户的要求（测试不入库），不是遗漏 —— 但它很脆：
 
 | 目录 | 覆盖什么 |
 |---|---|
@@ -46,16 +52,17 @@
 | 候选 | 阻塞 / 前提 | 风险 |
 |---|---|---|
 | ✅ **拆 `Holidays.kt` 的类型集群** | **已完成**（2026-10-09）：1782 行拆成 4 个文件，6 个平台中立类型已下沉 `:core`（详见「当前进展 ⑦」） | — |
-| ✅ **`java.time` → kotlinx-datetime** | **已完成**（2026-10-09）：`:app` 全部 22 个文件换血，`:core` 补 `DateExt` 兼容层 + 12 个差分等价用例（详见「当前进展 ⑧」） | — |
+| ✅ **`java.time` → kotlinx-datetime** | **已完成**（2026-10-09）：`:androidApp` 全部 22 个文件换血，`:core` 补 `DateExt` 兼容层 + 12 个差分等价用例（详见「当前进展 ⑧」） | — |
 | ✅ **节假日四个纯逻辑文件下沉 `:core`** | **已完成**（2026-10-09）：`CourseScheduleDateBounds` / `TeachingWeekReorganization` / `HolidayCourseExclusion` / `HolidayCountdown` 全部进 commonMain（详见「当前进展 ⑨」） | — |
 | ✅ **`HolidayManager` 存储层下沉 `:core`** | **已完成**（2026-10-09）：`Context`/`org.json`/Gson/`@Synchronized`/`CourseRepository` 反向依赖全部处理掉，节假日整条链现在完全跨平台（详见「当前进展 ⑩」） | — |
 | ✅ **`CourseRepository` 下沉 `:core`** | **已完成**（2026-10-09）：**数据层全部完成**，顺带修掉两个「用户无法恢复自己备份」的真实缺陷（见「当前进展 ⑫」） | — |
 | ✅ **`ScheduleBackup` 下沉 `:core`** | **已完成**（2026-10-09）：WebDAV 收敛到 `HttpService`，iOS 侧不再有第二处网络实现要写（见「当前进展 ⑬」） | — |
+| ✅ **存储层三平台闭环（`KeyValueStore`）** | **已完成**（2026-10-10）：Android 实现 `SharedPreferencesStore` 搬到 `core/src/androidMain`；iOS 实现 `UserDefaultsStore` 已写好；`:androidApp` 直调 `getSharedPreferences` **88 → 46 处**（剩余全属类别 C）。详见 handoff 文档 **7.7** | 中 —— iOS 侧在 Windows 上编不了，**尚未经编译器验证** |
 
 **UI 导航改造（阶段 5 前置）已起步** —— 增量 1 做完（路由器基础设施 + 关于页宿主化，
 Manifest 23 → 20 个 Activity）。详见「🎯 UI 导航改造」一节，**下一个增量是把宿主迁到 `MainActivity`**。
 
-**数据层已全部完成**（⑫⑬）。`:app/data` 只剩两个**按归属不该进 `:core`** 的文件
+**数据层已全部完成**（⑫⑬）。`:androidApp/data` 只剩两个**按归属不该进 `:core`** 的文件
 （见 ⑬-c）：`ScheduleAppearance`（Bitmap）/ `WallpaperTransform`（Compose `Offset`），
 它们的归属是阶段 5 的 `:ui-shared`。
 
@@ -64,7 +71,7 @@ Manifest 23 → 20 个 Activity）。详见「🎯 UI 导航改造」一节，**
 | 候选 | 说明 | 风险 |
 |---|---|---|
 | **Native HTTP 实现**（`HttpService.native`） | **iOS 的硬阻塞**：现在它是「调用即抛」的占位。WebDAV 已经收敛到它，所以只剩这一处。写它本身不需要 macOS（`ktor-client-cio` 或 cinterop 都能编 linuxX64），但**验证需要真机/模拟器** | 中（引入 Ktor 会顶协程版本 → 需单独评估） |
-| **Gson 4 条通道**（10 个文件） | 全在 `:app` 的 UI/导入导出层。**现阶段不需要动** —— Gson 留在 `:app` 是允许的，只有阶段 5 把 UI 搬进共享模块时才必须清掉 | 高（等 UI 迁移时再做） |
+| **Gson 4 条通道**（10 个文件） | 全在 `:androidApp` 的 UI/导入导出层。**现阶段不需要动** —— Gson 留在 `:androidApp` 是允许的，只有阶段 5 把 UI 搬进共享模块时才必须清掉 | 高（等 UI 迁移时再做） |
 | **阶段 5 的 UI 迁移** | 61.7k 行 Compose UI，`LocalConfiguration` 42 处 / `LocalContext` 32 处 | 大，按批次 |
 | **阶段 5 前置：建 `:ui-shared`** | CMP 共享 UI 模块；`ScheduleAppearance` / `WallpaperTransform` 的归属地 | 中 |
 | **Gson 迁移**（文档风险表里的 **R2，最高**） | **真实备份已到手**（2026-10-09）→ 前置调研做完，配置要求已量出（见「🔬 R2 前置调研」）。仍需 `@Serializable` + 显式字段清单。⚠ `TeachingWeekReorganization` 的 Gson **已经换掉了**（⑨-b），剩的是单课表备份 / 分享码 / 教务导入 + 全量备份 4 条通道 | 高 —— 数据格式一变，存量用户读不出来。**已从「未知风险」降为「有明确配置要求」** |
@@ -75,7 +82,7 @@ Manifest 23 → 20 个 Activity）。详见「🎯 UI 导航改造」一节，**
 ### 4. 每次改完必跑
 
 ```bash
-./gradlew :app:assembleDebug          # Android 零回归 —— 这是红线，不许破
+./gradlew :androidApp:assembleDebug          # Android 零回归 —— 这是红线，不许破
 ./gradlew :core:check :miuix:check :backdrop:check
 ./gradlew :core:compileKotlinLinuxX64 :core:compileTestKotlinLinuxX64   # commonMain/Test 是否平台中立
 ./gradlew checkKmpPurity              # 已知 JVM 专有 API 静态扫描
@@ -148,12 +155,14 @@ TimeConfig 的 4 条序列化通道、服务端部署流程等 —— 都是踩�
   | 异常 | **网络异常照常抛出，不要吞** —— 调用点普遍自带 `try/catch`，吞掉会让那些兜底失效 |
   | 响应体 | 一次性读入内存（现有调用点没有流式消费）；`maxBytes` 必须在**读取过程中**生效，不能读完再检查大小 |
   | 超时 | `HttpTimeouts(connectSeconds, readSeconds, callSeconds)`；`callSeconds <= 0` 表示不设整体超时 |
-  | 自定义方法 | WebDAV 用到 `PROPFIND` / `MKCOL`（在 `ScheduleBackup`，目前仍留在 `:app`） |
+  | 自定义方法 | WebDAV 用到 `PROPFIND` / `MKCOL`（在 `ScheduleBackup`，目前仍留在 `:androidApp`） |
 
-#### A2. `KeyValueStore` 的实现（`NSUserDefaults`）+ 启动注入
+#### A2. `KeyValueStore` 的实现（`NSUserDefaults`）—— ✅ **已写好，待你在 macOS 上验证**
 
+- **已实现**：`core/src/iosMain/kotlin/com/haooz/chedule/data/UserDefaultsStore.kt`（2026-10-10，约 190 行）
 - **接口**：`core/src/commonMain/kotlin/com/haooz/chedule/data/KeyValueStore.kt`
-- **照抄参考**：`app/src/main/java/com/haooz/chedule/data/SharedPreferencesStore.kt`（Android，约 90 行）
+- **Android 参考**：`core/src/androidMain/kotlin/com/haooz/chedule/data/SharedPreferencesStore.kt`
+  （2026-10-10 也从 `:androidApp` 搬到了 `core/src/androidMain`，包名未变）
 - **契约**（每条都有对应的 Android 行为，别想当然）：
 
   | 项 | 约定 |
@@ -165,10 +174,23 @@ TimeConfig 的 4 条序列化通道、服务端部署流程等 —— 都是踩�
   | `edit {}` | 语义 = 立即提交（等价 Android 的 `apply()`） |
   | `all()` | 返回**拷贝**（备份/迁移功能依赖它） |
 
+- ⚠ **`all()` 的类型必须精确 —— 这是 iOS 侧最容易埋雷的一处**：
+  `CourseRepository` 用 `when (value) { is Int -> putInt … is Long -> putLong … }` **复制课表**，
+  `exportAllPreferences()` 也按类型导出全量备份。而 plist 里所有数值都是 `NSNumber`，
+  读出来**分不清 Int 与 Long** —— 若统一按 Long 还原，复制课表会把 Int 键写成 Long，
+  之后 Android 侧 `getInt` 拿到 Long 抛 `ClassCastException`、被既有 `runCatching` 兜底成默认值，
+  **用户设置静默丢失**。故 `UserDefaultsStore` 把类型记在独立域 `suiteName.__kvtypes`
+  （必须独立：`all()` 会被遍历，标记键同域会被当成业务数据复制/导出）。**别删这个域。**
+
+- ⚠ **首次编译必须验证的三点**（Windows 上编不了 iOS，所以这三条至今未被编译器验证过）：
+  1. Kotlin 的 `Int/Long/Float/Boolean` 传给 `setObject(_:forKey:)` 是否自动装箱成 `NSNumber`
+  2. `persistentDomainForName` 对自定义 suite 是否返回非空（`all()` 依赖它）
+  3. `raw is String` 对 plist 里的 `NSString` 是否成立
+
 #### A3. `AppFile` 的实现（`NSFileManager`）+ 启动注入
 
 - **接口**：`core/src/commonMain/kotlin/com/haooz/chedule/data/AppFile.kt`
-- **照抄参考**：`app/src/main/java/com/haooz/chedule/data/FileAppFile.kt`（Android，约 30 行）
+- **照抄参考**：`androidApp/src/main/java/com/haooz/chedule/data/FileAppFile.kt`（Android，约 30 行）
 - **契约**：`writeBytes` **必须自动创建父目录**（调用方不再手写 `mkdirs`）；
   `resolve(relative)` 以 `/` 分隔；`root` 指向应用沙盒私有目录。
 - **落盘路径必须逐字保持**：`repo/index/school_index.pb`、`repo/schools/resources`
@@ -183,7 +205,7 @@ val version = NSBundle.mainBundle
     .objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: "unknown"
 
 AppInfo.init(version = version)
-AppStorage.init { name -> NsUserDefaultsStore(name) }          // 见 A2
+AppStorage.init { name -> UserDefaultsStore(name) }            // 见 A2 —— 已实现，直接用
 AppFiles.init(
     root = NsFileAppFile(defaultDocumentsDir()),               // 见 A3
     readAsset = { path ->                                      // 内置学校索引引导
@@ -196,7 +218,7 @@ AppFiles.init(
 )
 ```
 
-**Android 的真实对应实现**可直接对照：`app/src/main/java/com/haooz/chedule/NexioApplication.kt`
+**Android 的真实对应实现**可直接对照：`androidApp/src/main/java/com/haooz/chedule/NexioApplication.kt`
 （`onCreate` 开头那几行 `AppStorage.init` / `AppInfo.init` / `AppFiles.init`）。
 
 ### B. 已经能直接用，不需要你写的
@@ -211,8 +233,17 @@ AppFiles.init(
 
 ### C. 加 iOS target 的步骤（**需要 macOS**）
 
-1. `core/build.gradle.kts` 加目标：`iosArm64()` / `iosSimulatorArm64()` / `iosX64()`
-   （`linuxX64` 是编译门禁用，可留可去）
+1. ~~`core/build.gradle.kts` 加目标~~ —— ✅ **已加好**（2026-10-10：`iosArm64()` + `iosSimulatorArm64()`），
+   但**默认关闭**，用 `-Pnexio.ios=true` 显式开启。默认关的原因是：
+   声明 iOS target 会让 `:core:check` 去解析 iOS 的 klib 依赖
+   （`kotlinx-datetime/coroutines/serialization` 的 `-iosarm64/-iossimulatorarm64` 变体），
+   而门禁是 `--offline` 跑的 → `:core:check` 直接失败，把「Android 零回归」红线弄脏
+   （实测报 `Could not resolve … iosSimulatorArm64CompileKlibraries`，详见 handoff 文档 7.7）。
+   **所以 macOS 上要这样跑**（首次需联网拉 iOS klib）：
+   ```bash
+   ./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64
+   ```
+   `linuxX64` 是编译门禁用，保留不动。
 2. ⚠ **`:miuix` / `:backdrop` 要把 `skikoMain` 显式接给 iOS 源集**。
    现在它是挂在 jvm 上的：
    ```kotlin
@@ -220,16 +251,17 @@ AppFiles.init(
                                                        // backdrop/build.gradle.kts:44
    ```
    iOS 侧要加同样一行，或改建成真正的中间源集。**漏了这一步，SkSL 模糊/描边在 iOS 上会找不到 actual。**
-3. 跑 `./gradlew :core:compileKotlinIosArm64`，**不要只跑 android / jvm** —— 原因见 D 节。
+3. 跑 `./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64`，**不要只跑 android / jvm** —— 原因见 D 节。
 
 ### D. 当前验证边界（请勿高估）
 
 | 说法 | 真实程度 |
 |---|---|
 | `:core/commonMain` 平台中立 | ✅ **编译器验证**：`:core` 挂了 `linuxX64`（Native）目标，`compileKotlinLinuxX64` + `compileTestKotlinLinuxX64` 通过 |
-| `:miuix` / `:backdrop` 的 commonMain + skikoMain 平台中立 | ⚠ **仅静态检查**：CMP 不支持 linuxX64、iOS 目标又需 macOS，只能用根项目的 `checkKmpPurity` 扫**已知模式**（173 个文件）。**未知 API 查不出来** |
+| `:miuix` / `:backdrop` 的 commonMain + skikoMain 平台中立 | ⚠ **仅静态检查**：CMP 不支持 linuxX64、iOS 目标又需 macOS，只能用根项目的 `checkKmpPurity` 扫**已知模式**（**185 个文件**，2026-10-10 实测）。**未知 API 查不出来** |
 | skikoMain 能在 iOS 跑 | ❌ **从未编译过**，只被 jvm 复用（见 C 第 2 条） |
-| iOS 已可用 | ❌ 网络层是抛异常的占位；没有 iOS target；没有 Xcode 工程 |
+| `KeyValueStore` 的 iOS 实现 | ⚠ **代码已写、未编译验证**：`core/src/iosMain/.../UserDefaultsStore.kt`（2026-10-10）。iOS target 已声明但默认关（`-Pnexio.ios=true`），Windows 上编不了，三条待验证项见 A2 |
+| iOS 已可用 | ❌ 网络层是抛异常的占位；iOS target 默认关闭、**没有 Xcode 工程**；`AppFile` 的 iOS 实现仍未写（A3） |
 
 > **历史教训（为什么值得反复强调）**：`:core` 一度只有 android + jvm 两个 **JVM** 目标，
 > `compileCommonMainKotlinMetadata` 是 `SKIPPED`，commonMain 从未被平台中立的 stdlib
@@ -244,12 +276,12 @@ AppFiles.init(
 ```bash
 ./gradlew :core:compileKotlinLinuxX64 :core:compileTestKotlinLinuxX64   # commonMain/Test 平台中立
 ./gradlew checkKmpPurity                                                 # 已知 JVM 专有 API 静态扫描
-./gradlew :app:assembleDebug                                             # Android 零回归（红线）
+./gradlew :androidApp:assembleDebug                                             # Android 零回归（红线）
 ```
 
 ---
 
-## 📍 当前进展（更新于 2026-10-09 · 已合入 master `8294dfb`）
+## 📍 当前进展（更新于 2026-10-10 · `master` `6367c55` + 未提交的存储层收口改动）
 
 > **安全网**：`master` 上打了永久标签 `backup/pre-merge-20261009`（合并前的状态）。
 > 万一发现遗漏，`git branch <名字> backup/pre-merge-20261009` 即可恢复 —— 
@@ -284,7 +316,7 @@ AppFiles.init(
 | `:core` | 34 (+15 平台实现) | ~9,365 | common / android / **jvm / linuxX64(门禁)** | **整个数据层**（课程/时间配置/节假日/课表名/文件夹/备份/WebDAV）+ 9 套跨平台抽象 |
 | `:backdrop` | 64 | 5,458 | common / android / skiko | KMP 化，含 edgelight + capsule；**skikoMain 未针对 Native 编译过** |
 | `:miuix` | 103 | 26,464 | common / android / skiko | KMP 化；**skikoMain 未针对 Native 编译过** |
-| `:app` | 148 | 69,983 | android | Android-only，**剩余迁移主体** |
+| `:androidApp` | 148 | 69,983 | android | Android-only，**剩余迁移主体** |
 
 `:core` 已有的 8 套跨平台能力：`NexioLog`（日志）/ `KeyValueStore`+`AppStorage`（存储）/
 `HttpService`（网络）/ `JsonSupport`（JSON）/ `PlatformInfo`（设备信息）/ `AppFile`+`AppFiles`（文件）/
@@ -294,16 +326,16 @@ AppFiles.init(
 **节假日纯逻辑集群已整体下沉**（⑨）：`CourseScheduleDateBounds` / `TeachingWeekReorganization` /
 `HolidayCourseExclusion` / `HolidayCountdown` / `HolidayEntry` / `HolidayTypes` / `DateExt`
 —— 即「日期边界计算 + 调休改周映射 + 假期课程剔除 + 假期倒计时」这条链现在完全跨平台。
-只剩存储层 `HolidayManager` 留在 `:app`。
+只剩存储层 `HolidayManager` 留在 `:androidApp`。
 
 **`data/school/` 已整体下沉**（`SchoolIndex` / `SchoolRepository` / `ScriptRepository`），
-`:app` 侧该包目录已清空 —— 学校索引与脚本下载这条链现在完全跨平台。
+`:androidApp` 侧该包目录已清空 —— 学校索引与脚本下载这条链现在完全跨平台。
 
 **编译验证**（务必按目标区分，别笼统说「编得过」）：
 - `:core/commonMain` → `compileKotlinLinuxX64` 通过 ⇒ **Native 目标也能编**（`commonTest` 同）
 - `:backdrop` / `:miuix` 的 `commonMain` + `skikoMain` → 只有 `compileKotlinJvm` / `compileAndroidMain`，
   **从未针对 Native 编译**；平台专有 API 靠 `checkKmpPurity` 静态兜底
-- `:app:assembleDebug` 通过（APK 19.96MB）
+- `:androidApp:assembleDebug` 通过（APK 19.96MB）
 
 ### ✅ 已完成批次 · 模块拆分（`:miuix` 建立与反向依赖解除）
 
@@ -322,7 +354,7 @@ shader 的 `layout(color) half4` → `float4`（`layout(color)` 是 AGSL 专有�
 |---|---|---|
 | CompositionLocal | App 的行为偏好，需根部注入 | `LocalChromeLensEnabled` / `LocalUseFakeProgressiveBlur` / `LocalPredictiveBackEnabled` |
 | expect/actual | 平台存储 / 平台能力 | `isTabletWidth` / `isRenderEffectSupported` / `rememberAppSettingDark` / `rememberNavigationBack` |
-| 接线层 | 逐调用点的 App 策略 | [EdgeLightBindings.kt](app/src/main/java/com/haooz/chedule/ui/utils/EdgeLightBindings.kt)，14 个调用点零改动 |
+| 接线层 | 逐调用点的 App 策略 | [EdgeLightBindings.kt](androidApp/src/main/java/com/haooz/chedule/ui/utils/EdgeLightBindings.kt)，14 个调用点零改动 |
 
 > `ProgressiveBlurTopBar` 有 29 个调用点 —— 走 CompositionLocal 后**一行调用点都不用改**。
 > 遇到「调用点很多 + 值只有一个来源」时优先用 CompositionLocal。
@@ -332,7 +364,7 @@ shader 的 `layout(color) half4` → `float4`（`layout(color)` 是 AGSL 专有�
 这两类问题的共同点：**编译永远通过，只有真机能发现**。已写进 memory。
 
 **1. OverlayDialog 的模糊与描边整体消失**
-`:app` 里有**两个同名** `DialogContentLayout`：App 定制版（394 行，含 blur+edgeLight）与
+`:androidApp` 里有**两个同名** `DialogContentLayout`：App 定制版（394 行，含 blur+edgeLight）与
 上游 Miuix 版（411 行，纯色）。我搬走了上游那个，又在修参数报错时把
 `liquidGlassBackdrop` / `isDark` / `enablePredictiveBackGesture` 当成「上游不需要」删了 ——
 于是 App 那份带效果的实现变成零引用孤儿文件。影响 **71 个调用点**。
@@ -521,8 +553,8 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 ### ✅ 已完成批次 · ⑬ `ScheduleBackup` 下沉 `:core` —— WebDAV 收敛到 `HttpService`（2026-10-09）
 
-**`:app/data` 只剩 `ScheduleAppearance`（含 Bitmap）与 `WallpaperTransform`（依赖 Compose `Offset`）
-及两个按决定必须留在 `:app` 的 Android actual。**
+**`:androidApp/data` 只剩 `ScheduleAppearance`（含 Bitmap）与 `WallpaperTransform`（依赖 Compose `Offset`）
+及两个按决定必须留在 `:androidApp` 的 Android actual。**
 
 | 原来 | 现在 |
 |---|---|
@@ -532,7 +564,7 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 | Gson（备份外层信封） | `JsonSupport` |
 | `Thread.sleep` | `delay`（本来就在协程里） |
 | `Dispatchers.IO` | `ioDispatcher`（Kotlin/Native 上没有 `Dispatchers.IO`） |
-| `CourseReminderHelper.onHolidayDataChanged(context)` | 构造时注入的回调（`:core` 不能反向依赖 `:app` 的提醒模块） |
+| `CourseReminderHelper.onHolidayDataChanged(context)` | 构造时注入的回调（`:core` 不能反向依赖 `:androidApp` 的提醒模块） |
 
 新增 `:core` 的 `basicAuthHeader()`（stdlib `Base64`，等价 OkHttp 的 `Credentials.basic`）。
 
@@ -566,7 +598,7 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
    备份 id 只会由 `formatCompactStamp` 从真实日期生成，格式坏只可能是文件被改名，
    **显示原始 id 比显示一个滚出来的假日期更诚实**。
 
-#### ⑬-c 一个**不做**的决定：`WallpaperTransform` 留在 `:app`
+#### ⑬-c 一个**不做**的决定：`WallpaperTransform` 留在 `:androidApp`
 
 它只依赖 `androidx.compose.ui.geometry.Offset`（61 行纯几何数学）。曾试着搬进 `:core`，
 但 `:core` 没有 Compose 依赖 —— 为 61 行数学把 Compose 拉进数据模块不划算
@@ -578,8 +610,8 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 ### ✅ 已完成批次 · ⑫ `CourseRepository` 下沉 `:core` —— **数据层全部完成**（2026-10-09）
 
-**`:app/data` 只剩 `ScheduleAppearance` / `ScheduleBackup` / `WallpaperTransform`
-与两个按决定必须留在 `:app` 的 Android actual（`SharedPreferencesStore` / `FileAppFile`）。**
+**`:androidApp/data` 只剩 `ScheduleAppearance` / `ScheduleBackup` / `WallpaperTransform`
+与两个按决定必须留在 `:androidApp` 的 Android actual（`SharedPreferencesStore` / `FileAppFile`）。**
 `TimeConfigSnapshotParser.kt` 一并删除 —— 它的注释写明「等阶段 2 换成 kotlinx.serialization
 之后应当移回 `TimeConfig.Companion`」，现在就是那个时候。
 
@@ -601,7 +633,7 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 新增 `:core` **`AppearancePrefs`**：把外观的 prefs 文件名与键名下沉 ——
 `CourseRepository.isCombinationBackupKey` 要用它们，而 `:core` 不能反向依赖
-`:app` 的 `ScheduleAppearance`。`:app` 侧用 `const val` 转发，取值同源、不会抄错。
+`:androidApp` 的 `ScheduleAppearance`。`:androidApp` 侧用 `const val` 转发，取值同源、不会抄错。
 
 #### ★★ ⑫-a 顺带修掉两个**真实缺陷**（与迁移无关，被真实备份测出来的）★★
 
@@ -618,7 +650,7 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 #### ⑫-b 安全网：文档「阶段 2.3」要求的那条 round-trip 终于能测了
 
-以前测不了 —— `exportAllPreferences` / `importAllPreferences` 在 `:app`，而 `:app` 没有测试源集。
+以前测不了 —— `exportAllPreferences` / `importAllPreferences` 在 `:androidApp`，而 `:androidApp` 没有测试源集。
 搬进 `:core` 之后，**这是搬它最大的回报**。新增 `FullBackupRoundTripTest`（3 用例，未入库）：
 把真实备份灌进 `InMemoryKeyValueStore` 后
 
@@ -673,7 +705,7 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 #### ⑪-c 安全网：把**真实 Gson** 拉进来当基准
 
-`core/build.gradle.kts` 的 `jvmTest` 加了 `libs.gson`（**仅测试编译，不进产物、不影响 `:app`**），
+`core/build.gradle.kts` 的 `jvmTest` 加了 `libs.gson`（**仅测试编译，不进产物、不影响 `:androidApp`**），
 新增 `ScheduleCodecGsonParityTest`（10 用例），用**真实备份数据**做差分对拍：
 
 | 用例 | 断言 |
@@ -832,7 +864,7 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 ### ✅ 已完成批次 · ⑩ `HolidayManager` 存储层下沉 `:core`（2026-10-09）
 
 **`HolidayManager` 移入 `core/src/commonMain`，节假日整条链（存储 + 调休改周 + 课程剔除 +
-倒计时）现在完全跨平台。** `:app/data` 只剩 `CourseRepository` / `ScheduleAppearance` /
+倒计时）现在完全跨平台。** `:androidApp/data` 只剩 `CourseRepository` / `ScheduleAppearance` /
 `ScheduleBackup` / `TimeConfigSnapshotParser` / `WallpaperTransform` 与两个 Android actual。
 
 #### ⑩-a 逐个替换掉的平台依赖
@@ -850,7 +882,7 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 | `entriesByYear.toSortedMap()` | `entries.entries.sortedBy { it.key }` | `toSortedMap` 是 JVM 专有（`TreeMap`） |
 
 另：`BACKUP_KEY` / `BACKUP_EXCLUSION_KEY` / `BACKUP_BEFORE_EXCLUSION_KEY` 三个常量从
-`internal` 提升为 **`public`** —— 原先 `internal` 在本模块内可见，跨模块后 `:app` 的
+`internal` 提升为 **`public`** —— 原先 `internal` 在本模块内可见，跨模块后 `:androidApp` 的
 `CourseRepository` 就看不见了（与 `TimeConfig.fromRaw` 是同一类问题）。
 
 #### ⑩-b `org.json` / Gson → `JsonSupport`：靠一个 `optRaw()` 保住语义
@@ -887,7 +919,7 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 
 #### ⑩-d `migrateLegacyFollowDates` 的反向依赖
 
-原实现内部 `CourseRepository(context)` —— `:core` 不能依赖还在 `:app` 的 `CourseRepository`。
+原实现内部 `CourseRepository(context)` —— `:core` 不能依赖还在 `:androidApp` 的 `CourseRepository`。
 改为传入 `resolveDateForTeachingWeekDay: (week, weekday) -> LocalDate?`。
 调用方（`NexioApplication`）拿不到仓储时**根本不调用本函数**，
 以保持原来「构造失败就整体跳过、连迁移标记都不写」的语义。
@@ -937,7 +969,7 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 （`data class HolidayEntry` + `TYPE_HOLIDAY`/`TYPE_WORKSWAP` + `matches`/`followLocalDate`/
 `hasFollowMapping` + `object HolidayEntries { entriesForDate }`）。
 
-`:app` 侧零调用点改动，靠两招：
+`:androidApp` 侧零调用点改动，靠两招：
 
 | 手法 | 效果 |
 |---|---|
@@ -945,7 +977,7 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 | `fun entriesForDate(...) = HolidayEntries.entriesForDate(...)` | 11 处 `HolidayManager.entriesForDate` 照旧可用 |
 | `HolidayManager.Entry` → `HolidayEntry`（30 处，机械改名 + 补 import） | 类型名显式化，跨模块可见 |
 
-> ⚠ **`HolidayEntry.toJson()` 刻意留在 `:app`**（改成扩展函数）。
+> ⚠ **`HolidayEntry.toJson()` 刻意留在 `:androidApp`**（改成扩展函数）。
 > 它产出的串以 `entries_{年}` 为键**直接落盘**，是数据兼容红线；
 > 等 `HolidayManager` 整体下沉时再一并换 `JsonSupport`，并配合真实用户数据 round-trip 回归。
 > 副作用：`wearable/WatchPayload.kt` 多了一行 `import com.haooz.chedule.data.toJson`（唯一外部调用点）。
@@ -978,31 +1010,31 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 
 `:core:jvmTest` **172 → 179 全绿**。
 
-#### ⑨-d 现在的 `:app/data` 剩余（下一步就盯这张表）
+#### ⑨-d 现在的 `:androidApp/data` 剩余（下一步就盯这张表）
 
 | 文件 | JVM/Android 专有点 | 备注 |
 |---|---:|---|
 | ~~`HolidayManager.kt`~~ | 73 | **已下沉 `:core`**（⑩）—— 换掉 Context/org.json/Gson/`@Synchronized`/`CourseRepository` 反向依赖 |
 | `CourseRepository.kt` | 39 | 2819 行，`String.format` 等 |
 | `ScheduleAppearance.kt` / `ScheduleBackup.kt` | 30 / 25 | Bitmap、文件 IO |
-| `SharedPreferencesStore.kt` / `FileAppFile.kt` | 13 / 2 | **Android 侧 actual，按决定必须留在 `:app`** |
+| `SharedPreferencesStore.kt` / `FileAppFile.kt` | 13 / 2 | **Android 侧 actual，按决定必须留在 `:androidApp`** |
 | `TimeConfigSnapshotParser.kt` | 2 | Gson |
 | `WallpaperTransform.kt` | 0 | 已中立，可直接搬 |
 
-> **`HolidayManager` 已搬完（⑩）**，它曾是最大的一块（73 点）。现在 `:app/data` 里最大的
+> **`HolidayManager` 已搬完（⑩）**，它曾是最大的一块（73 点）。现在 `:androidApp/data` 里最大的
 > 是 `CourseRepository`（37 点 / 2819 行）—— 也是**数据层的最后一块**。
 > 它的难点与 `HolidayManager` 不同：不是平台 API，而是**全局单例撞 Kotlin/Native 线程模型（R4）**，
 > 要改成显式注入；另外还有 `String.format` 这类 JVM 专有点。
 
 ### ✅ 已完成批次 · ⑧ 阶段 2.1：`java.time` → kotlinx-datetime 全量换血（2026-10-09）
 
-**`:app` 的 22 个 `java.time` 文件全部换成 kotlinx-datetime，`:app:assembleDebug` 通过。**
+**`:androidApp` 的 22 个 `java.time` 文件全部换成 kotlinx-datetime，`:androidApp:assembleDebug` 通过。**
 这一步是「节假日集群 + `CourseScheduleDateBounds` 进 `:core`」的唯一前置。
 
 #### ⑧-a 为什么必须整体换，不能逐个文件换
 
 `java.time.LocalDate` 与 kotlinx-datetime 的 `LocalDate` 是**两个不兼容的类型**。
-只要任何一个对外 API 还带旧类型，搬到 `:core` 就会强迫所有 `:app` 调用点做转换
+只要任何一个对外 API 还带旧类型，搬到 `:core` 就会强迫所有 `:androidApp` 调用点做转换
 （46 处 `TeachingWeekReorganization` + 14 处 `HolidayCourseExclusion`，散在 12 个文件）。
 所以只能一次全换 —— 好处是**换不干净编译器立刻报错**，不会留半截。
 
@@ -1078,7 +1110,7 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 
 **⑦-a 拆分（逐字搬运，零语义变更）**
 
-`app/.../data/Holidays.kt`（1782 行单文件全包）按类型集群拆成 4 个文件：
+`androidApp/.../data/Holidays.kt`（1782 行单文件全包）按类型集群拆成 4 个文件：
 
 | 文件 | 行数 | 内容 | 挡路的东西 |
 |---|---:|---|---|
@@ -1089,7 +1121,7 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 
 > **验证手段**（拆分这种"理应无变化"的改动必须机械验证，不能靠"编过了"）：
 > 用 `sed -n` 从 HEAD 原文按行区间抽出四段，与新文件**去掉文件头后逐行 `diff`** ——
-> 四段全部零差异。`:app:assembleDebug` 通过。
+> 四段全部零差异。`:androidApp:assembleDebug` 通过。
 > 保留 rename 历史：`git mv Holidays.kt HolidayManager.kt`。
 
 **⑦-b 下沉 6 个平台中立类型 → `core/.../data/HolidayTypes.kt`**
@@ -1099,10 +1131,10 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 
 它们的共同点：**只由 Int / Long / Boolean / String / `Course` 构成**，不碰
 `android.*`、`java.time`、`org.json`、Gson —— 所以**不需要等任何转换**就能进 commonMain。
-包名保持 `com.haooz.chedule.data` 不变，**`:app` 侧 import 一行没改**（同包直接可见）。
+包名保持 `com.haooz.chedule.data` 不变，**`:androidApp` 侧 import 一行没改**（同包直接可见）。
 
 > ⚠ 刻意**没有**放进 `com.haooz.chedule.data.holiday` 之类子包：一旦分包，
-> `:app` 里同包的调用点就要逐个加 import，那是纯噪音 diff，会掩盖真正有意义的改动。
+> `:androidApp` 里同包的调用点就要逐个加 import，那是纯噪音 diff，会掩盖真正有意义的改动。
 > 等整个集群搬完再考虑分包。
 
 **⑦-c 剩余部分为什么不能一起搬（下次接手直接看这张表，别重新分析）**
@@ -1155,12 +1187,12 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 | `android.*` import | **349 处 / 93 文件** |
 | `androidx.*`（**不含** compose）| **99 处**（与上一行去重后共 **448 处 / 94 文件**）|
 | `androidx.compose.*` | 2665 处 —— **跨平台，不算阻塞**，别拿它估工作量 |
-| ~~`java.time`（阶段 2 日期迁移）~~ | ✅ **已完成**（2026-10-09）：22 文件全换，`java.time` 在 `:app` 只剩注释（见 ⑧） |
+| ~~`java.time`（阶段 2 日期迁移）~~ | ✅ **已完成**（2026-10-09）：22 文件全换，`java.time` 在 `:androidApp` 只剩注释（见 ⑧） |
 | Gson 引用（**风险 R2**） | **22 处 / 10 文件**（⑫ 之后又降了；`TeachingWeekReorganization` 那份已换掉，见 ⑨-b）|
 | `java.io` 引用 | 18 处（import）/ 11 文件 |
 
 > ⚠ 早期写的「505 处 / 146 文件」把部分 androidx 混进来了，口径与该表不一致，**以本表为准**。
-> 逐文件处置清单见 `docs/NAVIGATION_MIGRATION_HANDOFF.md` **第七节（安卓数据层迁移清单）**。
+> 逐文件处置清单见 `docs/NAVIGATION_MIGRATION_HANDOFF.md` **第七节（Android 数据层迁移清单）**。
 
 按阻塞类型分组：
 
@@ -1171,7 +1203,7 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 - **Gson**：`ScheduleAppearance` 等 10 个文件（清单见交接文档 7.3）——
   需 `@Serializable` + **显式字段清单**，属**最高风险 R2**，必须有真实用户备份做 round-trip 回归
 - **文件 IO**：`ScheduleBackup` 已下沉 ✅；其余 `java.io` 引用多为导入导出
-- **Android 专有模块**（按约定留在 `:app`）：`reminder/` / `widget/` / `shizuku/` / `wearable/` / `ui/web/`
+- **Android 专有模块**（按约定留在 `:androidApp`）：`reminder/` / `widget/` / `shizuku/` / `wearable/` / `ui/web/`
   —— 但 `reminder/CourseReminderHelper` 的**提醒时刻算法**值得抠进 `:core`（iOS 本地通知要用）
 
 **不要用正则批量改写日期代码**（曾破坏 lambda / when 分支 / `!` 优先级）。
@@ -1181,11 +1213,11 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 
 **① `:core` KMP 模块已建立**（阶段 1 的第一批）
 - `Course` / `ScheduleFolder` / `TimeConfig` / `CourseTimeResolver` / `PeriodTimeSource` 已下沉
-- 包名保持 `com.haooz.chedule.data` 不变，所以 `:app` 侧 import 一行没改
+- 包名保持 `com.haooz.chedule.data` 不变，所以 `:androidApp` 侧 import 一行没改
 - `:core` 的 `LocalDate` 用 kotlinx-datetime 0.6.2；`api(...)` 而非 `implementation`（否则下游看不到类型）
 - 踩过的坑写在 `.workbuddy/memory/`，重点：`api` vs `implementation`、AGP 9 的 KMP 插件写法
 
-**② `backdrop` 已升级为 KMP 模块**（原本是放在 `:app` 里的 Android-only fork）
+**② `backdrop` 已升级为 KMP 模块**（原本是放在 `:androidApp` 里的 Android-only fork）
 - fork 自 `io.github.kyant0:backdrop:2.0.1`——**原库 2.x 本身就是 KMP 库**
   （1.x 是 Android-only，容易误判；务必确认最新版本再下结论）
 - 源集分工：`commonMain`（上游 + 本项目定制）/ `skikoMain`（上游自带 SkSL）/ `androidMain`（原 fork 的实现，补 `actual`）
@@ -1220,7 +1252,7 @@ kotlinx 不转义。**两者都是合法 JSON，解析回来是同一个字符�
 
 本轮迁移中，**两个功能失效的问题都是编译全绿、只有真机才能发现**的：
 
-1. **同名文件**：`:app` 里两个 `DialogContentLayout`，搬错了那个 →
+1. **同名文件**：`:androidApp` 里两个 `DialogContentLayout`，搬错了那个 →
    71 个调用点的模糊与描边消失。改签名前先 `git show HEAD:<调用方>` 确认它 import 的谁。
 2. **实例边界被抽象改变**：expect 封装把「1 个 state 喂两处」拆成「2 个函数各自 remember」
    → 预测性返回进度恒为空。改动前后数一数底层平台对象被创建了几次。
@@ -1303,7 +1335,7 @@ iOS 走的是 **Kotlin/Native**，不是 JVM。这一条决定了所有工作量
   commonMain/                屏幕 · 组件 · 主题
   androidMain/iosMain/       backdrop 的 actual（Android 走 RenderEffect，iOS 走 Skia）
 
-:app                         Android 壳（保留 reminder / widget / shizuku / wearable）
+:androidApp                         Android 壳（保留 reminder / widget / shizuku / wearable）
 :iosApp                      Xcode 工程（SwiftUI/UIKit 壳 + CMP 内容）
 ```
 
@@ -1407,7 +1439,7 @@ CMP 无对应物，且用得很广（顶栏按钮、下拉菜单、底部 Tab、
 
 ### 阶段 1 · 纯逻辑下沉（1~2 周）🟡 进行中
 
-**目标：** 建 `:core`，搬最干净的 5 个文件，`:app` 行为零变化。
+**目标：** 建 `:core`，搬最干净的 5 个文件，`:androidApp` 行为零变化。
 
 **迁移清单（共 1,411 行，Android 依赖为 0）：**
 
@@ -1423,7 +1455,7 @@ CMP 无对应物，且用得很广（顶栏按钮、下拉菜单、底部 Tab、
 
 **验收：**
 
-- `./gradlew :app:assembleDebug` 通过
+- `./gradlew :androidApp:assembleDebug` 通过
 - 用同一份真实备份文件，迁移前后对比课程时间、周次、节假日判定，**逐条一致**
 - Kotlin 版本保持 2.4.10 不动
 
@@ -1441,7 +1473,7 @@ CMP 无对应物，且用得很广（顶栏按钮、下拉菜单、底部 Tab、
 实测结论修正：**`SimpleDateFormat` 不在这一步里** —— 它全部用于「文件名时间戳 / 日志时间戳」，
 操作的是 `java.util.Date`，与 `LocalDate` 无关，且所在文件（`ScheduleBackup` / `CrashLogHelper` /
 `LocalBackupScreen` / `WebDavSettingsScreen` / `UpdateDialog` / `UpdateSettingsScreen`）
-本就留在 `:app`，不属于阶段 2.1。真正要手写替换的是 `DateTimeFormatter` 的 5 个固定 pattern。
+本就留在 `:androidApp`，不属于阶段 2.1。真正要手写替换的是 `DateTimeFormatter` 的 5 个固定 pattern。
 
 **2.2 Gson 分层替换 —— 不要全局无脑替换**
 
@@ -1502,13 +1534,13 @@ Android actual **必须继续走 SharedPreferences**，否则老用户数据全�
 | 文件                                                   |    行数 | 难点                                                |
 | ---------------------------------------------------- | ----: | ------------------------------------------------- |
 | `CourseRepository.kt`                                | 2,810 | 全局单例 → KN 线程模型，需改显式注入                             |
-| ~~`Holidays.kt`~~                                    | 1,781 | **已拆成 4 个文件**（⑦）；其中 3 个（`TeachingWeekReorganization` / `HolidayCourseExclusion` / `HolidayCountdown`）**已下沉 `:core`**（⑨）。只剩 `HolidayManager.kt`（73 点）在 `:app` |
+| ~~`Holidays.kt`~~                                    | 1,781 | **已拆成 4 个文件**（⑦）；其中 3 个（`TeachingWeekReorganization` / `HolidayCourseExclusion` / `HolidayCountdown`）**已下沉 `:core`**（⑨）。只剩 `HolidayManager.kt`（73 点）在 `:androidApp` |
 | ~~`CourseScheduleDateBounds.kt`~~                    |   314 | **已下沉 `:core`**（⑨）—— 两个前置（类型集群 ⑦、日期换血 ⑧）做完后它自己只剩 1 处 `Math.floorDiv` |
 | `ScheduleAppearance.kt`                              |   610 | 9 处 android import，含 Bitmap 处理                    |
 | `ScheduleBackup.kt`                                  |   450 | 文件 IO                                             |
 | `SchoolIndex` / `ScriptRepository` / `StatsReporter` |   522 | OkHttp + 文件                                       |
 
-**3.3 留在 `:app` 不动**  
+**3.3 留在 `:androidApp` 不动**  
 `reminder/`（4,463）、`widget/`（1,507）、`shizuku/`、`wearable/`、`provider/`、`ui/web/`。
 
 **验收：** Android 端全量回归；`:core` 同时编出 android 与 ios 产物。
@@ -1578,7 +1610,7 @@ Android actual **必须继续走 SharedPreferences**，否则老用户数据全�
 | `StatsReporter`             | 统计上报         | POST JSON                                     |
 | `ScheduleExport`            | 分享上传         | POST JSON                                     |
 | `ScheduleBackup`            | WebDAV 备份    | **PROPFIND / MKCOL / PUT / GET + Basic Auth** |
-| `WebViewRequestInterceptor` | 桌面模式 POST 转发 | POST，纯 Android，留在 `:app`                      |
+| `WebViewRequestInterceptor` | 桌面模式 POST 转发 | POST，纯 Android，留在 `:androidApp`                      |
 
 ### 好消息：全部是最基础的能力
 
@@ -1596,7 +1628,7 @@ Android actual **必须继续走 SharedPreferences**，否则老用户数据全�
 | 3.6.0 | **1.11.0** |
 | 3.1.3 | **1.10.2** |
 
-`:app` 的协程 1.9.0 来自 Compose 传递依赖，而提醒/闹钟/同步/小组件全压在协程上。
+`:androidApp` 的协程 1.9.0 来自 Compose 传递依赖，而提醒/闹钟/同步/小组件全压在协程上。
 **把「升级核心异步库」捆进「KMP 迁移」会让故障无法归因**，也无法单独回退。
 
 因此当前实现是 `:core` 自定义 `HttpService` 接口：
@@ -1673,14 +1705,14 @@ nativeMain   **未实现，调用即抛** → 接 iOS 前必须替换（见下�
 | R5 | `SimpleDateFormat` → kotlinx-datetime 行为偏移 | 日期静默算错         | 逐点对照用例                                  |
 | R6 | Miuix 是 fork 的 `-android` 变体               | 阻断跨平台          | 评估：改动提上游 / 改官方 KMP 依赖 + 局部自定义           |
 | R7 | 云端分享白名单未同步                                 | 新字段静默丢弃        | 改客户端字段必须同改 `server/index.js` 并重新部署      |
-| R8 | 61.7k 行 UI 迁移周期过长，拖垮主线开发                   | 项目停滞           | 严格按批次，每批次结束 `:app` 仍可发版                 |
+| R8 | 61.7k 行 UI 迁移周期过长，拖垮主线开发                   | 项目停滞           | 严格按批次，每批次结束 `:androidApp` 仍可发版                 |
 | R9 | ~~OkHttp 在 iOS 不可用~~                       | 低              | **改法已修订**：自建 `HttpService`，Android/JVM 复用 OkHttp；Native 侧未实现（见「网络层专项」） |
 
 ---
 
 ## 六、红线原则
 
-1. **不打断 1.6.x 开发。** 每阶段结束时 `:app` 必须能正常编译、打包、发布。任何阶段中途停下都能照常发版。
+1. **不打断 1.6.x 开发。** 每阶段结束时 `:androidApp` 必须能正常编译、打包、发布。任何阶段中途停下都能照常发版。
 2. **数据兼容不可谈判。** 存量 SharedPreferences 数据在每步之后都必须正确读出。
 3. **每步可回退。** `:core` 出问题就退回单模块。
 4. **先验证再推广。** 阶段 0 三个验证不做完，不进入阶段 1 的全面投入。
@@ -1699,7 +1731,7 @@ nativeMain   **未实现，调用即抛** → 接 iOS 前必须替换（见下�
    - 想解锁最多文件 → **Gson / `java.time` 的阻塞簇**（文件与网络抽象已就位，见「阶段 3.1」）
    - 想降低最大风险 → **Gson 迁移**（R2），但**必须先有真实用户备份做 round-trip 回归**
    - 想推进日期 → **直接做 `java.time` → kotlinx-datetime**（`Holidays.kt` 的类型集群已拆完，不再是前提）
-3. 每批结束都要：`:app:assembleDebug` 通过 + 门禁三条绿 + 真机过一遍受影响的界面
+3. 每批结束都要：`:androidApp:assembleDebug` 通过 + 门禁三条绿 + 真机过一遍受影响的界面
 
 ### 如果你是 iOS 侧开发者
 
@@ -1709,4 +1741,4 @@ nativeMain   **未实现，调用即抛** → 接 iOS 前必须替换（见下�
    `checkKmpPurity` 只能挡已知模式，请按编译器的报错逐个修
 4. 网络层按 A1 换掉那个抛异常的占位实现（引入 Ktor 请单独评估协程版本影响）
 
-> **红线（对两边都适用）**：不打断 1.6.x 正常发版。每阶段结束时 `:app` 必须能正常编译、打包、发布。
+> **红线（对两边都适用）**：不打断 1.6.x 正常发版。每阶段结束时 `:androidApp` 必须能正常编译、打包、发布。

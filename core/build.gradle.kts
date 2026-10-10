@@ -27,6 +27,25 @@ kotlin {
         //（那正是原警告想防的问题：test 里混入 java.io.IOException / String.toByteArray 之类）。
     }
     jvm()
+    // ── iOS 目标：**默认关闭**，用 -Pnexio.ios=true 显式开启 ──────────────────
+    //
+    // 为什么默认关：一旦声明 iOS target，`:core:check` 就会去解析 iOS 的 klib 依赖
+    // （kotlinx-datetime / coroutines / serialization 的 -iosarm64 / -iossimulatorarm64 变体），
+    // 而第八节门禁是 `--offline` 跑的 —— 本地没有这些变体的缓存，`:core:check` 直接失败，
+    // 把「Android 零回归」这条红线弄脏。实测确认过：报
+    // `Could not resolve all files for configuration ':core:iosSimulatorArm64CompileKlibraries'`。
+    //
+    // 另外 Windows 上本来也编译不了 iOS（缺 Xcode SDK），所以默认关掉不损失任何验证能力。
+    // macOS 上接入 iOS 时：
+    //   ./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64        # 首次会联网拉 iOS klib
+    // 开了之后请改用联网构建（去掉 --offline），否则同样解析不到 iOS 变体。
+    //
+    // `core/src/iosMain/` 下的 UserDefaultsStore 已写好，开启该 property 后才会参与编译。
+    val enableIos = (project.findProperty("nexio.ios") as? String)?.toBoolean() ?: false
+    if (enableIos) {
+        iosArm64()
+        iosSimulatorArm64()
+    }
     // 仅作**编译门禁**：Windows 上无法编译 iosArm64/iosSimulatorArm64，
     // 而 linuxX64 同为 Kotlin/Native 目标 —— 同样没有 `kotlin.jvm.*` 默认导入，
     // 因此能拦下 @Volatile / synchronized / System.currentTimeMillis / String.format

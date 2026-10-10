@@ -1,0 +1,109 @@
+/** 应用主题 - 定义 Material3 主题配色方案 */
+package com.haooz.chedule.ui.theme
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.haooz.chedule.data.AppStorage
+import com.haooz.chedule.ui.utils.AppMaterialSettings
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
+import top.yukonga.miuix.kmp.material.LocalChromeLensEnabled
+import top.yukonga.miuix.kmp.material.LocalUseFakeProgressiveBlur
+import top.yukonga.miuix.kmp.theme.ColorSchemeMode
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.ThemeController
+import top.yukonga.miuix.kmp.utils.LocalPredictiveBackEnabled
+
+/** 应用触感反馈开关对应的 SharedPreferences 文件与键 */
+const val APP_PREFS_NAME = "app_preferences"
+const val KEY_HAPTIC_FEEDBACK = "haptic_feedback_enabled"
+
+@Composable
+fun CourseScheduleTheme(
+    content: @Composable () -> Unit
+) {
+    val prefs = remember { AppStorage.store("app_theme_prefs") }
+    val themeMode = remember { mutableStateOf(prefs.getString("theme_mode", "system")) }
+
+    // 全局触感反馈开关：读取应用偏好，关闭后在整个 App 范围内屏蔽所有触感/震动
+    // （本项目及 Miuix 组件的触感均通过 LocalHapticFeedback 触发，此处统一拦截即可全局生效）
+    val hapticPrefs = remember { AppStorage.store(APP_PREFS_NAME) }
+    var hapticFeedbackEnabled by remember {
+        mutableStateOf(hapticPrefs.getBoolean(KEY_HAPTIC_FEEDBACK, true))
+    }
+
+    DisposableEffect(prefs) {
+        // ⚠ iOS 侧 registerListener 返回 null（变更通知不带 key），token 为 null 时
+        // unregisterListener 是空操作 —— 主题切换在 iOS 上要等下次组合才刷新，不崩。
+        val token = prefs.registerListener { key ->
+            if (key == "theme_mode") {
+                themeMode.value = prefs.getString("theme_mode", "system")
+            }
+        }
+        onDispose {
+            prefs.unregisterListener(token)
+        }
+    }
+
+    DisposableEffect(hapticPrefs) {
+        val token = hapticPrefs.registerListener { key ->
+            if (key == KEY_HAPTIC_FEEDBACK) {
+                hapticFeedbackEnabled = hapticPrefs.getBoolean(KEY_HAPTIC_FEEDBACK, true)
+            }
+        }
+        onDispose {
+            hapticPrefs.unregisterListener(token)
+        }
+    }
+
+    // 稳定 ThemeController：只改 colorSchemeMode，避免 remember(themeMode) 换实例导致组合树重建
+    val controller = remember {
+        ThemeController(
+            when (themeMode.value) {
+                "light" -> ColorSchemeMode.Light
+                "dark" -> ColorSchemeMode.Dark
+                else -> ColorSchemeMode.System
+            }
+        )
+    }
+    controller.colorSchemeMode = when (themeMode.value) {
+        "light" -> ColorSchemeMode.Light
+        "dark" -> ColorSchemeMode.Dark
+        else -> ColorSchemeMode.System
+    }
+    // 捕获当前（系统默认）触感实现，封装为受开关控制的门控实现
+    val defaultHaptic = LocalHapticFeedback.current
+    val gatedHaptic = remember(defaultHaptic) {
+        object : HapticFeedback {
+            override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+                if (hapticFeedbackEnabled) {
+                    defaultHaptic.performHapticFeedback(hapticFeedbackType)
+                }
+            }
+        }
+    }
+    MiuixTheme(
+        controller = controller,
+        content = {
+            CompositionLocalProvider(
+                LocalHapticFeedback provides gatedHaptic,
+                // :miuix 需要的 App 能力注入点。搬迁前这些组件直接读 AppMaterialSettings /
+                // PredictiveBackSettings / isAppDarkTheme()，构成 :miuix → :app 的反向依赖，
+                // 无法进 commonMain。改为 App 在根部 provide，模块内任何位置都能读到，
+                // 效果与迁移前一致（28 处 ProgressiveBlurTopBar 调用点无需逐个改）。
+                LocalChromeLensEnabled provides AppMaterialSettings.chromeLensEnabled(),
+                LocalUseFakeProgressiveBlur provides AppMaterialSettings.progressiveBlurUseFake(),
+                LocalPredictiveBackEnabled provides PredictiveBackSettings.enabled,
+            ) {
+                content()
+            }
+        }
+    )
+}

@@ -1,10 +1,43 @@
-# 交接文档：单宿主导航改造 + 安卓数据层迁移清单（2026-10-10 收工快照）
+# 交接文档：单宿主导航改造 + Android 数据层 KMP 收口（2026-10-10 收工快照）
 
 > **给新对话的接手人**：这份文档管两件事 ——
-> **①「Activity → 路由」改造**（一~六节，已收工）；
-> **②安卓侧数据层的迁移清单**（七节，下一步要做的）。
+> **①「Activity → 路由」改造**（一~六节，**已收工**）；
+> **②Android 数据层的 KMP 收口**（七节，**D1/D2 已完成**，执行记录见 7.7）。
 > 宏观 KMP 迁移计划见 `docs/KMP_IOS_MIGRATION_PLAN.md`（含 ⑦–⑬ 数据层批次记录），本文不重复。
-> 代码基线：`master` `6367c55`，Android `assembleDebug` 通过，`:core:jvmTest` 241 用例全绿。
+>
+> **代码基线**：`master` `6367c55` + **本轮尚未提交的工作区改动**（见下）。
+> Android `assembleDebug` 通过 · `:core:jvmTest` **241 用例全绿** · `checkKmpPurity` 185 文件通过 ·
+> `:core:compileKotlinLinuxX64` 通过。
+
+## ⚡ 下一手要做的（按优先级）
+
+1. **iOS 首次编译验证（需 macOS）**：`./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64`（要联网）。
+   重点确认 `UserDefaultsStore` 的三处，见 7.7 节末「iOS 侧首次编译必须重点验证的三点」。
+   ⚠ Windows 上跑不了，也别把 iOS target 改成默认开启 —— 会让 `--offline` 门禁挂掉（原因见 7.7）。
+2. **接 iOS 启动注入**：iOS 侧对应 `NexioApplication.onCreate` 的三件事 ——
+   `AppStorage.init { name -> UserDefaultsStore(name) }`、`AppFiles.init(root, readAsset)`、
+   `ScheduleAppearance.init`。参考 KMP 计划文档「给 iOS 开发者的交接清单 A 节」。
+3. **`HttpService.native`**（现在是「调用即抛」的占位）—— **iOS 的硬阻塞**，WebDAV 只等这一处。
+4. **剩余 46 处 `getSharedPreferences` 不要动**（类别 C，理由见 7.7 末）。要动就独立批次 + 真机回归。
+
+## ⚠ 本轮工作区改动尚未提交（`git status` 可见）
+
+- **新增**：`core/src/androidMain/kotlin/com/haooz/chedule/data/SharedPreferencesStore.kt`
+  （从 `:androidApp` 搬来，包名未变）、`core/src/iosMain/kotlin/com/haooz/chedule/data/UserDefaultsStore.kt`
+- **删除**：`androidApp/src/main/java/com/haooz/chedule/data/SharedPreferencesStore.kt`（内容已搬到 `:core`）
+- **修改**：`core/build.gradle.kts`（iOS target 改为 `-Pnexio.ios=true` 开关）；
+  `:androidApp` 下 14 个文件的存储调用（`NexioApplication` / `Theme` / `ThemeUtils` / `MainActivity` /
+  `PreferenceSettingsScreen` / `UpdateSettingsScreen` / `UpdateDialog` / `UpdateChecker` /
+  `TodayAssistant` / `ClassEndEffects` / `AndroidBridge` / `EducationalImportActivity` /
+  `CourseReminderScreen` / `AppMaterialSettings` / `data/ScheduleAppearance`）
+- **改名**：模块目录 `app/` → `androidApp/`，Gradle 模块 `:app` → `:androidApp`
+  （为将来的 `iosApp` / `desktopApp` 让路）。同步改了 `settings.gradle.kts`、根 `.gitignore`（3 条规则）、
+  `gradle/libs.versions.toml` 注释、两份文档里的全部引用。
+  ⚠ **包名 / applicationId 未动**（仍是 `com.haooz.chedule`）—— 存量用户数据与升级路径不受影响。
+  ⚠ 改名前**必须关闭 Android Studio**：Windows 上 IDE 会锁住 `app/` **目录本身**，
+  实测 `mv app androidApp` 和 PowerShell `Rename-Item` 都报 `Permission denied`；
+  但**子项可以逐个移出**（`mv app/* androidApp/` + `mv app/.[!.]* androidApp/`），最后 `rmdir app` 成功。
+- `core/src/commonTest/`、`core/src/jvmTest/` **仍是 untracked**（用户长期要求：测试不入库）
 
 ---
 
@@ -53,7 +86,7 @@ MainActivity.setContent
    └─ LaunchedEffect(pendingRoute) { router.navigate(it) }       ← 消费 Intent 深链
 ```
 
-**文件**（都在 `app/src/main/java/com/haooz/chedule/ui/navigation/`）：
+**文件**（都在 `androidApp/src/main/java/com/haooz/chedule/ui/navigation/`）：
 
 | 文件 | 职责 |
 |---|---|
@@ -103,7 +136,7 @@ MainActivity.setContent
 3. 找到**所有** `XxxActivity::class.java` 启动点，改成 `LocalAppRouter.current.navigate(...)`
    （⚠ current 必须取在**组合层**，不能放进 onClick lambda）
 4. 删 Activity 文件（`git rm`）+ 用 **Edit 工具**删 Manifest 块（见坑 ⑤）
-5. 跑门禁：`:app:assembleDebug` + 三模块 `check` + `checkKmpPurity` + `:core:jvmTest`
+5. 跑门禁：`:androidApp:assembleDebug` + 三模块 `check` + `checkKmpPurity` + `:core:jvmTest`
 
 ---
 
@@ -234,7 +267,7 @@ MainActivity.setContent
     `DocumentPageScaffold` 再用 `CompositionLocalProvider` 给每页发一个独立实例，
     顶栏与内容共用同一实例，也避开 `compositionLocalOf` 默认值的全局单例。
     ⇒ **通则**：miuix 里已有的东西 app 不许再抄一份；查法
-    `grep -rn "LocalXxx" app/src miuix/src` 看是不是出现了两个同名 local。
+    `grep -rn "LocalXxx" androidApp/src miuix/src` 看是不是出现了两个同名 local。
 
 ---
 
@@ -264,8 +297,9 @@ MainActivity.setContent
 
 ### Activity 侧已收工，下一步转 KMP 本身
 
-4. **安卓数据层迁移**（`data/` + `viewmodel/` + 平台能力包）—— **清单见第七节**，
-   与导航改造同量级，建议独立开工前先读那一节。
+4. ✅ **Android 数据层 KMP 收口（D1/D2）** —— **已完成**（2026-10-10）：`SharedPreferencesStore`
+   搬到 `core/src/androidMain`、新增 `core/src/iosMain/UserDefaultsStore`、`:androidApp` 直调 **88 → 46 处**。
+   执行记录、踩坑清单与 iOS 待验证项见第七节 **7.7**。
 5. `HttpService.native`（iOS 硬阻塞，WebDAV 只等这一处）/ 建 `:ui-shared`
    （`AppRouteContent`、`DocumentPageScaffold`、19 条路由对应的 Screen 的归宿）。
 6. **别动**：`EducationalImportActivity`（WebView 平台页）；`wearable/`（不由本项目维护）。
@@ -273,9 +307,9 @@ MainActivity.setContent
 
 ---
 
-## 七、安卓数据层迁移清单（2026-10-10 实测）
+## 七、Android 数据层迁移清单（2026-10-10 实测）
 
-> 面向「安卓数据层后期也要迁」。数字都是 `grep` 实测，不是估的。
+> 面向「Android 数据层后期也要迁」。数字都是 `grep` 实测，不是估的。
 
 ### 7.0 先看清 `:core` 已经有什么 —— **别再造轮子**
 
@@ -284,14 +318,14 @@ MainActivity.setContent
 | `:core` 现成抽象 | 替代谁 | 备注 |
 |---|---|---|
 | `AppFile` / `AppFiles` | `java.io.File` | **注入式**（不是 expect/actual），`NexioApplication.onCreate` 里 `AppFiles.init(FileAppFile(filesDir), assets)` |
-| `AppStorage` / `KeyValueStore` | `SharedPreferences` | 同样注入式；`:app` 侧实现是 `SharedPreferencesStore` |
+| `AppStorage` / `KeyValueStore` | `SharedPreferences` | 同样注入式；`:androidApp` 侧实现是 `SharedPreferencesStore` |
 | `HttpService` | OkHttp（上层） | androidMain 已有 OkHttp 实现，**iOS 侧 `HttpService.native` 未写** |
 | `JsonSupport` / `ScheduleCodec` | Gson / org.json | 有 `ScheduleCodecGsonParityTest` 对拍（jvmTest，未入库） |
 | `Clock` | `System.currentTimeMillis()` | |
 | `Lock` / `synchronizedOn` | `synchronized` | Kotlin/Native 线程模型（风险 R4）|
 | `PlatformInfo` / `NexioLog` / `IoDispatcher` | `Build.*` / `Log.*` / 固定线程池 | 都是 expect/actual |
 
-包名与迁移前**完全一致**（`com.haooz.chedule.data`），所以 `:app` 侧 import 一行都不用改 ——
+包名与迁移前**完全一致**（`com.haooz.chedule.data`），所以 `:androidApp` 侧 import 一行都不用改 ——
 这是前面 ⑦~⑬ 批次能一次过的原因，**下沉时务必保持包名不变**。
 
 ### 7.1 三分类判定口径
@@ -300,9 +334,9 @@ MainActivity.setContent
 |---|---|---|
 | **A 整体下沉** | 纯数据/纯算法，无平台 API | 直接搬 `core/src/commonMain` |
 | **B 拆分下沉** | 逻辑跨平台 + 平台实现（Bitmap / 通知 / 文件）| 逻辑进 commonMain，平台实现进 `androidMain`（或走已有注入接口）|
-| **C 永不迁** | 本身就是 Android 能力（AlarmManager / RemoteViews / Shizuku）| 留 `:app`；**只把其中的纯算法抠出来** |
+| **C 永不迁** | 本身就是 Android 能力（AlarmManager / RemoteViews / Shizuku）| 留 `:androidApp`；**只把其中的纯算法抠出来** |
 
-### 7.2 逐文件清单（`:app` 非 UI 部分，31 个文件 / 9161 行）
+### 7.2 逐文件清单（`:androidApp` 非 UI 部分，31 个文件 / 9161 行）
 
 **`data/`（4 个，795 行）—— 全部有明确归属，优先做**
 
@@ -329,11 +363,11 @@ MainActivity.setContent
 | `provider/` | 1 / 409 | `ContentProvider` 系（今日课程数据供给）| 「取今天的课」可复用 `:core` |
 | `shizuku/` | 2 / 353 | Shizuku Binder（免打扰/静音）| 无，Android 专属 |
 | `wearable/` | 2 / 409 | Wearable DataClient | 无，**不由本项目维护，别动** |
-| `NexioApplication.kt` | 124 | `Application` | 保留在 `:app`：启动注入点（`AppStorage.init` → `AppFiles.init` → `ScheduleAppearance.init` → 穿戴同步）。iOS 侧对应「3 个启动注入」，见 KMP 计划交接清单 A 节 |
+| `NexioApplication.kt` | 124 | `Application` | 保留在 `:androidApp`：启动注入点（`AppStorage.init` → `AppFiles.init` → `ScheduleAppearance.init` → 穿戴同步）。iOS 侧对应「3 个启动注入」，见 KMP 计划交接清单 A 节 |
 
 ### 7.3 散落在 `ui/` 里的数据层（别漏）
 
-Gson 在 `:app` 还剩 **22 处 / 10 文件**，其中 9 个在 `ui/`（真正的「数据层」只剩 `data/ScheduleAppearance` 一个）：
+Gson 在 `:androidApp` 还剩 **22 处 / 10 文件**，其中 9 个在 `ui/`（真正的「数据层」只剩 `data/ScheduleAppearance` 一个）：
 
 `data/ScheduleAppearance`、`ui/activities/BackupAndMigrationScreen`、
 `ui/activities/EducationalImportActivity`、`ui/activities/LocalBackupScreen`、
@@ -372,10 +406,77 @@ Gson 在 `:app` 还剩 **22 处 / 10 文件**，其中 9 个在 `ui/`（真正�
    - `checkKmpPurity` 会扫 `java.*` / `java.io.*` / `synchronized` / `Dispatchers.IO` /
      `String.format` / `System.currentTimeMillis` / `::class.java` / `Thread` 等，
      但**只扫 `core` / `backdrop` / `miuix` 的 `commonMain` + `skikoMain`** ——
-     `:app` 里写多少 `java.io` 它都看不见。
+     `:androidApp` 里写多少 `java.io` 它都看不见。
    - `:core:compileKotlinLinuxX64`（Kotlin/Native 目标）才是真正的兜底：
      上面那些静态规则漏掉的 API（比如变量形式的 `s.toByteArray()`）在这里才会暴露。
 5. 提交前**关掉 Android Studio**（已两次删过工作区文件）。
+
+### 7.7 执行记录：KeyValueStore 三平台闭环（2026-10-10）
+
+> 本次把「Android 数据层迁移」的第一步做完：**存储抽象收口到 `:core`，Android / iOS 各一个平台实现**。
+> 验收：`:androidApp:assembleDebug` 通过 · `:core:jvmTest` **241 用例全绿** · `checkKmpPurity` 185 文件通过 ·
+> `:core:compileKotlinLinuxX64` 通过。
+
+**结论先说**：本项目**没有 SQL 数据库**，用户数据 = 17 个 SharedPreferences 文件（课程表是
+数百 KB 的 JSON 字符串塞在 `course_schedule_prefs`）+ 少量文件。所以「迁移到 KMP 数据库」
+**不需要搬任何存量数据** —— 抽象层早就解耦好了，缺的只是 iOS 侧的实现。**不要引入
+SQLDelight / Room 去重写存储**：那需要写一次性 SP → SQLite 迁移，而本项目 `Holidays`
+等处遍布 `runCatching` 兜底恰恰说明历史数据格式变更多次、类型错配真实存在，一处漏兜就是用户课表没了。
+
+| # | 动作 | 结果 |
+|---|---|---|
+| D1 | `SharedPreferencesStore` 从 `:androidApp` 搬到 `core/src/androidMain` | 包名不变（`com.haooz.chedule.data`），`:androidApp` 侧 import 零改动 |
+| D1+ | 新增 `core/src/iosMain/UserDefaultsStore.kt` | `KeyValueStore` 的 NSUserDefaults 实现，**待 macOS 首次编译验证** |
+| D1+ | `core/build.gradle.kts` 加 iOS target（**默认关闭**，`-Pnexio.ios=true` 开启） | 原因见下 |
+| D2 | `:androidApp` 直调 `getSharedPreferences`：**88 处 → 46 处** | 改掉的 42 处全在 UI / 数据层；剩余 46 处全属类别 C |
+
+**关键陷阱（改的时候真实踩到，下次务必对照）**
+
+1. **`KeyValueEditor` 不可链式**
+   `SharedPreferences.Editor.putXxx()` 返回 Editor 自身，所以 `putString(a,b).putBoolean(c,d)`
+   在旧代码里很常见；`KeyValueEditor.putXxx()` 返回 `Unit`，链式**直接编译失败**
+   （`Unresolved reference 'putBoolean'`）。必须逐条写。
+2. **`putString(k, null)` 的隐式移除语义没了**（最危险的一条）
+   Android 的 `Editor.putString(key, null)` 等价 `remove(key)`；`AndroidBridge` 三处靠它表达
+   「null = 导入到当前课表」写 `target_schedule_id`。`KeyValueEditor.putString` 只收非空值，
+   必须显式 `if (v != null) putString(...) else remove(...)`。**漏改会写不进去且不报错。**
+3. **`getString(k, null)` → `getStringOrNull(k)`**
+   `KeyValueStore.getString` 刻意收非空默认值；要「键不存在返回 null」得用顶层扩展函数
+   `getStringOrNull`（**需要 import**，不是成员，漏 import 报 `Unresolved reference`）。
+4. **`all()` 的类型必须精确**
+   `CourseRepository` 用 `when (value) { is Int -> putInt … is Long -> putLong … }` 复制课表、
+   `exportAllPreferences()` 导出全量备份 —— 类型判错会**静默丢设置**。iOS 侧因此在
+   `suiteName.__kvtypes` 独立域里记了类型标记（详见 `UserDefaultsStore` 类注释）。
+5. **`batchSave` 的 Editor 复用要重写成「累积写入块」**
+   `ScheduleAppearance.pendingEditor` 原来共享一个 `SharedPreferences.Editor` 跨调用累积、
+   最后 `apply()`；`KeyValueStore.edit` 是一次性事务、没有可跨调用的 Editor，
+   已改为累积 lambda + `batchSave` 结束时一次性提交（语义等价）。
+
+**iOS target 为什么默认关（别改回去）**
+
+声明 iOS target 会让 `:core:check` 去解析 iOS 的 klib 依赖
+（`kotlinx-datetime/coroutines/serialization` 的 `-iosarm64/-iossimulatorarm64` 变体），
+而第八节门禁是 `--offline` 跑的 → `:core:check` 直接失败，
+实测报错 `Could not resolve all files for configuration ':core:iosSimulatorArm64CompileKlibraries'`，
+**把「Android 零回归」这条红线弄脏**。故改为 `-Pnexio.ios=true` 显式开启；
+Windows 上本来也编译不了 iOS，默认关不损失任何验证能力。
+macOS 上首次接入：`./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64`（**需联网**）。
+
+**iOS 侧首次编译必须重点验证的三点**
+
+`UserDefaultsStore.kt` 在 Windows 上无法编译，以下靠 mac 上第一次 `compileKotlinIosArm64` 确认：
+1. Kotlin 的 `Int/Long/Float/Boolean` 传给 `setObject(_:forKey:)` 是否自动装箱成 `NSNumber`
+2. `persistentDomainForName` 对自定义 suite 是否返回非空（`all()` 依赖它）
+3. `raw is String` 对 plist 里的 `NSString` 是否成立
+
+**剩余 46 处为什么没改（建议保持不动）**
+
+`reminder/`（35）+ `ui/utils/CrashLogHelper`（8）+ `widget/`（1）+ `NexioApplication`（2，注入点本身）
+—— 全部是 7.1 判定的**类别 C「永不迁」**：`AlarmManager` / `RemoteViews` / `Build` / `FileProvider` / logcat。
+它们永远不进 `:core` 的 commonMain，所以「存储调用平台无关」对它们没有实际收益；
+而 `CourseReminderHelper` 有 20+ 处链式 `edit()`（陷阱 1），逐条拆开的回归风险不小
+（改错 = 用户提醒失效）。iOS 的提醒能力是 `UNUserNotificationCenter` 另写一套，不会复用这些代码。
+**要做就作为独立批次 + 真机回归验证，别顺手改。**
 
 ---
 
@@ -383,7 +484,7 @@ Gson 在 `:app` 还剩 **22 处 / 10 文件**，其中 9 个在 `ui/`（真正�
 
 ```bash
 export JAVA_HOME="D:\\JDK"; unset JAVA_TOOL_OPTIONS
-./gradlew :app:assembleDebug :core:check :miuix:check :backdrop:check \
+./gradlew :androidApp:assembleDebug :core:check :miuix:check :backdrop:check \
   :core:compileKotlinLinuxX64 :core:compileTestKotlinLinuxX64 checkKmpPurity :core:jvmTest --offline
 ```
 

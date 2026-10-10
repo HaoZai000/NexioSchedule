@@ -78,7 +78,7 @@
 ## 项目结构
 
 ```
-app/src/main/java/com/haooz/chedule/
+androidApp/src/main/java/com/haooz/chedule/
 ├── ui/
 │   ├── activities/            // 各功能页面（Activity / Compose Screen）
 │   │   ├── MainActivity.kt              // 主页面 - 应用入口

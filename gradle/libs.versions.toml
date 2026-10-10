@@ -9,11 +9,11 @@ kotlin = "2.4.10"                     # Kotlin 编译器（含 Compose 编译插
 
 # 跨平台（:core KMP 模块）
 kotlinxDatetime = "0.6.2"             # kotlinx-datetime：java.time 的 KMP 替代（0.7+ 重命名了 monthNumber→month、Clock 改为 kotlin.time 别名，留到阶段 2 再评估升级）
-# 协程：:app 一直是靠 Compose 传递依赖拿到的 1.9.0。:core 必须显式声明（KMP 模块不能指望
-# 下游传递），版本取与 :app 已解析一致的值，避免版本对齐产生额外噪音。
+# 协程：:androidApp 一直是靠 Compose 传递依赖拿到的 1.9.0。:core 必须显式声明（KMP 模块不能指望
+# 下游传递），版本取与 :androidApp 已解析一致的值，避免版本对齐产生额外噪音。
 kotlinxCoroutines = "1.9.0"
 # JSON：替代 org.json（Android 平台提供，JVM/iOS 都没有）。
-# 只用 JsonElement 动态解析，**不需要 kotlinx-serialization 编译器插件**（免去给 :app 加 plugin）。
+# 只用 JsonElement 动态解析，**不需要 kotlinx-serialization 编译器插件**（免去给 :androidApp 加 plugin）。
 # 实测依赖只有 stdlib + serialization-core，不牵连协程 —— 这点与 Ktor 不同，已核实。
 kotlinxSerialization = "1.9.0"
 
