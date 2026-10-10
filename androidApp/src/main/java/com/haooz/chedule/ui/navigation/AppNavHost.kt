@@ -268,13 +268,20 @@ private fun PageLayer(
     Box(
         Modifier
             .fillMaxSize()
-            .clipDuringTransition(clipShape, inFlight)
+            // ⚠ 顺序关键：clip 必须在 layout **之后**（更内层）。
+            // 位移是 layout 在「摆放阶段」做的，clip 在内层时它的坐标系跟着
+            // 页面一起平移 —— 圆角长在页面自己的角上，整个滑动过程都是圆角卡片
+            //（与 1da9c0a8 的语义一致：那版 translationX 与 clip 在同一个
+            // graphicsLayer 里，裁切天然跟随图层）。
+            // 若把 clip 放到 layout 外层，裁切就锚在屏幕四角 —— 页面的角只有
+            // 滑到贴边的瞬间才与屏幕角重合，看起来等于没生效。
             .layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints)
                 layout(placeable.width, placeable.height) {
                     placeable.place((fraction() * placeable.width).roundToInt(), 0)
                 }
-            },
+            }
+            .clipDuringTransition(clipShape, inFlight),
     ) { content() }
 }
 
