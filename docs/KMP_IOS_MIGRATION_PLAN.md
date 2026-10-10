@@ -20,11 +20,13 @@
 数据层与 `data/school/` 已整体下沉 `:core`，**节假日纯逻辑集群也已全部下沉**（⑨）；
 **存储层已三平台闭环**（2026-10-10，见 handoff 文档 7.7）：`KeyValueStore` 的 Android 实现
 （`SharedPreferencesStore`）搬到了 `core/src/androidMain`，iOS 实现
-（`core/src/iosMain/.../UserDefaultsStore.kt`）已写好 —— **但 Windows 上编译不了 iOS，尚未被编译器验证**；
+（`core/src/iosMain/.../UserDefaultsStore.kt`）已写好 —— ✅ **编译已验证**
+（2026-10-10 实测 Windows 上就能编 iOS klib，见 A1-bis；运行时三点仍需真机）；
 `:miuix` / `:backdrop` 已是 KMP 模块，**`skikoMain` 已针对非 JVM 目标（wasmJs）编译通过**
 （2026-10-10，见 D 节专节）；
 **iOS target 已声明但默认关闭**（`-Pnexio.ios=true` 开启，原因见 C 节），**仍无 Xcode 工程**；
-且 `:core` 的 Native HTTP 实现是一个**调用即抛 `NotImplementedError` 的占位**。
+**网络层已实现**（2026-10-10，`iosMain/HttpService.ios.kt`，NSURLSession delegate，
+编译通过，未引入 Ktor）。
 
 ### 2. ✅ 测试已全部入库（2026-10-10，`057d6ab`）
 
@@ -55,7 +57,7 @@
 | ✅ **`HolidayManager` 存储层下沉 `:core`** | **已完成**（2026-10-09）：`Context`/`org.json`/Gson/`@Synchronized`/`CourseRepository` 反向依赖全部处理掉，节假日整条链现在完全跨平台（详见「当前进展 ⑩」） | — |
 | ✅ **`CourseRepository` 下沉 `:core`** | **已完成**（2026-10-09）：**数据层全部完成**，顺带修掉两个「用户无法恢复自己备份」的真实缺陷（见「当前进展 ⑫」） | — |
 | ✅ **`ScheduleBackup` 下沉 `:core`** | **已完成**（2026-10-09）：WebDAV 收敛到 `HttpService`，iOS 侧不再有第二处网络实现要写（见「当前进展 ⑬」） | — |
-| ✅ **存储层三平台闭环（`KeyValueStore`）** | **已完成**（2026-10-10）：Android 实现 `SharedPreferencesStore` 搬到 `core/src/androidMain`；iOS 实现 `UserDefaultsStore` 已写好；`:androidApp` 直调 `getSharedPreferences` **88 → 46 处**（剩余全属类别 C）。详见 handoff 文档 **7.7** | 中 —— iOS 侧在 Windows 上编不了，**尚未经编译器验证** |
+| ✅ **存储层三平台闭环（`KeyValueStore`）** | **已完成**（2026-10-10）：Android 实现 `SharedPreferencesStore` 搬到 `core/src/androidMain`；iOS 实现 `UserDefaultsStore` 已写好；`:androidApp` 直调 `getSharedPreferences` **88 → 46 处**（剩余全属类别 C）。详见 handoff 文档 **7.7** | 中 —— ✅ **编译已验证**（2026-10-10，Windows 上 `compileKotlinIosArm64` 通过）；**运行时**三点仍需真机，见 A2 |
 
 **UI 导航改造（阶段 5 前置）已起步** —— 增量 1 做完（路由器基础设施 + 关于页宿主化，
 Manifest 23 → 20 个 Activity）。详见「🎯 UI 导航改造」一节，**下一个增量是把宿主迁到 `MainActivity`**。
@@ -68,12 +70,12 @@ Manifest 23 → 20 个 Activity）。详见「🎯 UI 导航改造」一节，**
 
 | 候选 | 说明 | 风险 |
 |---|---|---|
-| **Native HTTP 实现**（`HttpService.native`） | **iOS 的硬阻塞**：现在它是「调用即抛」的占位。WebDAV 已经收敛到它，所以只剩这一处。写它本身不需要 macOS（`ktor-client-cio` 或 cinterop 都能编 linuxX64），但**验证需要真机/模拟器** | 中（引入 Ktor 会顶协程版本 → 需单独评估） |
+| ~~**Native HTTP 实现**（`HttpService.native`）~~ | ✅ **已完成**（2026-10-10）：`iosMain/HttpService.ios.kt`（NSURLSession delegate 流式读），**未引入 Ktor**，双 iOS 目标编译通过；占位挪到 `linuxX64Main`。剩下的只是**真机运行验证**（WebDAV PROPFIND / 8MB 截断 / 断网抛错） | ~~中~~ → 低 |
 | **Gson 4 条通道**（10 个文件） | 全在 `:androidApp` 的 UI/导入导出层。**现阶段不需要动** —— Gson 留在 `:androidApp` 是允许的，只有阶段 5 把 UI 搬进共享模块时才必须清掉 | 高（等 UI 迁移时再做） |
 | **阶段 5 的 UI 迁移** | 61.7k 行 Compose UI，`LocalConfiguration` 42 处 / `LocalContext` 32 处 | 大，按批次 |
 | **阶段 5 前置：建 `:ui-shared`** | CMP 共享 UI 模块；`ScheduleAppearance` / `WallpaperTransform` 的归属地 | 中 |
 | **Gson 迁移**（文档风险表里的 **R2，最高**） | **真实备份已到手**（2026-10-09）→ 前置调研做完，配置要求已量出（见「🔬 R2 前置调研」）。仍需 `@Serializable` + 显式字段清单。⚠ `TeachingWeekReorganization` 的 Gson **已经换掉了**（⑨-b），剩的是单课表备份 / 分享码 / 教务导入 + 全量备份 4 条通道 | 高 —— 数据格式一变，存量用户读不出来。**已从「未知风险」降为「有明确配置要求」** |
-| **Native HTTP** | 需 macOS 定 iOS target；引入 Ktor 会顶掉协程版本（见下方决定表） | 高，但属 iOS 侧独立交付 |
+| **`AppFile` 的 iOS 实现**（A3） | Native HTTP 已完成后，iOS 侧**剩余的唯一硬实现**：`NSFileManager` 实现 `AppFile` 接口 + 启动注入（约 30 行，照抄 `FileAppFile.kt`）。契约与落盘路径逐字要求见 A3 | 中（路径抄错 = 学校索引引导失效） |
 
 **建议顺序**：`CourseRepository`（**数据层最后一块**）→ 再 Gson 4 条通道（等拿到真实备份）。
 
@@ -190,20 +192,52 @@ Xcode 自动生成的 scheme 落在 `xcuserdata`（通常被 gitignore），CI �
 > **iOS 集成方式**：本计划采用 direct integration（最直接）。
 > 其他选项见官方 [iOS integration methods overview](https://kotlinlang.org/docs/multiplatform/multiplatform-ios-integration-overview.html)。
 
-#### A1. `HttpService` 的 Native 实现 —— **硬阻塞，不做则整个 App 无法联网**
+#### A1. `HttpService` 的 Native 实现 —— ✅ **已实现（2026-10-10）**
 
-- **文件**：`core/src/nativeMain/kotlin/com/haooz/chedule/data/HttpService.native.kt`
-- **现状**：`createHttpService()` 返回一个**调用即抛 `NotImplementedError`** 的占位实现
-- **原因**：OkHttp 没有 Kotlin/Native 版本
-- **二选一**：
-  - **Ktor**（推荐）：`ktor-client-darwin` 给 Apple 目标，`ktor-client-cio` 覆盖其他 Native
-  - 或自己 cinterop `NSURLSession`
+- **iOS 实现**：`core/src/iosMain/kotlin/com/haooz/chedule/data/HttpService.ios.kt`
+  （`NSURLSession` + delegate 流式读，零第三方依赖，**未引入 Ktor**）
+- **linuxX64 占位**：`core/src/linuxX64Main/.../HttpService.linuxX64.kt`
+  （原 `nativeMain/HttpService.native.kt` 挪过去了 —— iOS 已有真 actual，
+  两个 actual 不能同时覆盖同一目标。linuxX64 仅作编译门禁，保留显式失败占位）
+- **编译验证**：`-Pnexio.ios=true :core:compileKotlinIosArm64` +
+  `:core:compileKotlinIosSimulatorArm64` **均通过**（在 **Windows** 上，见下方「重要发现」）
+- **为什么是 delegate 而不是 completionHandler**：契约要求 `maxBytes` 在**读取过程中**
+  生效；`dataTaskWithRequest(completionHandler:)` 要等整个响应体收完才回调，大响应会先
+  把内存吃满。实现走 `NSURLSessionDataDelegate` 三件套（`didReceiveResponse` 预检
+  声明长度 → 已超限直接 cancel、一个字节不收，**与 Android 的「声明超限 → 空字节 +
+  truncated」逐字对齐**；`didReceiveData` 边收边计数、超限保留到上限即 `task.cancel()`，
+  语义对齐 `readAtMost`：`total > maxBytes` 才算截断；`didCompleteWithError` 统一收口）
+- **签名来源**：全部来自本机 `klib dump-metadata` 导出的 `platform.Foundation`
+  （Kotlin/Native 2.4.10 / ios_arm64），**没有一个是猜的** —— 协议名带 `Protocol` 后缀、
+  disposition 是 `Long` 常量、setter 是扩展函数，三处都踩过坑后修正
+- **与 Android 的已知差异**（都记在实现文件的 KDoc 表格里）：
+  iOS 无独立 connect 超时（共用 `timeoutIntervalForRequest`）、`callSeconds` 映射到
+  `timeoutIntervalForResource`；Cookie 持久化与 URLCache 已显式关闭以对齐 OkHttp 默认
 
-> ⚠ **选 Ktor 前先读这一条**：实测任何现代 Ktor 都会顶掉 `kotlinx-coroutines` 版本
+> ⚠ **运行时验证仍需真机/模拟器**（Windows 只能编译，不能链接运行）：
+> 重点回归 WebDAV（`PROPFIND`/`MKCOL` 自定义方法）、脚本下载的 8MB 截断、
+> 以及网络异常路径（断网时应抛 `Exception` 而不是被吞）。
+
+> **若将来仍想引入 Ktor**：实测任何现代 Ktor 都会顶掉 `kotlinx-coroutines` 版本
 > （3.6.0 → 1.11.0，3.1.3 → 1.10.2），而本项目当前是 **1.9.0**，提醒/闹钟/同步/小组件
 > 全压在协程上。这正是当初**刻意不引入 Ktor** 的原因。
-> 如果要在 iOS 侧引入，**请单独评估、单独提交**，不要和其他改动混在一起 ——
+> 若要引入，**请单独评估、单独提交**，不要和其他改动混在一起 ——
 > 否则真机出现时序类异常时无法归因，也无法单独回退。
+
+#### A1-bis. 🔑 重要发现：**Windows 上就能编译 iOS klib**（2026-10-10 实测）
+
+此前两份文档都写着「Windows 上编译不了 iOS（缺 Xcode SDK）」—— **对链接成立，对编译不成立**：
+
+```powershell
+.\gradlew.bat '-Pnexio.ios=true' :core:compileKotlinIosArm64          # Windows 上实测 BUILD SUCCESSFUL
+.\gradlew.bat '-Pnexio.ios=true' :core:compileKotlinIosSimulatorArm64  # 同样通过
+```
+
+- **能做的**：iOS 目标的 **klib 编译**（纯 Kotlin → klib，不需要 Apple 链接器）。
+  `UserDefaultsStore.kt` / `HttpService.ios.kt` 的**编译错误现在就能在本机抓到**。
+- **不能做的**：**链接与运行**（需要 macOS + Xcode 的 Apple SDK / ld）。
+  三条运行时验证点（NSNumber 装箱、`persistentDomainForName`、真机联网）仍需 macOS。
+- 用法照旧：首次联网拉 iOS klib 变体；iOS target 默认关（`-Pnexio.ios=true` 开启）。
 
 - **必须遵守的契约**（`core/src/commonMain/.../HttpService.kt`，别改签名）：
 
@@ -241,7 +275,8 @@ Xcode 自动生成的 scheme 落在 `xcuserdata`（通常被 gitignore），CI �
   **用户设置静默丢失**。故 `UserDefaultsStore` 把类型记在独立域 `suiteName.__kvtypes`
   （必须独立：`all()` 会被遍历，标记键同域会被当成业务数据复制/导出）。**别删这个域。**
 
-- ⚠ **首次编译必须验证的三点**（Windows 上编不了 iOS，所以这三条至今未被编译器验证过）：
+- ⚠ **首次运行必须验证的三点**（这三条是**运行时**语义，编译器查不出来 ——
+  编译已在 Windows 上通过，见 A1-bis；运行需真机/模拟器）：
   1. Kotlin 的 `Int/Long/Float/Boolean` 传给 `setObject(_:forKey:)` 是否自动装箱成 `NSNumber`
   2. `persistentDomainForName` 对自定义 suite 是否返回非空（`all()` 依赖它）
   3. `raw is String` 对 plist 里的 `NSString` 是否成立
@@ -410,8 +445,10 @@ AppFiles.init(
 | `:miuix` / `:backdrop` 的 commonMain + skikoMain 平台中立 | ✅ **编译器验证（wasmJs）**：2026-10-10 起挂 wasmJs 目标，`compileKotlinWasmJs` 通过。**不再是「仅静态检查」** —— 见下方专节 |
 | `:miuix` / `:backdrop` 用 linuxX64 做门禁 | ❌ **不可能**：实测 CMP 1.12.0 发布的变体只有 android / desktop(jvm) / iosArm64 / iosSimulatorArm64 / js / macosArm64 / wasmJs，**无任何 linux 目标** |
 | skikoMain 能在 iOS 跑 | ⚠ **编译已验证（wasmJs），运行未验证**。wasmJs 与 iOS 同为非 JVM，但 Kotlin/Wasm 与 Kotlin/Native 的 stdlib 仍有差异（cinterop / `NSUserDefaults` 等只存在于 Native） |
-| `KeyValueStore` 的 iOS 实现 | ⚠ **代码已写、未编译验证**：`core/src/iosMain/.../UserDefaultsStore.kt`（2026-10-10）。iOS target 已声明但默认关（`-Pnexio.ios=true`），Windows 上编不了，三条待验证项见 A2 |
-| iOS 已可用 | ❌ 网络层是抛异常的占位；iOS target 默认关闭、**没有 Xcode 工程**；`AppFile` 的 iOS 实现仍未写（A3）；`binaries.framework` 未声明（C 第 4 条） |
+| `KeyValueStore` 的 iOS 实现 | ✅ **编译已验证**（2026-10-10，Windows 上 `-Pnexio.ios=true :core:compileKotlinIosArm64` 通过）。**运行时**三点仍需真机/模拟器，见 A2 |
+| iOS 网络层 | ✅ **已实现并编译通过**（2026-10-10）：`iosMain/HttpService.ios.kt`（NSURLSession delegate 流式读），linuxX64 占位已挪到 `linuxX64Main`。**运行时**（真机联网 / WebDAV PROPFIND / 8MB 截断）待验证 |
+| Windows 能否编译 iOS | ✅ **能编 klib，不能链接**（2026-10-10 实测）：`compileKotlinIosArm64` / `compileKotlinIosSimulatorArm64` 在 Windows BUILD SUCCESSFUL；链接与运行仍需 macOS + Xcode（见 A1-bis） |
+| iOS 已可用 | ❌ 仍**没有 Xcode 工程**；`AppFile` 的 iOS 实现未写（A3）；`binaries.framework` 未声明（A0-1）；`Info.plist` 键未加（A0-2） |
 
 #### wasmJs 编译门禁（2026-10-10 新增，`ca95feb`）
 
@@ -1923,19 +1960,23 @@ nativeMain   **未实现，调用即抛** → 接 iOS 前必须替换（见下�
 
 ### 如果你是 Android 侧开发者（继续迁移）
 
-1. **先跑门禁三条**（见「交接清单 E」），确认当前基线是绿的
+1. **先跑门禁**（见「交接清单 E」），确认当前基线是绿的
 2. 按「剩余工作量」那张表挑一个**阻塞簇**做，别挑单个文件：
-   - 想解锁最多文件 → **Gson / `java.time` 的阻塞簇**（文件与网络抽象已就位，见「阶段 3.1」）
    - 想降低最大风险 → **Gson 迁移**（R2），但**必须先有真实用户备份做 round-trip 回归**
-   - 想推进日期 → **直接做 `java.time` → kotlinx-datetime**（`Holidays.kt` 的类型集群已拆完，不再是前提）
-3. 每批结束都要：`:androidApp:assembleDebug` 通过 + 门禁三条绿 + 真机过一遍受影响的界面
+   - ~~`java.time` → kotlinx-datetime~~ ✅ **已完成**（2026-10-10，见 ⑧），不再是候选
+   - 想推进 UI → `:ui-shared` 模块 + 资源迁移（F 节）
+3. 每批结束都要：`:androidApp:assembleDebug` 通过 + 门禁绿 + 真机过一遍受影响的界面
 
 ### 如果你是 iOS 侧开发者
 
-1. **先读「交接清单 A」** —— 那 3 个平台实现 + 3 个启动注入是硬门槛，不做则 App 起不来/无法联网
-2. 在 macOS 上按「交接清单 C」加 iOS target（**别忘了给 `:miuix` / `:backdrop` 接 `skikoMain`**）
-3. 第一次编译大概率会撞到 `:miuix` / `:backdrop` 的 `skikoMain` 问题 —— 它们**从未针对 Native 编译过**，
-   `checkKmpPurity` 只能挡已知模式，请按编译器的报错逐个修
-4. 网络层按 A1 换掉那个抛异常的占位实现（引入 Ktor 请单独评估协程版本影响）
+1. **先读「交接清单 A」** —— A0 三项工程配置 + A1~A3 平台实现 + 3 个启动注入是硬门槛。
+   其中 **A1（网络层）与 A2（UserDefaults）已实现且编译通过**（2026-10-10），
+   A3（`AppFile` 的 `NSFileManager` 实现）仍待写。
+2. iOS target **已声明**（`-Pnexio.ios=true` 开启），`:miuix` / `:backdrop` 的
+   `skikoMain` 接线（`iosMain`）**已写好**；注意 **`binaries.framework` 还没声明（A0-1）**。
+3. ⚠ 原先这里写「第一次编译大概率会撞 skikoMain 问题」—— **已过时**：
+   该坑已于 2026-10-10 在 wasmJs 目标上提前撞完并修掉（3 个问题见 D 节专节）。
+   且**编译可在 Windows 上做**（A1-bis），不必等 macOS —— 等 macOS 的是链接与运行。
+4. 网络层已实现（A1）；引入 Ktor 仍是**不建议**（顶协程版本），若引入请单独评估提交。
 
 > **红线（对两边都适用）**：不打断 1.6.x 正常发版。每阶段结束时 `:androidApp` 必须能正常编译、打包、发布。

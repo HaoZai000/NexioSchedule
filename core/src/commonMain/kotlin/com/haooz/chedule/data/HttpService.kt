@@ -147,6 +147,8 @@ data class HttpTimeouts(
  * 平台侧创建默认实现。
  *
  * Android → OkHttp；JVM/桌面 → `HttpURLConnection`（纯 JDK，零依赖）；
- * iOS → `NSURLSession`（待平台侧实现）。
+ * iOS → `NSURLSession`（2026-10-10 实现，delegate 流式读保证 maxBytes 生效，
+ *   见 `iosMain/HttpService.ios.kt`）；
+ * linuxX64（仅编译门禁目标）→ 显式失败占位，见 `linuxX64Main/HttpService.linuxX64.kt`。
  */
 expect fun createHttpService(timeouts: HttpTimeouts): HttpService
