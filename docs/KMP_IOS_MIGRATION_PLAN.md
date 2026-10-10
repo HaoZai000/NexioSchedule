@@ -16,36 +16,34 @@
 
 ### 1. 现状一句话
 
-`:androidApp` 仍是 Android-only（迁移主体，499 处 Android 专用 import，143 个文件）；
+`:androidApp` 仍是 Android-only（迁移主体，349 处 `android.*` import / 93 文件）；
 数据层与 `data/school/` 已整体下沉 `:core`，**节假日纯逻辑集群也已全部下沉**（⑨）；
 **存储层已三平台闭环**（2026-10-10，见 handoff 文档 7.7）：`KeyValueStore` 的 Android 实现
 （`SharedPreferencesStore`）搬到了 `core/src/androidMain`，iOS 实现
 （`core/src/iosMain/.../UserDefaultsStore.kt`）已写好 —— **但 Windows 上编译不了 iOS，尚未被编译器验证**；
-`:miuix` / `:backdrop` 已是 KMP 模块，但 **`skikoMain` 从未针对 Native 编译过**；
+`:miuix` / `:backdrop` 已是 KMP 模块，**`skikoMain` 已针对非 JVM 目标（wasmJs）编译通过**
+（2026-10-10，见 D 节专节）；
 **iOS target 已声明但默认关闭**（`-Pnexio.ios=true` 开启，原因见 C 节），**仍无 Xcode 工程**；
 且 `:core` 的 Native HTTP 实现是一个**调用即抛 `NotImplementedError` 的占位**。
 
-### 2. ⚠ 有 15 个测试文件没进版本库（先看这条）
+### 2. ✅ 测试已全部入库（2026-10-10，`057d6ab`）
 
-工作区里 `core/src/commonTest/`（10 个）与 `core/src/jvmTest/`（5 个）**未跟踪**，
-共 **241 个用例、全绿**（2026-10-10 用 `./gradlew :core:jvmTest --rerun-tasks` 实测：22 个测试类 / 0 失败；
-早先写的「160 个」是旧口径）。这是用户的要求（测试不入库），不是遗漏 —— 但它很脆：
+`core/src/commonTest/`（10 个）与 `core/src/jvmTest/`（14 个）共 **241 个用例已提交**，
+连同 `jvmTest/resources/school_index.pb`（77KB，真实 248 校生产索引，作差分基准夹具）。
 
-| 目录 | 覆盖什么 |
-|---|---|
-| `commonTest` | 存储 round-trip / HTTP 契约 / JSON 语义 / 上报字段契约 / 索引解析 / 隐私同意 / `readAtMost` 边界 |
-| `jvmTest` | 日期等价（73,049 天逐日比对）/ 真实 248 校生产索引 / School·ScriptRepository 行为等价 / **真实 HTTP 实现**的 8MB 上限 |
+此前这两处是 untracked、但 `core/build.gradle.kts` 已提交测试依赖 —— 新克隆的仓库
+`:core:check` 跑不到任何测试。**这个不一致已消除**，现在版本库里能真跑到这 241 个用例。
+跑法：`./gradlew :core:jvmTest --rerun-tasks`（22 个测试类 / 0 失败）。
 
-> **别删、别 `git clean -fd`。** 它们覆盖的正是「错了就丢用户数据」的点
-> （落盘路径、偏好名与键、8MB 上限、日期换算），而且**已经在开发过程中抓到过真实错误**
-> （一次是字段名被抄错、一次是移植时把版本比较改成了数字提取）。
->
-> 跑法：`./gradlew :core:jvmTest --rerun-tasks`
->
-> ⚠ **已知不一致，需要拍板**：`core/build.gradle.kts` **已经提交**了测试依赖
-> （`kotlin("test")` + `coroutines-test`）与 `jvmTest` 源集接线，但测试源码没提交。
-> 于是新克隆的仓库里 `:core:check` 跑不到任何测试。要么补提交测试，要么把依赖一并去掉，
-> 别让它一直悬着。
+> ⚠ **提交前先确认**：`school_index.pb` 是**真实生产索引**。若此仓库会公开，
+> 需评估是否换成脱敏/合成索引（当前已入库）。
+
+> 同一次提交还把模块目录 `app/` → `androidApp/` 改名并入库（212 个文件，
+> git 全部识别为 `R100` 改名，`--follow` 能穿透读到历史）。此前 `androidApp/`
+> 整个是 untracked —— 任何 `git checkout .` / `git clean -fd` 都会让它与恢复出来的
+> `app/` 变成双份源码（7 万行 UI 只靠「没提交」吊着）。
+> **包名 / applicationId 未动**（仍是 `com.haooz.chedule`），存量数据不受影响。
+
 
 ### 3. 下一步做什么（三个候选，各自的阻塞）
 
@@ -82,12 +80,25 @@ Manifest 23 → 20 个 Activity）。详见「🎯 UI 导航改造」一节，**
 ### 4. 每次改完必跑
 
 ```bash
+# 红线（--offline，模拟 CI）
+./gradlew :core:check :miuix:check :backdrop:check --offline
 ./gradlew :androidApp:assembleDebug          # Android 零回归 —— 这是红线，不许破
-./gradlew :core:check :miuix:check :backdrop:check
-./gradlew :core:compileKotlinLinuxX64 :core:compileTestKotlinLinuxX64   # commonMain/Test 是否平台中立
+
+# 或拆开跑（等价）
+./gradlew :core:compileKotlinLinuxX64 :core:compileTestKotlinLinuxX64   # commonMain/Test 平台中立
 ./gradlew checkKmpPurity              # 已知 JVM 专有 API 静态扫描
-./gradlew :core:jvmTest --rerun-tasks # 本地测试（未入库，见第 2 条）
+./gradlew :core:jvmTest --rerun-tasks # 241 个用例（已入库）
+
+# 动了 commonMain / skikoMain 时，额外跑非 JVM 编译门禁（需联网 + PATH 有 Node）
+./gradlew -Pnexio.wasm=true checkKmpWasmJs
 ```
+
+> ⚠ **wasmJs 门禁与 check 不能同时跑**：开启 `-Pnexio.wasm=true` 期间 Kotlin/Wasm 插件
+> 会在配置阶段注册 Distributions 仓库，与 `FAIL_ON_PROJECT_REPOS` 冲突，导致 `check` 直接失败。
+> 要跑 `check` 就回到默认态（不加 property）。原因详见 D 节专节。
+>
+> **PowerShell 里 `-P` 参数要加引号**：`.\gradlew.bat '-Pnexio.wasm=true' checkKmpWasmJs`，
+> 否则 PowerShell 会把 `-Pnexio.wasm=true` 当成任务名，报 `Task '.wasm=true' not found`。
 
 > **「能编过」必须问清楚是哪个目标能编过。** 这个项目踩过一次大坑：
 > `:core` 一度只有 android + jvm 两个 **JVM** 目标，commonMain 从未被平台中立的 stdlib
@@ -129,7 +140,55 @@ TimeConfig 的 4 条序列化通道、服务端部署流程等 —— 都是踩�
 > 本节写给接手 iOS 的人：**哪些必须由你实现、哪些已经能直接用、当前验证到什么程度**。
 > 基于 2026-10-09 的代码状态。带 ⚠ 的都是会踩的坑。
 
-### A. 必须由你实现（3 个平台实现 + 3 个启动注入）
+### A. 必须由你实现（3 个平台实现 + 3 个启动注入 + 3 项工程配置）
+
+#### A0. ⚠ 三项工程配置 —— **不做则 App 起不来 / 调不到 Kotlin 代码**（2026-10-10 补）
+
+这三项是官方文档明确要求、此前本计划遗漏的。**任何一项缺失都会在第一步就卡住。**
+
+**A0-1. `:core` 必须声明 `binaries.framework`，否则 Swift 根本调不到 Kotlin 代码。**
+
+`compileKotlinIosArm64` 绿了**不代表能用** —— Swift 侧需要一个可 embed 的 framework：
+
+```kotlin
+// core/build.gradle.kts 的 kotlin { } 内
+val enableIos = (project.findProperty("nexio.ios") as? String)?.toBoolean() ?: false
+if (enableIos) {
+    iosArm64()
+    iosSimulatorArm64()
+    // ↓ 缺这一段，Swift 侧无法 import Shared
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "Shared"
+            isStatic = true
+        }
+    }
+}
+```
+
+然后在 Xcode 里 embed 这个 `Shared.framework`，Swift 侧才能 `import Shared`。
+官方教程：kotlinlang.org「Make your app multiplatform」→「Create an iOS project in Xcode」。
+
+**A0-2. `Info.plist` 必须设 `CADisableMinimumFrameDurationOnPhone = true`，否则 iOS 一启动就崩溃。**
+
+CMP 自 1.7.3 起**强制**检查这个键，缺失或为 `false` 会直接 crash
+（`ComposeUIViewControllerConfiguration.enforceStrictPlistSanityCheck` 默认开启）。
+
+```xml
+<key>CADisableMinimumFrameDurationOnPhone</key>
+<true/>
+```
+
+来源：[What's new in CMP 1.7.3](https://kotlinlang.org/docs/multiplatform/whats-new-compose-170.html)。
+
+**A0-3. Xcode 的 shared scheme 要提交，否则 CI 上 `xcodebuild` 失败。**
+
+Xcode 自动生成的 scheme 落在 `xcuserdata`（通常被 gitignore），CI 上会报
+`does not contain a scheme named YourApp`。要手动提交
+`YourApp.xcodeproj/xcshareddata/xcschemes/`。
+
+> **iOS 集成方式**：本计划采用 direct integration（最直接）。
+> 其他选项见官方 [iOS integration methods overview](https://kotlinlang.org/docs/multiplatform/multiplatform-ios-integration-overview.html)。
 
 #### A1. `HttpService` 的 Native 实现 —— **硬阻塞，不做则整个 App 无法联网**
 
@@ -229,7 +288,50 @@ AppFiles.init(
 | `ioDispatcher` | `core/src/nativeMain/.../IoDispatcher.native.kt` | ✅ `Dispatchers.Default`（Native 侧不用 `Dispatchers.IO` —— 它在 Native 上是 `internal`） |
 | 设备信息 `currentDeviceInfo()` | `core/src/nativeMain/.../PlatformInfo.native.kt` | ⚠ 能编能跑，但只是 `Platform.osFamily` 兜底。**建议改成 `UIDevice`**（`model` / `systemVersion`），`sdkLevel` 保持 0（那是 Android SDK_INT 的语义） |
 | 学校索引解析 | `core/src/commonMain/.../school/SchoolIndex.kt` | ✅ 手写 protobuf 解析器，已用**真实 248 校索引**做过新旧实现等价性对比 |
-| `:miuix` / `:backdrop` 的 Skia 实现 | `*/src/skikoMain/` | ⚠ 见 D 节 —— **从未针对 Native 编译过** |
+| `:miuix` / `:backdrop` 的 Skia 实现 | `*/src/skikoMain/` | ✅ **wasmJs 编译已验证**（2026-10-10，见 D 节专节）。运行层面 iOS 仍需真机 |
+
+#### F. ⚠ 资源迁移（`res` → `composeResources`）—— 阶段 5 的独立工作量，此前计划未计入
+
+官方指南明确列出 4 条与本项目相关的差异，**本计划此前完全没提**：
+
+| 官方提醒 | 本项目实际数量（2026-10-10 实测） |
+|---|---|
+| 资源目录要从 `res` 改名成 `composeResources` | `androidApp/src/main/res/drawable/` **38 个** + `drawable-night/` **9 个** |
+| 生成的资源访问类叫 `Res`，不是 `R` | 约 **30 处** `R.drawable.*` 落在会进共享模块的页面 |
+| XML 里的 `@android:color` 要换成颜色十六进制 | `themes.xml:10-11` × 2（`values/` 与 `values-night/`）的 `@android:color/transparent` |
+| CMP 1.8.0 起 `androidLibrary` 目标要显式开资源 | 将来建 `:ui-shared` 时必须写 `android { androidResources.enable = true }`，否则 `MissingResourceException` |
+
+**按归属规则，真正需要迁的是一小部分**（2026-10-10 逐文件核过）：
+
+- ✅ **不用迁**（留在 `:androidApp`）：`widget/` + `reminder/` 那约 **40 处** `R.mipmap.ic_launcher` /
+  `R.layout.*` / `R.drawable.widget_*` —— RemoteViews 与 Notification 是 Android 专有。
+- ⚠ **要迁**（页面会进共享模块）：
+  - `TodayAssistant.kt:75-89` 天气图标 **20 个** `R.drawable.icon_*`（`icon_cloudy` / `icon_heavy_rain` / …）
+  - `AboutScreen.kt:1107,1130` `ic_github` / `ic_gitee`
+  - `AppreciateAuthorScreen.kt:413,445,517` `ic_anonymous_avatar` / `zanshangma`
+  - `PreferenceSettingsScreen.kt:210,222` `theme_preview_light` / `theme_preview_night`
+  - `WidgetIntroScreen.kt:204,255,294,313` `ic_miuix_logo` / `ic_widget_clock` / `ic_widget_location`
+  - `WebViewScreen.kt:883` `ic_phone_pc`
+
+> `TodayAssistant` 那 20 个天气图标是唯一有规模的：`type.contains("冰雹") -> R.drawable.icon_t_storm`
+> 这类分支要整段改成 `Res.drawable.icon_t_storm`。
+> `drawable-night/` 的 9 个在 CMP 里对应 `composeResources/drawable-night/`。
+
+**另外两条 CMP 变更，阶段 5 会用到**：
+
+- **`@Preview` 用哪个包**：CMP 1.10.0 起已统一，`commonMain` 直接用
+  `androidx.compose.ui.tooling.preview.Preview`；`org.jetbrains.compose.ui.tooling.preview.Preview`
+  与 desktop 专用的 `androidx.compose.desktop.ui.tooling.preview.Preview` **均已废弃**。
+  我们在 CMP 1.12.0 上，**别按官方旧指南走 `org.jetbrains.compose` 那个**。
+  来源：[What's new in CMP 1.10.3](https://kotlinlang.org/docs/multiplatform/whats-new-compose-110.html)。
+- **`LocalLifecycleOwner` 换包**：CMP 1.7.3 起从 `androidx.compose.ui.platform` 移到了 lifecycle 包。
+  当前 `:androidApp` **0 处使用**（2026-10-10 实测），但阶段 5 大概率会用到。
+
+#### G. ⚠ Xcode shared scheme 要提交（CI 会踩）
+
+官方指南专门强调：Xcode 自动生成的 scheme 落在 `xcuserdata`（通常被 gitignore），
+于是 CI 上 `xcodebuild -scheme YourApp` 会报 `does not contain a scheme named YourApp`。
+要手动提交 `YourApp.xcodeproj/xcshareddata/xcschemes/`。
 
 ### C. 加 iOS target 的步骤（**需要 macOS**）
 
@@ -244,24 +346,108 @@ AppFiles.init(
    ./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64
    ```
    `linuxX64` 是编译门禁用，保留不动。
-2. ⚠ **`:miuix` / `:backdrop` 要把 `skikoMain` 显式接给 iOS 源集**。
-   现在它是挂在 jvm 上的：
+2. ✅ **`:miuix` / `:backdrop` 的 `skikoMain` → iOS 源集接线 —— 已做好**（2026-10-10，`ca95feb`）。
+   原判断是「现在它只挂在 jvm 上，iOS 侧要加同样一行」；现已改成三处条件式接线：
    ```kotlin
-   jvmMain { kotlin.srcDir("src/skikoMain/kotlin") }   // miuix/build.gradle.kts:58
-                                                       // backdrop/build.gradle.kts:44
+   jvmMain  { kotlin.srcDir("src/skikoMain/kotlin") }
+   if (enableWasm) { wasmJsMain { kotlin.srcDir("src/skikoMain/kotlin") } }
+   if (enableIos)  { iosMain    { kotlin.srcDir("src/skikoMain/kotlin") } }
    ```
-   iOS 侧要加同样一行，或改建成真正的中间源集。**漏了这一步，SkSL 模糊/描边在 iOS 上会找不到 actual。**
-3. 跑 `./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64`，**不要只跑 android / jvm** —— 原因见 D 节。
+   **必须条件式**：`wasmJs` / iOS target 默认关闭，此时这些源集不存在，
+   无条件引用会配置失败（`Unresolved reference 'iosMain'`）。
+   ⚠ 接线这件事本身已在 wasmJs 目标上**闭环验证过**（见 D 节），
+   漏接会报 10 处 `no actual declaration` —— 那条坑不会再出现了。
+3. ✅ **风险 R6 已排除**（2026-10-10，Windows 上纯依赖解析，**不需 macOS**）：
+   官方 miuix 5 个 artifact **都有 `-iosarm64` 变体**，且能连到 `:backdrop` 提供的 iosArm64 klib。
+   验证命令：
+   ```bash
+   # 需先给 :miuix / :backdrop 加 iosArm64()（默认关，-Pnexio.ios=true 开启）
+   ./gradlew -Pnexio.ios=true :miuix:dependencies --configuration iosArm64CompileKlibraries
+   ```
+   实测输出（全链解析成功，`project :backdrop` 不再 FAILED）：
+   ```
+   miuix-squircle / miuix-icons / miuix-blur / miuix-preference / miuix-navigation3-ui
+   → 各自的 -iosarm64 变体 → miuix-core / miuix-shader / miuix-ui 的 -iosarm64
+   ```
+   即「Miuix 是 fork 的 `-android` 变体会阻断跨平台」这个风险**不存在**。
+   剩下要保证的只有一件事：本项目 fork 的 `miuix-ui` 在 iOS 侧有 `skikoMain` 的 actual 兜底（第 2 条）。
+4. ⚠ **`:core` 必须声明 `binaries.framework`，否则 Swift 调不到** —— 这是官方文档明确要求、
+   此前本计划遗漏的一步。**没有它，`compileKotlinIosArm64` 绿了也没用。**
+   ```kotlin
+   // core/build.gradle.kts 的 kotlin { } 内
+   val enableIos = (project.findProperty("nexio.ios") as? String)?.toBoolean() ?: false
+   if (enableIos) {
+       iosArm64()
+       iosSimulatorArm64()
+       // ↓ 缺这一段，Swift 侧无法 import
+       listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
+           target.binaries.framework {
+               baseName = "Shared"        // Swift 侧 import Shared
+               isStatic = true
+           }
+       }
+   }
+   ```
+   然后 Xcode 侧 embed 这个 framework（KMP 官方教程「Make your app multiplatform」
+   →「Create an iOS project in Xcode」那一步）。
+5. ⚠ **`Info.plist` 必须设 `CADisableMinimumFrameDurationOnPhone = true`，否则 iOS 一启动就崩溃。**
+   CMP 自 1.7.3 起**强制**检查这个键，缺失或为 `false` 会直接 crash
+   （`ComposeUIViewControllerConfiguration.enforceStrictPlistSanityCheck` 默认开启，
+   可显式置 false 关掉检查，但正确做法是补上键）。
+   来源：[What's new in CMP 1.7.3](https://kotlinlang.org/docs/multiplatform/whats-new-compose-170.html)。
+   ```xml
+   <key>CADisableMinimumFrameDurationOnPhone</key>
+   <true/>
+   ```
+6. 跑 `./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64`，**不要只跑 android / jvm** —— 原因见 D 节。
+
 
 ### D. 当前验证边界（请勿高估）
 
 | 说法 | 真实程度 |
 |---|---|
 | `:core/commonMain` 平台中立 | ✅ **编译器验证**：`:core` 挂了 `linuxX64`（Native）目标，`compileKotlinLinuxX64` + `compileTestKotlinLinuxX64` 通过 |
-| `:miuix` / `:backdrop` 的 commonMain + skikoMain 平台中立 | ⚠ **仅静态检查**：CMP 不支持 linuxX64、iOS 目标又需 macOS，只能用根项目的 `checkKmpPurity` 扫**已知模式**（**185 个文件**，2026-10-10 实测）。**未知 API 查不出来** |
-| skikoMain 能在 iOS 跑 | ❌ **从未编译过**，只被 jvm 复用（见 C 第 2 条） |
+| `:miuix` / `:backdrop` 的 commonMain + skikoMain 平台中立 | ✅ **编译器验证（wasmJs）**：2026-10-10 起挂 wasmJs 目标，`compileKotlinWasmJs` 通过。**不再是「仅静态检查」** —— 见下方专节 |
+| `:miuix` / `:backdrop` 用 linuxX64 做门禁 | ❌ **不可能**：实测 CMP 1.12.0 发布的变体只有 android / desktop(jvm) / iosArm64 / iosSimulatorArm64 / js / macosArm64 / wasmJs，**无任何 linux 目标** |
+| skikoMain 能在 iOS 跑 | ⚠ **编译已验证（wasmJs），运行未验证**。wasmJs 与 iOS 同为非 JVM，但 Kotlin/Wasm 与 Kotlin/Native 的 stdlib 仍有差异（cinterop / `NSUserDefaults` 等只存在于 Native） |
 | `KeyValueStore` 的 iOS 实现 | ⚠ **代码已写、未编译验证**：`core/src/iosMain/.../UserDefaultsStore.kt`（2026-10-10）。iOS target 已声明但默认关（`-Pnexio.ios=true`），Windows 上编不了，三条待验证项见 A2 |
-| iOS 已可用 | ❌ 网络层是抛异常的占位；iOS target 默认关闭、**没有 Xcode 工程**；`AppFile` 的 iOS 实现仍未写（A3） |
+| iOS 已可用 | ❌ 网络层是抛异常的占位；iOS target 默认关闭、**没有 Xcode 工程**；`AppFile` 的 iOS 实现仍未写（A3）；`binaries.framework` 未声明（C 第 4 条） |
+
+#### wasmJs 编译门禁（2026-10-10 新增，`ca95feb`）
+
+**为什么需要**：`:miuix` / `:backdrop` 的 `skikoMain` 此前只被 jvm 目标复用，
+从未针对非 JVM 目标编译过，而 `checkKmpPurity` 只能扫**已知模式**，未知 API 查不出来。
+
+**为什么是 wasmJs 而不是 linuxX64**：实测证伪 —— CMP 1.12.0 不发任何 linux 目标。
+本机 konan 虽有 `x86_64-unknown-linux-gnu-gcc` 交叉工具链 + `llvm-21`，但没有可链的 klib 变体。
+wasmJs 同为非 JVM 目标（没有 `kotlin.jvm.*` 默认导入），因此同样能拦
+`@Volatile` / `synchronized` / `Dispatchers.IO` / `System.currentTimeMillis` 这类污染。
+
+**用法**：
+```bash
+./gradlew -Pnexio.wasm=true checkKmpWasmJs     # 首次需联网 + PATH 中有 Node
+./gradlew checkKmpWasmJs                        # 不给 property 时打印提示，不报错
+```
+
+⚠ **两条限制，务必知道**：
+1. **默认关闭**。只要 wasmJs 目标存在于构建中，Kotlin/Wasm 插件就会在**配置阶段**
+   为 `kotlinWasmNodeJsSetup` 注册 Distributions 仓库，与 `settings.gradle.kts` 的
+   `FAIL_ON_PROJECT_REPOS` 硬冲突：
+   `"repository 'Distributions at https://nodejs.org/dist' was added by unknown code"`
+   这是**配置期失败**，与挂不挂 check 无关 —— 连 `--offline` 的 Android 门禁都跑不了。
+   把 `WasmNodeJsEnvSpec.download` 置 `false` 也无效（注册发生在读取 `download` 之前）。
+2. **开启期间跑不了 `:backdrop:check` / `:miuix:check`**（同一冲突）。
+   要跑 check 就回到默认态（不加 property）。
+
+**它已经抓到的 3 个真实问题**（静态检查全都没查出来，**在 iOS 上同样会炸**）：
+
+| # | 问题 | 位置 |
+|---|---|---|
+| 1 | 漏声明 `org.jetbrains:annotations` → `@Language("AGSL")` 共 8 处报 `Unresolved reference 'intellij'`。`:miuix` 一直有声明，`:backdrop` 漏了 | `RuntimeShader` / `RuntimeShaderCache` / `RenderEffect` / `Shaders` |
+| 2 | **未使用**的 `import androidx.compose.ui.graphics.asImageBitmap` —— 该 API 在 wasmJs 上不存在，仅 import 就足以编译失败 | `DrawBackdropModifier.kt:16` |
+| 3 | `skikoMain` 未接给 `wasmJsMain` / `iosMain` → 10 处 `no actual declaration` | 两个 build.gradle.kts |
+
+第 3 条即本计划 C 节第 2 条原本预警的坑，**现已闭环**。
 
 > **历史教训（为什么值得反复强调）**：`:core` 一度只有 android + jvm 两个 **JVM** 目标，
 > `compileCommonMainKotlinMetadata` 是 `SKIPPED`，commonMain 从未被平台中立的 stdlib
@@ -271,13 +457,21 @@ AppFiles.init(
 >
 > 结论：**「能编过」必须问清楚是「哪个目标能编过」。**
 
-### E. 提交前请跑这三条
+### E. 提交前请跑这几条
 
 ```bash
+# 默认态（不加任何 property）—— 这三条是红线
 ./gradlew :core:compileKotlinLinuxX64 :core:compileTestKotlinLinuxX64   # commonMain/Test 平台中立
 ./gradlew checkKmpPurity                                                 # 已知 JVM 专有 API 静态扫描
-./gradlew :androidApp:assembleDebug                                             # Android 零回归（红线）
+./gradlew :androidApp:assembleDebug                                      # Android 零回归（红线）
+
+# 或合并成一条（--offline，模拟 CI）
+./gradlew :core:check :miuix:check :backdrop:check --offline
+
+# 动了 skikoMain / commonMain 时，额外跑非 JVM 编译门禁（需联网）
+./gradlew -Pnexio.wasm=true checkKmpWasmJs
 ```
+
 
 ---
 
@@ -1703,7 +1897,10 @@ nativeMain   **未实现，调用即抛** → 接 iOS 前必须替换（见下�
 | R3 | iOS 本地通知 64 条上限                            | 提醒漏发           | 滚动预约策略，阶段 0 原型验证                        |
 | R4 | Kotlin/Native 线程模型撞全局单例                    | 崩溃 / 状态错乱      | 阶段 3 改显式注入，阶段 4 专项验证                    |
 | R5 | `SimpleDateFormat` → kotlinx-datetime 行为偏移 | 日期静默算错         | 逐点对照用例                                  |
-| R6 | Miuix 是 fork 的 `-android` 变体               | 阻断跨平台          | 评估：改动提上游 / 改官方 KMP 依赖 + 局部自定义           |
+| ~~R6~~ | ~~Miuix 是 fork 的 `-android` 变体~~ | — | **已排除**（2026-10-10，`ca95feb`）：Windows 上纯依赖解析验证，官方 miuix 5 个 artifact（squircle / icons / blur / preference / navigation3-ui）**都有 `-iosarm64` 变体**，且能连到 `:backdrop` 的 iosArm64 klib。命令与输出见 C 节第 3 条 |
+| R6b | 本项目 fork 的 `miuix-ui` 在 iOS 侧缺 actual | iOS 编不过 | `skikoMain` 已接给 `iosMain`（`-Pnexio.ios=true` 时生效），且该接线**已在 wasmJs 上闭环验证过**（曾报 10 处 `no actual declaration`，已修）。仍需 macOS 首次编译确认 |
+| R6c | wasmJs 门禁与 `check` 互斥 | 门禁漏跑 | 已知限制：`-Pnexio.wasm=true` 期间 Distributions 仓库冲突使 `check` 失败。**跑门禁必须分两次**（先默认态 check，再 `-Pnexio.wasm=true checkKmpWasmJs`）。见 D 节 |
+| R6d | iOS 首启即崩：`Info.plist` 缺 `CADisableMinimumFrameDurationOnPhone` | 白屏 / crash | CMP 1.7.3 起强制检查。已写进 C 节第 5 条，建 Xcode 工程时一并补 |
 | R7 | 云端分享白名单未同步                                 | 新字段静默丢弃        | 改客户端字段必须同改 `server/index.js` 并重新部署      |
 | R8 | 61.7k 行 UI 迁移周期过长，拖垮主线开发                   | 项目停滞           | 严格按批次，每批次结束 `:androidApp` 仍可发版                 |
 | R9 | ~~OkHttp 在 iOS 不可用~~                       | 低              | **改法已修订**：自建 `HttpService`，Android/JVM 复用 OkHttp；Native 侧未实现（见「网络层专项」） |

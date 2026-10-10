@@ -5,22 +5,59 @@
 > **②Android 数据层的 KMP 收口**（七节，**D1/D2 已完成**，执行记录见 7.7）。
 > 宏观 KMP 迁移计划见 `docs/KMP_IOS_MIGRATION_PLAN.md`（含 ⑦–⑬ 数据层批次记录），本文不重复。
 >
-> **代码基线**：`master` `6367c55` + **本轮尚未提交的工作区改动**（见下）。
-> Android `assembleDebug` 通过 · `:core:jvmTest` **241 用例全绿** · `checkKmpPurity` 185 文件通过 ·
-> `:core:compileKotlinLinuxX64` 通过。
+> **代码基线**：`master` `057d6ab` + `ca95feb`（**工作区已干净，全部已提交**）。
+> Android `assembleDebug` 通过 · `:core:jvmTest` **241 用例全绿（已入库）** ·
+> `checkKmpPurity` 185 文件通过 · `:core:compileKotlinLinuxX64` 通过 ·
+> `:backdrop` / `:miuix` `compileKotlinWasmJs` 通过（`-Pnexio.wasm=true`）。
 
 ## ⚡ 下一手要做的（按优先级）
 
-1. **iOS 首次编译验证（需 macOS）**：`./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64`（要联网）。
+> **2026-10-10 更新**：原排第 1 的「测试不入库」不一致已消除（`057d6ab`），
+> `skikoMain` 编译盲区已收窄（`ca95feb`）。
+
+1. **`:core` 声明 `binaries.framework`** —— iOS 侧 Swift 才能 `import Shared`。
+   **不做则 `compileKotlinIosArm64` 绿了也没用**。代码片段见 KMP 计划文档 **A0-1**。
+2. **iOS 首次编译验证（需 macOS）**：`./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64`（要联网）。
    重点确认 `UserDefaultsStore` 的三处，见 7.7 节末「iOS 侧首次编译必须重点验证的三点」。
    ⚠ Windows 上跑不了，也别把 iOS target 改成默认开启 —— 会让 `--offline` 门禁挂掉（原因见 7.7）。
-2. **接 iOS 启动注入**：iOS 侧对应 `NexioApplication.onCreate` 的三件事 ——
+3. **建 Xcode 工程时同时做两件事**（漏了会白跑）：
+   - `Info.plist` 加 `CADisableMinimumFrameDurationOnPhone = true` —— 否则**一启动就崩**（CMP 1.7.3 强制）
+   - 提交 `YourApp.xcodeproj/xcshareddata/xcschemes/` —— 否则 CI 上 `xcodebuild` 报 scheme not found
+4. **接 iOS 启动注入**：iOS 侧对应 `NexioApplication.onCreate` 的三件事 ——
    `AppStorage.init { name -> UserDefaultsStore(name) }`、`AppFiles.init(root, readAsset)`、
    `ScheduleAppearance.init`。参考 KMP 计划文档「给 iOS 开发者的交接清单 A 节」。
-3. **`HttpService.native`**（现在是「调用即抛」的占位）—— **iOS 的硬阻塞**，WebDAV 只等这一处。
-4. **剩余 46 处 `getSharedPreferences` 不要动**（类别 C，理由见 7.7 末）。要动就独立批次 + 真机回归。
+5. **`HttpService.native`**（现在是「调用即抛」的占位）—— **iOS 的硬阻塞**，WebDAV 只等这一处。
+   引入 Ktor 前先读 KMP 计划文档 **A1** 的协程版本警告（会顶掉 1.9.0 → 1.10/1.11）。
+6. **剩余 46 处 `getSharedPreferences` 不要动**（类别 C，理由见 7.7 末）。要动就独立批次 + 真机回归。
 
-## ⚠ 本轮工作区改动尚未提交（`git status` 可见）
+### ✅ 已消除的阻塞（2026-10-10）
+
+| 原阻塞 | 现状 |
+|---|---|
+| 测试不入库但 build 已提交依赖 → 新克隆跑不到测试 | ✅ **已消除**（`057d6ab`）：241 个用例 + `school_index.pb` 夹具全部入库 |
+| `androidApp/` 整个 untracked，`git clean -fd` 会与 `app/` 变双份 | ✅ **已消除**（`057d6ab`）：212 个文件入库，git 全识别为 `R100` 改名 |
+| `skikoMain` 从未针对非 JVM 目标编译过 | ✅ **已收窄**（`ca95feb`）：wasmJs 编译通过。Native 特有 API（cinterop 等）仍需 macOS |
+| `skikoMain` 未接给 iOS 源集，首次编译必撞 | ✅ **已闭环**：接线代码已写（条件式），且在 wasmJs 上验证过（曾报 10 处 `no actual declaration`，已修） |
+| R6：Miuix 是 fork 的 `-android` 变体会阻断跨平台 | ✅ **已排除**：官方 5 个 artifact 都有 `-iosarm64` 变体（Windows 上纯依赖解析验证） |
+
+### ⚠ 新增的已知限制：wasmJs 门禁与 `check` 互斥
+
+开启 `-Pnexio.wasm=true` 期间，Kotlin/Wasm 插件会在**配置阶段**注册 Distributions 仓库，
+与 `settings.gradle.kts` 的 `FAIL_ON_PROJECT_REPOS` 冲突，`check` 直接失败
+（配置期错误，**联网也救不了**）。所以跑门禁必须分两次：
+
+```powershell
+# PowerShell 里 -P 参数要加引号，否则会被当成任务名
+.\gradlew.bat :core:check :miuix:check :backdrop:check --offline      # 默认态（红线）
+.\gradlew.bat '-Pnexio.wasm=true' checkKmpWasmJs                        # 非 JVM 编译门禁（需联网）
+```
+
+---
+
+## 📜 历史：本轮工作区改动（**已于 `057d6ab` / `ca95feb` 提交**）
+
+<details>
+<summary>提交前的工作区状态快照（保留供追溯）</summary>
 
 - **新增**：`core/src/androidMain/kotlin/com/haooz/chedule/data/SharedPreferencesStore.kt`
   （从 `:androidApp` 搬来，包名未变）、`core/src/iosMain/kotlin/com/haooz/chedule/data/UserDefaultsStore.kt`
@@ -37,8 +74,9 @@
   ⚠ 改名前**必须关闭 Android Studio**：Windows 上 IDE 会锁住 `app/` **目录本身**，
   实测 `mv app androidApp` 和 PowerShell `Rename-Item` 都报 `Permission denied`；
   但**子项可以逐个移出**（`mv app/* androidApp/` + `mv app/.[!.]* androidApp/`），最后 `rmdir app` 成功。
-- `core/src/commonTest/`、`core/src/jvmTest/` **仍是 untracked**（用户长期要求：测试不入库）
+- `core/src/commonTest/`、`core/src/jvmTest/` 曾为 untracked，**现已随 `057d6ab` 入库**
 
+</details>
 ---
 
 ## 一、目标与现状
