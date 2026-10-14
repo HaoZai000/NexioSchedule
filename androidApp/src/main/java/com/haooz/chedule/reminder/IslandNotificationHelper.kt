@@ -376,23 +376,26 @@ object IslandNotificationHelper {
         val aodMode = prefs.getInt("island_aod_mode", 0)
 
         val now = System.currentTimeMillis()
+        // 槽位与息屏标题只有十几个半角宽，超了由系统从尾部截断（丢掉的正好是房号），
+        // 所以这里喂精简后的地点；展开态 hintInfo 的「地点」行仍用课表原文。
+        val shortClassroom = prefs.shortClassroom(classroom ?: "")
         val remainMs = courseStartMillis?.let { it - now }
         val counting = remainMs != null && remainMs > 0
         val minutesUntil = if (counting) ((remainMs + 59_999L) / 60_000L).toInt() else 0
 
         val islandLeftText = when (leftMode) {
             0 -> courseName ?: ""
-            1 -> classroom ?: ""
+            1 -> shortClassroom
             2 -> if (counting) "${minutesUntil}分钟" else "已上课"
             else -> courseName ?: ""
         }
         val islandRightText = when (rightMode) {
             0 -> courseName ?: ""
-            1 -> classroom ?: ""
+            1 -> shortClassroom
             2 -> if (counting) "${minutesUntil}分钟" else "已上课"
-            else -> classroom ?: ""
+            else -> shortClassroom
         }
-        val aodTitle = if (aodMode == 1) classroom ?: courseName ?: title else courseName ?: title
+        val aodTitle = if (aodMode == 1) shortClassroom.ifEmpty { courseName ?: title } else courseName ?: title
 
         val paramV2 = JSONObject().apply {
             put("business", BUSINESS_TAG)
@@ -583,7 +586,11 @@ object IslandNotificationHelper {
 
         val now = System.currentTimeMillis()
         val counting = courseEndMillis > now
-        val aodTitle = if (aodMode == 1) classroom.ifEmpty { courseName } else courseName
+        val aodTitle = if (aodMode == 1) {
+            prefs.shortClassroom(classroom).ifEmpty { courseName }
+        } else {
+            courseName
+        }
         // 自定义时间课的 section 是「开始 - 结束」，再拼一次会变成「时间｜时间」
         val showSection = section.isNotEmpty() && !isCustomTime
         val baseContent = buildString {

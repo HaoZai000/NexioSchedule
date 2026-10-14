@@ -42,6 +42,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.AppStorage
+import com.haooz.chedule.data.ClassroomLabel
+import com.haooz.chedule.data.ClassroomLabelRule
+import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.NoopReminderController
 import com.haooz.chedule.data.ReminderController
 import com.haooz.chedule.data.showToast
@@ -53,6 +56,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -141,6 +145,27 @@ fun CourseReminderScreen(
     // 课中岛缩略态右侧：0=正在上课，1=距下课倒计时（仅超级岛生效）
     var islandInClassRightMode by remember {
         mutableIntStateOf(reminderPrefs.getInt("island_in_class_right_mode", 0))
+    }
+    // 缩略态地点精简：0=原样，1=自动精简，2=自定义正则
+    var classroomLabelMode by remember {
+        mutableIntStateOf(reminderPrefs.getInt(ClassroomLabel.KEY_MODE, ClassroomLabel.MODE_RAW))
+    }
+    var classroomLabelPattern by remember { mutableStateOf(reminderPrefs.getString(ClassroomLabel.KEY_PATTERN, "")) }
+    var classroomLabelReplacement by remember {
+        mutableStateOf(reminderPrefs.getString(ClassroomLabel.KEY_REPLACEMENT, ""))
+    }
+    var showClassroomRuleDialog by remember { mutableStateOf(false) }
+    var tempClassroomPattern by remember { mutableStateOf(classroomLabelPattern) }
+    var tempClassroomReplacement by remember { mutableStateOf(classroomLabelReplacement) }
+    // 预览用课表里的真实地点：能一眼看出自己学校的地名会被改成什么样，比给固定样例有用。
+    // CourseRepository 是单例且带课程缓存，这里只在页面进入时取一次。
+    val previewClassrooms = remember {
+        val repository = CourseRepository()
+        repository.getCoursesForSchedule(repository.getCurrentScheduleId())
+            .map { it.classroom.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(3)
     }
     // 课中提醒：超级岛 / 原生实况共用同一开关
     var inClassEnabled by remember {
@@ -849,6 +874,99 @@ fun CourseReminderScreen(
                             }
                         }
                     }
+
+                    // 上课地点精简：缩略态由系统按自己的宽度排版，超出部分从尾部丢，
+                    // 丢掉的正好是「B3027」这种最要紧的房号。这里在交给系统之前先按用户规则缩短。
+                    // iOS 的 Live Activity 槽位在 Swift 侧拼装，规则还没接过去，先不给点了没反应的开关。
+                    if (!reminderController.supportsLiveActivity()) {
+                        item {
+                            val classroomLabelRule = ClassroomLabelRule(
+                                mode = classroomLabelMode,
+                                pattern = classroomLabelPattern,
+                                replacement = classroomLabelReplacement,
+                            )
+                            val customRuleSummary = when {
+                                classroomLabelPattern.isBlank() -> "尚未填写正则，按原文显示"
+                                classroomLabelReplacement.isEmpty() -> "$classroomLabelPattern → 删除匹配部分"
+                                else -> "$classroomLabelPattern → $classroomLabelReplacement"
+                            }
+                            val classroomLabelOptions = listOf(
+                                DropdownItem(
+                                    text = "原样显示",
+                                    summary = "课表里怎么写就怎么显示",
+                                    selected = classroomLabelMode == ClassroomLabel.MODE_RAW,
+                                    onClick = {
+                                        rlog("classroom_label_mode", "mode=0 原样")
+                                        classroomLabelMode = ClassroomLabel.MODE_RAW
+                                        reminderPrefs.edit {
+                                            putInt(ClassroomLabel.KEY_MODE, ClassroomLabel.MODE_RAW)
+                                        }
+                                    }
+                                ),
+                                DropdownItem(
+                                    text = "自动精简",
+                                    summary = "去掉校区前缀，超宽时保留楼栋与房号",
+                                    selected = classroomLabelMode == ClassroomLabel.MODE_AUTO,
+                                    onClick = {
+                                        rlog("classroom_label_mode", "mode=1 自动精简")
+                                        classroomLabelMode = ClassroomLabel.MODE_AUTO
+                                        reminderPrefs.edit {
+                                            putInt(ClassroomLabel.KEY_MODE, ClassroomLabel.MODE_AUTO)
+                                        }
+                                    }
+                                ),
+                                DropdownItem(
+                                    text = "自定义正则",
+                                    summary = "自己写查找替换规则",
+                                    selected = classroomLabelMode == ClassroomLabel.MODE_CUSTOM,
+                                    onClick = {
+                                        rlog("classroom_label_mode", "mode=2 自定义正则")
+                                        classroomLabelMode = ClassroomLabel.MODE_CUSTOM
+                                        reminderPrefs.edit {
+                                            putInt(ClassroomLabel.KEY_MODE, ClassroomLabel.MODE_CUSTOM)
+                                        }
+                                        tempClassroomPattern = classroomLabelPattern
+                                        tempClassroomReplacement = classroomLabelReplacement
+                                        showClassroomRuleDialog = true
+                                    }
+                                ),
+                            )
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                insideMargin = PaddingValues(0.dp)
+                            ) {
+                                OverlayDropdownMenu(
+                                    title = "上课地点精简",
+                                    entry = DropdownEntry(items = classroomLabelOptions),
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                                if (classroomLabelMode == ClassroomLabel.MODE_CUSTOM) {
+                                    ArrowPreference(
+                                        title = "自定义规则",
+                                        summary = customRuleSummary,
+                                        onClick = {
+                                            rlog("classroom_label_dialog_open", customRuleSummary)
+                                            tempClassroomPattern = classroomLabelPattern
+                                            tempClassroomReplacement = classroomLabelReplacement
+                                            showClassroomRuleDialog = true
+                                        }
+                                    )
+                                }
+                                if (classroomLabelMode != ClassroomLabel.MODE_RAW) {
+                                    ClassroomLabelPreview(
+                                        rule = classroomLabelRule,
+                                        samples = previewClassrooms,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp)
+                                            .padding(bottom = 16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                     }
 
                     // 权限设置
@@ -1097,6 +1215,88 @@ fun CourseReminderScreen(
                 }
             }
 
+            // 地点精简的自定义规则：边写边用自己课表里的地点看效果，不靠猜
+            OverlayDialog(
+                title = "自定义地点规则",
+                show = showClassroomRuleDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = { showClassroomRuleDialog = false }
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    NativeMiuixTextField(
+                        value = tempClassroomPattern,
+                        onValueChange = { tempClassroomPattern = it },
+                        label = "查找（正则）",
+                        useLabelAsPlaceholder = true,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        requestFocus = showClassroomRuleDialog
+                    )
+                    NativeMiuixTextField(
+                        value = tempClassroomReplacement,
+                        onValueChange = { tempClassroomReplacement = it },
+                        label = "替换为（\$1 表示捕获组，留空即删除）",
+                        useLabelAsPlaceholder = true,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    val patternError = ClassroomLabel.patternError(tempClassroomPattern)
+                    if (patternError == null) {
+                        ClassroomLabelPreview(
+                            rule = ClassroomLabelRule(
+                                mode = ClassroomLabel.MODE_CUSTOM,
+                                pattern = tempClassroomPattern,
+                                replacement = tempClassroomReplacement,
+                            ),
+                            samples = previewClassrooms,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Text(
+                            text = patternError,
+                            style = MiuixTheme.textStyles.body2,
+                            color = ComposeColor(0xFFFF6B6B)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                rlog("classroom_label_dialog_cancel")
+                                showClassroomRuleDialog = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "确定",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                rlog("classroom_label_dialog_ok") {
+                                    "$tempClassroomPattern -> $tempClassroomReplacement"
+                                }
+                                classroomLabelPattern = tempClassroomPattern
+                                classroomLabelReplacement = tempClassroomReplacement
+                                reminderPrefs.edit {
+                                    putString(ClassroomLabel.KEY_PATTERN, tempClassroomPattern)
+                                    putString(ClassroomLabel.KEY_REPLACEMENT, tempClassroomReplacement)
+                                }
+                                showClassroomRuleDialog = false
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            enabled = patternError == null,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
             // 提前提醒分钟数弹窗
             OverlayDialog(
                 title = "提前提醒时间",
@@ -1225,6 +1425,49 @@ fun CourseReminderScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 缩略态地点预览：拿课表里的真实地点按 [rule] 算一遍。
+ *
+ * 结果与原文相同时只显示一条，不做「A → A」的无信息重复；超出可用宽度会显式提示 ——
+ * 那种情况系统还会再截一次尾部，房号可能又丢了，光看结果看不出来。
+ */
+@Composable
+private fun ClassroomLabelPreview(
+    rule: ClassroomLabelRule,
+    samples: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (samples.isEmpty()) {
+            Text(
+                text = "课表里还没有填写上课地点",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+        } else {
+            Text(
+                text = "缩略态效果",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+            samples.forEach { raw ->
+                val shown = ClassroomLabel.apply(raw, rule)
+                val width = ClassroomLabel.slotDisplayWidth(shown)
+                val tooWide = rule.slotWidth > 0 && width > rule.slotWidth
+                Text(
+                    text = if (tooWide) {
+                        "${if (shown == raw) raw else "$raw → $shown"}（$width 个半角，系统仍会截断）"
+                    } else {
+                        if (shown == raw) raw else "$raw → $shown"
+                    },
+                    style = MiuixTheme.textStyles.body2,
+                    color = if (tooWide) ComposeColor(0xFFFF6B6B) else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
             }
         }
     }

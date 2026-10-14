@@ -1546,7 +1546,8 @@ object CourseReminderHelper {
         val collapsedMode = reminderPrefs.getInt("live_right_mode", 0)
         val shortCriticalText = when (collapsedMode) {
             0 -> courseName
-            1 -> classroom.ifEmpty { courseName }
+            // 系统按自己的宽度截断缩略态，且丢的是尾部房号；先按用户规则精简一手
+            1 -> reminderPrefs.shortClassroom(classroom).ifEmpty { courseName }
             2 -> "${minutesUntilStart}分钟"
             else -> courseName
         }
@@ -1770,7 +1771,7 @@ object CourseReminderHelper {
         if (minutesUntilStart == lastDisplayedMinutes) return
         val shortCriticalText = when (collapsedMode) {
             0 -> courseName
-            1 -> classroom.ifEmpty { courseName }
+            1 -> collapsedPrefs.shortClassroom(classroom).ifEmpty { courseName }
             2 -> "${minutesUntilStart}分钟"
             else -> courseName
         }
