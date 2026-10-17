@@ -550,6 +550,7 @@ fun WidgetIntroRoute(
  * @param reminderController Android 注入 `AndroidReminderController(context)`（闹钟 / 电池优化 / 权限 / 系统设置页跳转）；桌面/iOS 用 [NoopReminderController]。
  * @param testActionLabel 底部测试按钮文案，Android 按设备能力在「测试小米超级岛」/「测试实时活动」间切换后传入。
  * @param onSendTestNotification **传 null 表示这一端没有测试能力 → 不渲染按钮**，别给一个点了没反应的按钮。
+ * @param onCopyToClipboard 复制文本到系统剪切板（楼名缩写的 AI 提示词用）；默认空实现。
  */
 @Composable
 fun CourseReminderRoute(
@@ -557,6 +558,7 @@ fun CourseReminderRoute(
     reminderController: ReminderController = NoopReminderController,
     testActionLabel: String = "测试通知",
     onSendTestNotification: (() -> Unit)? = null,
+    onCopyToClipboard: (String) -> Unit = {},
 ) {
     val isTablet = isTabletWidth()
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
@@ -587,6 +589,7 @@ fun CourseReminderRoute(
             scrollBehavior = scrollBehavior,
             liquidGlassBackdrop = backdrop,
             reminderController = reminderController,
+            onCopyToClipboard = onCopyToClipboard,
         )
     }
 }

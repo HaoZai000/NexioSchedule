@@ -223,6 +223,11 @@ fun AppRouteContent(
                         showToast("已发送实时活动测试通知")
                     }
                 },
+                onCopyToClipboard = { text ->
+                    val clipboard =
+                        context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("楼名缩写提示词", text))
+                },
             )
         }
         AppRoute.WebDavSettings -> {

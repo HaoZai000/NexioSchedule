@@ -376,23 +376,26 @@ object IslandNotificationHelper {
         val aodMode = prefs.getInt("island_aod_mode", 0)
 
         val now = System.currentTimeMillis()
+        // 槽位、息屏标题、展开态「地点」行都只有十几个半角宽，超了由系统从尾部截断
+        // （丢掉的正好是房号），所以这里一律喂精简后的地点。
+        val shortClassroom = prefs.shortClassroom(classroom ?: "")
         val remainMs = courseStartMillis?.let { it - now }
         val counting = remainMs != null && remainMs > 0
         val minutesUntil = if (counting) ((remainMs + 59_999L) / 60_000L).toInt() else 0
 
         val islandLeftText = when (leftMode) {
             0 -> courseName ?: ""
-            1 -> classroom ?: ""
+            1 -> shortClassroom
             2 -> if (counting) "${minutesUntil}分钟" else "已上课"
             else -> courseName ?: ""
         }
         val islandRightText = when (rightMode) {
             0 -> courseName ?: ""
-            1 -> classroom ?: ""
+            1 -> shortClassroom
             2 -> if (counting) "${minutesUntil}分钟" else "已上课"
-            else -> classroom ?: ""
+            else -> shortClassroom
         }
-        val aodTitle = if (aodMode == 1) classroom ?: courseName ?: title else courseName ?: title
+        val aodTitle = if (aodMode == 1) shortClassroom.ifEmpty { courseName ?: title } else courseName ?: title
 
         val paramV2 = JSONObject().apply {
             put("business", BUSINESS_TAG)
@@ -457,7 +460,9 @@ object IslandNotificationHelper {
                 }
                 put("timerInfo", timerInfo)
                 put("subContent", "地点")
-                put("subTitle", classroom ?: "")
+                // 展开态的「地点」行同样只有十几个半角宽，真机上「新校区J02西414」被截成
+                // 「新校区J…」、房号丢失。与缩略态是同一个问题，同样喂精简后的地点。
+                put("subTitle", shortClassroom)
                 put("colorContent", "#666666")
                 put("colorContentDark", "#aaaaaa")
                 put("colorTitle", "#222222")
@@ -583,7 +588,14 @@ object IslandNotificationHelper {
 
         val now = System.currentTimeMillis()
         val counting = courseEndMillis > now
-        val aodTitle = if (aodMode == 1) classroom.ifEmpty { courseName } else courseName
+        // 与课前岛同理：课中岛的息屏标题、展开态「地点」行都是窄条，真机实测会把
+        // 「新校区J02西414」截成「新校区J…」，所以统一喂精简后的地点。
+        val shortClassroom = prefs.shortClassroom(classroom)
+        val aodTitle = if (aodMode == 1) {
+            shortClassroom.ifEmpty { courseName }
+        } else {
+            courseName
+        }
         // 自定义时间课的 section 是「开始 - 结束」，再拼一次会变成「时间｜时间」
         val showSection = section.isNotEmpty() && !isCustomTime
         val baseContent = buildString {
@@ -653,7 +665,7 @@ object IslandNotificationHelper {
                     }
                 })
                 put("subContent", "地点")
-                put("subTitle", classroom)
+                put("subTitle", shortClassroom)
                 put("colorContent", "#666666")
                 put("colorContentDark", "#aaaaaa")
                 put("colorTitle", "#222222")

@@ -16,11 +16,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +45,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.AppStorage
+import com.haooz.chedule.data.ClassroomLabel
+import com.haooz.chedule.data.ClassroomLabelRule
+import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.NoopReminderController
 import com.haooz.chedule.data.ReminderController
 import com.haooz.chedule.data.showToast
@@ -53,6 +59,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -98,6 +105,8 @@ fun CourseReminderScreen(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     /** 提醒控制器（Android = AndroidReminderController 包装）；桌面/iOS 用 NoopReminderController */
     reminderController: ReminderController = NoopReminderController,
+    /** 复制文本到系统剪切板（楼名缩写的 AI 提示词用）；默认空实现，端上按平台注入 */
+    onCopyToClipboard: (String) -> Unit = {},
 ) {
     val preClassReminder by settingsViewModel.preClassReminder.collectAsState()
     val preClassReminderMinutes by settingsViewModel.preClassReminderMinutes.collectAsState()
@@ -141,6 +150,54 @@ fun CourseReminderScreen(
     // 课中岛缩略态右侧：0=正在上课，1=距下课倒计时（仅超级岛生效）
     var islandInClassRightMode by remember {
         mutableIntStateOf(reminderPrefs.getInt("island_in_class_right_mode", 0))
+    }
+    // 缩略态地点精简：0=原样，1=自动精简，2=自定义正则
+    var classroomLabelMode by remember {
+        mutableIntStateOf(reminderPrefs.getInt(ClassroomLabel.KEY_MODE, ClassroomLabel.MODE_RAW))
+    }
+    var classroomLabelPattern by remember { mutableStateOf(reminderPrefs.getString(ClassroomLabel.KEY_PATTERN, "")) }
+    var classroomLabelReplacement by remember {
+        mutableStateOf(reminderPrefs.getString(ClassroomLabel.KEY_REPLACEMENT, ""))
+    }
+    // 超宽时保尾部：默认关。开着才会按宽度丢开头，关着只做去前缀这类格式清理
+    var classroomLabelTailKeep by remember {
+        mutableStateOf(reminderPrefs.getBoolean(ClassroomLabel.KEY_TAIL_KEEP, false))
+    }
+    var classroomLabelSlotWidth by remember {
+        mutableIntStateOf(
+            reminderPrefs.getInt(ClassroomLabel.KEY_SLOT_WIDTH, ClassroomLabel.DEFAULT_SLOT_WIDTH)
+        )
+    }
+    var showClassroomRuleDialog by remember { mutableStateOf(false) }
+    var tempClassroomPattern by remember { mutableStateOf(classroomLabelPattern) }
+    var tempClassroomReplacement by remember { mutableStateOf(classroomLabelReplacement) }
+    // 楼名缩写：内置表之外，用户可自己补、或让 AI 按本校叫法生成后粘回来
+    var classroomLabelAbbreviations by remember {
+        mutableStateOf(reminderPrefs.getString(ClassroomLabel.KEY_ABBREVIATIONS, ""))
+    }
+    var showAbbrevDialog by remember { mutableStateOf(false) }
+    var tempAbbreviations by remember { mutableStateOf(classroomLabelAbbreviations) }
+    var showUsageDialog by remember { mutableStateOf(false) }
+    val userAbbrevCount = ClassroomLabel.parseAbbreviations(classroomLabelAbbreviations).size
+    // 预览用课表里的真实地点：能看出自己学校的地名会被改成什么样，比固定样例有用。
+    // CourseRepository 是单例且带课程缓存，这里只在页面进入时取一次。取 4 条，
+    // 好让超宽的情况也能在预览里露出来。
+    val previewClassrooms = remember {
+        val repository = CourseRepository()
+        repository.getCoursesForSchedule(repository.getCurrentScheduleId())
+            .map { it.classroom.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(4)
+    }
+    // AI 提示词要带上尽量多的真实地点，4 条不够归纳；专门取一批（带条数上限，避免超长）
+    val promptClassrooms = remember {
+        val repository = CourseRepository()
+        repository.getCoursesForSchedule(repository.getCurrentScheduleId())
+            .map { it.classroom.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(60)
     }
     // 课中提醒：超级岛 / 原生实况共用同一开关
     var inClassEnabled by remember {
@@ -849,6 +906,227 @@ fun CourseReminderScreen(
                             }
                         }
                     }
+
+                    // 上课地点精简：缩略态由系统按自己的宽度排版，超出部分从尾部丢，
+                    // 丢掉的正好是「B3027」这种最要紧的房号。这里在交给系统之前先按用户规则缩短。
+                    // iOS 的 Live Activity 槽位在 Swift 侧拼装，规则还没接过去，先不给点了没反应的开关。
+                    if (!reminderController.supportsLiveActivity()) {
+                        item {
+                            val classroomLabelRule = ClassroomLabelRule(
+                                mode = classroomLabelMode,
+                                pattern = classroomLabelPattern,
+                                replacement = classroomLabelReplacement,
+                                tailKeepEnabled = classroomLabelTailKeep,
+                                slotWidth = classroomLabelSlotWidth,
+                                abbreviations = classroomLabelAbbreviations,
+                            )
+                            val customRuleSummary = when {
+                                classroomLabelPattern.isBlank() -> "还没选规则，现在按原文显示"
+                                classroomLabelReplacement.isEmpty() ->
+                                    "把「$classroomLabelPattern」找到的内容删掉"
+                                else -> "把「$classroomLabelPattern」换成「$classroomLabelReplacement」"
+                            }
+                            val classroomLabelOptions = listOf(
+                                DropdownItem(
+                                    text = "原样显示",
+                                    summary = "课表里怎么写就怎么显示",
+                                    selected = classroomLabelMode == ClassroomLabel.MODE_RAW,
+                                    onClick = {
+                                        rlog("classroom_label_mode", "mode=0 原样")
+                                        classroomLabelMode = ClassroomLabel.MODE_RAW
+                                        reminderPrefs.edit {
+                                            putInt(ClassroomLabel.KEY_MODE, ClassroomLabel.MODE_RAW)
+                                        }
+                                    }
+                                ),
+                                DropdownItem(
+                                    text = "自动精简",
+                                    summary = "把「第五教学楼」这类常见楼名缩成「五教」，再去掉「××校区」前缀和多余空格；本校特有的叫法可在「楼名缩写」里补充匹配",
+                                    selected = classroomLabelMode == ClassroomLabel.MODE_AUTO,
+                                    onClick = {
+                                        rlog("classroom_label_mode", "mode=1 自动精简")
+                                        classroomLabelMode = ClassroomLabel.MODE_AUTO
+                                        reminderPrefs.edit {
+                                            putInt(ClassroomLabel.KEY_MODE, ClassroomLabel.MODE_AUTO)
+                                        }
+                                    }
+                                ),
+                                DropdownItem(
+                                    text = "自定义正则",
+                                    summary = "自己定改写规则，里面有现成的常用规则可选",
+                                    selected = classroomLabelMode == ClassroomLabel.MODE_CUSTOM,
+                                    onClick = {
+                                        rlog("classroom_label_mode", "mode=2 自定义正则")
+                                        classroomLabelMode = ClassroomLabel.MODE_CUSTOM
+                                        reminderPrefs.edit {
+                                            putInt(ClassroomLabel.KEY_MODE, ClassroomLabel.MODE_CUSTOM)
+                                        }
+                                        tempClassroomPattern = classroomLabelPattern
+                                        tempClassroomReplacement = classroomLabelReplacement
+                                        showClassroomRuleDialog = true
+                                    }
+                                ),
+                            )
+                            // 保尾部档位：只有打开开关才有意义。
+                            // 「半角」对多数人没有画面感，每档都拿用户自己的第一间教室
+                            // 算一遍，挑档位时看到的是实际显示结果。
+                            val widthSample = previewClassrooms.firstOrNull()
+                            val tailKeepWidthOptions = ClassroomLabel.SLOT_WIDTH_PRESETS.map { width ->
+                                val sampleShown = widthSample?.let { raw ->
+                                    ClassroomLabel.apply(
+                                        raw,
+                                        ClassroomLabelRule(
+                                            mode = classroomLabelMode,
+                                            pattern = classroomLabelPattern,
+                                            replacement = classroomLabelReplacement,
+                                            tailKeepEnabled = true,
+                                            slotWidth = width,
+                                            abbreviations = classroomLabelAbbreviations,
+                                        )
+                                    )
+                                }
+                                DropdownItem(
+                                    text = if (width == ClassroomLabel.DEFAULT_SLOT_WIDTH) {
+                                        "$width 格（默认）"
+                                    } else {
+                                        "$width 格"
+                                    },
+                                    summary = buildString {
+                                        if (sampleShown != null && sampleShown != widthSample) {
+                                            append("你的「$widthSample」会显示成「$sampleShown」")
+                                        } else if (sampleShown != null) {
+                                            append("你的「$widthSample」放得下，不用截")
+                                        } else {
+                                            append("课表里填了地点就能在这里看到实际效果")
+                                        }
+                                        when (width) {
+                                            ClassroomLabel.DEFAULT_SLOT_WIDTH ->
+                                                append("\n多数机型的岛差不多这么宽，不确定就用它")
+                                            ClassroomLabel.SLOT_WIDTH_PRESETS.first() ->
+                                                append("\n最窄，基本只留得下房号")
+                                            ClassroomLabel.SLOT_WIDTH_PRESETS.last() ->
+                                                append("\n最宽，留字最多；超出部分系统仍会再截")
+                                        }
+                                    },
+                                    selected = classroomLabelSlotWidth == width,
+                                    onClick = {
+                                        rlog("classroom_label_width", "width=$width")
+                                        classroomLabelSlotWidth = width
+                                        reminderPrefs.edit {
+                                            putInt(ClassroomLabel.KEY_SLOT_WIDTH, width)
+                                        }
+                                    }
+                                )
+                            }
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                insideMargin = PaddingValues(0.dp)
+                            ) {
+                                OverlayDropdownMenu(
+                                    title = "上课地点精简",
+                                    summary = classroomLabelCardSummary(
+                                        mode = classroomLabelMode,
+                                        tailKeep = classroomLabelTailKeep,
+                                    ),
+                                    entry = DropdownEntry(items = classroomLabelOptions),
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                                if (classroomLabelMode == ClassroomLabel.MODE_CUSTOM) {
+                                    ArrowPreference(
+                                        title = "自定义规则",
+                                        summary = customRuleSummary,
+                                        onClick = {
+                                            rlog("classroom_label_dialog_open", customRuleSummary)
+                                            tempClassroomPattern = classroomLabelPattern
+                                            tempClassroomReplacement = classroomLabelReplacement
+                                            showClassroomRuleDialog = true
+                                        }
+                                    )
+                                }
+                                SwitchPreference(
+                                    title = "太长的地点保留后半段",
+                                    // 与精简模式互不影响：模式决定文字怎么改，开关决定放不下时怎么办
+                                    summary = if (classroomLabelTailKeep) {
+                                        "放不下时先压楼名，房号不动；楼名太长才切掉开头"
+                                    } else {
+                                        "关闭时一个字都不删，系统会按自己的宽度截掉末尾，房号可能丢"
+                                    },
+                                    checked = classroomLabelTailKeep,
+                                    onCheckedChange = {
+                                        rlog("classroom_label_tail_keep", "on=$it")
+                                        classroomLabelTailKeep = it
+                                        reminderPrefs.edit {
+                                            putBoolean(ClassroomLabel.KEY_TAIL_KEEP, it)
+                                        }
+                                    }
+                                )
+                                if (classroomLabelTailKeep) {
+                                    OverlayDropdownMenu(
+                                        title = "地点最多能占几格",
+                                        summary = buildString {
+                                            append("按你的设备调；拿不准就用默认")
+                                            val widthSample = previewClassrooms.firstOrNull()
+                                            if (widthSample != null) {
+                                                append("\n当前 $classroomLabelSlotWidth 格：")
+                                                append(
+                                                    ClassroomLabel.apply(
+                                                        widthSample,
+                                                        ClassroomLabelRule(
+                                                            mode = classroomLabelMode,
+                                                            pattern = classroomLabelPattern,
+                                                            replacement = classroomLabelReplacement,
+                                                            tailKeepEnabled = true,
+                                                            slotWidth = classroomLabelSlotWidth,
+                                                            abbreviations = classroomLabelAbbreviations,
+                                                        )
+                                                    )
+                                                )
+                                            }
+                                        },
+                                        entry = DropdownEntry(items = tailKeepWidthOptions),
+                                        collapseOnSelection = true,
+                                        liquidGlassBackdrop = liquidGlassBackdrop,
+                                        dropdownColors = liquidGlassDropdownColors,
+                                    )
+                                }
+                                ArrowPreference(
+                                    title = "楼名缩写",
+                                    summary = if (userAbbrevCount > 0) {
+                                        "已加 $userAbbrevCount 条自己的写法；内置的「第五教学楼→五教」一类一直生效"
+                                    } else {
+                                        "内置约 20 条常见楼名，不设置也能用；本校特有叫法在这里补充匹配，或让 AI 按课表生成"
+                                    },
+                                    onClick = {
+                                        rlog("classroom_label_abbrev_open", "count=$userAbbrevCount")
+                                        tempAbbreviations = classroomLabelAbbreviations
+                                        showAbbrevDialog = true
+                                    }
+                                )
+                                if (classroomLabelMode != ClassroomLabel.MODE_RAW || classroomLabelTailKeep) {
+                                    ClassroomLabelPreview(
+                                        rule = classroomLabelRule,
+                                        samples = previewClassrooms,
+                                        // 超宽时直接告诉用户去开哪个开关，不只报一个数字
+                                        tailKeepActionLabel = "太长的地点保留后半段",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp)
+                                            .padding(bottom = 16.dp)
+                                    )
+                                }
+                                ArrowPreference(
+                                    title = "这几项怎么配合",
+                                    summary = "四项设置之间的关系，以及你现在用的是哪一套",
+                                    onClick = {
+                                        rlog("classroom_label_usage_open")
+                                        showUsageDialog = true
+                                    }
+                                )
+                            }
+                        }
+                    }
                     }
 
                     // 权限设置
@@ -1097,6 +1375,267 @@ fun CourseReminderScreen(
                 }
             }
 
+            // 地点精简的自定义规则：边写边用自己课表里的地点看效果，不靠猜
+            OverlayDialog(
+                title = "自定义地点规则",
+                summary = "按正则把课表里的地点改成岛上要显示的短文本。不想写正则，" +
+                    "可以从下面的常用规则里选一条。",
+                show = showClassroomRuleDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = { showClassroomRuleDialog = false }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // 常用规则：一键填入，省掉写正则这件事
+                    Text(
+                        text = "常用规则",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                    ClassroomLabel.CUSTOM_PRESETS.forEach { preset ->
+                        ArrowPreference(
+                            title = preset.title,
+                            summary = "${preset.description}\n${preset.sample}",
+                            onClick = {
+                                tempClassroomPattern = preset.pattern
+                                tempClassroomReplacement = preset.replacement
+                            }
+                        )
+                    }
+                    NativeMiuixTextField(
+                        value = tempClassroomPattern,
+                        onValueChange = { tempClassroomPattern = it },
+                        label = "查找",
+                        useLabelAsPlaceholder = true,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        requestFocus = false
+                    )
+                    NativeMiuixTextField(
+                        value = tempClassroomReplacement,
+                        onValueChange = { tempClassroomReplacement = it },
+                        label = "替换为",
+                        useLabelAsPlaceholder = true,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        text = "替换为留空表示删掉找到的内容；写 \$1 表示保留第一个括号捕获到的部分。",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                    val patternError = ClassroomLabel.patternError(tempClassroomPattern)
+                    if (patternError == null) {
+                        ClassroomLabelPreview(
+                            rule = ClassroomLabelRule(
+                                mode = ClassroomLabel.MODE_CUSTOM,
+                                pattern = tempClassroomPattern,
+                                replacement = tempClassroomReplacement,
+                                tailKeepEnabled = classroomLabelTailKeep,
+                                slotWidth = classroomLabelSlotWidth,
+                                abbreviations = classroomLabelAbbreviations,
+                            ),
+                            samples = previewClassrooms,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Text(
+                            text = patternError,
+                            style = MiuixTheme.textStyles.body2,
+                            color = ComposeColor(0xFFFF6B6B)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                rlog("classroom_label_dialog_cancel")
+                                showClassroomRuleDialog = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "确定",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                rlog("classroom_label_dialog_ok") {
+                                    "$tempClassroomPattern -> $tempClassroomReplacement"
+                                }
+                                classroomLabelPattern = tempClassroomPattern
+                                classroomLabelReplacement = tempClassroomReplacement
+                                reminderPrefs.edit {
+                                    putString(ClassroomLabel.KEY_PATTERN, tempClassroomPattern)
+                                    putString(ClassroomLabel.KEY_REPLACEMENT, tempClassroomReplacement)
+                                }
+                                showClassroomRuleDialog = false
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            enabled = patternError == null,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // 四项设置的关系：多数人只需要知道开哪两个开关
+            OverlayDialog(
+                title = "这几项怎么配合",
+                summary = "从上往下按需要加",
+                show = showUsageDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = { showUsageDialog = false }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 460.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    ClassroomLabelUsageItem(
+                        title = "什么都不设置",
+                        body = "和升级前一样。地点太长时系统自己截末尾，房号可能被截掉。",
+                        sample = "新校区J02西414 → 新校区J02西4…",
+                        isCurrent = classroomLabelMode == ClassroomLabel.MODE_RAW && !classroomLabelTailKeep,
+                    )
+                    ClassroomLabelUsageItem(
+                        title = "打开「自动精简」和「保留后半段」",
+                        body = "常见楼名缩成「五教」这种写法，去掉校区前缀；放不下时先压楼名，房号不丢。" +
+                            "多数人开这两个就够了，不用配缩写。",
+                        sample = "第五教学楼C509 → 五C509",
+                        isCurrent = classroomLabelMode == ClassroomLabel.MODE_AUTO && classroomLabelTailKeep,
+                    )
+                    ClassroomLabelUsageItem(
+                        title = "补充自己的缩写",
+                        body = "内置表只认「第X教学楼」「综合楼」这类通用叫法。" +
+                            "「明德楼」「格物楼」想显示得更短，在这里补充匹配；不补也能用，只是楼名会被压成一个字。",
+                        sample = "明德楼A302 → 明A302（补了缩写可以是 明德A302）",
+                        isCurrent = userAbbrevCount > 0,
+                    )
+                    ClassroomLabelUsageItem(
+                        title = "用 AI 一次生成",
+                        body = "课表里楼名多、一个个写麻烦时用。和「导入课表」一样，复制提示词发给任意 AI，" +
+                            "再把结果粘回来。App 不联网、不用登录，生成的内容能逐条改。",
+                        sample = "整张课表的楼名一次列成「原名=缩写」",
+                        isCurrent = false,
+                    )
+                    Text(
+                        text = "前两项不用设置就能用；后两项只影响本校特有楼名的显示效果。",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                    TextButton(
+                        text = "知道了",
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            rlog("classroom_label_usage_close")
+                            showUsageDialog = false
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // 楼名缩写：内置表管常见写法，这里管本校自己的叫法
+            OverlayDialog(
+                title = "楼名缩写",
+                summary = "一行一条，写成「原名=缩写」。只压楼名，房间号别动。",
+                show = showAbbrevDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = { showAbbrevDialog = false }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    NativeMiuixTextField(
+                        value = tempAbbreviations,
+                        onValueChange = { tempAbbreviations = it },
+                        minLines = 3,
+                        maxLines = 10,
+                        label = "第五教学楼=五教",
+                        useLabelAsPlaceholder = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    // AI 生成：跟「导入课表」一样，复制提示词到外部 AI，再把结果粘回来。
+                    // 不接 API、不要联网权限，生成的东西用户能逐条看着改。
+                    ArrowPreference(
+                        title = "让 AI 按我的课表生成",
+                        summary = if (promptClassrooms.isEmpty()) {
+                            "课表里还没有地点，先填上课地点再来"
+                        } else {
+                            "复制一段提示词（已带上你课表里的 ${promptClassrooms.size} 个地点）到任意 AI，把结果粘回上面"
+                        },
+                        enabled = promptClassrooms.isNotEmpty(),
+                        onClick = {
+                            rlog("classroom_label_abbrev_prompt", "count=${promptClassrooms.size}")
+                            onCopyToClipboard(ClassroomLabel.abbreviationPrompt(promptClassrooms))
+                            showToast("提示词已复制，粘给 AI 后再把结果粘回这里")
+                        }
+                    )
+                    // 粘贴回来的东西常带序号或解释句，先清一遍再展示，用户能看得出留下了什么
+                    val cleaned = ClassroomLabel.sanitizeAbbreviationReply(tempAbbreviations)
+                    if (cleaned != tempAbbreviations.trim()) {
+                        ArrowPreference(
+                            title = "整理成规范写法",
+                            summary = "去掉序号和解释句，只留「原名=缩写」的行",
+                            onClick = { tempAbbreviations = cleaned }
+                        )
+                    }
+                    val parsedCount = ClassroomLabel.parseAbbreviations(tempAbbreviations).size
+                    Text(
+                        text = if (parsedCount > 0) {
+                            "已识别 $parsedCount 条；生效效果看上面的预览"
+                        } else {
+                            "还没有可用的行。写成「第五教学楼=五教」这样即可"
+                        },
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                rlog("classroom_label_abbrev_cancel")
+                                showAbbrevDialog = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "确定",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                rlog("classroom_label_abbrev_ok", "count=$parsedCount")
+                                classroomLabelAbbreviations = tempAbbreviations
+                                reminderPrefs.edit {
+                                    putString(ClassroomLabel.KEY_ABBREVIATIONS, tempAbbreviations)
+                                }
+                                showAbbrevDialog = false
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
             // 提前提醒分钟数弹窗
             OverlayDialog(
                 title = "提前提醒时间",
@@ -1225,6 +1764,117 @@ fun CourseReminderScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 「这几项怎么配合」里的一条：标题、说明、一句实际效果。
+ *
+ * 每条都带上输入输出，比只描述机制直观。
+ */
+@Composable
+private fun ClassroomLabelUsageItem(
+    title: String,
+    body: String,
+    sample: String,
+    isCurrent: Boolean,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = title,
+                style = MiuixTheme.textStyles.body1,
+                fontWeight = FontWeight.Medium,
+                color = MiuixTheme.colorScheme.onSurface
+            )
+            if (isCurrent) {
+                Text(
+                    text = "当前",
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.primary
+                )
+            }
+        }
+        Text(
+            text = body,
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+        )
+        Text(
+            text = sample,
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+        )
+    }
+}
+
+/**
+ * 地点精简设置卡那一行的说明文字：直接说清「现在会拿什么去显示」。
+ *
+ * 只写「原样显示 / 自动精简」这种模式名，用户仍然不知道自己的地点会变成什么样；
+ * 这里把当前组合的后果讲出来，尤其是「关闭保尾部时房号可能丢」这件事。
+ */
+private fun classroomLabelCardSummary(mode: Int, tailKeep: Boolean): String {
+    val what = when (mode) {
+        ClassroomLabel.MODE_AUTO -> "显示时缩写常见楼名、去掉「××校区」前缀"
+        ClassroomLabel.MODE_CUSTOM -> "显示时按你定的规则改写"
+        else -> "显示时用课表原文"
+    }
+    val overflow = if (tailKeep) {
+        "太长时先压楼名，房号留得住"
+    } else {
+        "太长会被系统截掉末尾，房号可能丢"
+    }
+    return "$what；$overflow"
+}
+
+/**
+ * 地点精简预览：拿课表里的真实地点按 [rule] 算一遍。
+ *
+ * 结果和原文一样时只显示一条。超宽时把结论交给 [ClassroomLabel.previewHint]，
+ * 只摆一个「原文 → 结果」，用户看不出算好还是不好，也不知道下一步该动哪里。
+ */
+@Composable
+private fun ClassroomLabelPreview(
+    rule: ClassroomLabelRule,
+    samples: List<String>,
+    modifier: Modifier = Modifier,
+    tailKeepActionLabel: String? = null,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (samples.isEmpty()) {
+            Text(
+                text = "课表里还没有填上课地点，这里没法试效果",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+        } else {
+            Text(
+                text = "拿你课表里的地点试一下",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+            samples.forEach { raw ->
+                val shown = ClassroomLabel.apply(raw, rule)
+                val hint = ClassroomLabel.previewHint(raw, rule, tailKeepActionLabel)
+                Text(
+                    text = buildString {
+                        append(if (shown == raw) raw else "$raw → $shown")
+                        if (hint != null) append("\n$hint")
+                    },
+                    style = MiuixTheme.textStyles.body2,
+                    // 有问题才上色；正常结果显示为次要文字，不抢注意力
+                    color = if (hint != null) {
+                        ComposeColor(0xFFFFB347)
+                    } else {
+                        MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    }
+                )
             }
         }
     }
