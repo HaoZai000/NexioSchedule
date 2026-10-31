@@ -37,8 +37,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -83,7 +81,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.appearance.AppearanceConfig
 import com.haooz.chedule.data.appearance.AppearanceStore
 import com.haooz.chedule.data.appearance.CardContentAlignment
@@ -112,7 +109,6 @@ import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
-import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.coroutineScope
@@ -334,7 +330,7 @@ fun CustomizeScheduleScreen(
     var cardTextScaleValue by remember(
         currentCombinationIndex,
         sheetResetKey
-    ) { mutableStateOf(appearance.cardTextScale) }
+    ) { mutableFloatStateOf(appearance.cardTextScale) }
     var showClassroomValue by remember(currentCombinationIndex, sheetResetKey) {
         mutableStateOf(appearance.showClassroom)
     }
@@ -405,16 +401,10 @@ fun CustomizeScheduleScreen(
 
     val customizeButtonAlpha = remember { Animatable(1f) }
 
-    val pageCount = combinations.size.coerceAtLeast(1)
-    val initialPage = 0
-    val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { pageCount })
-
     val animProgress = remember { Animatable(0f) }
     var animDone by remember { mutableStateOf(false) }
     var isPageAnimating by remember { mutableStateOf(true) }
     val buttonScaleAnim = remember { Animatable(1.5f) }
-    val pagerSpacing = remember { Animatable(-140f) }
-    val exitProgress = remember { Animatable(0f) }
 
     var isCutoutActive by remember { mutableStateOf(false) }
     var isCutoutAnimating by remember { mutableStateOf(false) }
@@ -426,7 +416,6 @@ fun CustomizeScheduleScreen(
     val cutoutOffsetX = remember { Animatable(0f) }
     // 与 MainActivity 共享同一 Animatable，弹窗开合时两边同帧同步位移
     val sheetOffsetY = sheetOffsetShared
-    val cutoutEnterProgress = remember { Animatable(0f) }
     val cutoutPathCache = remember { CutoutPathCache() }
     val toolOffsetTargetPx = with(densityObj) { 80.dp.toPx() }
     val toolAlphaAnim = remember { Animatable(0f) }
@@ -445,34 +434,23 @@ fun CustomizeScheduleScreen(
     }
 
     // ── 入场时间轴 ───────────────────────────────────────────────────────
-    // 这些动画在封面快照盖满全屏时就开始跑；硬约束：全部元素须在
-    // CUSTOMIZE_COVER_WINDOW_MILLIS（封面撤除时刻）内落地，否则封面没了按钮/工具栏还在飞，
-    // 观感脱节。每个 ENTER_* 的 (delay + duration) 都必须 ≤ 该窗口，改动前先核对。
     LaunchedEffect(Unit) {
         coroutineScope {
             launch {
                 animProgress.animateTo(
                     targetValue = 1f,
-                    animationSpec = tween(ENTER_CARD_MILLIS, easing = CustomizePageEasing)
+                    animationSpec = tween(ENTER_SNAPSHOT_SCALE_MILLIS, easing = CustomizePageEasing)
                 )
                 animDone = true
                 isPageAnimating = false
             }
             launch {
-                pagerSpacing.animateTo(
-                    -10f,
-                    tween(ENTER_PAGER_SPACING_MILLIS, easing = CustomizePageEasing)
-                )
-            }
-            launch {
-                delay(ENTER_BUTTON_DELAY_MILLIS.toLong())
                 buttonScaleAnim.animateTo(
                     1f,
                     tween(ENTER_BUTTON_MILLIS, easing = CustomizePageEasing)
                 )
             }
             launch {
-                delay(ENTER_TOOL_DELAY_MILLIS.toLong())
                 coroutineScope {
                     launch {
                         toolAlphaAnim.animateTo(
@@ -499,14 +477,7 @@ fun CustomizeScheduleScreen(
 
     LaunchedEffect(isExiting) {
         if (isExiting) {
-            exitProgress.snapTo(0f)
             coroutineScope {
-                launch {
-                    exitProgress.animateTo(
-                        1f,
-                        tween(500, easing = CustomizePageEasing)
-                    )
-                }
                 launch {
                     buttonScaleAnim.animateTo(
                         1.5f,
@@ -572,12 +543,6 @@ fun CustomizeScheduleScreen(
                         tween(400, easing = CustomizePageEasing)
                     )
                 }
-                launch {
-                    cutoutEnterProgress.animateTo(
-                        1f,
-                        tween(400, easing = CustomizePageEasing)
-                    )
-                }
             }
             cardHidden = true
             isCutoutAnimating = false
@@ -605,13 +570,6 @@ fun CustomizeScheduleScreen(
                         tween(400, easing = CustomizePageEasing)
                     )
                 }
-                launch {
-                    cutoutEnterProgress.animateTo(
-                        0f,
-                        tween(400, easing = CustomizePageEasing)
-                    )
-                }
-                launch { pagerState.animateScrollToPage(currentCombinationIndex) }
             }
         }
     }
@@ -753,9 +711,6 @@ fun CustomizeScheduleScreen(
             val cutoutToBottomGap = (screenH - cutoutBottom).coerceAtLeast(0f)
             val toolNudgeDp = 8.dp
             val toolBottomPadding = with(densityObj) {
-                // ⚠ 末尾那个 2/3 是还原静止位置用的，不是随手取的系数：旧式（onSizeChanged
-                // 挂在 padding 外，量到含 padding 的高度）是自指方程 P = (G - H - P)/2 + 8dp，
-                // 其唯一解正好 = 本式 2/3；修掉振荡后不补它，工具栏会停在公式原值（约 116px 而非 77px）。
                 val raw = (cutoutToBottomGap / 2f - toolRowHeightPx / 2f).toDp() + toolNudgeDp
                 val restored = raw * (2f / 3f)
                 if (restored < 0.dp) 0.dp else restored
@@ -766,10 +721,6 @@ fun CustomizeScheduleScreen(
             val targetScale = minOf(targetScaleX, targetScaleY)
 
             val currentScale = 1f + (targetScale - 1f) * enterValue
-            // ⚠ 必须与卡片 cardOffsetY 的位移项逐项一致：`0.028H` 已由下面
-            // TransformOrigin(0.5f, 0.58f) 的缩放原点承担（0.028/0.35 == 0.08），但
-            // `cutoutOffsetY` / `sheetOffsetY` 原点管不着；留 0f 会在 animDone 交接时让卡片
-            // 比覆盖层高 |o|*(1-prog)（落位 o=-10dp → 约 7dp），观感是开洞区域底部上跳一下。
             val currentTranslationY =
                 (cutoutOffsetY.value + sheetOffsetY.value) * (1f - cutoutScaleProg)
             // 横向同理（弹窗无横向让位，故不含 sheetOffset）
@@ -779,8 +730,6 @@ fun CustomizeScheduleScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(
-                        // 弹窗打开时不录 liquidGlassBackdrop，只依赖 anySheetOpen 布尔，避免 backdrop 就绪引发结构变更重组；
-                        // 无材质档玻璃全关，录屏层不挂
                         if (anySheetOpen ||
                             com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()
                         ) {
@@ -791,124 +740,76 @@ fun CustomizeScheduleScreen(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                HorizontalPager(
-                    state = pagerState,
+                // 单搭配：
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer { alpha = if (cardHidden) 0f else 1f },
-                    beyondViewportPageCount = 1,
-                    pageSpacing = pagerSpacing.value.dp,
-                    userScrollEnabled = false
-                ) { page ->
-                    val pageOffset =
-                        ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
-                    val targetCardScale = 1f - pageOffset * 0.35f
-                    val baseCardAlpha = 1f
-                    val isExitingNow = isExiting && exitProgress.value < 1f
-                    val enterDelayed = if (pageOffset > 0.001f && !animDone) {
-                        val delayThreshold = (pageOffset * 0.01f).coerceIn(0f, 0.01f)
-                        ((enterValue - delayThreshold) / (1f - delayThreshold)).coerceIn(0f, 1f)
-                    } else 1f
-                    val cutoutScaleBoost = if (pageOffset > 0.001f) {
-                        (1.2f - targetCardScale) * cutoutEnterProgress.value
-                    } else 0f
-                    val cardScale = when {
-                        isExitingNow && pageOffset > 0.001f -> {
-                            targetCardScale + (1.4f - targetCardScale) * exitProgress.value
-                        }
-
-                        pageOffset > 0.001f && !animDone -> {
-                            2.0f + (targetCardScale - 2.0f) * enterDelayed
-                        }
-
-                        else -> targetCardScale + cutoutScaleBoost
-                    }
-                    // 离当前页越近 zIndex 越大，当前卡在最上方
-                    val zOrdinal = (pageCount - pageOffset).coerceAtLeast(0f)
-
+                    contentAlignment = Alignment.Center
+                ) {
+                    val cardScaleProg =
+                        ((cardScaleAnim.value - 0.65f) / (1f - 0.65f)).coerceIn(0f, 1f)
+                    val cardBaseOffsetY =
+                        screenH * 0.028f + cutoutOffsetY.value + sheetOffsetY.value
+                    val cardOffsetY = cardBaseOffsetY * (1f - cardScaleProg)
+                    // 与 drawBehind 里洞的横向位移逐项一致（含 (1 - prog) 淡出），否则洞与卡片错位
+                    val cardOffsetX = cutoutOffsetX.value * (1f - cardScaleProg)
+                    val comb = combinations.firstOrNull()
+                    // 单搭配：这一页就是当前搭配
+                    val isCurrentComb = currentCombinationIndex == 0
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .zIndex(zOrdinal),
-                        contentAlignment = Alignment.Center
+                            .width(cardWidthDp)
+                            .height(cardHeightDp)
+                            .offset(
+                                x = with(densityObj) { cardOffsetX.toDp() },
+                                y = with(densityObj) { cardOffsetY.toDp() }
+                            )
+                            // 与遮罩洞用同一套圆角（含 20dp 下限），否则卡片露直角、洞是圆的
+                            .clip(
+                                screenCornerRadius.scaled(cardScaleAnim.value)
+                                    .coerceAtLeast(cutoutMinCornerPx)
+                                    .toShape(densityObj)
+                            )
                     ) {
-                        val cardScaleProg =
-                            ((cardScaleAnim.value - 0.65f) / (1f - 0.65f)).coerceIn(0f, 1f)
-                        val cardBaseOffsetY =
-                            screenH * 0.028f + cutoutOffsetY.value + sheetOffsetY.value
-                        val cardOffsetY = cardBaseOffsetY * (1f - cardScaleProg)
-                        // 与 drawBehind 里洞的横向位移逐项一致（含 (1 - prog) 淡出），否则洞与卡片错位
-                        val cardOffsetX = cutoutOffsetX.value * (1f - cardScaleProg)
-                        val comb = combinations.getOrNull(page)
-                        val isCurrentComb = page == currentCombinationIndex
-                        // 缩放中心固定为屏幕中心，稳态与动画终点一致，无跳变
-                        val signedRelativePosition =
-                            (page - pagerState.currentPage) - pagerState.currentPageOffsetFraction
-                        val pageSpacingPx = with(densityObj) { pagerSpacing.value.dp.toPx() }
-                        val cardCenterOffsetX = signedRelativePosition * (screenW + pageSpacingPx)
-                        val pivotOriginX = 0.5f - cardCenterOffsetX / cardWidthPx
-                        val pivotOriginY = 0.5f + (screenH * 0.08f - cardOffsetY) / cardHeightPx
                         Box(
                             modifier = Modifier
-                                .width(cardWidthDp)
-                                .height(cardHeightDp)
-                                .offset(
-                                    x = with(densityObj) { cardOffsetX.toDp() },
-                                    y = with(densityObj) { cardOffsetY.toDp() }
-                                )
-                                .graphicsLayer {
-                                    scaleX = cardScale
-                                    scaleY = cardScale
-                                    transformOrigin = TransformOrigin(pivotOriginX, pivotOriginY)
-                                    alpha = baseCardAlpha
-                                }
-                                // 与遮罩洞用同一套圆角（含 20dp 下限），否则卡片露直角、洞是圆的
-                                .clip(
-                                    screenCornerRadius.scaled(cardScaleAnim.value)
-                                        .coerceAtLeast(cutoutMinCornerPx)
-                                        .toShape(densityObj)
+                                .fillMaxSize()
+                                .clickable(
+                                    enabled = !cardHidden && !isCutoutActive,
+                                    onClick = {}
                                 )
                         ) {
-                            val combIdx = page
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clickable(
-                                        enabled = !cardHidden && !isCutoutActive,
-                                        onClick = {}
+                            // 当前搭配：刚选完壁纸时 comb.snapshot 被清掉，优先实时壁纸，避免旧快照盖住新图
+                            val previewBitmap = when {
+                                isCurrentComb && wallpaperBitmap != null && comb?.snapshot == null ->
+                                    wallpaperBitmap
+                                isCurrentComb && snapshot != null && animDone && !cardHidden ->
+                                    snapshot
+                                comb?.snapshot != null -> comb.snapshot
+                                comb?.wallpaper != null -> comb.wallpaper
+                                else -> null
+                            }
+                            if (previewBitmap != null) {
+                                Image(
+                                    bitmap = previewBitmap,
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color(0xFF363636)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = SchedStr.combinationN(1),
+                                        color = Color.White.copy(alpha = 0.6f),
+                                        fontSize = 16.sp,
+                                        textAlign = TextAlign.Center,
                                     )
-                            ) {
-                                // 当前搭配：刚选完壁纸时 comb.snapshot 被清掉，优先实时壁纸，避免旧快照盖住新图
-                                val previewBitmap = when {
-                                    isCurrentComb && wallpaperBitmap != null && comb?.snapshot == null ->
-                                        wallpaperBitmap
-                                    isCurrentComb && snapshot != null && animDone && !cardHidden ->
-                                        snapshot
-                                    comb != null && comb.snapshot != null -> comb.snapshot
-                                    comb != null && comb.wallpaper != null -> comb.wallpaper
-                                    else -> null
-                                }
-                                if (previewBitmap != null) {
-                                    Image(
-                                        bitmap = previewBitmap,
-                                        contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(Color(0xFF363636)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = SchedStr.combinationN(combIdx + 1),
-                                            color = Color.White.copy(alpha = 0.6f),
-                                            fontSize = 16.sp,
-                                            textAlign = TextAlign.Center,
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -926,7 +827,7 @@ fun CustomizeScheduleScreen(
                     val latestScreenHPx by rememberUpdatedState(screenHPx)
 
                     var bounceBackTrigger by remember { mutableIntStateOf(0) }
-                    var gestureEndScale by remember { mutableStateOf(1f) }
+                    var gestureEndScale by remember { mutableFloatStateOf(1f) }
                     LaunchedEffect(bounceBackTrigger) {
                         if (bounceBackTrigger > 0 && gestureEndScale < latestMinWallpaperScale) {
                             animate(
@@ -2039,33 +1940,6 @@ private fun RefractionItem(
     }
 }
 
-@Composable
-private fun SliderCard(
-    label: String,
-    value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
-    keyPoints: List<Float>,
-    enabled: Boolean,
-    onValueChange: (Float) -> Unit,
-    suffix: String = "",
-    displayValue: (Float) -> String = { it.roundToInt().toString() },
-    parseInput: (String) -> Float? = { it.toFloatOrNull() },
-) {
-    SheetCard {
-        SliderItem(
-            label = label,
-            value = value,
-            valueRange = valueRange,
-            keyPoints = keyPoints,
-            enabled = enabled,
-            onValueChange = onValueChange,
-            suffix = suffix,
-            displayValue = displayValue,
-            parseInput = parseInput
-        )
-    }
-}
-
 /**
  * 缩略图条需要的「搭配视图」——宿主从自己的 `Combination` 映射过来。宿主 `Combination` 是运行期
  * 结构、字段是 `android.graphics.Bitmap`（还要 remap / recycle / 像素测光），跨平台侧不存在；
@@ -2079,23 +1953,15 @@ data class CombinationThumbnail(
 )
 
 // ──────────────────────────────────────────────────────────────────────────
-// 外观页入场时间轴：动画在封面快照盖着整屏时就开始跑，用户只看到收尾。硬约束：
-// 每个元素 (delay + duration) ≤ CUSTOMIZE_COVER_WINDOW_MILLIS（封面撤除时刻），
-// 否则封面消失后元素还在动，观感「脱节」。各元素落地（窗口 552ms）：
-// 卡片错落 380 / 翻页间距 400 / 顶栏按钮 420 / 底部工具栏 420；
-// 实测（iPhone 18 Pro Max / iOS 27.0）再晚 40~60ms（组合+帧对齐），故留 ~100ms 余量。
+// 外观页入场时间轴：
+// 入场快照缩放 380 / 顶栏按钮 380 / 底部工具栏 380；
 // ──────────────────────────────────────────────────────────────────────────
 
-/** 卡片错落入场时长 */
-private const val ENTER_CARD_MILLIS = 380
+/** 入场快照（整屏截图）从满屏缩到卡片轮廓的时长；落地后改由真实内容接管 */
+private const val ENTER_SNAPSHOT_SCALE_MILLIS = 380
 
-/** 翻页间距（-140f → -10f）收起时长 */
-private const val ENTER_PAGER_SPACING_MILLIS = 400
+/** 顶栏「取消 / 切换 / 应用」按钮缩放（1.5f → 1f）收拢 */
+private const val ENTER_BUTTON_MILLIS = 380
 
-/** 顶栏「取消 / 应用」按钮缩放（1.5f → 1f）收拢：延迟 + 时长 = 420ms */
-private const val ENTER_BUTTON_DELAY_MILLIS = 80
-private const val ENTER_BUTTON_MILLIS = 340
-
-/** 底部工具栏（透明度 / 上移 / 模糊）归位：延迟 + 时长 = 420ms，与按钮同步落地 */
-private const val ENTER_TOOL_DELAY_MILLIS = 80
-private const val ENTER_TOOL_MILLIS = 340
+/** 底部工具栏（透明度 / 上移 / 模糊）归位 */
+private const val ENTER_TOOL_MILLIS = 380
