@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -171,9 +172,17 @@ private class CutoutPathCache {
             this.holeH = holeH
             this.corners = corners
             path.rewind()
-            path.fillType = PathFillType.EvenOdd
-            path.addRect(Rect(-screenW * 2f, -screenH * 2f, screenW * 3f, screenH * 3f))
-            path.addScreenCornerRect(width = holeW, height = holeH, corners = corners)
+            val outer = Path().apply {
+                addRect(Rect(-screenW * 2f, -screenH * 2f, screenW * 3f, screenH * 3f))
+            }
+            val hole = Path().apply {
+                addScreenCornerRect(width = holeW, height = holeH, corners = corners)
+            }
+            if (!path.op(outer, hole, PathOperation.Difference)) {
+                path.addPath(outer)
+                path.addPath(hole)
+                path.fillType = PathFillType.EvenOdd
+            }
         }
         return path
     }
@@ -231,8 +240,10 @@ fun CustomizeScheduleScreen(
     val densityObj = LocalDensity.current
     // ── 开洞微调旋钮 ────────────────────────────────────────────────────────
     // 竖向：正值=下移；横向：负值=左移
-    val cutoutOffsetDp = if (rightChromeReserved) (-16).dp else 0.dp
+    val cutoutOffsetDp = if (rightChromeReserved) (-16).dp else (-10).dp
     val cutoutOffsetXDp = if (rightChromeReserved) (-56).dp else 0.dp
+    // 洞/卡片圆角下限：
+    val cutoutMinCornerPx = with(densityObj) { 20.dp.toPx() }
     val cutoutOffsetTargetPx = with(densityObj) { cutoutOffsetDp.toPx() }
     val cutoutOffsetXTargetPx = with(densityObj) { cutoutOffsetXDp.toPx() }
     val sheetOffsetTargetPx = with(densityObj) { 90.dp.toPx() }
@@ -699,7 +710,9 @@ fun CustomizeScheduleScreen(
                     val animW = size.width * cardScaleAnim.value
                     val animH = animW * aspect
                     val p = cutoutProgress.value
-                    val cutoutCorners = screenCornerRadius.scaled(cardScaleAnim.value * p)
+                    val cutoutCorners =
+                        screenCornerRadius.scaled(cardScaleAnim.value * p)
+                            .coerceAtLeast(cutoutMinCornerPx)
 
                     val left = cardCenterX + ((cardCenterX - animW / 2f) - cardCenterX) * p
                     val top = cardCenterY + ((cardCenterY - animH / 2f) - cardCenterY) * p
@@ -849,7 +862,12 @@ fun CustomizeScheduleScreen(
                                     transformOrigin = TransformOrigin(pivotOriginX, pivotOriginY)
                                     alpha = baseCardAlpha
                                 }
-                                .clip(screenCornerRadius.scaled(cardScaleAnim.value).toShape(densityObj))
+                                // 与遮罩洞用同一套圆角（含 20dp 下限），否则卡片露直角、洞是圆的
+                                .clip(
+                                    screenCornerRadius.scaled(cardScaleAnim.value)
+                                        .coerceAtLeast(cutoutMinCornerPx)
+                                        .toShape(densityObj)
+                                )
                         ) {
                             val combIdx = page
                             Box(

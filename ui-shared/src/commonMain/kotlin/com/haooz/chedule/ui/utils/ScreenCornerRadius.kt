@@ -15,6 +15,17 @@ data class ScreenCornerRadiiPx(
         topLeft * scale, topRight * scale, bottomRight * scale, bottomLeft * scale,
     )
 
+    /**
+     * 给每个角设下限（px）。屏幕圆角读不到（直角屏 / 模拟器返回 0）或缩放后过小时，
+     * 用它兜底出一个最小圆角，避免裁切结果变成硬直角。
+     */
+    fun coerceAtLeast(minRadius: Float): ScreenCornerRadiiPx = ScreenCornerRadiiPx(
+        maxOf(topLeft, minRadius),
+        maxOf(topRight, minRadius),
+        maxOf(bottomRight, minRadius),
+        maxOf(bottomLeft, minRadius),
+    )
+
     /** Interpolate each physical corner from the same starting card radius. */
     fun interpolateFrom(startRadius: Float, fraction: Float): ScreenCornerRadiiPx = ScreenCornerRadiiPx(
         startRadius + (topLeft - startRadius) * fraction,
