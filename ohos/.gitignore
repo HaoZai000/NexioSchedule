@@ -1,0 +1,6 @@
+# 鸿蒙构建（独立于根构建）的产物
+# 规则相对本目录，别写 ohos/ 前缀。
+.gradle/
+**/build/
+local.properties
+.kotlin/
