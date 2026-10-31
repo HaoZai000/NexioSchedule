@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Nexio课程表"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "课表主界面"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Nexio课程表"
+    }
+  ]
+}

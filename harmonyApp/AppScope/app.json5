@@ -1,0 +1,11 @@
+{
+  "app": {
+    "bundleName": "com.haooz.chedule",
+    "vendor": "haooz",
+    "versionCode": 1000000,
+    "versionName": "1.6.8",
+    "buildVersion": "1",
+    "icon": "$media:layered_image",
+    "label": "$string:app_name"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "Nexio课程表鸿蒙端主模块",
+  "main": "",
+  "author": "haooz",
+  "license": "AGPL-3.0",
+  "dependencies": {}
+}

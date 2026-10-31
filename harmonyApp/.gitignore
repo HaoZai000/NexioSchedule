@@ -1,0 +1,15 @@
+# --- 鸿蒙端（harmonyApp）构建产物 ---
+# 注意：本文件在 harmonyApp/ 下，所有规则都相对本目录，别写 harmonyApp/ 前缀。
+.hvigor/
+.cxx/
+oh_modules/
+**/build/
+local.properties
+.clangd
+.clang-format
+.clang-tidy
+oh-package-lock.json5
+
+# DevEco 的本地预览/调试缓存
+**/.preview/
+**/.test/
