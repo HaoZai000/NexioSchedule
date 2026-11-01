@@ -1,5 +1,3 @@
-@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
-
 package com.haooz.chedule.ui.utils
 
 import com.haooz.chedule.data.platform.HttpService
@@ -20,17 +18,24 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 
 /**
- * iOS 的两条**纯网络**课表导入：本站分享口令 + 星链课表分享码。
+ * 两条**纯网络**课表导入：本站分享口令 + 星链课表分享码。
  *
  * 对应 Android `ShareCodeApi.fetchShare` 与 `ThirdPartyShareImporter.importStarLink`；
- * WakeUp 那条要跑无头 WKWebView，在 `IosWakeUpImport.kt`。
+ * Android 那两份还在用 OkHttp + Gson + JSONObject，为零回归不去动它们，
+ * 这里复用共享 [HttpService] 与 JSON 层重抄逻辑。
  *
- * 与 `IosScheduleShare` 同理由：Android 那两份还在用 OkHttp + Gson + JSONObject，
- * 为 Android 零回归不去动它们，这里复用共享 [HttpService] 与 JSON 层重抄逻辑。
+ * WakeUp 那条要跑**无头 WebView**（云端适配脚本），各平台实现不同，由 [wakeUpRunner] 注入。
  *
  * ⚠ **接口地址与字段名与服务端是契约**，逐字不能改（改了 Android 也一起坏）。
  */
-object IosShareImport {
+object ShareCodeImport {
+
+    /**
+     * WakeUp 导入的无头浏览器实现，参数是 `(shareKey, 适配脚本)`。
+     *
+     * iOS 用 WKWebView（`IosWakeUpImport`）、Android 用 WebView；null = 该平台不支持。
+     */
+    var wakeUpRunner: (suspend (shareKey: String, script: String) -> ThirdPartySharePayload)? = null
 
     /** 本站口令服务；与 Android `ShareCodeApi.BASE_URL` / `IosScheduleShare` 逐字一致 */
     private const val SHARE_BASE_URL = "http://182.92.193.223:3000/api/share"
@@ -177,7 +182,9 @@ object IosShareImport {
             ?: throw IllegalStateException(L("WakeUp 适配脚本下载失败，请检查网络后重试", "Failed to download the WakeUp adapter script. Check your network and try again.")())
         val script = scriptFile.readText()
         if (script.isBlank()) throw IllegalStateException(L("WakeUp 适配脚本为空", "The WakeUp adapter script is empty.")())
-        return IosWakeUpImport.run(code, script)
+        val runner = wakeUpRunner
+            ?: throw IllegalStateException(L("当前平台不支持 WakeUp 导入", "WakeUp import is not supported on this platform")())
+        return runner(code, script)
     }
 
     // ── 口令清洗（与 Android 的正则逐字一致）──────────────────────────

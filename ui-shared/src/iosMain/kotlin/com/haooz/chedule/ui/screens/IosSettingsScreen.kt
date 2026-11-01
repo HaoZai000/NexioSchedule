@@ -28,7 +28,7 @@ import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.main.SettingsPaneArgs
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
-import com.haooz.chedule.ui.utils.IosShareImport
+import com.haooz.chedule.ui.utils.ShareCodeImport
 import com.haooz.chedule.ui.utils.rememberIosShareAction
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.about_app_icon
@@ -101,8 +101,8 @@ internal fun IosSettingsScreen(
                     // UIDocumentPicker 选文件（全 app 共用一个实例）
                     scheduleFileController = scheduleFileController,
                     onHolidayDataChanged = onHolidayDataChanged,
-                    onFetchShareCode = { code -> IosShareImport.fetchShareCode(code) },
-                    onImportThirdParty = { source, code -> IosShareImport.importThirdParty(source, code) },
+                    onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
+                    onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
                     onShareSchedule = { name, changed -> shareSchedule(name, changed) },
                 )
 
@@ -127,8 +127,8 @@ internal fun IosSettingsScreen(
                     mode = ScheduleDataManageMode.Export,
                     scheduleFileController = scheduleFileController,
                     onHolidayDataChanged = onHolidayDataChanged,
-                    onFetchShareCode = { code -> IosShareImport.fetchShareCode(code) },
-                    onImportThirdParty = { source, code -> IosShareImport.importThirdParty(source, code) },
+                    onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
+                    onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
                     onShareSchedule = { name, changed -> shareSchedule(name, changed) },
                 )
 

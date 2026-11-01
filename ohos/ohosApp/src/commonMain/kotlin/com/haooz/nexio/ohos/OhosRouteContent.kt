@@ -35,6 +35,7 @@ import com.haooz.chedule.ui.navigation.SettingsRoute
 import com.haooz.chedule.ui.navigation.UpdateSettingsRoute
 import com.haooz.chedule.ui.navigation.WebDavSettingsRoute
 import com.haooz.chedule.ui.navigation.WidgetIntroRoute
+import com.haooz.chedule.ui.utils.ShareCodeImport
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -74,7 +75,13 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.EducationalImport -> EducationalImportRoute(router = router)
 
         AppRoute.ScheduleImport ->
-            BackupAndMigrationRoute(router = router, mode = ScheduleDataManageMode.Import)
+            BackupAndMigrationRoute(
+                router = router,
+                mode = ScheduleDataManageMode.Import,
+                // 本站口令 / 星链走纯 HTTP；WakeUp 要无头 WebView，鸿蒙还没接（wakeUpRunner 为 null 时给明确报错）
+                onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
+                onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
+            )
 
         AppRoute.ScheduleExport ->
             BackupAndMigrationRoute(router = router, mode = ScheduleDataManageMode.Export)

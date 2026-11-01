@@ -62,7 +62,8 @@ import com.haooz.chedule.ui.navigation.WidgetIntroRoute
 import com.haooz.chedule.ui.screens.PrivacyConsentScreen
 import com.haooz.chedule.ui.screens.rememberWeatherIos
 import com.haooz.chedule.ui.utils.IosReminderController
-import com.haooz.chedule.ui.utils.IosShareImport
+import com.haooz.chedule.ui.utils.IosWakeUpImport
+import com.haooz.chedule.ui.utils.ShareCodeImport
 import com.haooz.chedule.ui.utils.IosSharedFileReceiver
 import com.haooz.chedule.ui.utils.IosSystemBars
 import com.haooz.chedule.ui.utils.IosToast
@@ -94,6 +95,9 @@ fun bootstrapNexioIos() {
     val version = NSBundle.mainBundle
         .objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: "unknown"
     AppInfo.init(version)
+
+    // WakeUp 导入要跑无头 WKWebView，实现是 iOS 专有的，注入给共享的 ShareCodeImport
+    ShareCodeImport.wakeUpRunner = { shareKey, script -> IosWakeUpImport.run(shareKey, script) }
 
     // 与 Android 同一个 nexio.db：键值表 + 课程行表同库同事务。
     // ⚠ 不能退回 UserDefaults：两端 schema 分叉会让备份/恢复只在一端正确。
@@ -396,24 +400,24 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
             mode = ScheduleDataManageMode.Import,
             scheduleFileController = fileController,
             onHolidayDataChanged = onHolidayDataChanged,
-            onFetchShareCode = { code -> IosShareImport.fetchShareCode(code) },
-            onImportThirdParty = { source, code -> IosShareImport.importThirdParty(source, code) },
+            onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
+            onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
         )
         AppRoute.ScheduleExport -> BackupAndMigrationRoute(
             router = router,
             mode = ScheduleDataManageMode.Export,
             scheduleFileController = fileController,
             onHolidayDataChanged = onHolidayDataChanged,
-            onFetchShareCode = { code -> IosShareImport.fetchShareCode(code) },
-            onImportThirdParty = { source, code -> IosShareImport.importThirdParty(source, code) },
+            onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
+            onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
         )
         AppRoute.ScheduleBackup -> BackupAndMigrationRoute(
             router = router,
             mode = ScheduleDataManageMode.Backup,
             scheduleFileController = fileController,
             onHolidayDataChanged = onHolidayDataChanged,
-            onFetchShareCode = { code -> IosShareImport.fetchShareCode(code) },
-            onImportThirdParty = { source, code -> IosShareImport.importThirdParty(source, code) },
+            onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
+            onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
         )
         // 课程时间管理 / 课程管理：iOS 没有自由小窗，传 false
         AppRoute.CourseTimeSettings -> CourseTimeSettingsRoute(router)
