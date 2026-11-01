@@ -8,3 +8,5 @@ actual fun isRenderEffectSupported(): Boolean = Build.VERSION.SDK_INT >= Build.V
 
 @ChecksSdkIntAtLeast(Build.VERSION_CODES.TIRAMISU)
 actual fun isRuntimeShaderSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+
+actual fun isRuntimeShaderEffectSupported(): Boolean = isRuntimeShaderSupported()

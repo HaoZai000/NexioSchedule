@@ -6,7 +6,7 @@ import com.kyant.backdrop.RuntimeShader
 import com.kyant.backdrop.internal.RuntimeShaderEffect
 import com.kyant.backdrop.internal.chain
 import com.kyant.backdrop.isRenderEffectSupported
-import com.kyant.backdrop.isRuntimeShaderSupported
+import com.kyant.backdrop.isRuntimeShaderEffectSupported
 import kotlin.contracts.ExperimentalContracts
 import org.intellij.lang.annotations.Language
 
@@ -23,7 +23,7 @@ fun BackdropEffectScope.runtimeShaderEffect(
     uniformShaderName: String,
     block: RuntimeShader.() -> Unit
 ) {
-    if (!isRuntimeShaderSupported()) return
+    if (!isRuntimeShaderEffectSupported()) return
 
     val effect =
         RuntimeShaderEffect(

@@ -10,7 +10,7 @@ import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.internal.RoundedRectRefractionShaderString
 import com.kyant.backdrop.internal.RoundedRectRefractionWithDispersionShaderString
 import com.kyant.backdrop.internal.RuntimeShaderEffect
-import com.kyant.backdrop.isRuntimeShaderSupported
+import com.kyant.backdrop.isRuntimeShaderEffectSupported
 import com.kyant.shapes.RoundedRectangularShape
 
 fun BackdropEffectScope.lens(
@@ -19,7 +19,7 @@ fun BackdropEffectScope.lens(
     depthEffect: Boolean = false,
     chromaticAberration: Boolean = false
 ) {
-    if (!isRuntimeShaderSupported()) return
+    if (!isRuntimeShaderEffectSupported()) return
     if (refractionHeight <= 0f || refractionAmount <= 0f) return
 
     if (padding > 0f) {
