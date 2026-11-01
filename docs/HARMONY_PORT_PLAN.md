@@ -31,9 +31,9 @@ Compose 的 UI 制品带平台渲染实现，**一个 Gradle 构建只解析一�
 
 | | 主构建（Android / iOS / 桌面） | 鸿蒙适配线 |
 |---|---|---|
-| Kotlin | 2.4.10 | 2.4.20-0.1.0-12 或 2.2.21-1.2.0-04 |
-| Compose | 1.12.0（JetBrains 官方） | 1.12.0-0.1.0-15 或 1.9.2-1.2.0-08（第三方适配） |
-| Gradle | 9.5.1 | 9.5.1（2.4.20 线）/ 8.14.1（2.2.21 线） |
+| Kotlin | 2.4.10 | 2.2.21-1.2.0-04（1.2.0 批次，见下一节） |
+| Compose | 1.12.0（JetBrains 官方） | 1.9.2-1.2.0-08（第三方适配） |
+| Gradle | 9.5.1 | 8.14.1（1.2.0 批次只支持 Gradle 8） |
 | miuix / backdrop | 0.9.4 与本地 fork，按 CMP 1.12 编译 | 无 ohos 变体 |
 
 硬把 `ohosArm64()` 塞进主构建，只有两种结局：要么把 Android/iOS 一起降到 1.9.2
@@ -51,13 +51,42 @@ harmonyApp/           ArkTS 宿主（DevEco 工程，签名/推包在这边）
 
 ---
 
-## 三、今晚已验证跑通的
+## 三、版本矩阵（2026-11-01 实测，别再猜）
+
+Maven（`maven.eazytec-cloud.com/nexus/repository/maven-public`）与 ohpm 上同时存在两条线，
+**只有一条能落地**：
+
+| | 1.2.0 批次（正式） | 0.1.0 批次（预发） |
+|---|---|---|
+| Kotlin | `2.2.21-1.2.0-04` | `2.4.20-0.1.0-12` |
+| Compose Multiplatform | `1.9.2-1.2.0-08` | `1.12.0-0.1.0-15` |
+| Skiko | `0.9.22.2-1.2.0` | 未见配套 |
+| ArkTS HAR（ohpm） | `@cpf-kmp-cmp/compose` **1.9.2-1.2.0** ✅ | ❌ 没有 |
+| Gradle / JDK | 8.14.1 / 21 | 9.x / 25 |
+| 宿主入口 API | `androidx.compose.ui.window.ComposeArkUIViewController(env, content)` ✅ 实测存在 | ❌ 该 klib 里没有这个函数 |
+
+依据：
+
+1. HAR 的 `CHANGELOG.md` 原文：「版本对齐 CPF-KMP-CMP 1.2.0 批次（配套 Kotlin 2.2.21-1.2.0 /
+   Skiko 0.9.22.2-1.2.0 / Compose Multiplatform 1.9.2-1.2.0）」；
+2. ohpm 上 `@cpf-kmp-cmp/compose` 一共 7 个版本，最高就是 `1.9.2-1.2.0`，没有 1.12 线；
+3. 我 dump 了 `ui-ohosarm64-1.9.2-1.2.0-08.klib` 的元数据，确认
+   `public fun ComposeArkUIViewController(env: napi_env, content: @Composable () -> Unit): napi_value` 存在；
+   而 `1.12.0-0.1.0-15` 的 ui klib 里搜不到这个函数 —— 我第一晚按 2.4.20 线写入口时报
+   `Unresolved reference` 就是因为这个。
+
+**结论**：以 1.2.0 批次为准。0.1.0 批次虽然 Maven 上"更新"，但 ArkTS 宿主没发布，接不上。
+
+---
+
+## 四、已验证跑通的
 
 ```bash
 cd ohos
-export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+export JAVA_HOME="$HOME/jdk21/jdk-21.0.2.jdk/Contents/Home"   # 1.2.0 批次要 JDK 21
 ./gradlew :ohosApp:linkDebugSharedOhosArm64
 # → ohosApp/build/bin/ohosArm64/debugShared/libnexioohos.so（Compose UI 已编进 .so）
+# → nm -gU 该文件可见 `T MainArkUIViewController`，即宿主要调的那个导出符号
 ```
 
 - Kotlin/Native 自动拉到 `cpf-llvm-19` + `sysroot-ohos-26.0.0.38` + `sysroot-hms-26.0.0.38`（首次约 5 分钟）；
@@ -76,7 +105,7 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 
 ---
 
-## 四、宿主接法（下一步）
+## 五、宿主接法
 
 1. `harmonyApp` 里 `ohpm install @cpf-kmp-cmp/compose`（HAR 内含 `libskikobridge.so`、
    `libcompose_arkui_utils.so` 与 ArkTS 组件）。
@@ -92,7 +121,7 @@ Compose 必须同代。我们用了 1.12.0-0.1.0-15；若真机黑屏 / 白屏�
 
 ---
 
-## 五、怎么走到「一套 UI」
+## 六、怎么走到「一套 UI」
 
 目标态只有一行：`ohosApp` 里的 `NexioRoot() = NexioApp()`，其余全部来自 `:ui-shared`。
 现在的阻塞点有三层，按可解程度排：
@@ -120,9 +149,11 @@ Compose 必须同代。我们用了 1.12.0-0.1.0-15；若真机黑屏 / 白屏�
 
 ---
 
-## 六、系统能力与后续顺序---
+## 七、系统能力与后续顺序
 
-## 七、本机环境（换机照做）
+---
+
+## 八、本机环境（换机照做）
 
 ```bash
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"   # JDK 25，两个构建都用
