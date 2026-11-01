@@ -1,6 +1,7 @@
 # 鸿蒙端（HarmonyOS）移植方案
 
 > 2026-10-31 起。目标 HarmonyOS 6 / API 26（DevEco Studio 26.0.0）。
+> AGC 备案：应用名 Nexio课程表 · 类型 HarmonyOS应用 · App ID 6917617970517205680 · 包名 com.haooz.schedule。
 > 结论先说：**UI 走 Compose Multiplatform，ArkTS 只做宿主。**
 
 ---
