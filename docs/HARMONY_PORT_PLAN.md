@@ -233,62 +233,81 @@ export PATH="$NODE_HOME/bin:$PATH"
 
 ---
 
-## 十、首次上机：卡在 HAR 缺 libcompose_arkui_utils.so（2026-11-01）
+## 十、首次上机：从 SIGSEGV 到跑通（2026-11-01，已解决）
 
-签名后装进模拟器（`hdc install -r` 未签名包在模拟器上可过），启动即崩：
+结论先说：**鸿蒙模拟器上已经渲染出 Compose 界面**（占位页「Nexio 课程表 / 共享 UI 待接入」）。
+这一路一共四层坑，每修一层崩溃点就前移一次，逐层都是实测反汇编/符号表确认的，不是猜的。
+
+### 第 1 层：渲染后端标识没导出
 
 ```
 Reason: SIGSEGV(SEGV_ACCERR) @0x1a32210
-#00 pc 0x1932210            ← 未映射地址（跳空）
-#01 pc 0xb5f124  libnexioohos.so   GetCachedRenderBackendId()+40
-#02 pc 0xb5c794  ...ArkUIViewControllerWrapper::Wrapped(napi_env*, void*)+1076
-#10 pc 0x9526e8  MainArkUIViewController+68
-#15 at aboutToAppear entry/src/pages/Index.ets:22
+#01 GetCachedRenderBackendId()+40
+#02 ...ArkUIViewControllerWrapper::Wrapped(napi_env*, void*)+1076
+#10 MainArkUIViewController+68
 ```
 
-### 第一层：渲染后端标识必须由应用导出
+`Wrapped+1076` 那条 `bl` 指向 `androidx_compose_ui_arkui_ArkUIViewController_getRendererTypeId`，
+在 libnexioohos.so 里是 U。compose 插件**生成过**这份文件
+（`build/generated/compose/ohosRendererBackend/...RendererBackendEntryPoint.kt`）却没加进源集。
+曾手工补过一个同名的 `@CName` 函数（硬编码返回 1），后来由 export 模块取代并删除 ——
+export 里的实现是 `getRendererTypeId()`，直接读 skiko 的真实后端，比硬编码正确。
 
-反汇编 `Wrapped+1076` 附近是 `bl <androidx_compose_ui_arkui_ArkUIViewController_getRendererTypeId@plt>`，
-这个符号在 libnexioohos.so 里是 **U（未定义）**。compose 插件其实生成过这份文件：
+### 第 2 层：44 个 `androidx_compose_ui_arkui_ArkUIViewController_*` 全未定义（**关键**）
 
-```
-ohosApp/build/generated/compose/ohosRendererBackend/kotlin/.../RendererBackendEntryPoint.kt
-@CName("androidx_compose_ui_arkui_ArkUIViewController_getRendererTypeId") fun ...(): Int = 1
-```
+这些符号**不在 C++ 里**，而是 `compose/export/export` 这个 **Kotlin 模块**用 `@CName` 转发的：
 
-但它**没被加进编译源集**。补到 `ohosApp/src/ohosMain/.../RendererBackend.kt` 后，该符号变成
-`T 0x95292c`，崩溃点随之前移到 `ArkUIViewController_getId+108` —— 说明这一层修对了。
-
-### 第二层（**当前卡在这里**）：`libcompose_arkui_utils.so` 缺失
-
-`ArkUIViewController_getId+108` 里那条 `bl` 指向 `androidx_compose_ui_arkui_ArkUIViewController_getId@plt`，
-而 libnexioohos.so 里这一类符号**一共 45 个全是未定义**：
-
-```
-androidx_compose_ui_arkui_ArkUIViewController_{getId,setId,setEnv,setContext,setUIContext,
-  aboutToAppear,aboutToDisappear,onPageShow,onPageHide,onSurfaceCreated,onSurfaceChanged,
-  onSurfaceDestroyed,setXComponentRender,initFusionRendererNode,dispatchTouchEvent,...}
-AndroidxComposeUiArkUiViewController{Draw,GetJsNode}
-AndroidXComposeUIArkUIArkUIViewControllerOnIdle
-InitJsRenderNodeContext
+```kotlin
+@CName("androidx_compose_ui_arkui_ArkUIViewController_getId")
+fun _Export_ArkUIViewController_getId(controllerRef: COpaquePointer): String? =
+    _ArkUIViewController_getId(controllerRef)
 ```
 
-它们本该由 **`libcompose_arkui_utils.so`** 提供。实测结论：
+`ui-arkui` 只通过 cinterop 声明它们，**实现在 export**。
 
-- `@cpf-kmp-cmp/compose` 的 **全部 7 个版本**（0.3.0 ~ 1.2.0）的 `libs/arm64-v8a/` 里只有
-  `libskikobridge.so` + `libc++_shared.so`，**没有** `libcompose_arkui_utils.so`；
-- HAR 里只留了它的类型声明（`src/main/cpp/types/libcompose_arkui_utils/{Index.d.ts,oh-package.json5}`），
-  全树 grep `AndroidxComposeUiArkUiViewControllerGetJsNode` 零命中；
-- Maven 上也没有 `ui-arkui-utils` / `ui-arkui-utils-ohosArm64` 这类预编译产物（`.module` 404）；
-- 把后端从 1(fusion) 改成 0(skia) 没用，同样崩在 `getId`（换后端不改变这层）。
+⚠ **只加 Maven 依赖没用**：`implementation("org.jetbrains.compose.export:export:1.9.2-1.2.0-08")`
+确实把 klib 带进了链接（打印 `KotlinNativeLink.libraries` 能看到 `export-ohosArm64Main-*.klib`），
+但那些 `@CName` 函数被 DCE 掉了 —— 库 klib 里的 `@CName` 不会被当成导出根，
+`.so` 里它们仍是 U。
 
-### 三条出路
+**解法**：把 `compose/export/export/src/{commonMain,ohosMain}` 共 4 个文件（28K）编进
+**我们自己的模块**（`ohos/third_party/compose_export/`），本模块的 `@CName` 才是真正的导出根。
+未定义符号数 44 → 0。
 
-| 方案 | 说明 | 代价 |
-|---|---|---|
-| A. 自己编 `libcompose_arkui_utils.so` | 从 `compose-multiplatform-core` 的 `develop-1.9.2-OH` 分支取 `ui-arkui-utils` 的 C++ 源码，放进 `entry/cpp` 一起 CMake 编译（官方示例里的 `find_package(compose)` 就是这条） | 拉源码 + 对齐 CMake，半天量级 |
-| B. 问 CPF-KMP-CMP | 大概率是他们打包漏了这个 .so（`oh-package.json5` 里声明了却不在包里）；issue/群里确认一下能省一天 | 等回复 |
-| C. 先不动宿主 | 回到「拆 `:ui-core`」，等上游补包 | 不阻塞其它工作 |
+### 第 3 层：`skikobridge_set_platform_provider` 在 HAR 里没有
 
-**当前进度确认**：NAPI 胶水、CMake、HAP 打包、安装启动全部打通（模拟器能装能拉起），
-只差这一个库。`entry/libs/arm64-v8a/` 下四个 .so 都已正确进包。
+崩溃移到 C++ 的 `RegisterLocaleAndStringProvider`。它调两个函数，第二个
+`skikobridge_set_platform_provider` 在 ohpm 的 `libskikobridge.so` 里**不存在**
+（HAR 只导出了 12 个 COMPOSE_EXPORT 函数，比源码少这一个）→ GOT 槽位 0 → 跳空。
+
+**解法**：不改上游源码，另加一个自己的文件
+`third_party/compose_arkui_utils/nexio/nexio_skikobridge_shim.cpp` 补上空实现。
+该 provider 只用于 openUri / clipboard / systemTheme，且 skikobridge 内部有空值保护
+（取不到就 log 后 return），所以不影响首屏。
+
+### 第 4 层：DT_NEEDED 缺 libskikobridge.so（最后一个）
+
+```
+Reason: SIGSEGV(SEGV_MAPERR)@0x0  NULL pointer dereference
+#02 skiko#<get-currentSystemTheme>()
+#03 ComposeArkUIViewContainer#syncSystemThemeState()
+```
+
+反汇编 `currentSystemTheme`：`adrp x9,0x1e50000; ldr x9,[x9,#528]; bl Kotlin_K2NStub`。
+`llvm-readelf -r` 查到那个 GOT 槽位是 `skikobridge_napi_get_system_theme`，值为 0 ——
+因为 **`libnexioohos.so` 的 DT_NEEDED 里根本没有 libskikobridge.so**，
+运行时 ld.so 不去那个库找符号，槽位直接填 0。
+
+**解法**：linkerOpts 加
+`-L<...>/skikobridge/lib/arm64-v8a -lskikobridge`（那份 .so 从 HAR 取出，仅链接期用）。
+
+### 验证结果
+
+```
+hdc install -r entry-default-unsigned.hap   # 模拟器不校验签名
+aa start -a EntryAbility -b com.haooz.schedule
+→ 无新崩溃日志；截图显示 Compose 渲染的占位页
+```
+
+---
+

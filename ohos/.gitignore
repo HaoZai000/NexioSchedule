@@ -4,3 +4,7 @@
 **/build/
 local.properties
 .kotlin/
+
+# 静态库产物 + 链接期用的 libskikobridge.so（后者由 build.sh 从 HAR 里取）
+third_party/compose_arkui_utils/lib/
+third_party/compose_arkui_utils/skikobridge/lib/
