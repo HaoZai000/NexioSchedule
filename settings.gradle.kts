@@ -1,4 +1,3 @@
-// Nexio课程表 - Gradle 模块配置
 pluginManagement {
     repositories {
         google {
@@ -28,7 +27,6 @@ include(":androidApp")
 include(":backdrop")
 include(":core")
 include(":miuix")
-// 共享 UI 模块（android + jvm 双目标），Android 与桌面端共用同一批页面。
 include(":ui-shared")
 include(":desktopApp")
  

@@ -1,7 +1,5 @@
-// 鸿蒙端构建脚本（独立于根构建）。
-// 版本线 CPF-KMP-CMP 1.2.0 批次：Kotlin 2.2.21-1.2.0-04 / Compose 1.9.2-1.2.0-08 /
-// Skiko 0.9.22.2-1.2.0 / Gradle 8.14.1 + JDK 21。三者必须与 ArkTS 侧 HAR 同步升降，
-// 不一致会在运行时黑屏。
+// 鸿蒙端构建（独立于根构建）。版本线 CPF-KMP-CMP 1.2.0 批次，
+// Kotlin/Compose/Skiko 三者必须与 ArkTS 侧 HAR 同步升降，不一致运行时黑屏。
 
 plugins {
     kotlin("multiplatform")
@@ -12,8 +10,7 @@ plugins {
 }
 
 sqldelight {
-    // 必须关：默认会给 native 产物加 `linkerOpts -lsqlite3`，鸿蒙 sysroot 里没有 sqlite。
-    // 它挂在 SqlDelightExtension 上，放进 create("...") 里会 Unresolved。
+    // 必须关：默认会给 native 产物加 -lsqlite3，鸿蒙 sysroot 里没有 sqlite。
     linkSqlite.set(false)
     databases {
         create("NexioDatabase") {
@@ -26,8 +23,7 @@ sqldelight {
     }
 }
 
-// 上游 C++ 宿主胶水：45 个 androidx_compose_ui_arkui_ArkUIViewController_* 符号。
-// 编法：ohos/third_party/compose_arkui_utils/build.sh arm64-v8a
+// 上游 C++ 宿主胶水（编法见 third_party/compose_arkui_utils/build.sh）
 val arkuiUtilsLib = rootProject.file("third_party/compose_arkui_utils/lib/arm64-v8a/libcompose_arkui_utils.a")
 require(arkuiUtilsLib.isFile) {
     "缺少 $arkuiUtilsLib —— 先跑 ohos/third_party/compose_arkui_utils/build.sh arm64-v8a"
@@ -67,8 +63,7 @@ kotlin {
                     "-L${rootProject.file("third_party/compose_arkui_utils/skikobridge/lib/arm64-v8a").absolutePath}",
                     "-lskikobridge"
                 )
-                // 诊断开关，平时关：打开后未定义符号会在加载期直接报名字
-                // （`relocating failed: symbol not found … s=<符号名>`）；但只要还剩一个，App 就起不来。
+                // 诊断开关，平时关：打开后未定义符号在加载期就报名字，但只要还剩一个 App 就起不来。
                 // linkerOpts("-z", "now")
             }
         }
@@ -84,9 +79,9 @@ kotlin {
         ohosMain.kotlin.srcDir(rootProject.file("third_party/compose_export/commonMain"))
         ohosMain.kotlin.srcDir(rootProject.file("third_party/compose_export/ohosMain"))
 
-        // 共享源码：与主构建同一份文件，这里再编一次成 ohosArm64 klib。
-        // 带 expect 的进 commonMain、actual 进 ohosMain，混在一起会判「同一模块内 expect/actual」。
-        // `-Pnexio.ohos.shared=false` 可临时关掉，编回占位页。
+        // 与主构建同一份源码，这里再编一次成 ohosArm64 klib。
+        // expect 进 commonMain、actual 进 ohosMain，混在一起会报同一模块内 expect/actual。
+        // -Pnexio.ohos.shared=false 可临时关掉。
         if ((project.findProperty("nexio.ohos.shared") as? String)?.toBoolean() != false) {
             getByName("commonMain").kotlin.srcDir(rootProject.file("../ui-shared/src/portable/kotlin"))
             getByName("commonMain").kotlin.srcDir(rootProject.file("../ui-shared/src/commonMain/kotlin"))
@@ -132,15 +127,13 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configur
         "-opt-in=androidx.compose.ui.annotation.InternalComposeApi",
         "-opt-in=kotlin.experimental.ExperimentalNativeApi",
         "-opt-in=kotlinx.cinterop.ExperimentalForeignApi",
-        // 静态库整包塞进 .so，未被引用的对象才会进来。
-        // 只能走编译任务的 compilerOptions —— NativeBinary.freeCompilerArgs 不生效。
+        // 静态库整包塞进 .so；只能走编译任务，NativeBinary.freeCompilerArgs 不生效。
         "-include-binary", arkuiUtilsLib.absolutePath
     )
 }
 
-// ── compose resources → HAP rawfile ──────────────────────────────────────────
-// 鸿蒙从 `rawfile/composeResources/<package>/…` 读，**必须带 package 一层**，少一层打开页面即闪退。
-// hvigor 只认 harmonyApp/entry/src/main/resources/rawfile，所以由 Gradle 拷过去。
+// compose resources → HAP rawfile：路径必须带 package 一层，少一层打开页面即闪退。
+// hvigor 只认 harmonyApp/entry/src/main/resources/rawfile，所以由 Gradle 拷。
 val syncComposeResources = tasks.register<Copy>("syncComposeResourcesToHarmony") {
     group = "compose resources"
     description = "把 compose resources 拷进 HAP 的 rawfile（带 package 目录层）"
@@ -151,8 +144,7 @@ val syncComposeResources = tasks.register<Copy>("syncComposeResourcesToHarmony")
     into(rootProject.file("../harmonyApp/entry/src/main/resources/rawfile/composeResources"))
 }
 
-// ── 产物同步：把 Kotlin 编出来的 .so 交给 ArkTS 宿主 ────────────────────────
-// 产物归 Kotlin 构建所有，谁生成谁负责搬，避免「忘了拷」被误判成 Compose 没生效。
+// 产物同步：Kotlin 编出来的 .so 交给 ArkTS 宿主，谁生成谁负责搬。
 val publishToHarmonyApp by tasks.registering(Copy::class) {
     from(layout.buildDirectory.dir("bin/ohosArm64/debugShared")) {
         include("libnexioohos.so")

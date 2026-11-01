@@ -1,11 +1,7 @@
-// miuix 的 ohosArm64 变体：本地 fork 的 miuix-ui + 上游子库（icons / squircle /
-// materialKolor，源码 vendoring 在 third_party/miuix-vendor）。
-//
-// 合在一个模块是因为 miuix-icons 的扩展图标引用 miuix-ui 里的 MiuixIcons，分开会成环。
-// 不用官方 artifact 是因为它们只发布了 android 变体，源码本身平台无关，直接编。
-//
-// miuix-blur / miuix-shader / miuix-navigation3-ui 没放进来：:miuix 对它们 0 引用。
-// 升级口径：libs.versions.toml 的 miuix 版本一变，按同版本重新下载 -sources.jar 覆盖 vendor。
+// miuix 的 ohosArm64 变体：本地 fork 的 miuix-ui + 上游子库（源码 vendoring 在 third_party/miuix-vendor）。
+// 合在一个模块是因为 miuix-icons 与 miuix-ui 互相引用，分开会成环。
+// 官方 artifact 只有 android 变体，源码平台无关，直接编。
+// 升级：libs.versions.toml 的 miuix 版本一变，按同版本重下 -sources.jar 覆盖 vendor。
 
 plugins {
     kotlin("multiplatform")

@@ -1,5 +1,4 @@
-// 鸿蒙端独立构建：鸿蒙线的 CMP 版本（1.9.2-1.2.0）与主构建（1.12.0）不同线，
-// 一个 Gradle 构建只能解析一套 Compose 制品。取舍见 docs/HARMONY_PORT_PLAN.md。
+// 鸿蒙端独立构建：CMP 版本与主构建不同线，一个 Gradle 构建只能解析一套 Compose 制品。
 
 pluginManagement {
     repositories {

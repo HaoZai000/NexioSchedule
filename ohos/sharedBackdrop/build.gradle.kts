@@ -1,5 +1,4 @@
-// :backdrop 的 ohosArm64 变体。变体在本构建里成型，源码仍是主仓库那一份（srcDir 引过去）。
-// 不能给主构建的 :backdrop 加 target：一个 Gradle 构建只能解析一套 Compose 制品。
+// :backdrop 的 ohosArm64 变体，源码仍是主仓库那一份（srcDir）。
 
 plugins {
     kotlin("multiplatform")
@@ -25,8 +24,7 @@ kotlin {
                 implementation(compose.ui)
             }
         }
-        // 不能用 skikoMain：CPF 的 ui-ohos klib 没公开 asComposeShader / skiaPaint /
-        // skiaImageFilter，玻璃退化为「表面色 + 描边」（同 Android API < 31 那条分支）。
+        // 不能用 skikoMain：ui-ohos klib 没公开 asComposeShader，玻璃退化为「表面色 + 描边」。
         ohosMain {
             kotlin.srcDir(rootProject.file("../backdrop/src/ohosMain/kotlin"))
         }

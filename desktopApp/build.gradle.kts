@@ -1,5 +1,4 @@
-// Nexio课程表 - 桌面客户端（Compose Multiplatform Desktop / JVM）：与 :androidApp 共用 :ui-shared 页面与 :core 数据层。
-// 本模块是**平台宿主**（同 :androidApp），commonMain 规则不适用，但经它编译的 :ui-shared / :core 代码必须过 checkKmpPurity。
+// 桌面客户端（Compose Desktop / JVM），与 :androidApp 共用 :ui-shared 与 :core。
 
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
@@ -18,24 +17,22 @@ kotlin {
 
     sourceSets {
         jvmMain.dependencies {
-            // 共享 UI / 数据层 / 组件库与液态玻璃
             implementation(project(":ui-shared"))
             implementation(project(":core"))
             implementation(project(":miuix"))
             implementation(project(":backdrop"))
-            // 桌面 Compose 运行时（Window / application）
+            // Window / application
             implementation(compose.desktop.currentOs)
-            // 共享页面普遍用 `viewModel()` 自取 ViewModel，桌面端没有 Android 的 ViewModelStoreOwner，宿主必须自己补，否则点开就崩。
+            // 桌面端没有 ViewModelStoreOwner，宿主必须自己补
             implementation("org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.9.6")
             implementation("org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.9.6")
-            // ⚠ 必须显式声明：:core 虽用 `api(libs.kotlinx.datetime)`，但没传到桌面端**运行时** classpath —— 打开用了它的页面会抛 ClassNotFoundException，编译期不报错。
+            // 必须显式声明：:core 的 api 依赖没传到桌面运行时 classpath，缺了会 ClassNotFoundException
             implementation(libs.kotlinx.datetime)
         }
     }
 }
 
-// kotlinx-datetime 版本由根 build.gradle.kts 全局 force（0.6.2）兜底 —— Compose Desktop 依赖树会把它提升到 0.7.1，而 0.7 起 Clock 被移出 kotlinx.datetime、monthNumber 改名，运行时才炸（编译期能解析符号）。
-// 该坑只在桌面端出现：Android 侧依赖树不同、未被提升。
+// kotlinx-datetime 由根脚本 force 到 0.6.2：桌面依赖树会把它提升到 0.7.1，运行时才炸。
 
 compose.desktop {
     application {
