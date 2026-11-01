@@ -82,7 +82,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
-import top.yukonga.miuix.kmp.squircle.squircleBackground
+import com.kyant.capsule.continuousBackground
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -597,7 +597,7 @@ private fun TooltipScope.TooltipSurface(
                     shape = RoundedCornerShape(cornerRadius),
                     shadow = Shadow(radius = 10.dp, color = Color.Black, alpha = 0.1f),
                 )
-                .squircleBackground(color = containerColor, cornerRadius = cornerRadius)
+                .continuousBackground(color = containerColor, cornerRadius = cornerRadius)
                 .padding(insideMargin),
         ) {
             content()

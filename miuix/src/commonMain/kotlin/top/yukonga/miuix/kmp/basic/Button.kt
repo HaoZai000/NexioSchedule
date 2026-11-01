@@ -32,7 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.capsule.ContinuousRoundedRectangle
-import top.yukonga.miuix.kmp.squircle.squircleSurface
+import com.kyant.capsule.continuousSurface
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -64,7 +64,7 @@ fun Button(
         Box(
             modifier = modifier
                 .semantics { role = Role.Button }
-                .squircleSurface(color = containerColor, cornerRadius = cornerRadius)
+                .continuousSurface(color = containerColor, cornerRadius = cornerRadius)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = indication,

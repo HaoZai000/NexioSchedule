@@ -1,5 +1,4 @@
-// 共享 UI 模块：平台中立页面在 commonMain，Android 与桌面共用，iOS 走 framework 产物。
-// commonMain 必须纳入根项目 checkKmpPurity 的 purityModules。
+// 共享 UI 模块：平台中立页面在 commonMain，Android 与桌面共用，iOS 走 framework。
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -24,8 +23,7 @@ kotlin {
         androidResources.enable = true
     }
     jvm()
-    // iOS target 默认关闭，-Pnexio.ios=true 开启（同 :core / :miuix / :backdrop）：
-    // 声明后会解析 iOS klib，而门禁是 --offline 跑的。
+    // iOS target 默认关（-Pnexio.ios=true 开启）：声明后会解析 iOS klib，而门禁是 --offline。
     val enableIos = (project.findProperty("nexio.ios") as? String)?.toBoolean() ?: false
     if (enableIos) {
         iosArm64()
@@ -37,9 +35,8 @@ kotlin {
     }
 
     sourceSets {
-        // 鸿蒙构建用 srcDir 指到这里编 ohosArm64，所以只能是同模块的第二个源码根：
-        // 换新模块会断 internal 可见性，Android 侧还得改一堆 import。
-        // 加文件条件：不碰 android.* / java.*。
+        // 鸿蒙构建用 srcDir 指到这里编 ohosArm64，所以只能是同模块的第二个源码根
+        // （换新模块会断 internal 可见性）。加文件条件：不碰 android.* / java.*。
         commonMain {
             kotlin.srcDir("src/portable/kotlin")
         }
@@ -59,18 +56,12 @@ kotlin {
             // 液态玻璃采样
             api(project(":backdrop"))
 
-            // miuix 子库：:miuix 里是 implementation 不传递。用不带 -android 后缀的根坐标，
-            // 写死 -android 会让 jvm 目标编不过。
-            // 每个都要 exclude 官方 miuix-ui：与 :miuix 的同包同名 fork 一起进 iOS 链接会
-            // 报 `IrPropertySymbolImpl is already bound`。
+            // miuix 子库用不带 -android 的根坐标（写死会让 jvm 编不过），
+            // 且必须 exclude 官方 miuix-ui：与 :miuix 的同名 fork 一起进 iOS 链接会 already bound。
             implementation("top.yukonga.miuix.kmp:miuix-icons:${libs.versions.miuix.get()}") {
                 exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui")
             }
             implementation("top.yukonga.miuix.kmp:miuix-blur:${libs.versions.miuix.get()}") {
-                exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui")
-            }
-            // squircle 是独立 artifact，排除 miuix-ui 后不会传递进来
-            implementation("top.yukonga.miuix.kmp:miuix-squircle:${libs.versions.miuix.get()}") {
                 exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui")
             }
             // KMP 版 lifecycle：取 jetbrains 组（转发 androidx 2.9.4），不影响 Android 侧版本

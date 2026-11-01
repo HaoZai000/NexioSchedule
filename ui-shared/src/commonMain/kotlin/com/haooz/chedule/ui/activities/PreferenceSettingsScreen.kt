@@ -66,8 +66,8 @@ import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
+import com.kyant.capsule.continuousBorder
+import com.kyant.capsule.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -601,7 +601,7 @@ private fun ThemeSelectionBox(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .squircleBorder(
+                .continuousBorder(
                     width = 3.dp,
                     color = if (selected) MiuixTheme.colorScheme.primary else Color.Transparent,
                     cornerRadius = 26.dp
@@ -612,7 +612,7 @@ private fun ThemeSelectionBox(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .squircleClip(20.dp)
+                    .continuousClip(20.dp)
             ) {
                 Image(
                     painter = painterResource(drawableRes),

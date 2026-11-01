@@ -44,8 +44,8 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.color.api.toHsv
 import top.yukonga.miuix.kmp.color.space.Hsv
-import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleClip
+import com.kyant.capsule.continuousBackground
+import com.kyant.capsule.continuousClip
 
 /** Color palette for selecting a color from a grid of HSV values. */
 @Composable
@@ -111,7 +111,7 @@ fun ColorPalette(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(26.dp)
-                    .squircleBackground(
+                    .continuousBackground(
                         color = lastEmittedColor ?: color,
                         cornerRadius = 13.dp,
                     ),
@@ -185,7 +185,7 @@ private fun PaletteCanvas(
 
     Box(
         modifier = Modifier
-            .squircleClip(cornerRadius)
+            .continuousClip(cornerRadius)
             .onGloballyPositioned { sizePx = it.size }
             .pointerInput(rows, hueColumns, includeGrayColumn, isRtl) {
                 awaitEachGesture {

@@ -51,9 +51,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import kotlin.math.roundToInt
-import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
+import com.kyant.capsule.continuousBackground
+import com.kyant.capsule.continuousBorder
+import com.kyant.capsule.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -141,7 +141,7 @@ fun TabRow(
                     .offset { IntOffset(((selectedTabIndex * (tabWidthPx + spacingPx)) - scrollOffset).roundToInt(), 0) }
                     .width(config.tabWidth)
                     .fillMaxHeight()
-                    .squircleBackground(color = colors.backgroundColor(true), cornerRadius = config.cornerRadius),
+                    .continuousBackground(color = colors.backgroundColor(true), cornerRadius = config.cornerRadius),
             )
             LazyRow(
                 state = config.listState,
@@ -267,7 +267,7 @@ fun TabRowWithContour(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .squircleBackground(color = colors.backgroundColor(false), cornerRadius = outerCornerRadius)
+                .continuousBackground(color = colors.backgroundColor(false), cornerRadius = outerCornerRadius)
                 .padding(contourPadding),
         ) {
             Box(
@@ -275,7 +275,7 @@ fun TabRowWithContour(
                     .offset { IntOffset((indicatorOffset.value - scrollOffset).roundToInt(), 0) }
                     .width(config.tabWidth)
                     .fillMaxHeight()
-                    .squircleBackground(color = colors.backgroundColor(true), cornerRadius = config.cornerRadius),
+                    .continuousBackground(color = colors.backgroundColor(true), cornerRadius = config.cornerRadius),
             )
             LazyRow(
                 state = config.listState,
@@ -325,13 +325,13 @@ private fun TabItem(
         modifier = Modifier
             .fillMaxHeight()
             .width(width)
-            .squircleBorder(
+            .continuousBorder(
                 width = { if (isSelected) 0.dp else 1.dp },
                 color = { outlineColor },
                 cornerRadius = cornerRadius,
             )
-            // Clip only when an indication is supplied, to skip squircleClip's offscreen layer by default.
-            .then(if (indication != null) Modifier.squircleClip(cornerRadius) else Modifier)
+            // Clip only when an indication is supplied, to skip continuousClip's offscreen layer by default.
+            .then(if (indication != null) Modifier.continuousClip(cornerRadius) else Modifier)
             .selectable(
                 selected = isSelected,
                 onClick = onClick,
@@ -378,8 +378,8 @@ private fun TabItemWithContour(
         modifier = Modifier
             .fillMaxHeight()
             .width(width)
-            // Clip only when an indication is supplied, to skip squircleClip's offscreen layer by default.
-            .then(if (indication != null) Modifier.squircleClip(cornerRadius) else Modifier)
+            // Clip only when an indication is supplied, to skip continuousClip's offscreen layer by default.
+            .then(if (indication != null) Modifier.continuousClip(cornerRadius) else Modifier)
             .selectable(
                 selected = isSelected,
                 onClick = onClick,

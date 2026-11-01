@@ -107,8 +107,8 @@ import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
+import com.kyant.capsule.continuousBorder
+import com.kyant.capsule.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -538,7 +538,7 @@ fun CourseEditScreen(
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .fillMaxSize()
-                                                                        .squircleBorder(
+                                                                        .continuousBorder(
                                                                             width = 2.dp,
                                                                             color = primaryColor.copy(
                                                                                 alpha = borderAlpha
@@ -546,7 +546,7 @@ fun CourseEditScreen(
                                                                             cornerRadius = 12.dp
                                                                         )
                                                                         .padding(4.dp)
-                                                                        .squircleClip(8.dp)
+                                                                        .continuousClip(8.dp)
                                                                         .background(
                                                                             Color(color).copy(
                                                                                 alpha = if (isDark) 0.22f else 0.16f
@@ -584,7 +584,7 @@ fun CourseEditScreen(
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .fillMaxSize()
-                                                                        .squircleBorder(
+                                                                        .continuousBorder(
                                                                             width = 2.dp,
                                                                             color = primaryColor.copy(
                                                                                 alpha = customBorderAlpha
@@ -592,7 +592,7 @@ fun CourseEditScreen(
                                                                             cornerRadius = 12.dp
                                                                         )
                                                                         .padding(4.dp)
-                                                                        .squircleClip(8.dp)
+                                                                        .continuousClip(8.dp)
                                                                         .background(
                                                                             if (isCustomColor) Color(
                                                                                 selectedColor

@@ -69,7 +69,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Close
-import top.yukonga.miuix.kmp.squircle.squircleBackground
+import com.kyant.capsule.continuousBackground
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -394,7 +394,7 @@ fun Snackbar(
                         alpha = 0.1f,
                     ),
                 )
-                .squircleBackground(color = colors.containerColor, cornerRadius = cornerRadius)
+                .continuousBackground(color = colors.containerColor, cornerRadius = cornerRadius)
                 .pointerInput(Unit) {
                     detectTapGestures { /* Consume click */ }
                 },

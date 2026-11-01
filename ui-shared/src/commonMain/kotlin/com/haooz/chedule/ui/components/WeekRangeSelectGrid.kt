@@ -37,7 +37,7 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import top.yukonga.miuix.kmp.squircle.squircleClip
+import com.kyant.capsule.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -233,7 +233,7 @@ private fun RowScope.WeekRangeCell(
             .weight(1f)
             .height(32.dp)
             .onGloballyPositioned { onBounds(it.boundsInParent()) }
-            .squircleClip(10.dp)
+            .continuousClip(10.dp)
             .background(bgColor),
         contentAlignment = Alignment.Center
     ) {
