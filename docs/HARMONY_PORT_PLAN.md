@@ -178,3 +178,41 @@ export PATH="$NODE_HOME/bin:$PATH"
    ```
 4. **`compatibleSdkVersion` 不能写 `"26.0.0(26)"`**，只认 `<major>[.<minor>][.<patch>]`，写 `"26.0.0"`。
 5. 鸿蒙构建要联网拉定制版制品；`maven.eazytec-cloud.com` 直连可达，不需要代理。
+
+
+---
+
+## 九、工程结构（2026-11-01 对照官方脚手架核过）
+
+用 `devecocli create --app-name NexioRef --api-level 26` 生成参照工程，逐项比对 `harmonyApp/`：
+
+**一致的部分**：`AppScope/`、`entry/`、`hvigor/`、`build-profile.json5`、`entry/build-profile.json5`、
+`entry/src/main/module.json5`、`hvigorfile.ts`、`oh-package.json5`，以及
+`compatibleSdkVersion: "26.0.0"`（这个写法与官方模板逐字相同，早先写成 `"26.0.0(26)"` 是错的）。
+
+**已补齐的缺口**（原来手写工程漏掉的）：
+
+| 文件 / 配置 | 作用 |
+|---|---|
+| `code-linter.json5` | ArkTS 规范扫描入口（`devecocli check lint` 读它） |
+| `entry/obfuscation-rules.txt` + entry/profile 的 `buildOptionSet` | release 混淆配置位 |
+| `entry/src/main/ets/entrybackupability/EntryBackupAbility.ets` | 系统备份 / 换机迁移扩展 |
+| `entry/src/main/resources/base/profile/backup_config.json` | 上面那个 Ability 的 `allowToBackupRestore` |
+| `entry/src/main/resources/dark/element/color.json` | 深色下启动窗口底色（否则冷启动会闪白） |
+| `entry/build-profile.json5` 的 `ohosTest` target | 测试 target，官方模板默认就有 |
+| `entry/.gitignore` | 模块级忽略（`/build`、`.preview` 等） |
+
+**刻意没补**：官方模板里的 `resources/base/element/float.json`（`page_text_font_size` 是模板 Index 的
+占位尺寸，我们没用到，加了就是死资源）；另外删掉了之前误拷的 `AppScope/.../app_icon.png` 与
+`entry/.../icon.png` —— 官方模板用的是 `layered_image`（前景+背景分层图标），不需要这两张。
+
+**还缺一块（预期内，下一步）**：接 Compose 后需要 `entry/src/main/cpp/`（NAPI 胶水 `napi_init.cpp` +
+`CMakeLists.txt` 导入 `libnexioohos.so`）以及 entry/profile 的 `buildOptions.externalNativeOptions`。
+官方模板不会有它，这是走 KMP/CMP 这条路的必要增量。
+
+### 工具链现状
+
+- `devecocli create` / `docs` / `device` 正常；
+- `devecocli build` 与 `check lint` 在本机报 `spawn EPERM`（它内部 spawn 子进程时被拒），
+  **与工程结构无关**：同一份工程用 `hvigorw assembleHap` 可以 BUILD SUCCESSFUL。
+  lint 因此显示 "Files checked: 0"，等于没跑 —— 需要真跑规范检查时用 DevEco Studio 的 Code Linter。
