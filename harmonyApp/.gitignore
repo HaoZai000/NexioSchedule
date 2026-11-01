@@ -8,8 +8,11 @@ local.properties
 .clangd
 .clang-format
 .clang-tidy
-oh-package-lock.json5
 
 # DevEco 的本地预览/调试缓存
 **/.preview/
 **/.test/
+
+# Kotlin 构建产物：由 `cd ohos && ./gradlew :ohosApp:linkDebugSharedOhosArm64` 自动写入，
+# 不进版本库（debug 包近 90MB，且必须与当次源码同源）。
+entry/libs/

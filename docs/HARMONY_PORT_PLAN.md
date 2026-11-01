@@ -105,19 +105,31 @@ export JAVA_HOME="$HOME/jdk21/jdk-21.0.2.jdk/Contents/Home"   # 1.2.0 批次要 
 
 ---
 
-## 五、宿主接法
+## 五、宿主接法（已接通）
 
-1. `harmonyApp` 里 `ohpm install @cpf-kmp-cmp/compose`（HAR 内含 `libskikobridge.so`、
-   `libcompose_arkui_utils.so` 与 ArkTS 组件）。
-2. 把 `:ohosApp:linkDebugSharedOhosArm64` 产出的 `libnexioohos.so` 放进 `entry/libs/arm64-v8a/`。
-3. `entry/src/main/ets/pages/Index.ets` 用 HAR 的 `Compose` 组件替换占位页，传入 `.so` 与入口；
-   `EntryAbility` 的窗口 / 安全区 / 深浅色同步保持不变。
-4. `hvigorw assembleHap` 出包，DevEco 配自动签名后装真机 / 模拟器。
+链路：`Index.ets` → `MainArkUIViewController()`（NAPI）→ `libentry.so` → `libnexioohos.so`
+→ `ComposeArkUIViewController(env) { NexioRoot() }` → HAR 的 `Compose` 组件 → XComponent。
 
-**版本对齐是硬约束**：HAR（`@cpf-kmp-cmp/compose`，ohpm 上目前最高 `1.9.2-1.2.0`）与 Kotlin 侧
-Compose 必须同代。我们用了 1.12.0-0.1.0-15；若真机黑屏 / 白屏，第一件事是把
-`ohos/ohosApp/build.gradle.kts` 的 Kotlin/Compose 降到 1.9.2-1.2.0 线
-（同时 Gradle 换 8.14.1 + 装 JDK 21）。
+已落地的文件：
+
+| 文件 | 作用 |
+|---|---|
+| `entry/src/main/cpp/napi_init.cpp` | 注册 NAPI 模块 `entry`，把 Kotlin 的 `MainArkUIViewController(env)` 包成 `napi_callback(env, info)` |
+| `entry/src/main/cpp/CMakeLists.txt` | 以 IMPORTED 方式链接 `libs/arm64-v8a/libnexioohos.so`，需要额外链 `libace_napi.z.so`（napi_*）与 `libhilog_ndk.z.so`（OH_LOG_Print） |
+| `entry/src/main/cpp/types/libentry/` | `libentry.so` 的 ArkTS 类型声明 + 本地 oh-package |
+| `entry/oh-package.json5` | `@cpf-kmp-cmp/compose: file:../third_party/cpf-compose-1.9.2-1.2.0.har` + `libentry.so` |
+| `entry/build-profile.json5` | `externalNativeOptions`（CMake 路径 + `abiFilters: arm64-v8a`） |
+| `ohos/ohosApp/build.gradle.kts` | `publishToHarmonyApp`：link 完自动把 `.so` 拷到宿主（`entry/libs/` 不进版本库） |
+
+出包验证（HAP 34MB）：`libs/arm64-v8a/` 里 `libnexioohos.so`、`libskikobridge.so`（HAR 带）、
+`libentry.so`、`libc++_shared.so` 四个都在。
+
+**还差两步才能上机**：
+
+1. **签名**：`devecocli auth login` → `devecocli signature generate`（或 DevEco 里开自动签名），需华为账号；
+2. **`initResourceManager`**：README 要求 `EntryAbility.onCreate` 里把 `context.resourceManager`
+   交给 Compose（`import { initResourceManager } from 'libentry.so'`）。当前没接 —— 只影响
+   Compose 资源（图片/字体）加载，纯文本界面不受影响，等接 `:ui-shared` 的图标资源前必须补。
 
 ---
 

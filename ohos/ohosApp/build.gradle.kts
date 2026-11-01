@@ -44,3 +44,18 @@ kotlin {
         }
     }
 }
+
+// ── 产物同步：把 Kotlin 编出来的 .so 交给 ArkTS 宿主 ────────────────────────
+// 官方示例里这一步叫 publishDebugBinariesToHarmonyApp，就是 hvigor 侧的 Copy 任务。
+// 放在这里而不是 hvigorfile，是因为产物归 Kotlin 构建所有：谁生成谁负责搬，
+// 免得「忘了拷」被误判成「Compose 没生效」。
+val publishToHarmonyApp by tasks.registering(Copy::class) {
+    from(layout.buildDirectory.dir("bin/ohosArm64/debugShared")) {
+        include("libnexioohos.so")
+    }
+    into(rootProject.file("../harmonyApp/entry/libs/arm64-v8a"))
+}
+
+tasks.matching { it.name == "linkDebugSharedOhosArm64" }.configureEach {
+    finalizedBy(publishToHarmonyApp)
+}
