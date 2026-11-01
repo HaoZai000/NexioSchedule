@@ -229,3 +229,66 @@ export PATH="$NODE_HOME/bin:$PATH"
 - `devecocli build` 与 `check lint` 在本机报 `spawn EPERM`（它内部 spawn 子进程时被拒），
   **与工程结构无关**：同一份工程用 `hvigorw assembleHap` 可以 BUILD SUCCESSFUL。
   lint 因此显示 "Files checked: 0"，等于没跑 —— 需要真跑规范检查时用 DevEco Studio 的 Code Linter。
+
+
+---
+
+## 十、首次上机：卡在 HAR 缺 libcompose_arkui_utils.so（2026-11-01）
+
+签名后装进模拟器（`hdc install -r` 未签名包在模拟器上可过），启动即崩：
+
+```
+Reason: SIGSEGV(SEGV_ACCERR) @0x1a32210
+#00 pc 0x1932210            ← 未映射地址（跳空）
+#01 pc 0xb5f124  libnexioohos.so   GetCachedRenderBackendId()+40
+#02 pc 0xb5c794  ...ArkUIViewControllerWrapper::Wrapped(napi_env*, void*)+1076
+#10 pc 0x9526e8  MainArkUIViewController+68
+#15 at aboutToAppear entry/src/pages/Index.ets:22
+```
+
+### 第一层：渲染后端标识必须由应用导出
+
+反汇编 `Wrapped+1076` 附近是 `bl <androidx_compose_ui_arkui_ArkUIViewController_getRendererTypeId@plt>`，
+这个符号在 libnexioohos.so 里是 **U（未定义）**。compose 插件其实生成过这份文件：
+
+```
+ohosApp/build/generated/compose/ohosRendererBackend/kotlin/.../RendererBackendEntryPoint.kt
+@CName("androidx_compose_ui_arkui_ArkUIViewController_getRendererTypeId") fun ...(): Int = 1
+```
+
+但它**没被加进编译源集**。补到 `ohosApp/src/ohosMain/.../RendererBackend.kt` 后，该符号变成
+`T 0x95292c`，崩溃点随之前移到 `ArkUIViewController_getId+108` —— 说明这一层修对了。
+
+### 第二层（**当前卡在这里**）：`libcompose_arkui_utils.so` 缺失
+
+`ArkUIViewController_getId+108` 里那条 `bl` 指向 `androidx_compose_ui_arkui_ArkUIViewController_getId@plt`，
+而 libnexioohos.so 里这一类符号**一共 45 个全是未定义**：
+
+```
+androidx_compose_ui_arkui_ArkUIViewController_{getId,setId,setEnv,setContext,setUIContext,
+  aboutToAppear,aboutToDisappear,onPageShow,onPageHide,onSurfaceCreated,onSurfaceChanged,
+  onSurfaceDestroyed,setXComponentRender,initFusionRendererNode,dispatchTouchEvent,...}
+AndroidxComposeUiArkUiViewController{Draw,GetJsNode}
+AndroidXComposeUIArkUIArkUIViewControllerOnIdle
+InitJsRenderNodeContext
+```
+
+它们本该由 **`libcompose_arkui_utils.so`** 提供。实测结论：
+
+- `@cpf-kmp-cmp/compose` 的 **全部 7 个版本**（0.3.0 ~ 1.2.0）的 `libs/arm64-v8a/` 里只有
+  `libskikobridge.so` + `libc++_shared.so`，**没有** `libcompose_arkui_utils.so`；
+- HAR 里只留了它的类型声明（`src/main/cpp/types/libcompose_arkui_utils/{Index.d.ts,oh-package.json5}`），
+  全树 grep `AndroidxComposeUiArkUiViewControllerGetJsNode` 零命中；
+- Maven 上也没有 `ui-arkui-utils` / `ui-arkui-utils-ohosArm64` 这类预编译产物（`.module` 404）；
+- 把后端从 1(fusion) 改成 0(skia) 没用，同样崩在 `getId`（换后端不改变这层）。
+
+### 三条出路
+
+| 方案 | 说明 | 代价 |
+|---|---|---|
+| A. 自己编 `libcompose_arkui_utils.so` | 从 `compose-multiplatform-core` 的 `develop-1.9.2-OH` 分支取 `ui-arkui-utils` 的 C++ 源码，放进 `entry/cpp` 一起 CMake 编译（官方示例里的 `find_package(compose)` 就是这条） | 拉源码 + 对齐 CMake，半天量级 |
+| B. 问 CPF-KMP-CMP | 大概率是他们打包漏了这个 .so（`oh-package.json5` 里声明了却不在包里）；issue/群里确认一下能省一天 | 等回复 |
+| C. 先不动宿主 | 回到「拆 `:ui-core`」，等上游补包 | 不阻塞其它工作 |
+
+**当前进度确认**：NAPI 胶水、CMake、HAP 打包、安装启动全部打通（模拟器能装能拉起），
+只差这一个库。`entry/libs/arm64-v8a/` 下四个 .so 都已正确进包。
