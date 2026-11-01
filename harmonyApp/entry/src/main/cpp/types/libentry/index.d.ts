@@ -35,3 +35,33 @@ export const setAppEnv: (
   screenH: number,
   cornerRadiusPx: number
 ) => void;
+
+/**
+ * 注册 HTTP 发送器。NDK 里没有 curl，网络走 ArkTS 的 `@ohos.net.http`。
+ *
+ * Kotlin 侧发起请求时回调这里；实现必须**异步**，完成后用 [setHttpResult] 回传。
+ *
+ * @param sender (requestId, payloadJson, maxBytes) => void
+ *   payloadJson: `{ method, url, headers, body?, contentType?, connectTimeout, readTimeout }`
+ */
+export const registerHttpSender: (
+  sender: (requestId: number, payloadJson: string, maxBytes: number) => void
+) => void;
+
+/**
+ * HTTP 结果回传。`code <= 0` 表示失败，此时 `bytes` 是错误信息。
+ */
+export const setHttpResult: (
+  requestId: number,
+  code: number,
+  bytes: Uint8Array,
+  truncated: boolean
+) => void;
+
+/**
+ * 注册提示条（Kotlin 的 `showToast` → ArkTS `promptAction.showToast`）。
+ * 不注册的话所有错误提示都会被静默丢弃。
+ */
+export const registerToast: (
+  toast: (message: string, longDuration: boolean) => void
+) => void;

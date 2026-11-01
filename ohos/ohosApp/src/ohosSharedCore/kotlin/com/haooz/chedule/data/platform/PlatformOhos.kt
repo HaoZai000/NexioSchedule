@@ -19,17 +19,8 @@ import kotlinx.coroutines.Dispatchers
  */
 actual fun <T> synchronizedOn(lock: Any, block: () -> T): T = block()
 
-/**
- * 鸿蒙端 `ioDispatcher` 退回**当前线程**。
- *
- * 用 `Dispatchers.Default` 会让 `launch(ioDispatcher)` / `withContext(ioDispatcher)` 的续体
- * 在 FFRT worker 上恢复，而鸿蒙的 `Dispatchers.Main` 没初始化（`runOnMainThread` 直接内联），
- * 于是 UI 协程在 worker 线程上继续跑、写 Compose 状态，主线程和它抢 Compose 的
- * `SynchronizedObject`，两个线程一起卡死（`THREAD_BLOCK_6S`）。
- *
- * 代价是 IO 走 UI 线程：鸿蒙端 HTTP 是 503 空实现、DB 是本地 sqlite 小读写，暂时可接受。
- */
-actual val ioDispatcher: CoroutineDispatcher = Dispatchers.Unconfined
+/** Native 没有 `Dispatchers.IO`，退到 Default 线程池（与 iOS/桌面同口径）。 */
+actual val ioDispatcher: CoroutineDispatcher = Dispatchers.Default
 
 /** 中文排序降级为码点比较 —— 与 iOS 侧同一个降级，不是等价实现。 */
 actual fun compareByChineseCollator(a: String, b: String): Int = a.compareTo(b)

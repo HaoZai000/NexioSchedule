@@ -1,5 +1,6 @@
-// 鸿蒙端构建（独立于根构建）。版本线 CPF-KMP-CMP 1.2.0 批次，
-// Kotlin/Compose/Skiko 三者必须与 ArkTS 侧 HAR 同步升降，不一致运行时黑屏。
+// 鸿蒙端构建（独立于根构建）。版本线 CPF-KMP-CMP 1.2.0 批次：
+// Kotlin 2.2.21-1.2.0-04 / Compose 1.9.2-1.2.0-08 / Skiko 0.9.22.2-1.2.0-10（由 compose 传递）。
+// 三者必须与 ArkTS 侧 HAR 同步升降，不一致运行时黑屏。
 
 plugins {
     kotlin("multiplatform")

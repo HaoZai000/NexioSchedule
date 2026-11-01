@@ -22,7 +22,10 @@ import {
   MainArkUIViewController,
   setAppEnv,
   registerWallpaperPicker,
-  setWallpaperBytes
+  setWallpaperBytes,
+  registerHttpSender,
+  setHttpResult,
+  registerToast
 } from 'libentry.so';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { fileIo } from '@kit.CoreFileKit';
@@ -30,6 +33,71 @@ import { display } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { http } from '@kit.NetworkKit';
+import { util } from '@kit.ArkTS';
+import { promptAction } from '@kit.ArkUI';
+
+/**
+ * Kotlin 侧发起的 HTTP 请求。NDK 里没有 curl/openssl，网络统一走系统的 `@ohos.net.http`。
+ *
+ * 入参是 Kotlin 拼好的 JSON（method / url / headers / body / 超时），结果经 `setHttpResult`
+ * 异步回传：`code <= 0` 表示失败，此时 body 是错误信息。
+ */
+function sendHttp(requestId: number, payloadJson: string, maxBytes: number): void {
+  const fail = (message: string): void => {
+    setHttpResult(requestId, -1, new util.TextEncoder().encodeInto(message), false);
+  };
+
+  let payload: Record<string, Object>;
+  try {
+    payload = JSON.parse(payloadJson) as Record<string, Object>;
+  } catch (e) {
+    fail('payload 解析失败');
+    return;
+  }
+
+  const method = (payload.method as string ?? 'GET').toUpperCase();
+  const url = payload.url as string;
+  const headers = (payload.headers as Record<string, string>) ?? {};
+  const body = payload.body as string | undefined;
+
+  const options: http.HttpRequestOptions = {
+    method: method as http.RequestMethod,
+    header: headers,
+    expectDataType: http.HttpDataType.ARRAY_BUFFER,
+    connectTimeout: (payload.connectTimeout as number) ?? 10000,
+    readTimeout: (payload.readTimeout as number) ?? 10000,
+  };
+  if (body !== undefined && body !== null) {
+    options.extraData = body;
+  }
+  if (maxBytes > 0) {
+    options.maxLimit = maxBytes;
+  }
+
+  const request = http.createHttp();
+  request.request(url, options)
+    .then((response: http.HttpResponse) => {
+      let bytes = new Uint8Array(0);
+      const raw = response.result;
+      if (raw instanceof ArrayBuffer) {
+        bytes = new Uint8Array(raw);
+      } else if (typeof raw === 'string') {
+        bytes = new util.TextEncoder().encodeInto(raw as string);
+      }
+      let truncated = false;
+      if (maxBytes > 0 && bytes.byteLength > maxBytes) {
+        bytes = bytes.subarray(0, maxBytes);
+        truncated = true;
+      }
+      setHttpResult(requestId, response.responseCode, bytes, truncated);
+      request.destroy();
+    })
+    .catch((err: BusinessError) => {
+      fail(err?.message ?? '网络请求失败');
+      request.destroy();
+    });
+}
 
 @Entry
 @Component
@@ -65,6 +133,18 @@ struct Index {
     // 选完把文件字节回传（Kotlin 负责解码/降采样/落盘）。
     registerWallpaperPicker((): void => {
       this.pickWallpaper();
+    });
+
+    // 网络：Kotlin 侧发起请求时回调这里（必须在 JS 线程调用，Kotlin 侧已保证）
+    registerHttpSender(sendHttp);
+
+    // 提示条：Kotlin 的 showToast 走这里；不接的话所有错误提示都会静默丢掉
+    registerToast((message: string, longDuration: boolean): void => {
+      try {
+        promptAction.showToast({ message: message, duration: longDuration ? 3500 : 2000 });
+      } catch (e) {
+        hilog.warn(0x0000, 'nexio', 'showToast failed: %{public}s', JSON.stringify(e as BusinessError));
+      }
     });
 
     // 拿到 Kotlin 侧的 controller 句柄；UI 树此时才真正建立

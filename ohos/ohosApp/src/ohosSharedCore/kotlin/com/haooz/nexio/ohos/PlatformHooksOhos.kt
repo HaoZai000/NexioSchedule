@@ -3,6 +3,15 @@ package com.haooz.nexio.ohos
 import androidx.compose.ui.graphics.ImageBitmap
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.CourseStorage
+import com.haooz.chedule.data.platform.toastHandler
+import com.haooz.chedule.ui.utils.AppMaterialSettings
+import kotlinx.cinterop.cstr
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.CFunction
@@ -12,6 +21,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readBytes
 import kotlinx.cinterop.invoke
 import kotlinx.cinterop.reinterpret
+import kotlinx.coroutines.initMainHandler
 import org.jetbrains.skia.Image
 
 /**
@@ -70,6 +80,36 @@ actual val PlatformWallpaperPicker: (((ImageBitmap?) -> Unit) -> Unit)? = { onRe
     WallpaperPickBridge.request(onResult)
 }
 
+/**
+ * 初始化协程的主线程调度器（`MainHandler.tsfn`）。
+ *
+ * `kotlinx.coroutines.initMainHandler(env)` 是 public 的，但整套 ohos 适配里没人调它，
+ * tsfn 恒为 null，`runOnMainThread` 只能内联在调用方线程执行 —— UI 协程因此落到 FFRT worker 上。
+ * 由宿主在 NAPI 模块注册时（JS 线程）调一次即可。
+ */
+@OptIn(ExperimentalForeignApi::class)
+@CName("NexioInitMainHandler")
+fun NexioInitMainHandler(env: COpaquePointer?) {
+    if (env == null) return
+    runCatching { initMainHandler(env.reinterpret()) }
+}
+
+/** C++ 在模块注册时把弹提示入口交过来（见 `napi_init.cpp`）。 */
+@OptIn(ExperimentalForeignApi::class)
+@CName("NexioOnToastHostReady")
+fun NexioOnToastHostReady(fn: COpaquePointer?) {
+    if (fn == null) return
+    val cFunction: CPointer<CFunction<(CPointer<ByteVar>?, Boolean) -> Unit>> = fn.reinterpret()
+    // toastHandler 是同步签名，而调 ArkTS 必须在 JS 线程 —— 丢到 Main 上异步弹
+    toastHandler = { message, longDuration ->
+        toastScope.launch {
+            memScoped { cFunction.invoke(message.cstr.ptr, longDuration) }
+        }
+    }
+}
+
+private val toastScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
 /** C++ 在模块注册时把自己的选图入口交过来（见 `napi_init.cpp`）。 */
 @OptIn(ExperimentalForeignApi::class)
 @CName("NexioOnWallpaperPickHostReady")
@@ -99,4 +139,6 @@ actual fun installPlatformStorage() {
         AppStorage.init { namespace -> OhosSqlStorage.store(namespace) }
     }
     CourseStorage.install { OhosSqlStorage.courseRows() }
+    // 鸿蒙端玻璃能力固定（有折射、无 Paint shader），材质档锁死通透玻璃，设置页不暴露切换。
+    AppMaterialSettings.lockTo(AppMaterialSettings.BEST)
 }
