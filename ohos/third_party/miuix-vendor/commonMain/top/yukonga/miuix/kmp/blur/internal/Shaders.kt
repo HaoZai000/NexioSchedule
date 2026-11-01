@@ -1,0 +1,1117 @@
+// Copyright 2026, compose-miuix-ui contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package top.yukonga.miuix.kmp.blur.internal
+
+/** Builds a separable Blur shader with [tapCount] symmetric tap pairs (1..7). */
+internal fun buildBlurShader(tapCount: Int): String {
+    require(tapCount in 1..MAX_BLUR_TAPS)
+    return """
+    uniform shader child;
+    uniform float2 in_blurOffset[$tapCount];
+    uniform float in_blurWeight[$tapCount];
+    uniform float2 in_maxCoord;
+
+    half4 main(float2 xy) {
+        half4 color = half4(0);
+        for (int i = 0; i < $tapCount; i++) {
+            float2 offset = in_blurOffset[i];
+            float2 c1 = clamp(xy + offset, float2(0.5), in_maxCoord);
+            float2 c2 = clamp(xy - offset, float2(0.5), in_maxCoord);
+            color += (child.eval(c1) + child.eval(c2)) * half(in_blurWeight[i]);
+        }
+        if (color.a > 0.0039) {
+            return half4(color.rgb / color.a, 1.0);
+        }
+        return color;
+    }
+"""
+}
+
+/** Maximum number of tap pairs for the Blur shader. */
+internal const val MAX_BLUR_TAPS = 7
+
+/** Pre-built per-tap-count shader sources; index 0 is unused. */
+internal val BLUR_SHADER_BY_TAP: Array<String> = Array(MAX_BLUR_TAPS + 1) { i ->
+    if (i == 0) "" else buildBlurShader(i)
+}
+
+/** Loop bound (± taps) for the progressive Blur shader; covers the max downscaled kernel radius. */
+internal const val PROGRESSIVE_BLUR_MAX_TAP = 24
+
+/**
+ * Builds the separable **progressive** Blur shader: each fragment derives a per-pixel radius from
+ * the two-point gradient and runs a 1D Gaussian up to it (`σ = radius·0.5 + 0.5`). Adjacent taps
+ * are merged into one bilinear fetch at their weight-averaged fractional offset (the per-pixel-σ
+ * analogue of [buildBlurShader]'s static pair merge; child sampling is bilinear on both
+ * platforms), sampled as symmetric ± pairs with the center hoisted out — halving the texture
+ * fetches. The loop bound [maxTap] must be an EVEN compile-time constant (AGSL) — pick it via
+ * [progressiveLoopTapBound] so a small max radius doesn't pay for [PROGRESSIVE_BLUR_MAX_TAP]
+ * unrolled iterations per fragment.
+ *
+ * The outermost tap feathers in over its last pixel of reach (`clamp(radius − i + 1, 0, 1)`),
+ * keeping the kernel — its normalization AND the merged offsets — continuous in radius: a hard
+ * cutoff drops taps with weight up to `e⁻² ≈ 0.135` as the per-pixel radius crosses integer
+ * offsets, which reads as equal-radius stripes along the gradient. The feather also makes the
+ * kernel collapse smoothly to identity at radius 0, so the early-exit is a pure fast path for
+ * the clear plateau, not a visible switch.
+ *
+ * With [masked], the sharp overlay's clear-end cross-fade weight (`smoothstep(clamp(3·raw′ − 2))`
+ * over its own `in_maskBand`/`in_maskCurve`) is folded into the output, saving the separate
+ * [PROGRESSIVE_LEVEL_MASK_SHADER] pass; fully-masked fragments (the band bbox's reach margin,
+ * where the radius is at its most expensive) skip the kernel outright.
+ */
+internal fun buildProgressiveBlurShader(maxTap: Int, masked: Boolean = false): String {
+    require(maxTap % 2 == 0) { "maxTap must be even for pair merging" }
+    val maskUniforms = if (masked) {
+        """
+    uniform float2 in_maskBand;
+    uniform float in_maskCurve;
+"""
+    } else {
+        ""
+    }
+    val maskWeight = if (masked) {
+        """
+        float mraw = clamp((p - in_maskBand.x) / (in_maskBand.y - in_maskBand.x), 0.0, 1.0);
+        mraw = pow(mraw * mraw * (3.0 - 2.0 * mraw), in_maskCurve);
+        float mw = clamp(mraw * 3.0 - 2.0, 0.0, 1.0);
+        mw = mw * mw * (3.0 - 2.0 * mw);
+        if (mw <= 0.0) {
+            return half4(0.0);
+        }
+"""
+    } else {
+        "        float mw = 1.0;"
+    }
+    return """
+    uniform shader child;
+    uniform float2 in_maxCoord;
+    uniform float2 in_step;
+    uniform float in_maxRadius;
+    uniform float2 in_gradAxis;
+    uniform float2 in_gradBand;
+    uniform float in_curve;
+    uniform float in_noise;
+$maskUniforms
+    float progRand(float2 co) {
+        return fract(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
+    }
+
+    half4 main(float2 xy) {
+        float p = dot(xy, in_gradAxis);
+$maskWeight
+        float raw = clamp((p - in_gradBand.x) / (in_gradBand.y - in_gradBand.x), 0.0, 1.0);
+        float intensity = 1.0 - pow(raw * raw * (3.0 - 2.0 * raw), in_curve);
+        float radius = in_maxRadius * intensity;
+        if (radius <= 0.0) {
+            half4 s = child.eval(clamp(xy, float2(0.5), in_maxCoord));
+            if (s.a > 0.0039) {
+                return half4(s.rgb / s.a, 1.0) * half(mw);
+            }
+            return s * half(mw);
+        }
+        float inv2s2 = -1.0 / (2.0 * (radius * 0.5 + 0.5) * (radius * 0.5 + 0.5));
+        float2 jitter = ((progRand(xy) - 0.5) * in_noise) * in_step;
+        half4 color = child.eval(clamp(xy + jitter, float2(0.5), in_maxCoord));
+        float total = 1.0;
+        for (int j = 0; j < ${maxTap / 2}; j++) {
+            float a = float(2 * j + 1);
+            float ra = clamp(radius - a + 1.0, 0.0, 1.0);
+            if (ra <= 0.0) continue;
+            float b = a + 1.0;
+            float wa = exp(a * a * inv2s2) * ra;
+            float wb = exp(b * b * inv2s2) * clamp(radius - b + 1.0, 0.0, 1.0);
+            float wsum = wa + wb;
+            float2 o = ((a * wa + b * wb) / wsum) * in_step;
+            color += (child.eval(clamp(xy + o + jitter, float2(0.5), in_maxCoord)) +
+                child.eval(clamp(xy - o + jitter, float2(0.5), in_maxCoord))) * half(wsum);
+            total += 2.0 * wsum;
+        }
+        color = color / half(max(total, 0.0001));
+        if (color.a > 0.0039) {
+            return half4(color.rgb / color.a, 1.0) * half(mw);
+        }
+        return color * half(mw);
+    }
+"""
+}
+
+/** Lazily built progressive Blur shader sources, indexed by tap bound; second array = masked. */
+private val PROGRESSIVE_BLUR_SHADER_BY_TAP = arrayOfNulls<String>(PROGRESSIVE_BLUR_MAX_TAP + 1)
+private val PROGRESSIVE_BLUR_SHADER_MASKED_BY_TAP = arrayOfNulls<String>(PROGRESSIVE_BLUR_MAX_TAP + 1)
+
+/** The progressive Blur shader source with loop bound [tapBound] (from [progressiveLoopTapBound]). */
+internal fun progressiveBlurShaderForTap(tapBound: Int, masked: Boolean = false): String {
+    val cache = if (masked) PROGRESSIVE_BLUR_SHADER_MASKED_BY_TAP else PROGRESSIVE_BLUR_SHADER_BY_TAP
+    return cache[tapBound] ?: buildProgressiveBlurShader(tapBound, masked).also { cache[tapBound] = it }
+}
+
+/**
+ * Compile-time loop bound for [maxRadius]: the next multiple of 4 covering it, capped at
+ * [PROGRESSIVE_BLUR_MAX_TAP]. Quantizing keeps the shader-variant count small (and an animating
+ * radius from recompiling per frame) while a small radius skips most of the unrolled iterations
+ * the full bound would cost per fragment.
+ */
+internal fun progressiveLoopTapBound(maxRadius: Float): Int {
+    val needed = kotlin.math.ceil(maxRadius).toInt()
+    return (((needed + 3) / 4) * 4).coerceIn(4, PROGRESSIVE_BLUR_MAX_TAP)
+}
+
+/** Gaussian sigma fractions of the three graduated composite levels (`blur0` … `blur2`). */
+internal const val PROGRESSIVE_LEVEL_FRACTION_0 = 1.0f
+internal const val PROGRESSIVE_LEVEL_FRACTION_1 = 0.4f
+internal const val PROGRESSIVE_LEVEL_FRACTION_2 = 0.13f
+
+/**
+ * Multi-level progressive composite (Skiko multi-child runtime shader): three graduated Gaussian
+ * levels ([blur0] strongest … [blur2] lightest) interpolated along the gradient so the blur
+ * strength itself ramps — graduated levels are what make the ramp read as progressive rather than
+ * one blur cross-faded with sharp. Runs on the downscaled layer with [clearChild] bound to the
+ * lightest level (degenerating the last mix segment; the true sharp end is a separate
+ * full-resolution overlay masked by [PROGRESSIVE_LEVEL_MASK_SHADER]) — except at full resolution,
+ * where [clearChild] binds the source and the blend to sharp completes in-stack. Android builds
+ * the identical image as a blend-mode DAG of the same masks. Each segment's mix fraction is smoothstepped: the
+ * walk's derivative kinks at the segment stops otherwise read as Mach-band stripes, and zeroing
+ * the slope at the stops removes them without spatial noise (which would scale with the
+ * downscale's texel size). Must stay in lockstep with [PROGRESSIVE_LEVEL_MASK_SHADER]'s weight
+ * smoothstep — `s(1 − x) = 1 − s(x)` is what keeps the Android DAG identical to this mix chain.
+ */
+internal const val PROGRESSIVE_COMPOSITE_SHADER = """
+    uniform shader clearChild;
+    uniform shader blur0;
+    uniform shader blur1;
+    uniform shader blur2;
+    uniform float2 in_gradAxis;
+    uniform float2 in_gradBand;
+    uniform float in_curve;
+
+    half4 main(float2 xy) {
+        float p = dot(xy, in_gradAxis);
+        float raw = clamp((p - in_gradBand.x) / (in_gradBand.y - in_gradBand.x), 0.0, 1.0);
+        raw = pow(raw * raw * (3.0 - 2.0 * raw), in_curve);
+        // raw: 0 at the full-strength end, 1 at the clear end. Walk the level stack
+        // [blur0 -> blur1 -> blur2 -> sharp] so blur strength decreases continuously.
+        float pos = raw * 3.0;
+        half4 color;
+        if (pos < 1.0) {
+            float f = pos * pos * (3.0 - 2.0 * pos);
+            color = mix(blur0.eval(xy), blur1.eval(xy), f);
+        } else if (pos < 2.0) {
+            float f = pos - 1.0;
+            f = f * f * (3.0 - 2.0 * f);
+            color = mix(blur1.eval(xy), blur2.eval(xy), f);
+        } else {
+            float f = pos - 2.0;
+            f = f * f * (3.0 - 2.0 * f);
+            color = mix(blur2.eval(xy), clearChild.eval(xy), f);
+        }
+        // Unpremul terminator (same rationale as buildBlurShader): the native level blurs mix
+        // the padding ring's transparency into the edges; without renormalizing to opaque, the
+        // sharp content below bleeds through the semi-transparent rim.
+        if (color.a > 0.0039) {
+            return half4(color.rgb / color.a, 1.0);
+        }
+        return color;
+    }
+"""
+
+/**
+ * Renormalizes a premultiplied blur result to opaque — [buildBlurShader]'s unpremul terminator as
+ * a standalone pass. Chained after the Android progressive stack's unmasked base blur, the one
+ * level whose alpha nothing else renormalizes (masked levels get it inline from
+ * [PROGRESSIVE_LEVEL_MASK_SHADER]; the Skiko composite applies it as its own terminator).
+ */
+internal const val UNPREMUL_SHADER = """
+    uniform shader child;
+
+    half4 main(float2 xy) {
+        half4 c = child.eval(xy);
+        if (c.a > 0.0039) {
+            return half4(c.rgb / c.a, 1.0);
+        }
+        return c;
+    }
+"""
+
+/**
+ * Band mask for the progressive composite: weight `clamp(in_level − in_slope·raw, 0, 1)` of the
+ * smoothstepped gradient. `in_slope = 3`, `in_level` ∈ {1, 2} = the level stops of the Android
+ * stack DAG (≡ [PROGRESSIVE_COMPOSITE_SHADER]'s mix chain); `in_level = in_slope = 1` = the
+ * continuous `1 − raw` ramp for the post-effect chain; `in_level = −2`, `in_slope = −3` = the
+ * rising `clamp(3·raw − 2, 0, 1)` ramp masking the sharp end (the full-resolution overlay, or the
+ * Android stack's native source level at full resolution). The clamped
+ * weight is smoothstepped to match [PROGRESSIVE_COMPOSITE_SHADER]'s per-segment fractions:
+ * `s(1 − x) = 1 − s(x)` keeps the Android level masks complementary to the mix chain, so both
+ * platforms zero the walk's derivative at the segment stops alike. The child is renormalized to
+ * opaque before weighting — this is the Android masked levels' unpremul terminator (their native
+ * blurs mix in the padding ring's transparency), folded in here to save a pass; a no-op for the
+ * already-opaque children of the other mask uses.
+ */
+internal const val PROGRESSIVE_LEVEL_MASK_SHADER = """
+    uniform shader child;
+    uniform float2 in_gradAxis;
+    uniform float2 in_gradBand;
+    uniform float in_curve;
+    uniform float in_level;
+    uniform float in_slope;
+
+    half4 main(float2 xy) {
+        float p = dot(xy, in_gradAxis);
+        float raw = clamp((p - in_gradBand.x) / (in_gradBand.y - in_gradBand.x), 0.0, 1.0);
+        raw = pow(raw * raw * (3.0 - 2.0 * raw), in_curve);
+        float w = clamp(in_level - raw * in_slope, 0.0, 1.0);
+        w = w * w * (3.0 - 2.0 * w);
+        half4 c = child.eval(xy);
+        if (c.a > 0.0039) {
+            c = half4(c.rgb / c.a, 1.0);
+        }
+        return c * half(w);
+    }
+"""
+
+/**
+ * Brightness / contrast / saturation adjustment.
+ *
+ * Brightness is applied in linear (gamma 2.2) space to avoid sRGB hue shift;
+ * contrast and saturation are applied in sRGB space.
+ *
+ * Uniforms: `in_brightness ∈ [-1, +1]`, `in_contrast ∈ [0, +∞)`, `in_saturation ∈ [0, +∞)`.
+ */
+internal const val COLOR_CONTROLS_SHADER = """
+    uniform shader child;
+    uniform float in_brightness;
+    uniform float in_contrast;
+    uniform float in_saturation;
+
+    half4 main(float2 xy) {
+        half4 src = child.eval(xy);
+        half a = src.a;
+        if (a < 0.001) return src;
+
+        half3 c = src.rgb / a;
+
+        if (in_brightness != 0.0) {
+            c = pow(c, half3(2.2));
+            if (in_brightness > 0.0) {
+                c = mix(c, half3(1.0), half(in_brightness));
+            } else {
+                c = c * half(1.0 + in_brightness);
+            }
+            c = pow(c, half3(0.45454545));
+        }
+
+        if (in_contrast != 1.0) {
+            c = (c - 0.5) * half(in_contrast) + 0.5;
+        }
+
+        if (in_saturation != 1.0) {
+            half lum = dot(c, half3(0.2126, 0.7152, 0.0722));
+            c = mix(half3(lum), c, half(in_saturation));
+        }
+
+        c = clamp(c, half3(0.0), half3(1.0));
+        return half4(c * a, a);
+    }
+"""
+
+/** Noise dithering shader — 3-channel pseudo-random anti-banding. */
+internal const val NOISE_DITHER_SHADER = """
+    uniform shader child;
+    uniform float noise_coeff;
+
+    half4 main(float2 xy) {
+        float3 d = float3(
+            dot(xy, float2(6.9898, 78.233)),
+            dot(xy, float2(7.9898, 78.233)),
+            dot(xy, float2(8.9898, 78.233))
+        );
+        float3 n = (fract(sin(d) * float3(43734.5453, 43745.5453, 43767.5453)) - 0.5) * noise_coeff;
+        half4 color = child.eval(xy);
+        color.rg += half2(n.x);
+        color.rb += half2(n.y);
+        color.gb += half2(n.z);
+        return color;
+    }
+"""
+
+/** 2× downsample — 4-tap ±0.25 dual-filter, 9-tap tent footprint. */
+internal const val DOWNSAMPLE_2X_SHADER = """
+    uniform shader child;
+    uniform float2 maxCoord;
+    half4 main(float2 xy) {
+        float2 minCoord = float2(0.5);
+        half4 color = half4(0);
+        color += child.eval(clamp(xy + float2(-0.25, -0.25), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2( 0.25, -0.25), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2(-0.25,  0.25), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2( 0.25,  0.25), minCoord, maxCoord));
+        return color * 0.25;
+    }
+"""
+
+/** 4× downsample — 4-tap ±0.75 dual-filter, 16-tap tent footprint. */
+internal const val DOWNSAMPLE_4X_SHADER = """
+    uniform shader child;
+    uniform float2 maxCoord;
+    half4 main(float2 xy) {
+        float2 minCoord = float2(0.5);
+        half4 color = half4(0);
+        color += child.eval(clamp(xy + float2(-0.75, -0.75), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2( 0.75, -0.75), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2(-0.75,  0.75), minCoord, maxCoord));
+        color += child.eval(clamp(xy + float2( 0.75,  0.75), minCoord, maxCoord));
+        return color * 0.25;
+    }
+"""
+
+/**
+ * Edge bloom stroke shader. A rounded-rect SDF defines an outer mask + a stroke band,
+ * then a 3D hemispheric normal is built along the rounded edge so that the directional
+ * lights paint the inner halo.
+ *
+ * Two specializations selected at build time by [dualPeak]:
+ *
+ *  - `dualPeak = false`: each light's hemisphere is derived from its own projected XY
+ *    direction (`normalize(lightDir.xy)`); a positive cosine factor between the rim
+ *    normal and that hemisphere axis gates the light's contribution. Lights pointing
+ *    purely along Z fall back to the upper / lower split `(0, ∓1, 0)` for backwards
+ *    compatibility with overhead-only configurations. Single peak per light.
+ *
+ *  - `dualPeak = true`: each light contributes via `dot(N.xy, L.xy)²` (xy-only dot²),
+ *    so a single light produces two rim peaks 180° apart (where `n.xy` aligns and
+ *    anti-aligns with `L.xy`) and naturally drops to zero perpendicular to `L.xy` and
+ *    on the interior surface (where `n.xy → 0`). Matches the specular rim model used
+ *    by Apple-style Liquid Glass demos; pair with a zero-intensity second light to get
+ *    the canonical "two opposing peaks rotating with the light direction".
+ *
+ * Selecting the path at build time lets the driver compile out the unused branch and
+ * removes the `useDualPeak > 0.5` per-fragment comparison.
+ *
+ * Light directions are pre-normalized on the CPU side: `dir = normalize((srcX-0.5,
+ * srcY-0.7, srcZ))`, where `(0.5, 0.7, 0)` is the reference origin.
+ *
+ * Output is suited for overlay compositing: `result.rgb` carries premultiplied bloom
+ * contributions, `result.a = outMask`, all multiplied by the rounded-rect outer mask.
+ * Compose `BlendMode.Plus` then adds these contributions onto the surface below.
+ */
+internal fun buildBloomStrokeShader(dualPeak: Boolean): String {
+    val axisUniforms = if (dualPeak) {
+        ""
+    } else {
+        """
+uniform float2 axis1;
+uniform float2 axis2;
+"""
+    }
+    val lightBlock = if (dualPeak) {
+        """
+    float l1 = dot(n.xy, lightDir1.xy);
+    rgb += half(l1 * l1 * lightIntensity1) * lightColor1.rgb;
+    float l2 = dot(n.xy, lightDir2.xy);
+    rgb += half(l2 * l2 * lightIntensity2) * lightColor2.rgb;
+"""
+    } else {
+        """
+    float falloff1 = max(dot(float3(axis1, 0.0), n), 0.0);
+    float light1 = clamp(dot(n, lightDir1) * falloff1, 0.0, 1.0);
+    rgb += half(light1 * light1 * lightIntensity1) * lightColor1.rgb;
+
+    float falloff2 = max(dot(float3(axis2, 0.0), n), 0.0);
+    float light2 = clamp(dot(n, lightDir2) * falloff2, 0.0, 1.0);
+    rgb += half(light2 * light2 * lightIntensity2) * lightColor2.rgb;
+"""
+    }
+    return """
+uniform float2 halfView;
+uniform float2 halfViewFloor;
+uniform float4 cornerRadii;
+uniform float strokeWidth;
+uniform float innerBlurRadius;
+uniform float innerBlurRadiusSq;
+uniform float highlightAlpha;
+
+layout(color) uniform half4 strokeColor;
+uniform float strokeAlphaMul;
+
+uniform float3 lightDir1;
+layout(color) uniform half4 lightColor1;
+uniform float lightIntensity1;
+
+uniform float3 lightDir2;
+layout(color) uniform half4 lightColor2;
+uniform float lightIntensity2;
+$axisUniforms
+float pickRadius(float2 fragCoord, float4 radii) {
+    float2 up = fragCoord.y < halfView.y ? radii.xy : radii.zw;
+    return fragCoord.x < halfView.x ? up.x : up.y;
+}
+
+// caller passes non-negative pos (already abs-folded), so skip the redundant abs.
+float roundedBoxSDF(float2 pos, float2 halfSize, float radius) {
+    radius = min(radius, min(halfSize.x, halfSize.y));
+    float2 d = pos - halfSize + radius;
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - radius;
+}
+
+float3 getNormal(float2 fragCoord, float sdf, float R) {
+    float2 xy = fragCoord - halfViewFloor;
+    float2 xy_a = abs(xy);
+    float t = smoothstep(-innerBlurRadius, 0.0, sdf);
+    float z = sqrt(max(innerBlurRadiusSq - t * t, 0.0));
+    float3 coord = float3(xy_a, -z);
+
+    float2 corner = halfView - R;
+    corner.x = min(corner.x, xy_a.x);
+    corner.y = min(corner.y, xy_a.y);
+
+    float2 dir = normalize(coord.xy - corner.xy);
+    corner += dir * (R - innerBlurRadius);
+
+    if (any(lessThan(xy_a, corner))) {
+        return float3(0.0, 0.0, -1.0);
+    }
+
+    float2 signal = sign(xy);
+    float3 n = normalize(coord - float3(corner, 0.0));
+    n.xy *= signal;
+    return n;
+}
+
+half4 main(float2 fragCoord) {
+    float2 xy = abs(fragCoord - halfView);
+
+    float originRadius = pickRadius(fragCoord, cornerRadii);
+    float R = max(originRadius, innerBlurRadius);
+
+    if (all(lessThan(xy, halfView - R))) {
+        return half4(0.0);
+    }
+
+    float sdf = roundedBoxSDF(xy, halfView, originRadius);
+    half outMask = half(smoothstep(0.0, -1.0, sdf));
+    float strokeAlpha = smoothstep(-strokeWidth, -strokeWidth + 1.0, sdf);
+
+    // Native: stroke = uStrokeColor * sa; result += stroke.rgb * stroke.a
+    //       = strokeColor.rgb * strokeColor.a * sa^2
+    half3 rgb = strokeColor.rgb * half(strokeAlphaMul * strokeAlpha * strokeAlpha);
+
+    float3 n = getNormal(fragCoord, sdf, R);
+$lightBlock
+    return half4(rgb * half(highlightAlpha), 1.0) * outMask;
+}
+"""
+}
+
+internal val BLOOM_STROKE_SHADER_SINGLE: String = buildBloomStrokeShader(dualPeak = false)
+internal val BLOOM_STROKE_SHADER_DUAL: String = buildBloomStrokeShader(dualPeak = true)
+
+/**
+ * Builds the multi-layer blend mode shader, optionally including the extended-mode helpers.
+ *
+ * - `includeExtended = false` (all layers have `mode <= 28`): emits only the Porter-Duff /
+ *   separable / non-separable HSL functions + `doBlend` dispatch + a flat `main` loop. The
+ *   Lab color-space helpers, `pow()`-heavy conversions and the `getBlendModeColor` dispatch
+ *   are omitted entirely, shrinking the program and freeing the register budget the driver
+ *   would otherwise reserve for the longest path.
+ * - `includeExtended = true` (any layer has `mode > 28`): emits the full set, identical to
+ *   the prior monolithic shader.
+ * - `rampMix = true`: the progressive composite's folded post pass — the blend chain runs on a
+ *   single child eval and the result is ramp-mixed over the untouched source, replacing the
+ *   SrcOver branch form that evaluates the stack below twice.
+ *
+ * The standard family is the common case — keeping it lean lifts move-GPU occupancy on
+ * Adreno / Mali where Lab path register pressure otherwise capped warp parallelism.
+ */
+internal fun buildBlendModeShader(includeExtended: Boolean, rampMix: Boolean = false): String = buildString {
+    append(BLEND_MODE_SHADER_HEADER)
+    if (includeExtended) append(BLEND_MODE_SHADER_EXTENDED_HELPERS)
+    if (rampMix) append(BLEND_MODE_SHADER_RAMP_UNIFORMS)
+    append(
+        when {
+            rampMix && includeExtended -> BLEND_MODE_SHADER_MAIN_EXTENDED_RAMP
+            rampMix -> BLEND_MODE_SHADER_MAIN_STANDARD_RAMP
+            includeExtended -> BLEND_MODE_SHADER_MAIN_EXTENDED
+            else -> BLEND_MODE_SHADER_MAIN_STANDARD
+        },
+    )
+}
+
+internal val BLEND_MODE_SHADER_STANDARD: String = buildBlendModeShader(includeExtended = false)
+internal val BLEND_MODE_SHADER_EXTENDED: String = buildBlendModeShader(includeExtended = true)
+internal val BLEND_MODE_SHADER_STANDARD_RAMP: String = buildBlendModeShader(includeExtended = false, rampMix = true)
+internal val BLEND_MODE_SHADER_EXTENDED_RAMP: String = buildBlendModeShader(includeExtended = true, rampMix = true)
+
+/** Uniforms, standard mode helpers (0-28), and `doBlend` dispatch — shared by both families. */
+private const val BLEND_MODE_SHADER_HEADER = """
+    uniform shader child;
+
+    uniform float layerCount;
+    uniform float blendModes[8];
+    uniform vec4 layerColors[8]; // premultiplied sRGB, set as flat float[32]
+
+    // ================================================================
+    // Standard blend modes (0-28) — premultiplied alpha
+    // ================================================================
+
+    const half kMinNormalHalf = 0.00006103515625;
+    const float kGuardedDivideEpsilon = 0.00000001;
+
+    half guarded_divide(half n, half d) {
+        return n / (d + kGuardedDivideEpsilon);
+    }
+
+    half3 guarded_divide(half3 n, half d) {
+        return n / (d + kGuardedDivideEpsilon);
+    }
+
+    // Porter-Duff modes
+    half4 mi_blend_clear(half4 src, half4 dst) { return half4(0); }
+    half4 mi_blend_src(half4 src, half4 dst) { return src; }
+    half4 mi_blend_dst(half4 src, half4 dst) { return dst; }
+    half4 mi_blend_src_over(half4 src, half4 dst) { return src + (1 - src.a)*dst; }
+    half4 mi_blend_dst_over(half4 src, half4 dst) { return (1 - dst.a)*src + dst; }
+    half4 mi_blend_src_in(half4 src, half4 dst) { return src*dst.a; }
+    half4 mi_blend_dst_in(half4 src, half4 dst) { return dst*src.a; }
+    half4 mi_blend_src_out(half4 src, half4 dst) { return (1 - dst.a)*src; }
+    half4 mi_blend_dst_out(half4 src, half4 dst) { return (1 - src.a)*dst; }
+    half4 mi_blend_src_atop(half4 src, half4 dst) { return dst.a*src + (1 - src.a)*dst; }
+    half4 mi_blend_dst_atop(half4 src, half4 dst) { return (1 - dst.a)*src + src.a*dst; }
+    half4 mi_blend_xor(half4 src, half4 dst) { return (1 - dst.a)*src + (1 - src.a)*dst; }
+    half4 mi_blend_plus(half4 src, half4 dst) { return min(src + dst, 1); }
+    half4 mi_blend_modulate(half4 src, half4 dst) { return src*dst; }
+
+    // Separable blend modes
+    half4 mi_blend_screen(half4 src, half4 dst) { return src + (1 - src)*dst; }
+
+    half mi_blend_overlay_component(half2 s, half2 d) {
+        return (2*d.x <= d.y) ? 2*s.x*d.x
+                              : s.y*d.y - 2*(d.y - d.x)*(s.y - s.x);
+    }
+
+    half4 mi_blend_overlay(half4 src, half4 dst) {
+        half4 result = half4(mi_blend_overlay_component(src.ra, dst.ra),
+                            mi_blend_overlay_component(src.ga, dst.ga),
+                            mi_blend_overlay_component(src.ba, dst.ba),
+                            src.a + (1 - src.a)*dst.a);
+        result.rgb += dst.rgb*(1 - src.a) + src.rgb*(1 - dst.a);
+        return result;
+    }
+
+    half4 mi_blend_darken(half4 src, half4 dst) {
+        half4 a = mi_blend_src_over(src, dst);
+        half3 b = (1 - dst.a) * src.rgb + dst.rgb;
+        a.rgb = min(a.rgb, b.rgb);
+        return a;
+    }
+
+    half4 mi_blend_lighten(half4 src, half4 dst) {
+        half4 result = mi_blend_src_over(src, dst);
+        result.rgb = max(result.rgb, (1 - dst.a)*src.rgb + dst.rgb);
+        return result;
+    }
+
+    half color_dodge_component(half2 s, half2 d) {
+        half delta = min(d.y, abs(s.y - s.x) >= kMinNormalHalf
+                                        ? guarded_divide(d.x * s.y, s.y - s.x)
+                                        : d.y);
+        return delta*s.y + s.x*(1 - d.y) + d.x*(1 - s.y);
+    }
+
+    half4 mi_blend_color_dodge(half4 src, half4 dst) {
+        return half4(color_dodge_component(src.ra, dst.ra),
+                    color_dodge_component(src.ga, dst.ga),
+                    color_dodge_component(src.ba, dst.ba),
+                    src.a + (1 - src.a)*dst.a);
+    }
+
+    half color_burn_component(half2 s, half2 d) {
+        half delta = abs(s.x) >= kMinNormalHalf
+                            ? d.y - min(d.y, guarded_divide((d.y - d.x) * s.y, s.x))
+                            : 0;
+        return delta*s.y + s.x*(1 - d.y) + d.x*(1 - s.y);
+    }
+
+    half4 mi_blend_color_burn(half4 src, half4 dst) {
+        return half4(color_burn_component(src.ra, dst.ra),
+                    color_burn_component(src.ga, dst.ga),
+                    color_burn_component(src.ba, dst.ba),
+                    src.a + (1 - src.a)*dst.a);
+    }
+
+    half4 mi_blend_hard_light(half4 src, half4 dst) {
+        return mi_blend_overlay(dst, src);
+    }
+
+    float soft_light_component(float2 s, float2 d) {
+        if (2*s.x <= s.y) {
+            return float(guarded_divide(half(d.x*d.x*(s.y - 2*s.x)), half(d.y))) + (1 - d.y)*s.x + d.x*(-s.y + 2*s.x + 1);
+        } else if (4.0 * d.x <= d.y) {
+            float DSqd = d.x*d.x;
+            float DCub = DSqd*d.x;
+            float DaSqd = d.y*d.y;
+            float DaCub = DaSqd*d.y;
+            return float(guarded_divide(half(DaSqd*(s.x - d.x*(3*s.y - 6*s.x - 1)) + 12*d.y*DSqd*(s.y - 2*s.x)
+                                - 16*DCub * (s.y - 2*s.x) - DaCub*s.x), half(DaSqd)));
+        } else {
+            return d.x*(s.y - 2*s.x + 1) + s.x - sqrt(d.y*d.x)*(s.y - 2*s.x) - d.y*s.x;
+        }
+    }
+
+    half4 mi_blend_soft_light(half4 src, half4 dst) {
+        return (dst.a == 0) ? src : half4(half(soft_light_component(float2(src.ra), float2(dst.ra))),
+                                        half(soft_light_component(float2(src.ga), float2(dst.ga))),
+                                        half(soft_light_component(float2(src.ba), float2(dst.ba))),
+                                        src.a + (1 - src.a)*dst.a);
+    }
+
+    half4 mi_blend_difference(half4 src, half4 dst) {
+        return half4(src.rgb + dst.rgb - 2*min(src.rgb*dst.a, dst.rgb*src.a),
+                    src.a + (1 - src.a)*dst.a);
+    }
+
+    half4 mi_blend_exclusion(half4 src, half4 dst) {
+        return half4(dst.rgb + src.rgb - 2*dst.rgb*src.rgb, src.a + (1 - src.a)*dst.a);
+    }
+
+    half4 mi_blend_multiply(half4 src, half4 dst) {
+        return half4((1 - src.a)*dst.rgb + (1 - dst.a)*src.rgb + src.rgb*dst.rgb,
+                    src.a + (1 - src.a)*dst.a);
+    }
+
+    // Non-separable (HSL) blend modes
+    half mi_blend_color_luminance(half3 color) { return dot(half3(0.3, 0.59, 0.11), color); }
+
+    half3 mi_blend_set_color_luminance(half3 hueSatColor, half alpha, half3 lumColor) {
+        half lum = mi_blend_color_luminance(lumColor);
+        half3 result = lum - mi_blend_color_luminance(hueSatColor) + hueSatColor;
+        half minComp = min(min(result.r, result.g), result.b);
+        half maxComp = max(max(result.r, result.g), result.b);
+        if (minComp < 0 && lum != minComp) {
+            result = lum + (result - lum) * guarded_divide(lum, (lum - minComp) + kMinNormalHalf);
+        }
+        if (maxComp > alpha && maxComp != lum) {
+            result = lum + guarded_divide((result - lum) * (alpha - lum), (maxComp - lum) + kMinNormalHalf);
+        }
+        return result;
+    }
+
+    half mi_blend_color_saturation(half3 color) {
+        return max(max(color.r, color.g), color.b) - min(min(color.r, color.g), color.b);
+    }
+
+    half3 mi_blend_set_color_saturation(half3 color, half3 satColor) {
+        half mn = min(min(color.r, color.g), color.b);
+        half mx = max(max(color.r, color.g), color.b);
+        return (mx > mn) ? ((color - mn) * mi_blend_color_saturation(satColor)) / (mx - mn) : half3(0);
+    }
+
+    half4 mi_blend_hslc(half2 flipSat, half4 src, half4 dst) {
+        half alpha = dst.a * src.a;
+        half3 sda = src.rgb * dst.a;
+        half3 dsa = dst.rgb * src.a;
+        half3 l = bool(flipSat.x) ? dsa : sda;
+        half3 r = bool(flipSat.x) ? sda : dsa;
+        if (bool(flipSat.y)) {
+            l = mi_blend_set_color_saturation(l, r);
+            r = dsa;
+        }
+        return half4(mi_blend_set_color_luminance(l, alpha, r) + dst.rgb - dsa + src.rgb - sda,
+                    src.a + dst.a - alpha);
+    }
+
+    half4 mi_blend_hue(half4 src, half4 dst) { return mi_blend_hslc(half2(0, 1), src, dst); }
+    half4 mi_blend_saturation(half4 src, half4 dst) { return mi_blend_hslc(half2(1), src, dst); }
+    half4 mi_blend_color(half4 src, half4 dst) { return mi_blend_hslc(half2(0), src, dst); }
+    half4 mi_blend_luminosity(half4 src, half4 dst) { return mi_blend_hslc(half2(1, 0), src, dst); }
+
+    // Standard mode dispatch (0-28)
+    half4 doBlend(int mode, half4 blendColor, half4 background) {
+        if (mode == 0)  { background = mi_blend_clear(blendColor, background); }
+        else if (mode == 1)  { background = mi_blend_src(blendColor, background); }
+        else if (mode == 2)  { background = mi_blend_dst(blendColor, background); }
+        else if (mode == 3)  { background = mi_blend_src_over(blendColor, background); }
+        else if (mode == 4)  { background = mi_blend_dst_over(blendColor, background); }
+        else if (mode == 5)  { background = mi_blend_src_in(blendColor, background); }
+        else if (mode == 6)  { background = mi_blend_dst_in(blendColor, background); }
+        else if (mode == 7)  { background = mi_blend_src_out(blendColor, background); }
+        else if (mode == 8)  { background = mi_blend_dst_out(blendColor, background); }
+        else if (mode == 9)  { background = mi_blend_src_atop(blendColor, background); }
+        else if (mode == 10) { background = mi_blend_dst_atop(blendColor, background); }
+        else if (mode == 11) { background = mi_blend_xor(blendColor, background); }
+        else if (mode == 12) { background = mi_blend_plus(blendColor, background); }
+        else if (mode == 13) { background = mi_blend_modulate(blendColor, background); }
+        else if (mode == 14) { background = mi_blend_screen(blendColor, background); }
+        else if (mode == 15) { background = mi_blend_overlay(blendColor, background); }
+        else if (mode == 16) { background = mi_blend_darken(blendColor, background); }
+        else if (mode == 17) { background = mi_blend_lighten(blendColor, background); }
+        else if (mode == 18) { background = mi_blend_color_dodge(blendColor, background); }
+        else if (mode == 19) { background = mi_blend_color_burn(blendColor, background); }
+        else if (mode == 20) { background = mi_blend_hard_light(blendColor, background); }
+        else if (mode == 21) { background = mi_blend_soft_light(blendColor, background); }
+        else if (mode == 22) { background = mi_blend_difference(blendColor, background); }
+        else if (mode == 23) { background = mi_blend_exclusion(blendColor, background); }
+        else if (mode == 24) { background = mi_blend_multiply(blendColor, background); }
+        else if (mode == 25) { background = mi_blend_hue(blendColor, background); }
+        else if (mode == 26) { background = mi_blend_saturation(blendColor, background); }
+        else if (mode == 27) { background = mi_blend_color(blendColor, background); }
+        else if (mode == 28) { background = mi_blend_luminosity(blendColor, background); }
+        return background;
+    }
+
+"""
+
+/** Lab / linear light / plus / adjustments + `getBlendModeColor` dispatch for modes > 28. */
+private const val BLEND_MODE_SHADER_EXTENDED_HELPERS = """
+    uniform float uSaturation;
+    uniform float uBrightness;
+    uniform float uLuminanceAmount;
+    uniform vec4 uLuminanceValues;
+
+    // ================================================================
+    // Extended blend modes (100+)
+    // ================================================================
+
+    // SrcOver compositing (used by custom modes only)
+    half4 blendSrcOver(half4 src, half4 dst) {
+        if (src.a == 0.0) return dst;
+        half srcAlpha = src.a;
+        half dstAlpha = dst.a * (1.0 - srcAlpha);
+        half outAlpha = srcAlpha + dstAlpha;
+        if (outAlpha == 0.0) return half4(0, 0, 0, 0);
+        half4 outColor = (src * srcAlpha + dst * dstAlpha) / outAlpha;
+        return half4(outColor.rgb, outAlpha);
+    }
+
+    // Color Burn (unpremultiplied, used by custom modes 118/119)
+    float blendColorBurn(float base, float blend) {
+        return (blend == 0.0) ? blend : max((1.0 - ((1.0 - base) / blend)), 0.0);
+    }
+    half3 blendColorBurn(half3 base, half3 blend) {
+        return half3(blendColorBurn(float(base.r), float(blend.r)), blendColorBurn(float(base.g), float(blend.g)), blendColorBurn(float(base.b), float(blend.b)));
+    }
+    half3 blendColorBurn(half3 base, half3 blend, half opacity) {
+        return (blendColorBurn(base, blend) * opacity + base * (1.0 - opacity));
+    }
+    half4 blendColorBurn(half4 src, half4 dst) {
+        return half4(blendColorBurn(dst.rgb, src.rgb, src.a), dst.a);
+    }
+
+    // Color Dodge (unpremultiplied, used by custom modes 118/119)
+    float blendColorDodge(float base, float blend) {
+        return (blend == 1.0) ? blend : min(base / (1.0 - blend), 1.0);
+    }
+    half3 blendColorDodge(half3 base, half3 blend) {
+        return half3(blendColorDodge(float(base.r), float(blend.r)), blendColorDodge(float(base.g), float(blend.g)), blendColorDodge(float(base.b), float(blend.b)));
+    }
+    half3 blendColorDodge(half3 base, half3 blend, half opacity) {
+        return (blendColorDodge(base, blend) * opacity + base * (1.0 - opacity));
+    }
+    half4 blendColorDodge(half4 src, half4 dst) {
+        return half4(blendColorDodge(dst.rgb, src.rgb, src.a), dst.a);
+    }
+
+    // Linear Dodge / Burn / Light
+    half blendLinearDodge(half base, half blend) { return min(base + blend, 1.0); }
+    half3 blendLinearDodge(half3 base, half3 blend) { return min(base + blend, half3(1.0)); }
+    half3 blendLinearDodge(half3 base, half3 blend, half opacity) {
+        return (blendLinearDodge(base, blend) * opacity + base * (1.0 - opacity));
+    }
+
+    half blendLinearBurn(half base, half blend) { return max(base + blend - 1.0, 0.0); }
+    half3 blendLinearBurn(half3 base, half3 blend) { return max(base + blend - half3(1.0), half3(0.0)); }
+    half3 blendLinearBurn(half3 base, half3 blend, half opacity) {
+        return (blendLinearBurn(base, blend) * opacity + base * (1.0 - opacity));
+    }
+
+    half blendLinearLight(half base, half blend) {
+        return blend < 0.5 ? blendLinearBurn(base, 2.0 * blend) : blendLinearDodge(base, 2.0 * (blend - 0.5));
+    }
+    half3 blendLinearLight(half3 base, half3 blend) {
+        return half3(blendLinearLight(base.r, blend.r), blendLinearLight(base.g, blend.g), blendLinearLight(base.b, blend.b));
+    }
+    half3 blendLinearLight(half3 base, half3 blend, half opacity) {
+        return (blendLinearLight(base, blend) * opacity + base * (1.0 - opacity));
+    }
+    half4 blendLinearLight(half4 src, half4 dst) {
+        return half4(blendLinearLight(dst.rgb, src.rgb, src.a), dst.a);
+    }
+
+    // Greyscale
+    half greyscale(half3 color) { return 0.3 * color.r + 0.59 * color.g + 0.11 * color.b; }
+
+    // Lab Color Space (sRGB <-> XYZ <-> Lab, D65)
+    // All conversions use float precision to avoid error amplification
+    // in pow(), large-scale multiplication, and matrix operations.
+    float3 rgb2xyz(float3 c) {
+        c.r = c.r > 0.04045 ? pow((c.r + 0.055) / 1.055, 2.4) : c.r / 12.92;
+        c.g = c.g > 0.04045 ? pow((c.g + 0.055) / 1.055, 2.4) : c.g / 12.92;
+        c.b = c.b > 0.04045 ? pow((c.b + 0.055) / 1.055, 2.4) : c.b / 12.92;
+        c *= 100.0;
+        return float3(
+            c.r * 0.4124 + c.g * 0.3576 + c.b * 0.1805,
+            c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722,
+            c.r * 0.0193 + c.g * 0.1192 + c.b * 0.9505);
+    }
+
+    float3 xyz2lab(float3 c) {
+        float3 w = float3(95.047, 100.0, 108.883);
+        c /= w;
+        c.x = c.x > 0.008856 ? pow(c.x, 1.0/3.0) : 7.787 * c.x + 16.0/116.0;
+        c.y = c.y > 0.008856 ? pow(c.y, 1.0/3.0) : 7.787 * c.y + 16.0/116.0;
+        c.z = c.z > 0.008856 ? pow(c.z, 1.0/3.0) : 7.787 * c.z + 16.0/116.0;
+        return float3(116.0 * c.y - 16.0, 500.0 * (c.x - c.y), 200.0 * (c.y - c.z));
+    }
+
+    float3 rgb2lab(float3 c) { return xyz2lab(rgb2xyz(c)); }
+
+    float3 lab2xyz(float3 lab) {
+        float y = (lab.x + 16.0) / 116.0;
+        float x = lab.y / 500.0 + y;
+        float z = y - lab.z / 200.0;
+        y = pow(y, 3.0) > 0.008856 ? pow(y, 3.0) : (y - 16.0/116.0) / 7.787;
+        x = pow(x, 3.0) > 0.008856 ? pow(x, 3.0) : (x - 16.0/116.0) / 7.787;
+        z = pow(z, 3.0) > 0.008856 ? pow(z, 3.0) : (z - 16.0/116.0) / 7.787;
+        float3 w = float3(95.047, 100.0, 108.883);
+        return float3(x * w.x, y * w.y, z * w.z);
+    }
+
+    float3 xyz2rgb(float3 xyz) {
+        xyz /= 100.0;
+        float r = xyz.x *  3.2406 + xyz.y * -1.5372 + xyz.z * -0.4986;
+        float g = xyz.x * -0.9689 + xyz.y *  1.8758 + xyz.z *  0.0415;
+        float b = xyz.x *  0.0557 + xyz.y * -0.2040 + xyz.z *  1.0570;
+        r = r > 0.0031308 ? 1.055 * pow(r, 1.0/2.4) - 0.055 : 12.92 * r;
+        g = g > 0.0031308 ? 1.055 * pow(g, 1.0/2.4) - 0.055 : 12.92 * g;
+        b = b > 0.0031308 ? 1.055 * pow(b, 1.0/2.4) - 0.055 : 12.92 * b;
+        return float3(clamp(r, 0.0, 1.0), clamp(g, 0.0, 1.0), clamp(b, 0.0, 1.0));
+    }
+
+    float3 lab2rgb(float3 lab) { return xyz2rgb(lab2xyz(lab)); }
+
+    half4 labLighten(half4 c, half a) {
+        float3 lab = rgb2lab(float3(c.rgb));
+        lab.r = (100.0 - float(a)) / 55.0 * lab.r + (100.0 * float(a) - 4500.0) / 55.0;
+        return half4(half3(lab2rgb(lab)), c.a);
+    }
+
+    half4 labDarken(half4 c, half a) {
+        float3 lab = rgb2lab(float3(c.rgb));
+        lab.r = float(a) / 45.0 * lab.r;
+        return half4(half3(lab2rgb(lab)), c.a);
+    }
+
+    half4 labColor(half4 c, half m, half n) {
+        float3 lab = rgb2lab(float3(c.rgb));
+        lab.r = (float(n) - float(m)) * lab.r + float(m) * 100.0;
+        return half4(half3(lab2rgb(lab)), c.a);
+    }
+
+    float3 labNormalized(float3 lab) { return float3(lab.r / 100.0, (lab.g + 128.0) / 255.0, (lab.b + 128.0) / 255.0); }
+    float3 labDenormalized(float3 lab) { return float3(lab.r * 100.0, lab.g * 255.0 - 128.0, lab.b * 255.0 - 128.0); }
+
+    // float-precision linear light to avoid half truncation before labDenormalized
+    float blendLinearLightF(float base, float blend) {
+        return blend < 0.5 ? max(base + 2.0 * blend - 1.0, 0.0) : min(base + 2.0 * (blend - 0.5), 1.0);
+    }
+    float3 blendLinearLightF(float3 base, float3 blend) {
+        return float3(blendLinearLightF(base.r, blend.r), blendLinearLightF(base.g, blend.g), blendLinearLightF(base.b, blend.b));
+    }
+
+    half4 blendLinearLightLab(half4 src, half4 dst) {
+        float3 labSrc = labNormalized(rgb2lab(float3(src.rgb)));
+        float3 labDst = labNormalized(rgb2lab(float3(dst.rgb)));
+        return half4(half3(lab2rgb(labDenormalized(blendLinearLightF(labDst, labSrc)))), 1.0);
+    }
+
+    half3 blendDifference(half3 base, half3 blend) { return abs(base - blend); }
+    half3 blendDifference(half3 base, half3 blend, half opacity) {
+        return (blendDifference(base, blend) * opacity + base * (1.0 - opacity));
+    }
+
+    // Plus Darker / Lighter (V2 alpha-aware)
+    half4 blendPlusDarker(half4 src, half4 dst) {
+        src.rgb *= src.a; dst.rgb *= dst.a;
+        half3 c = max(half3(0.0), 1.0 - ((1.0 - dst.rgb) * dst.a + (1.0 - src.rgb) * src.a));
+        half a = src.a + dst.a * (1.0 - src.a);
+        return half4(c / a, a);
+    }
+
+    half4 blendPlusLighter(half4 src, half4 dst) {
+        src.rgb *= src.a; dst.rgb *= dst.a;
+        half3 c = min(src.rgb + dst.rgb, half3(1.0));
+        half a = src.a + (1.0 - src.a) * dst.a;
+        return half4(c / a, a);
+    }
+
+    // Color Adjustment (modes 201-203)
+    half4 adjust_saturation(half4 c, float sa) {
+        half lum = dot(c.rgb, half3(0.2125, 0.7153, 0.0721));
+        return half4(sa * c.rgb + (1.0 - sa) * lum, c.a);
+    }
+
+    half4 adjust_brightness(half4 c, float br) {
+        return half4(c.rgb + half3(br * c.a), c.a);
+    }
+
+    const mat4 adjustment_matrix = mat4(
+        -1,  3, -3,  1,
+         3, -6,  3,  0,
+        -3,  3,  0,  0,
+         1,  0,  0,  0);
+
+    half4 luminance_curve(half4 c, vec4 factors, float mix_factor) {
+        vec4 fa = adjustment_matrix * factors;
+        half alpha = max(c.a, 0.0001);
+        half3 sc = c.rgb / alpha;
+        float lum = clamp(dot(sc, vec3(0.2125, 0.7153, 0.0721)), 0.0, 1.0);
+        float adj = clamp(((lum * fa.r + fa.g) * lum + fa.b) * lum + fa.a, 0.0, 1.0);
+        return half4(mix(sc, half3(adj), mix_factor) * alpha, c.a);
+    }
+
+    // ================================================================
+    // Main Dispatch
+    // ================================================================
+
+    half4 getBlendModeColor(half4 bg, half4 ch, int mode, half4 bc) {
+        // Standard modes (0-28): premultiplied alpha, direct result
+        if (mode <= 28) return doBlend(mode, bc, bg);
+        // Custom modes (100+): unpremultiplied inputs, alpha handled internally
+        if (mode == 100) return blendLinearLight(bc, bg);
+        if (mode == 101) { half g = greyscale(ch.rgb); return mix(ch, blendLinearLight(half4(bc.rgb, g), bg), bc.a); }
+        if (mode == 102) return half4(blendDifference(bg.rgb, bc.rgb, bc.a), bg.a);
+        if (mode == 103) { half g = greyscale(ch.rgb) * 100.0; return mix(ch, labLighten(bg, 0.4 * g + 45.0), bc.a); }
+        if (mode == 105) { half g = greyscale(ch.rgb) * 100.0; return mix(ch, labDarken(bg, 45.0 - 0.15 * g), bc.a); }
+        if (mode == 106) return mix(ch, labColor(bg, bc.r, bc.g), bc.a);
+        if (mode == 107) return mix(ch, blendLinearLightLab(bc, bg), bc.a);
+        if (mode == 118) return blendColorDodge(bc, bg);
+        if (mode == 119) return blendColorBurn(bc, bg);
+        if (mode == 120) return blendPlusDarker(bc, bg);
+        if (mode == 121) return blendPlusLighter(bc, bg);
+        if (mode == 200) { half4 r = (1.0 - bc.a) * bg + bc.a * bc; half a = (1.0 - bc.a) * (1.0 - ch.r) + ch.r; return half4(r.xyz * a, bg.a); }
+        if (mode == 201) { half4 adj = adjust_saturation(bg, uSaturation); return half4(mix(bg.rgb, adj.rgb, bc.a), bg.a); }
+        if (mode == 202) { half4 adj = adjust_brightness(bg, uBrightness); return half4(mix(bg.rgb, adj.rgb, bc.a), bg.a); }
+        if (mode == 203) { half4 adj = luminance_curve(bg, uLuminanceValues, uLuminanceAmount); return half4(mix(bg.rgb, adj.rgb, bc.a), bg.a); }
+        return blendSrcOver(bc, bg);
+    }
+"""
+
+/** Ramp band uniforms + weight for the progressive composite's folded post pass. */
+private const val BLEND_MODE_SHADER_RAMP_UNIFORMS = """
+    uniform float2 in_gradAxis;
+    uniform float2 in_gradBand;
+    uniform float in_curve;
+
+    float rampWeight(float2 fragCoord) {
+        float p = dot(fragCoord, in_gradAxis);
+        float raw = clamp((p - in_gradBand.x) / (in_gradBand.y - in_gradBand.x), 0.0, 1.0);
+        raw = pow(raw * raw * (3.0 - 2.0 * raw), in_curve);
+        float w = 1.0 - raw;
+        return w * w * (3.0 - 2.0 * w);
+    }
+
+"""
+
+/** Flat `main` — standard family only, no unpremul/premul roundtrip. */
+private const val BLEND_MODE_SHADER_MAIN_STANDARD = """
+    half4 main(float2 fragCoord) {
+        half4 currentColor = child.eval(fragCoord);
+        int count = int(layerCount);
+
+        for (int i = 0; i < 8; i++) {
+            if (i >= count) break;
+            half4 layerColor = layerColors[i];
+            int mode = int(blendModes[i]);
+            currentColor = doBlend(mode, layerColor, currentColor);
+        }
+        return currentColor;
+    }
+"""
+
+/** [BLEND_MODE_SHADER_MAIN_STANDARD] with the blended result ramp-mixed over the source. */
+private const val BLEND_MODE_SHADER_MAIN_STANDARD_RAMP = """
+    half4 main(float2 fragCoord) {
+        half4 src = child.eval(fragCoord);
+        half4 currentColor = src;
+        int count = int(layerCount);
+
+        for (int i = 0; i < 8; i++) {
+            if (i >= count) break;
+            half4 layerColor = layerColors[i];
+            int mode = int(blendModes[i]);
+            currentColor = doBlend(mode, layerColor, currentColor);
+        }
+        return mix(src, currentColor, half(rampWeight(fragCoord)));
+    }
+"""
+
+/** [BLEND_MODE_SHADER_MAIN_EXTENDED] with the blended result ramp-mixed over the source. */
+private const val BLEND_MODE_SHADER_MAIN_EXTENDED_RAMP = """
+    half4 main(float2 fragCoord) {
+        half4 src = child.eval(fragCoord);
+        float4 currentColor = float4(src);
+        int count = int(layerCount);
+
+        for (int i = 0; i < 8; i++) {
+            if (i >= count) break;
+            half4 layerColor = layerColors[i];
+            int mode = int(blendModes[i]);
+            // Standard modes produce premultiplied result directly
+            if (mode <= 28) {
+                currentColor = float4(doBlend(mode, layerColor, half4(currentColor)));
+            } else {
+                // Unpremultiply for custom modes (they expect straight alpha)
+                float bgA = currentColor.a;
+                float3 bgStr = bgA > 0.0001 ? currentColor.rgb / bgA : float3(0.0);
+                half lcA = layerColor.a;
+                half3 lcStr = lcA > 0.0 ? layerColor.rgb / lcA : half3(0.0);
+
+                half4 bg = half4(half3(bgStr), half(bgA));
+                half4 lc = half4(lcStr, lcA);
+
+                // getBlendModeColor handles alpha internally, returns unpremultiplied result
+                half4 blended = getBlendModeColor(bg, bg, mode, lc);
+
+                // Re-premultiply
+                float outA = float(blended.a);
+                currentColor = float4(float3(blended.rgb) * outA, outA);
+            }
+        }
+        return mix(src, half4(currentColor), half(rampWeight(fragCoord)));
+    }
+"""
+
+/** Branching `main` — extended family with unpremul/premul roundtrip for custom modes. */
+private const val BLEND_MODE_SHADER_MAIN_EXTENDED = """
+    half4 main(float2 fragCoord) {
+        float4 currentColor = float4(child.eval(fragCoord));
+        int count = int(layerCount);
+
+        for (int i = 0; i < 8; i++) {
+            if (i >= count) break;
+            half4 layerColor = layerColors[i];
+            int mode = int(blendModes[i]);
+            // Standard modes produce premultiplied result directly
+            if (mode <= 28) {
+                currentColor = float4(doBlend(mode, layerColor, half4(currentColor)));
+            } else {
+                // Unpremultiply for custom modes (they expect straight alpha)
+                float bgA = currentColor.a;
+                float3 bgStr = bgA > 0.0001 ? currentColor.rgb / bgA : float3(0.0);
+                half lcA = layerColor.a;
+                half3 lcStr = lcA > 0.0 ? layerColor.rgb / lcA : half3(0.0);
+
+                half4 bg = half4(half3(bgStr), half(bgA));
+                half4 lc = half4(lcStr, lcA);
+
+                // getBlendModeColor handles alpha internally, returns unpremultiplied result
+                half4 blended = getBlendModeColor(bg, bg, mode, lc);
+
+                // Re-premultiply
+                float outA = float(blended.a);
+                currentColor = float4(float3(blended.rgb) * outA, outA);
+            }
+        }
+        return half4(currentColor);
+    }
+"""

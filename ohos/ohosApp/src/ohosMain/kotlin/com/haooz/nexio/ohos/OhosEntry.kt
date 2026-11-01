@@ -1,6 +1,7 @@
 package com.haooz.nexio.ohos
 
 import androidx.compose.ui.window.ComposeArkUIViewController
+import com.haooz.chedule.data.WallpaperStore
 import kotlin.experimental.ExperimentalNativeApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.ArkTS.ArkTS_Napi_NativeModule.napi_env
@@ -17,5 +18,24 @@ import platform.ArkTS.ArkTS_Napi_NativeModule.napi_value
 @OptIn(ExperimentalNativeApi::class, ExperimentalForeignApi::class)
 @CName("MainArkUIViewController")
 fun MainArkUIViewController(env: napi_env): napi_value {
+    installPlatformBackends()
     return ComposeArkUIViewController(env) { NexioRoot() }
+}
+
+/**
+ * 平台能力注入 —— 与 `IosAppEntry` / `NexioApplication` 里做的是同一件事。
+ *
+ * 必须在建 controller 之前跑完：`WallpaperStore.synchronousLoader` 是**首帧同步路径**，
+ * 晚一步就会先画一帧纯色再跳成用户壁纸。
+ *
+ * ⚠ 这里只在 `OhosEnv` 就绪（ArkTS 已调 `setAppEnv`）时才装上壁纸后端 ——
+ * 路径没传进来时读盘会失败，不如让它保持 null（表现为"没有壁纸"，卡片走纯色底）。
+ */
+private fun installPlatformBackends() {
+    if (!OhosEnv.isReady) return
+    if (WallpaperStore.backend == null) {
+        val backend = OhosWallpaperBackend()
+        WallpaperStore.backend = backend
+        WallpaperStore.synchronousLoader = { backend.loadNow() }
+    }
 }

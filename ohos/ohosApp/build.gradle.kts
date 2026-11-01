@@ -1,87 +1,121 @@
 // 鸿蒙端构建脚本（独立于根构建）。
-//
-// 工具链版本线：CPF-KMP-CMP **1.2.0 批次**（2026-11-01 实测确认，别改成 0.1.0 批次）：
-//   Kotlin  2.2.21-1.2.0-04
-//   Compose 1.9.2-1.2.0-08
-//   Skiko   0.9.22.2-1.2.0
-//   Gradle  8.14.1 + JDK 21
-// 依据：ArkTS 侧 HAR @cpf-kmp-cmp/compose 只发布到 1.9.2-1.2.0，且其 CHANGELOG 明确
-// 「版本对齐 CPF-KMP-CMP 1.2.0 批次（配套 Kotlin 2.2.21-1.2.0 / Skiko 0.9.22.2-1.2.0 /
-// CMP 1.9.2-1.2.0）」。Maven 上更新的 1.12.0-0.1.0-15 是预发批次，宿主包没发，接不上。
-// 升级时三个版本必须一起动，且要与 ArkTS 侧 `@cpf-kmp-cmp/compose` HAR 的版本对齐 ——
-// HAR 负责把 Compose 的绘制接到 ArkUI 上，两边版本不一致会在运行时（不是编译时）黑屏。
+// 版本线 CPF-KMP-CMP 1.2.0 批次：Kotlin 2.2.21-1.2.0-04 / Compose 1.9.2-1.2.0-08 /
+// Skiko 0.9.22.2-1.2.0 / Gradle 8.14.1 + JDK 21。三者必须与 ArkTS 侧 HAR 同步升降，
+// 不一致会在运行时黑屏。
 
 plugins {
-    kotlin("multiplatform") version "2.2.21-1.2.0-04"
-    id("org.jetbrains.compose") version "1.9.2-1.2.0-08"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.2.21-1.2.0-04"
+    kotlin("multiplatform")
+    id("org.jetbrains.compose")
+    id("org.jetbrains.kotlin.plugin.compose")
+    // 2.2.1-1.1.0-01 是唯一发布了 ohos 变体的线；主构建的 2.3.2 没有。
+    id("app.cash.sqldelight")
 }
 
-// ── 上游 C++ 宿主胶水（compose_arkui_utils）──────────────────────────────────
-// 45 个 androidx_compose_ui_arkui_ArkUIViewController_* 符号由这份 C++ 编出来。
+sqldelight {
+    // 必须关：默认会给 native 产物加 `linkerOpts -lsqlite3`，鸿蒙 sysroot 里没有 sqlite。
+    // 它挂在 SqlDelightExtension 上，放进 create("...") 里会 Unresolved。
+    linkSqlite.set(false)
+    databases {
+        create("NexioDatabase") {
+            packageName.set("com.haooz.chedule.data.db")
+            // 直接指向 :core 的 .sq，不复制
+            srcDirs.setFrom(rootProject.file("../core/src/commonMain/sqldelight"))
+            // 鸿蒙线没有历史基线库，迁移正确性由主构建的 verifyMigrations 守
+            verifyMigrations.set(false)
+        }
+    }
+}
+
+// 上游 C++ 宿主胶水：45 个 androidx_compose_ui_arkui_ArkUIViewController_* 符号。
 // 编法：ohos/third_party/compose_arkui_utils/build.sh arm64-v8a
 val arkuiUtilsLib = rootProject.file("third_party/compose_arkui_utils/lib/arm64-v8a/libcompose_arkui_utils.a")
 require(arkuiUtilsLib.isFile) {
     "缺少 $arkuiUtilsLib —— 先跑 ohos/third_party/compose_arkui_utils/build.sh arm64-v8a"
 }
 
-kotlin {
-    // ⚠ 不能声明 jvm()：适配版只发布 AndroidJVM 与 native(ohos/ios) 变体，
-    // 从不发布 jvm(desktop) 制品 —— 加了 jvm 目标会去要 ui-desktop，直接解析失败（已实测）。
-    // 想在本机看排版，用上游 CMP 起一个临时工程指到同一个源文件，别往这里加。
+// 生成类必须与主构建同名同包，资源目录也指向 ui-shared 那一份。
+compose.resources {
+    packageOfResClass = "com.haooz.chedule.uishared.resources"
+    publicResClass = true
+    customDirectory("commonMain", provider { layout.projectDirectory.dir("../../ui-shared/src/commonMain/composeResources") })
+}
 
-    // 真机 + 模拟器都是 arm64（Apple Silicon 上的鸿蒙模拟器同样走 arm64）
+kotlin {
+    // 不能声明 jvm()：适配版只发布 AndroidJVM 与 native 变体，加 jvm 会去要 ui-desktop。
+
+    // 真机与 Apple Silicon 上的模拟器都是 arm64
     ohosArm64 {
         binaries {
             sharedLib {
                 baseName = "nexioohos"
-                // 与上游 compose_arkui_utils.def 的 linkerOpts 一致：静态库引用到的系统库
+                // 与上游 compose_arkui_utils.def 一致：静态库引用到的系统库
                 linkerOpts(
                     "-limage_source", "-lpixelmap", "-lpixelmap_ndk.z", "-lnative_buffer",
-                    "-ldeviceinfo_ndk.z", "-lhiappevent_ndk.z", "-lnative_drawing", "-lnative_window"
+                    "-ldeviceinfo_ndk.z", "-lhiappevent_ndk.z", "-lnative_drawing", "-lnative_window",
+                    // OhosAssetReader 读 rawfile 用的 `OH_ResourceManager_*`
+                    "-lrawfile.z",
+                    // `OH_ResourceManager_GetMediaData` 只在 libohresmgr.so；缺这条时 GOT 槽留脏值，
+                    // 首次调用跳到链接期地址（SIGSEGV，pc 落在 .plt）。
+                    "-lohresmgr"
                 )
-                // ⚠ 必须显式链 libskikobridge.so：**只为让它进 DT_NEEDED**。
-                // compose_arkui_utils 的 C++ 通过 GOT 调 skikobridge_* 一组 C 函数，
-                // 实现在 HAR 带的 libskikobridge.so 里。少了这条 DT_NEEDED，运行时 ld.so
-                // 不会去那个库找符号，槽位被填成 0 —— 实测崩在
-                // skiko#get-currentSystemTheme → syncSystemThemeState（NULL 解引用 @0x0）。
+                // sqlite3 静态库：只给 `-L`，native-driver 的 cinterop 自带 -lsqlite3，重复会 duplicate symbol
+                linkerOpts(
+                    "-L${rootProject.file("third_party/sqlite/lib/arm64-v8a").absolutePath}"
+                )
+                // libskikobridge 进 DT_NEEDED：compose_arkui_utils 的 C++ 通过 GOT 调 skikobridge_*
                 linkerOpts(
                     "-L${rootProject.file("third_party/compose_arkui_utils/skikobridge/lib/arm64-v8a").absolutePath}",
                     "-lskikobridge"
                 )
+                // 诊断开关，平时关：打开后未定义符号会在加载期直接报名字
+                // （`relocating failed: symbol not found … s=<符号名>`）；但只要还剩一个，App 就起不来。
+                // linkerOpts("-z", "now")
             }
         }
 
     }
 
     sourceSets {
-        // ohos 分组不在默认层级模板里，必须手工建出来再让目标源集依赖它
+        // ohos 分组不在默认层级模板里，手工建
         val ohosMain by creating { dependsOn(commonMain.get()) }
         ohosArm64Main { dependsOn(ohosMain) }
 
-        // ── C ABI 转发层：编进我们自己的模块，不能靠 Maven 依赖 ────────────────
-        // `androidx_compose_ui_arkui_ArkUIViewController_*` 这 44 个 C 符号由
-        // compose/export/export 模块用 @CName 提供（转发给 ui 里的 _ArkUIViewController_*）。
-        //
-        // 只加 `implementation("org.jetbrains.compose.export:export:...")` 没用 —— 实测该 klib
-        // 确实进了链接（libraries 里有 export-ohosArm64Main-*.klib），但那些 @CName 函数被
-        // DCE 掉了：库 klib 里的 @CName 不会被当成本模块的导出根。结果 libnexioohos.so 里
-        // 这 44 个符号仍是 U，宿主一建 controller 就跳空地址。
-        // 把它们编进当前模块即可 —— 本模块的 @CName 才是真正的导出根。
+        // C ABI 转发层必须编进本模块：库 klib 里的 @CName 不算导出根，会被 DCE 掉。
         ohosMain.kotlin.srcDir(rootProject.file("third_party/compose_export/commonMain"))
         ohosMain.kotlin.srcDir(rootProject.file("third_party/compose_export/ohosMain"))
+
+        // 共享源码：与主构建同一份文件，这里再编一次成 ohosArm64 klib。
+        // 带 expect 的进 commonMain、actual 进 ohosMain，混在一起会判「同一模块内 expect/actual」。
+        // `-Pnexio.ohos.shared=false` 可临时关掉，编回占位页。
+        if ((project.findProperty("nexio.ohos.shared") as? String)?.toBoolean() != false) {
+            getByName("commonMain").kotlin.srcDir(rootProject.file("../ui-shared/src/portable/kotlin"))
+            getByName("commonMain").kotlin.srcDir(rootProject.file("../ui-shared/src/commonMain/kotlin"))
+            getByName("commonMain").kotlin.srcDir(rootProject.file("../core/src/commonMain/kotlin"))
+            // 需要被共享代码看见的平台实现只能进 commonMain 源根
+            getByName("commonMain").kotlin.srcDir("src/ohosSharedCommon/kotlin")
+            ohosMain.kotlin.srcDir("src/ohosSharedCore/kotlin")
+        }
 
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
+            // 共享页面用的 Res / painterResource
+            api(compose.components.resources)
+            // 版本都取 1.2.0 批次里发布了 ohos 变体的那条线，写上游版本会解析失败
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1-1.1.0-02")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2-1.1.0-02")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.1-1.1.0-02")
+            implementation("app.cash.sqldelight:runtime:2.2.1-1.1.0-01")
+            implementation("app.cash.sqldelight:native-driver:2.2.1-1.1.0-01")
+            // 液态玻璃与 miuix 的 ohos 变体（玻璃在鸿蒙上降级为纯色，API 面与 Android 一致）
+            api(project(":sharedBackdrop"))
+            api(project(":sharedMiuix"))
         }
     }
 
-    // 转发层要 opt-in 的内部 API（与上游 export 模块的 languageSettings 一致）。
-    // 注意必须落到**编译任务**上：languageSettings 只对「编译该源集自己的 klib」生效，
-    // ohosMain 的源码是和 ohosArm64Main 一起编的，挂在 ohosMain 上不生效（实测报一堆 opt-in 错误）。
+    // 转发层要 opt-in 的内部 API。必须挂在源集上：languageSettings 只对编译该源集自身生效。
     sourceSets.getByName("ohosMain").languageSettings.apply {
         optIn("androidx.compose.ui.InternalComposeUiApi")
         optIn("androidx.compose.ui.annotation.InternalComposeApi")
@@ -92,25 +126,33 @@ kotlin {
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configureEach {
     compilerOptions.freeCompilerArgs.addAll(
+        // kotlinx-datetime 0.7.x 把 Clock/Instant 挪进了 kotlin.time（实验 API）
+        "-opt-in=kotlin.time.ExperimentalTime",
         "-opt-in=androidx.compose.ui.InternalComposeUiApi",
         "-opt-in=androidx.compose.ui.annotation.InternalComposeApi",
         "-opt-in=kotlin.experimental.ExperimentalNativeApi",
-        "-opt-in=kotlinx.cinterop.ExperimentalForeignApi"
+        "-opt-in=kotlinx.cinterop.ExperimentalForeignApi",
+        // 静态库整包塞进 .so，未被引用的对象才会进来。
+        // 只能走编译任务的 compilerOptions —— NativeBinary.freeCompilerArgs 不生效。
+        "-include-binary", arkuiUtilsLib.absolutePath
     )
 }
 
-// -include-binary 必须挂在**链接任务**上（KotlinNativeLink），不是编译任务：
-// 它让 link 阶段把这个静态库整包塞进 .so，静态库里未被引用的对象才会进来。
-// -include-binary 要让 konanc 在编译期就把静态库挂进产物；
-// 任务级入口是 KotlinNativeCompile.compilerOptions（NativeBinary.freeCompilerArgs 实测不生效）。
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configureEach {
-    compilerOptions.freeCompilerArgs.addAll("-include-binary", arkuiUtilsLib.absolutePath)
+// ── compose resources → HAP rawfile ──────────────────────────────────────────
+// 鸿蒙从 `rawfile/composeResources/<package>/…` 读，**必须带 package 一层**，少一层打开页面即闪退。
+// hvigor 只认 harmonyApp/entry/src/main/resources/rawfile，所以由 Gradle 拷过去。
+val syncComposeResources = tasks.register<Copy>("syncComposeResourcesToHarmony") {
+    group = "compose resources"
+    description = "把 compose resources 拷进 HAP 的 rawfile（带 package 目录层）"
+    dependsOn("prepareComposeResourcesTaskForCommonMain")
+    from(layout.buildDirectory.dir("generated/compose/resourceGenerator/preparedResources/commonMain/composeResources")) {
+        into("com.haooz.chedule.uishared.resources")
+    }
+    into(rootProject.file("../harmonyApp/entry/src/main/resources/rawfile/composeResources"))
 }
 
 // ── 产物同步：把 Kotlin 编出来的 .so 交给 ArkTS 宿主 ────────────────────────
-// 官方示例里这一步叫 publishDebugBinariesToHarmonyApp，就是 hvigor 侧的 Copy 任务。
-// 放在这里而不是 hvigorfile，是因为产物归 Kotlin 构建所有：谁生成谁负责搬，
-// 免得「忘了拷」被误判成「Compose 没生效」。
+// 产物归 Kotlin 构建所有，谁生成谁负责搬，避免「忘了拷」被误判成 Compose 没生效。
 val publishToHarmonyApp by tasks.registering(Copy::class) {
     from(layout.buildDirectory.dir("bin/ohosArm64/debugShared")) {
         include("libnexioohos.so")
@@ -120,4 +162,9 @@ val publishToHarmonyApp by tasks.registering(Copy::class) {
 
 tasks.matching { it.name == "linkDebugSharedOhosArm64" }.configureEach {
     finalizedBy(publishToHarmonyApp)
+}
+
+// 链接完顺手把 compose resources 也搬过去
+publishToHarmonyApp.configure {
+    finalizedBy(syncComposeResources)
 }

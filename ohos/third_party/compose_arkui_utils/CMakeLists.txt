@@ -90,7 +90,8 @@ endif()
 # compose_arkui_utils (static, existing)
 # ------------------------------------------------------------------------------
 # 补上 HAR 版 libskikobridge.so 缺失的导出符号（我们自己的文件，见 nexio/ 里的注释）
-add_library(compose_arkui_utils STATIC napi_init.cpp ${SOURCES} nexio/nexio_skikobridge_shim.cpp)
+# nexio/nexio_icu_shim.cpp：补 skiko 需要的 ICU 符号名（见该文件头注释）
+add_library(compose_arkui_utils STATIC napi_init.cpp ${SOURCES} nexio/nexio_icu_shim.cpp)
 target_link_libraries(compose_arkui_utils PUBLIC libace_napi.z.so)
 target_link_libraries(compose_arkui_utils PUBLIC libdeviceinfo_ndk.z.so)
 target_link_libraries(
