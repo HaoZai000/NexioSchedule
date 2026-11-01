@@ -370,8 +370,8 @@ private class MiuixOverscrollEffectNode(
         cachedDensity = density
         cachedWindowInfo = windowInfo
         with(density) {
-            effect.scrollRangeV = windowInfo.containerDpSize.height.toPx()
-            effect.scrollRangeH = windowInfo.containerDpSize.width.toPx()
+            effect.scrollRangeV = windowInfo.containerSize.height.toFloat()
+            effect.scrollRangeH = windowInfo.containerSize.width.toFloat()
         }
     }
 

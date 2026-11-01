@@ -154,8 +154,8 @@ private class OverscrollNode(
         cachedScrollRangeDensity = currentDensity
         cachedScrollRangeWindowInfo = currentWindowInfo
         scrollRange = with(currentDensity) {
-            if (isVertical) currentWindowInfo.containerDpSize.height.toPx()
-            else currentWindowInfo.containerDpSize.width.toPx()
+            if (isVertical) currentWindowInfo.containerSize.height.toFloat()
+            else currentWindowInfo.containerSize.width.toFloat()
         }
     }
 

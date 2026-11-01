@@ -679,8 +679,9 @@ class MiuixPopupUtils {
 @Composable
 internal fun isLargeScreen(): Boolean {
     val windowInfo = LocalWindowInfo.current
-    val windowWidth = windowInfo.containerDpSize.width
-    val windowHeight = windowInfo.containerDpSize.height
+    val density = LocalDensity.current
+    val windowWidth = with(density) { windowInfo.containerSize.width.toDp() }
+    val windowHeight = with(density) { windowInfo.containerSize.height.toDp() }
     return windowHeight >= 480.dp && windowWidth >= 840.dp
 }
 

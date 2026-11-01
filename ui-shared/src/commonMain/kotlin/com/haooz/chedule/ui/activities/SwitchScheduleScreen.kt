@@ -261,11 +261,11 @@ fun SwitchScheduleScreen(
     }
     var scheduleSummaries by remember {
         mutableStateOf(
-            initialScheduleSummaries?.toMutableMap() ?: mutableMapOf()
+            initialScheduleSummaries?.toMutableMap() ?: mutableMapOf<String, String>()
         )
     }
     LaunchedEffect(initialScheduleSummaries) {
-        scheduleSummaries = initialScheduleSummaries?.toMutableMap() ?: mutableMapOf()
+        scheduleSummaries = initialScheduleSummaries?.toMutableMap() ?: mutableMapOf<String, String>()
     }
     // 文件夹：只存「课表名引用」，课表全局顺序仍由 scheduleNames 决定
     var folders by remember { mutableStateOf(repository.getScheduleFolders()) }
