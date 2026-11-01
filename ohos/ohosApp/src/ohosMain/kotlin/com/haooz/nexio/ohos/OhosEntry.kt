@@ -1,7 +1,15 @@
 package com.haooz.nexio.ohos
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.window.ComposeArkUIViewController
 import com.haooz.chedule.data.WallpaperStore
+import com.haooz.chedule.ui.utils.LocalNativeTopBarHost
+import com.haooz.chedule.ui.utils.NativeTopBarHost
 import kotlin.experimental.ExperimentalNativeApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.ArkTS.ArkTS_Napi_NativeModule.napi_env
@@ -19,7 +27,26 @@ import platform.ArkTS.ArkTS_Napi_NativeModule.napi_value
 @CName("MainArkUIViewController")
 fun MainArkUIViewController(env: napi_env): napi_value {
     installPlatformBackends()
-    return ComposeArkUIViewController(env) { NexioRoot() }
+    return ComposeArkUIViewController(env) { OhosRoot() }
+}
+
+/**
+ * 鸿蒙根：装上「宿主自绘顶栏」的注入点。
+ *
+ * 顶栏整条由 ArkTS 画（见 [NativeTopBarHost] 的说明），这里只把 Compose 发布的状态推过去、
+ * 把宿主点的按钮转回来。观察必须放在组合里：`snapshotFlow` 才能拿到 Compose 的状态快照。
+ */
+@Composable
+private fun OhosRoot() {
+    val topBar = remember { NativeTopBarHost().apply { ownsTopBar = true } }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(topBar, scope) {
+        TopBarBridge.bind(topBar, scope)
+        snapshotFlow { topBar.state }.collect { TopBarBridge.publish(it) }
+    }
+    CompositionLocalProvider(LocalNativeTopBarHost provides topBar) {
+        NexioRoot()
+    }
 }
 
 /**

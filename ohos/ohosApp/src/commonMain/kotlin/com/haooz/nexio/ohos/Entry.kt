@@ -4,11 +4,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.haooz.chedule.ui.activities.main.CourseScheduleApp
 import com.haooz.chedule.ui.navigation.AppNavHost
 import com.haooz.chedule.ui.navigation.LocalAppRouter
+import com.haooz.chedule.ui.utils.LocalNativeTopBarHost
 import com.haooz.chedule.ui.navigation.MainLayerTransition
 import com.haooz.chedule.ui.navigation.rememberAppRouter
 import com.haooz.chedule.ui.navigation.rememberNavTransitionState
@@ -33,6 +35,13 @@ fun NexioRoot() {
     installPlatformStorage()
     CourseScheduleTheme {
         val router = rememberAppRouter()
+        // 顶栏是 ArkUI 画的、在 Compose 之外：push 子页时主内容会缩放位移，它不会跟着动，
+        // 所以栈非空就整条收起（组合期读 hasOverlay，才能订阅到栈变化）
+        val topBarHost = LocalNativeTopBarHost.current
+        if (topBarHost != null) {
+            val hasOverlay = router.hasOverlay
+            SideEffect { topBarHost.suppressed = hasOverlay }
+        }
         CompositionLocalProvider(LocalAppRouter provides router) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // 主界面（不在转场容器里）的首层进度：栈被恢复成非空时它应是「已被盖住」

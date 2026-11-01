@@ -89,6 +89,14 @@ internal fun MorePopupMenus(
     onTodayMoreBackCancelled: () -> Unit = {},
     // 平板右上角不显示「更多」：跳转/管理/外观都已在侧栏里
     enabled: Boolean = true,
+    /**
+     * 课程表页的「更多」已由宿主（鸿蒙 ArkUI 顶栏）接管。
+     *
+     * 这颗按钮的**收起态就是按钮本身**（`LiquidGlassDropdownMenu` 的 trigger），
+     * 宿主接管后它还留在 Compose 里，会从原生顶栏下面露出一截（实测是几个黑点）。
+     * 今日页那颗不受影响，所以这里只关课程表这一份。
+     */
+    scheduleMoreNative: Boolean = false,
 ) {
     if (!enabled) {
         // 菜单开着时切进/切出禁用场景（平板 rail、课表外观、课表切换）要强制收起，
@@ -142,44 +150,61 @@ internal fun MorePopupMenus(
         contentAlignment = Alignment.TopEnd
     ) {
         // 课程表页「更多」
-        LiquidGlassDropdownMenu(
-            show = showMorePopup,
-            backdrop = liquidGlassBackdrop,
-            fraction = morePopupFraction,
-            onDismiss = onMorePopupDismiss,
-            onBackProgress = onMoreBackProgress,
-            onBackCancelled = onMoreBackCancelled,
-            triggerIcon = MiuixIcons.More,
-            triggerContentDescription = CommonStr.more(),
-            onExpand = onMorePopupExpand,
-            offsetPx = scheduleMenuOffset,
-            materialAlpha = scheduleMaterialAlpha,
-        ) {
-            LiquidGlassDropdownMenuItem(
-                text = ChromeStr.jumpToWeek(),
-                onClick = {
-                    onMorePopupDismiss()
-                    onJumpWeek()
-                },
-                icon = {
-                    Icon(
-                        imageVector = MiuixIcons.Basic.FastForward,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            )
-            if (!isShiftMode) {
+        if (!scheduleMoreNative) {
+            LiquidGlassDropdownMenu(
+                show = showMorePopup,
+                backdrop = liquidGlassBackdrop,
+                fraction = morePopupFraction,
+                onDismiss = onMorePopupDismiss,
+                onBackProgress = onMoreBackProgress,
+                onBackCancelled = onMoreBackCancelled,
+                triggerIcon = MiuixIcons.More,
+                triggerContentDescription = CommonStr.more(),
+                onExpand = onMorePopupExpand,
+                offsetPx = scheduleMenuOffset,
+                materialAlpha = scheduleMaterialAlpha,
+            ) {
                 LiquidGlassDropdownMenuItem(
-                    text = ChromeStr.courseManage(),
+                    text = ChromeStr.jumpToWeek(),
                     onClick = {
                         onMorePopupDismiss()
-                        onCourseManage()
+                        onJumpWeek()
                     },
                     icon = {
                         Icon(
-                            imageVector = MiuixIcons.Backup,
+                            imageVector = MiuixIcons.Basic.FastForward,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                )
+                if (!isShiftMode) {
+                    LiquidGlassDropdownMenuItem(
+                        text = ChromeStr.courseManage(),
+                        onClick = {
+                            onMorePopupDismiss()
+                            onCourseManage()
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = MiuixIcons.Backup,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(23.dp)
+                            )
+                        }
+                    )
+                }
+                LiquidGlassDropdownMenuItem(
+                    text = ChromeStr.scheduleAppearance(),
+                    onClick = {
+                        onMorePopupDismiss()
+                        onEnterCustomize()
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = MiuixIcons.Background,
                             contentDescription = null,
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(23.dp)
@@ -187,21 +212,6 @@ internal fun MorePopupMenus(
                     }
                 )
             }
-            LiquidGlassDropdownMenuItem(
-                text = ChromeStr.scheduleAppearance(),
-                onClick = {
-                    onMorePopupDismiss()
-                    onEnterCustomize()
-                },
-                icon = {
-                    Icon(
-                        imageVector = MiuixIcons.Background,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(23.dp)
-                    )
-                }
-            )
         }
         // 今日页「更多」
         LiquidGlassDropdownMenu(

@@ -65,3 +65,18 @@ export const setHttpResult: (
 export const registerToast: (
   toast: (message: string, longDuration: boolean) => void
 ) => void;
+
+/**
+ * 顶栏语义：Compose 发布，ArkTS 用系统组件渲染。
+ *
+ * 宿主顶栏走 `Navigation` 的标题栏（`title`）与官方沉浸光感材质
+ * （`uiMaterial.ImmersiveMaterial`），不再自绘模糊 —— JSON 字段与 Kotlin 的
+ * `NativeTopBarState` 一一对应，`titleHeightDp` 是**不含状态栏**的标题栏高度，
+ * `statusBarDp` 由宿主自己补到标题栏顶端（实测标题栏从窗口 y=0 开始排，不吃安全区）。
+ */
+export const registerTopBar: (
+  publish: (json: string) => void
+) => void;
+
+/** 顶栏按钮 / 菜单动作回传给 Compose（"switchSchedule" / "more" / "jumpWeek" / ...）。 */
+export const topBarAction: (id: string) => void;

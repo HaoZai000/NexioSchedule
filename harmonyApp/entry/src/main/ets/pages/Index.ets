@@ -1,21 +1,3 @@
-/**
- * 鸿蒙端宿主页。
- *
- * 这一页只做一件事：把 Compose 的 controller 挂到 ArkUI 节点上。
- * 界面本身全在 Kotlin 侧（`ohos/ohosApp` → `libnexioohos.so`），这里不写任何业务 UI ——
- * 在 ArkTS 里再画一份就是两套真相。
- *
- * 链路：setAppEnv(沙箱目录, 屏幕像素) → MainArkUIViewController()（NAPI，来自
- * libentry.so → libnexioohos.so）→ Compose 组件（HAR）→ XComponent → Compose 渲染。
- *
- * 为什么要在 ArkTS 传目录：Kotlin/Native 侧拿不到 `UIAbilityContext`，而壁纸、缓存、
- * 设置的落盘目录只有 `context.filesDir` 给得出。
- */
-
-// 副作用 import：只为触发 libskikobridge 的 NAPI 模块注册（RegisterSkikobridgeModule）。
-// 它的 napi_init 里会调 `skikobridge_compose_coroutines_dispatcher_bind_jsenv(env)`，
-// 把协程调度器的 JS env 绑上 —— 不绑的话宿主每次投递任务都报
-// 「MainHandler: runOnMainThread failed: not initialized」。
 import 'libskikobridge.so';
 import { Compose, ArkUIViewController } from '@cpf-kmp-cmp/compose';
 import {
@@ -25,24 +7,34 @@ import {
   setWallpaperBytes,
   registerHttpSender,
   setHttpResult,
-  registerToast
+  registerToast,
+  registerTopBar,
+  topBarAction
 } from 'libentry.so';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { fileIo } from '@kit.CoreFileKit';
-import { display } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { http } from '@kit.NetworkKit';
 import { util } from '@kit.ArkTS';
-import { promptAction } from '@kit.ArkUI';
+import { display, promptAction, uiMaterial, LengthMetrics } from '@kit.ArkUI';
 
-/**
- * Kotlin 侧发起的 HTTP 请求。NDK 里没有 curl/openssl，网络统一走系统的 `@ohos.net.http`。
- *
- * 入参是 Kotlin 拼好的 JSON（method / url / headers / body / 超时），结果经 `setHttpResult`
- * 异步回传：`code <= 0` 表示失败，此时 body 是错误信息。
- */
+const USE_CONTENT_GRADIENT_BLUR: boolean = true;
+
+interface BlurBand {
+  height: string;
+  radius: number;
+}
+
+const TOP_BAR_BLUR_BANDS: BlurBand[] = [
+  { height: '100%', radius: 3 },
+  { height: '76%', radius: 5 },
+  { height: '56%', radius: 8 },
+  { height: '38%', radius: 12 },
+  { height: '22%', radius: 16 }
+];
+
 function sendHttp(requestId: number, payloadJson: string, maxBytes: number): void {
   const fail = (message: string): void => {
     setHttpResult(requestId, -1, new util.TextEncoder().encodeInto(message), false);
@@ -99,20 +91,56 @@ function sendHttp(requestId: number, payloadJson: string, maxBytes: number): voi
     });
 }
 
+interface NativeTopBarDay {
+  label: string;
+  date: string;
+  today: boolean;
+}
+
+interface NativeTopBarMenuItem {
+  id: string;
+  label: string;
+}
+
+interface NativeTopBarState {
+  title: string;
+  materialVisible: boolean;
+  accent: number;
+  onSurface: number;
+  onSurfaceVariant: number;
+  showsSwitch: boolean;
+  showsMore: boolean;
+  leadingPadDp: number;
+  trailingPadDp: number;
+  heightDp: number;
+  titleHeightDp: number;
+  statusBarDp: number;
+  days: NativeTopBarDay[];
+  menu: NativeTopBarMenuItem[];
+}
+
+function argbHex(value: number): string {
+  return '#' + (value >>> 0).toString(16).padStart(8, '0');
+}
+
 @Entry
 @Component
 struct Index {
   private controller: ArkUIViewController | undefined = undefined;
+  @State private topBar: NativeTopBarState | null = null;
+  @State private topBarMaterial: number = 0;
+
+  private buttonMaterial: uiMaterial.ImmersiveMaterial =
+    new uiMaterial.ImmersiveMaterial({
+      style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
+      interactive: true,
+      lightEffect: { color: Color.White }
+    });
 
   aboutToAppear(): void {
-    // 先把运行环境交给 Kotlin（沙箱目录 + 屏幕像素），再建 controller：
-    // 壁纸是**首帧同步**读取的，晚一步就会先画一帧纯色再跳成用户壁纸。
     try {
       const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const d = display.getDefaultDisplaySync();
-      // 屏幕圆角半径（px）：API 17+ 的 `Display.getRoundedCorner()`。
-      // API 23+ 同一方法会返回 RoundedCorner[]（每个角各自 position/radius），这里都兼容。
-      // 无圆角的设备（外接显示器/部分模拟器）返回 0 —— 消费方会当作「不裁切」。
       let cornerRadiusPx = 0;
       try {
         const rc: Object = (d as object)['getRoundedCorner']?.();
@@ -129,16 +157,12 @@ struct Index {
       hilog.error(0x0000, 'nexio', 'setAppEnv failed: %{public}s', JSON.stringify(e as BusinessError));
     }
 
-    // 壁纸选图：UI 侧（Kotlin）点「选壁纸」时，反过来调这里起系统选图器，
-    // 选完把文件字节回传（Kotlin 负责解码/降采样/落盘）。
     registerWallpaperPicker((): void => {
       this.pickWallpaper();
     });
 
-    // 网络：Kotlin 侧发起请求时回调这里（必须在 JS 线程调用，Kotlin 侧已保证）
     registerHttpSender(sendHttp);
 
-    // 提示条：Kotlin 的 showToast 走这里；不接的话所有错误提示都会静默丢掉
     registerToast((message: string, longDuration: boolean): void => {
       try {
         promptAction.showToast({ message: message, duration: longDuration ? 3500 : 2000 });
@@ -147,11 +171,35 @@ struct Index {
       }
     });
 
-    // 拿到 Kotlin 侧的 controller 句柄；UI 树此时才真正建立
+    registerTopBar((json: string): void => {
+      if (json === 'null') {
+        this.topBar = null;
+        return;
+      }
+      let next: NativeTopBarState;
+      try {
+        next = JSON.parse(json) as NativeTopBarState;
+      } catch (e) {
+        hilog.warn(0x0000, 'nexio', 'top bar json parse failed');
+        return;
+      }
+      this.topBar = next;
+      const target: number = next.materialVisible ? 1 : 0;
+      if (target === this.topBarMaterial) {
+        return;
+      }
+      try {
+        this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, (): void => {
+          this.topBarMaterial = target;
+        });
+      } catch (e) {
+        this.topBarMaterial = target;
+      }
+    });
+
     this.controller = MainArkUIViewController();
   }
 
-  /** 起系统选图器，把选中的图以字节回传给 Kotlin。 */
   private pickWallpaper(): void {
     try {
       const picker = new photoAccessHelper.PhotoViewPicker();
@@ -183,18 +231,193 @@ struct Index {
     }
   }
 
-  build() {
-    Stack() {
-      if (this.controller !== undefined) {
-        Compose({
-          controller: this.controller,
-          libraryName: 'entry',
-          onBackPressed: () => false
+  private navSlotWidth(): number {
+    const count = (this.topBar?.showsSwitch === true ? 1 : 0) +
+      (this.topBar?.showsMore === true ? 1 : 0);
+    return count === 0 ? 0 : count * 40 + (count - 1) * 8 + 16;
+  }
+
+  @Builder
+  navTitle() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      if (!USE_CONTENT_GRADIENT_BLUR) {
+        this.navMaterial()
+      }
+
+      Column() {
+        Row() {
+          Blank().width(this.navSlotWidth())
+          Text(this.topBar?.title ?? '')
+            .layoutWeight(1)
+            .textAlign(TextAlign.Center)
+            .fontSize(19)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(argbHex(this.topBar?.onSurface ?? 0xFF000000))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          this.navButtons()
+        }
+        .width('100%')
+        .height(56)
+        .alignItems(VerticalAlign.Center)
+
+        Row() {
+          ForEach(this.topBar?.days ?? [], (day: NativeTopBarDay) => {
+            Column() {
+              Text(day.label)
+                .fontSize(12)
+                .fontWeight(day.today ? FontWeight.Bold : FontWeight.Normal)
+                .fontColor(argbHex(day.today
+                  ? (this.topBar?.accent ?? 0)
+                  : (this.topBar?.onSurface ?? 0)))
+              if (day.date !== '') {
+                Text(day.date)
+                  .fontSize(10)
+                  .fontColor(argbHex(day.today
+                    ? (this.topBar?.accent ?? 0)
+                    : (this.topBar?.onSurfaceVariant ?? 0)))
+              }
+            }
+            .layoutWeight(1)
+            .justifyContent(FlexAlign.Center)
+          }, (day: NativeTopBarDay) => day.label + day.date)
+        }
+        .width('100%')
+        .height(40)
+        .alignItems(VerticalAlign.Center)
+        .padding({
+          left: this.topBar?.leadingPadDp ?? 0,
+          right: this.topBar?.trailingPadDp ?? 0
         })
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Start)
+      .padding({ top: this.topBar?.statusBarDp ?? 0 })
+    }
+    .width('100%')
+    .height('100%')
+    .hitTestBehavior(HitTestMode.Transparent)
+  }
+
+  @Builder
+  navMaterial() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      ForEach(TOP_BAR_BLUR_BANDS, (band: BlurBand) => {
+        Column()
           .width('100%')
-          .height('100%')
+          .height(band.height)
+          .backdropBlur(band.radius)
+          .opacity(this.topBarMaterial)
+      }, (band: BlurBand) => band.height)
+    }
+    .width('100%')
+    .height('100%')
+    .hitTestBehavior(HitTestMode.Transparent)
+  }
+
+  @Builder
+  navButtons() {
+    Row({ space: 8 }) {
+      if (this.topBar?.showsSwitch === true) {
+        this.navSwitchButton()
+      }
+      if (this.topBar?.showsMore === true) {
+        this.navMoreButton()
       }
     }
+    .width(this.navSlotWidth())
+    .height(56)
+    .padding({ right: 16 })
+    .justifyContent(FlexAlign.End)
+    .alignItems(VerticalAlign.Center)
+  }
+
+  @Builder
+  navSwitchButton() {
+    Button({ type: ButtonType.Circle, stateEffect: true }) {
+      SymbolGlyph($r('sys.symbol.arrow_left_arrow_right'))
+        .fontSize(20)
+        .fontColor([argbHex(this.topBar?.onSurface ?? 0xFF000000)])
+    }
+    .width(40)
+    .height(40)
+    .backgroundColor(Color.Transparent)
+    .systemMaterial(this.buttonMaterial)
+    .onClick((): void => {
+      topBarAction('switchSchedule');
+    })
+  }
+
+  @Builder
+  navMoreButton() {
+    Button({ type: ButtonType.Circle, stateEffect: true }) {
+      SymbolGlyph($r('sys.symbol.more'))
+        .fontSize(20)
+        .fontColor([argbHex(this.topBar?.onSurface ?? 0xFF000000)])
+    }
+    .width(40)
+    .height(40)
+    .backgroundColor(Color.Transparent)
+    .systemMaterial(this.buttonMaterial)
+    .bindMenu(this.moreMenu)
+  }
+
+  @Builder
+  moreMenu() {
+    Menu() {
+      ForEach(this.topBar?.menu ?? [], (item: NativeTopBarMenuItem) => {
+        MenuItem({ content: item.label })
+          .onClick((): void => {
+            topBarAction(item.id);
+          })
+      }, (item: NativeTopBarMenuItem) => item.id)
+    }
+    // 菜单宽度
+    .width(220)
+    // 菜单分割线
+    .menuItemDivider({
+      strokeWidth: LengthMetrics.vp(0.5),
+      color: $r('sys.color.comp_divider'),
+    })
+  }
+
+  private titleHeight(): number {
+    return (this.topBar?.statusBarDp ?? 0) + (this.topBar?.titleHeightDp ?? 118);
+  }
+
+  build() {
+    Navigation() {
+      Stack() {
+        if (this.controller !== undefined) {
+          Compose({
+            controller: this.controller,
+            libraryName: 'entry',
+            onBackPressed: () => false
+          })
+            .width('100%')
+            .height('100%')
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .linearGradientBlur(USE_CONTENT_GRADIENT_BLUR ? 18 : 0, {
+        fractionStops: [
+          [1.0, 0.0],
+          [1.0, 0.14],
+          [0.0, 0.18]
+        ],
+        direction: GradientDirection.Bottom
+      })
+    }
+    .mode(NavigationMode.Stack)
+    .titleMode(NavigationTitleMode.Mini)
+    .hideBackButton(true)
+    .hideTitleBar(this.topBar === null)
+    .title(
+      { builder: (): void => { this.navTitle() }, height: this.titleHeight() } as NavigationCustomTitle,
+      { barStyle: BarStyle.STACK }
+    )
     .width('100%')
     .height('100%')
   }

@@ -103,6 +103,7 @@ import com.haooz.chedule.ui.theme.rememberAppThemeController
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalHostNavigation
+import com.haooz.chedule.ui.utils.LocalNativeTopBarHost
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.addScreenCornerRect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
@@ -493,8 +494,14 @@ internal fun CourseScheduleAppMainContent(
                                         if (captureThemeActive) captureThemeIsDark
                                         else wallpaperForcedDark
                                     ) {
+                                        // 宿主自绘顶栏时，「更多」菜单由宿主用原生菜单渲染，
+                                        // 动作仍回到这里 —— 与下面 MorePopupMenus 同一套语义
+                                        val topBarRouter = LocalAppRouter.current
                                         ScheduleTopBar(
-                                            visible = true,
+                                            // 宿主顶栏在 Compose 之外、不会跟着 pager 滑动，
+                                            // 所以只在**停在课程表页**时发布：翻页中途与「今日」页都得收起，
+                                            // 否则它会浮在别的页面上
+                                            visible = scheduleTitleIdle,
                                             // 标题跟着 currentViewingWeek 走：程序化跳周的那一帧就切成目标周，
                                             // 不会再有一段「点完还停在第 10 周」的空窗
                                             pagerCurrentPage = currentViewingWeek - 1,
@@ -508,6 +515,7 @@ internal fun CourseScheduleAppMainContent(
                                             onOpenSwitchSchedule = { openScheduleLibrary() },
                                             onJumpWeek = { viewModel.showJumpWeekDialog() },
                                             onEnterCustomize = enterCustomizePage,
+                                            onCourseManage = { topBarRouter.navigate(AppRoute.CourseManage) },
                                             isTablet = isTablet,
                                             isShiftMode = isShiftMode,
                                             liquidGlassBackdrop = chromeBackdrop,
@@ -674,6 +682,9 @@ internal fun CourseScheduleAppMainContent(
                                 // 平板（rail）右上角不显示「更多」：跳转/管理/外观都在侧栏里。
                                 // iOS 主界面右上角那颗已由原生 UIMenu 接管，Compose 侧恒不渲染
                                 enabled = navBarStyle != "rail" && hostNavigation == null,
+                                // 鸿蒙：课程表页顶栏整条由 ArkUI 画，「更多」也在那边，
+                                // 这颗 Compose 触发按钮必须关掉，否则会从原生顶栏下面露出来
+                                scheduleMoreNative = LocalNativeTopBarHost.current?.ownsTopBar == true,
                                 // 预测性返回由 LiquidGlassDropdownMenu 内部驱动同一个 fraction Animatable，
                                 // 外面再 snapTo/animateTo 会和它互相 cancel，动画直接卡死。
                                 onJumpWeek = { viewModel.showJumpWeekDialog() },

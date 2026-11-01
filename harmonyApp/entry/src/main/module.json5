@@ -11,6 +11,14 @@
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
+    "metadata": [
+      {
+        // 开启应用级沉浸光感（系统材质）。组件级用 `.systemMaterial(...)` 单独指定，
+        // 这里开的是「让系统知道这个应用要光感」的全局开关，官方菜单/弹层才会带上材质。
+        "name": "ohos.arkui.UIMaterial.state",
+        "value": "enable"
+      }
+    ],
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET"

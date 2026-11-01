@@ -201,6 +201,55 @@ static void HostShowToast(const char *message, bool longDuration) {
 
 extern "C" void NexioOnToastHostReady(void (*fn)(const char *, bool));
 
+// ── 顶栏：Compose 只发布语义，ArkUI 画材质与文字 ─────────────────────────────
+// 为什么整条顶栏在 ArkUI：模糊必须压在内容之上、标题又要压在模糊之上，而 skia 后端
+// 整块界面只有一个 XComponent —— Compose 给不出「在原生层之上、在模糊之下」的层。
+static napi_ref g_topBarRef = nullptr;
+
+static napi_value NapiRegisterTopBar(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    napi_valuetype type = napi_undefined;
+    napi_typeof(env, args[0], &type);
+    if (type != napi_function) return nullptr;
+    g_env = env;
+    napi_create_reference(env, args[0], 1, &g_topBarRef);
+    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "top bar registered");
+    return nullptr;
+}
+
+/** Kotlin 侧的发布入口（函数指针交给 Kotlin）。必须在 JS 线程调用。 */
+static void HostPublishTopBar(const char *json) {
+    if (g_env == nullptr || g_topBarRef == nullptr) return;
+    napi_value callback = nullptr;
+    if (napi_get_reference_value(g_env, g_topBarRef, &callback) != napi_ok || callback == nullptr) return;
+    napi_value undefined = nullptr;
+    napi_get_undefined(g_env, &undefined);
+    napi_value argv[1] = {nullptr};
+    napi_create_string_utf8(g_env, json, NAPI_AUTO_LENGTH, &argv[0]);
+    napi_value result = nullptr;
+    napi_call_function(g_env, undefined, callback, 1, argv, &result);
+}
+
+extern "C" void NexioOnTopBarHostReady(void (*fn)(const char *));
+
+/** ArkTS 侧动作回传：topBarAction("jumpWeek")。 */
+extern "C" void NexioOnTopBarAction(const char *id);
+
+static napi_value NapiTopBarAction(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    size_t len = 0;
+    if (napi_get_value_string_utf8(env, args[0], nullptr, 0, &len) != napi_ok) return nullptr;
+    char *buf = new char[len + 1];
+    napi_get_value_string_utf8(env, args[0], buf, len + 1, &len);
+    NexioOnTopBarAction(buf);
+    delete[] buf;
+    return nullptr;
+}
+
 // 初始化协程的主线程调度器（Kotlin 侧 @CName("NexioInitMainHandler")）。
 // 不调的话 MainHandler.tsfn 恒为 null，Dispatchers.Main 会内联在调用方线程执行。
 extern "C" void NexioInitMainHandler(void *env);
@@ -223,6 +272,10 @@ static napi_value Init(napi_env env, napi_value exports) {
          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"registerToast", nullptr, NapiRegisterToast,
          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"registerTopBar", nullptr, NapiRegisterTopBar,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"topBarAction", nullptr, NapiTopBarAction,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
 
@@ -231,6 +284,7 @@ static napi_value Init(napi_env env, napi_value exports) {
     NexioOnWallpaperPickHostReady(HostRequestWallpaperPick);
     NexioOnHttpHostReady(HostHttpSend);
     NexioOnToastHostReady(HostShowToast);
+    NexioOnTopBarHostReady(HostPublishTopBar);
     return exports;
 }
 
