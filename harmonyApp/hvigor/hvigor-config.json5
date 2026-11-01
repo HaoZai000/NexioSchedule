@@ -1,5 +1,5 @@
 {
-  "modelVersion": "6.0.0",
+  "modelVersion": "26.0.0",
   "dependencies": {},
   "execution": {
     // "analyze": "normal",                     /* Define the build analyze mode. Value: [ "normal" | "advanced" | "ultrafine" | false ]. Default: "normal" */
