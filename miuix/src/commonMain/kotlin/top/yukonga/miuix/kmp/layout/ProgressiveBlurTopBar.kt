@@ -130,7 +130,10 @@ fun ProgressiveBlurTopBar(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
     height: Dp = Dp.Unspecified,
-    /** 叠在模糊层上的表面色浓度（0 = 纯模糊）。只作用于糊层，不盖 [content] */
+    /**
+     * 叠在模糊层上的表面色浓度（0 = 纯模糊）。只作用于糊层，不盖 [content]。
+     * 仅 AGSL 真渐进吃这个值（shader 里按 Y 衰减）；假渐进不再叠表面色，两条路径观感对齐。
+     */
     tintIntensity: Float = 0.2f,
     /** 表面色，默认取主题 surface */
     tintColor: Color = MiuixTheme.colorScheme.surface,
@@ -286,9 +289,6 @@ fun ProgressiveBlurTopBar(
                                 },
                                 highlight = null,
                                 shadow = null,
-                                onDrawSurface = {
-                                    drawRect(tintColor.copy(alpha = tintIntensity))
-                                },
                             )
                     )
                 }
