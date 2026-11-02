@@ -27,3 +27,11 @@ IPHONEOS_DEPLOYMENT_TARGET = 26.1
 // ⚠ 不要只留第二项：换 destination（模拟器 ⇄ 真机、不同 iOS 版 SDK）目录名就变了，
 //   会报 "Unable to resolve module dependency 'NexioShared'"，且看不出是路径问题。
 FRAMEWORK_SEARCH_PATHS = $(SRCROOT)/Frameworks $(SRCROOT)/../ui-shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+
+// 系统 sqlite3。必需，少了会链接失败：
+// :core 的 iosMain 走 SQLDelight 的 native driver（sqliter cinterop 直调 libsqlite3），
+// 而 ui-shared 产出的是 **静态** framework（isStatic = true），
+// Kotlin/Native 不会把 `-lsqlite3` 这类 linker 参数往消费方传 ——
+// 于是 App 链接期会把 sqlite3_open_v2 / sqlite3_step 等 30 个符号全部报 undefined。
+// 写在这里而不是 pbxproj：target 的 OTHER_LDFLAGS 带 $(inherited)，本行会自动汇入。
+OTHER_LDFLAGS = $(inherited) -lsqlite3
