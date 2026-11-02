@@ -65,6 +65,9 @@ object SettingsStr {
     val updateSettings = L("更新设置", "Update Settings")
     val aboutApp = L("关于应用", "About")
 
+    /** 「关于应用」右侧提示：该页内含捐赠入口。 */
+    val supportAuthor = L("支持作者", "Support the Author")
+
     // ---- 平板左栏目的地 ----
     val destSemester = L("学期与周次", "Semester & Weeks")
     val destFileCodeImport = L("文件口令导入", "File & Code Import")

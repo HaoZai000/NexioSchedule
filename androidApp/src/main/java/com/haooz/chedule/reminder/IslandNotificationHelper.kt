@@ -33,6 +33,10 @@ object IslandNotificationHelper {
     /** 渠道名在系统设置中展示，随语言取值 */
     private val CHANNEL_NAME: String get() = AndroidNotifStr.channelIslandName()
     private const val KEY_ISLAND_EXPAND_GLOW_ENABLED = "island_expand_glow_enabled"
+    /**
+     * 光效默认关闭。⚠ 必须与 `PreferenceSettingsScreen` 里这个开关的初值一致 ——
+     */
+    private const val DEFAULT_ISLAND_EXPAND_GLOW = false
     // 课中提醒：到点后「已上课」替换为模板6进度卡片
     const val KEY_IN_CLASS_REMINDER = "island_in_class_enabled"
     // 官方必选：运营场景标识
@@ -378,7 +382,7 @@ object IslandNotificationHelper {
         val json = JSONObject()
 
         val prefs = AppStorage.store("course_reminder_prefs")
-        val expandGlowEnabled = prefs.getBoolean(KEY_ISLAND_EXPAND_GLOW_ENABLED, true)
+        val expandGlowEnabled = prefs.getBoolean(KEY_ISLAND_EXPAND_GLOW_ENABLED, DEFAULT_ISLAND_EXPAND_GLOW)
         val leftMode = prefs.getInt("island_left_mode", 0)
         val rightMode = prefs.getInt("island_right_mode", 1)
         val aodMode = prefs.getInt("island_aod_mode", 0)
@@ -590,7 +594,7 @@ object IslandNotificationHelper {
     ): String {
         val json = JSONObject()
         val prefs = AppStorage.store("course_reminder_prefs")
-        val expandGlowEnabled = prefs.getBoolean(KEY_ISLAND_EXPAND_GLOW_ENABLED, true)
+        val expandGlowEnabled = prefs.getBoolean(KEY_ISLAND_EXPAND_GLOW_ENABLED, DEFAULT_ISLAND_EXPAND_GLOW)
         val aodMode = prefs.getInt("island_aod_mode", 0)
         // 课中岛缩略态 B 区：0=正在上课（静态文案），1=距下课倒计时
         val inClassRightMode = prefs.getInt("island_in_class_right_mode", 0)

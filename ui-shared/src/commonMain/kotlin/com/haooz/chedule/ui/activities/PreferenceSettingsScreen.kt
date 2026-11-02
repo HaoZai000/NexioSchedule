@@ -124,6 +124,7 @@ fun PreferenceSettingsScreen(
     val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
     val islandNotification by settingsViewModel.islandNotification.collectAsState()
     val reminderPrefs = remember { AppStorage.store("course_reminder_prefs") }
+    // 默认值必须与 IslandNotificationHelper.DEFAULT_ISLAND_EXPAND_GLOW 保持一致
     var islandExpandGlowEnabled by remember {
         mutableStateOf(reminderPrefs.getBoolean("island_expand_glow_enabled", false))
     }

@@ -38,6 +38,7 @@ import com.haooz.chedule.data.holiday.HolidayEntry
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.util.lengthOfMonth
 import com.haooz.chedule.data.util.todayLocalDate
+import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.ui.components.CardExpand
@@ -535,7 +536,14 @@ fun SettingsScreen(
                                     onClick = {
                                         FeatureLog.about("open")
                                         appRouter.navigate(AppRoute.About)
-                                    }
+                                    },
+                                    endActions = {
+                                        Text(
+                                            text = SettingsStr.supportAuthor(),
+                                            fontSize = 14.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                    },
                                 )
                             }
                         }

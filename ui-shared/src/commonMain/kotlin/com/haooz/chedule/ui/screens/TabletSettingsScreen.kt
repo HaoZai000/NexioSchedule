@@ -67,6 +67,7 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.i18n.L10n
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
 import com.haooz.chedule.ui.activities.CommunicationScreen
@@ -580,6 +581,10 @@ fun TabletSettingsScreen(
                                                 TabletLeftEntry(
                                                     dest = dest,
                                                     isSelected = dest == selected,
+                                                    // 与手机设置页一致：「关于应用」右侧提示该页内含捐赠入口
+                                                    hint = if (dest == TabletSettingsDest.About) {
+                                                        SettingsStr.supportAuthor
+                                                    } else null,
                                                     onSelect = {
                                                         TabletSettingsUiState.selected = dest
                                                     }
@@ -1096,12 +1101,30 @@ private fun TabletLeftEntry(
     dest: TabletSettingsDest,
     isSelected: Boolean,
     onSelect: () -> Unit,
+    /** 非空时在标题右侧渲染灰色提示；为空时必须不传 endActions —— 空 lambda 也会占 8dp 间距 */
+    hint: L10n? = null,
 ) {
-    ArrowPreference(
-        title = dest.displayTitle(),
-        holdDownState = isSelected,
-        onClick = onSelect,
-    )
+    if (hint == null) {
+        ArrowPreference(
+            title = dest.displayTitle(),
+            holdDownState = isSelected,
+            onClick = onSelect,
+        )
+    } else {
+        ArrowPreference(
+            title = dest.displayTitle(),
+            holdDownState = isSelected,
+            onClick = onSelect,
+            endActions = {
+                Text(
+                    text = hint(),
+                    fontSize = 14.5.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    textAlign = TextAlign.End,
+                )
+            },
+        )
+    }
 }
 
 /** 右栏：学期与周次 — 与手机设置页同等可编辑（日期/周数/新学期） */
