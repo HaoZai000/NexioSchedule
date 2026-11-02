@@ -127,6 +127,8 @@ fun BackupAndMigrationScreen(
     onShareSchedule: (scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit = { _, _ -> },
     /** 导出到手环（Android 专有；未连接/不支持时返回 null） */
     onExportToWearable: suspend (scheduleName: String) -> String? = { null },
+    /** 同步到系统日历（Android 专有；未实现的平台保持默认值 → 点按只提示不支持） */
+    onSyncToCalendar: suspend (scheduleName: String) -> CalendarSyncResult = { CalendarSyncResult.Unsupported },
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -497,6 +499,32 @@ fun BackupAndMigrationScreen(
                         insideMargin = PaddingValues(0.dp)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            ArrowPreference(
+                                title = BackupStr.syncToCalendar(),
+                                summary = BackupStr.syncToCalendarSummary(),
+                                onClick = {
+                                    if (selectedExportSchedule.isBlank()) {
+                                        showToast(BackupStr.selectScheduleToShareFirst())
+                                    } else {
+                                        scope.launch {
+                                            val result = onSyncToCalendar(selectedExportSchedule)
+                                            val message = when (result) {
+                                                is CalendarSyncResult.Success ->
+                                                    BackupStr.calendarSyncSuccessN(result.count)
+                                                CalendarSyncResult.PermissionDenied ->
+                                                    BackupStr.calendarPermissionDenied()
+                                                CalendarSyncResult.NoWritableCalendar ->
+                                                    BackupStr.calendarNoWritable()
+                                                CalendarSyncResult.Failed ->
+                                                    BackupStr.calendarSyncFailed()
+                                                CalendarSyncResult.Unsupported ->
+                                                    BackupStr.platformNotSupportedN(BackupStr.syncToCalendar())
+                                            }
+                                            showToast(message, longDuration = true)
+                                        }
+                                    }
+                                }
+                            )
                             ArrowPreference(
                                 title = BackupStr.exportToWearable(),
                                 summary = BackupStr.exportToWearableSummary(),
@@ -898,12 +926,34 @@ internal fun icsEffectiveDatesForCourse(
 internal fun icsEventUid(courseId: String, teachingWeek: Int, date: LocalDate): String =
     "$courseId-$teachingWeek-${date.toString().replace("-", "")}@nexio-schedule"
 
+/** 一条待写进系统日历的课程事件；时间按「生效日 + 节次」算好，与 ICS 导出同源。 */
+data class ScheduleCalendarEvent(
+    val uid: String,
+    val title: String,
+    val location: String,
+    val description: String,
+    val start: LocalDateTime,
+    val end: LocalDateTime,
+)
+
+/** 「同步到日历」的结果。未实现的平台恒为 [Unsupported]。 */
+sealed interface CalendarSyncResult {
+    /** 写入条数（已存在而跳过的也算成功）。 */
+    data class Success(val count: Int) : CalendarSyncResult
+    data object PermissionDenied : CalendarSyncResult
+    data object NoWritableCalendar : CalendarSyncResult
+    data object Failed : CalendarSyncResult
+    data object Unsupported : CalendarSyncResult
+}
+
 /**
- * 组装 ICS 文本（`DTSTART/DTEND` 用 [LocalDateTime] + [formatIcsTimestamp]）。
+ * 把某张课表展开成逐节课的事件列表；课表为空时弹 toast 并返回 null。
+ *
+ * [buildExportIcs] 和宿主的「同步到日历」都走这里，时间口径只有一份。
  * ⚠ 节次时间可能越界（如 `24:00`）：`LocalTime` 入参越界会抛异常，故夹取到 23:59，
  * 不沿用旧 `Calendar.set` 的静默进位。
  */
-private fun buildExportIcs(scheduleName: String): String? {
+fun buildScheduleCalendarEvents(scheduleName: String): List<ScheduleCalendarEvent>? {
     val repository = CourseRepository()
     val courses = repository.getCoursesForSchedule(scheduleName)
     if (courses.isEmpty()) {
@@ -924,6 +974,48 @@ private fun buildExportIcs(scheduleName: String): String? {
         it.selectedWeeks.maxOrNull() ?: it.endWeek
     } ?: 0
 
+    val events = ArrayList<ScheduleCalendarEvent>(courses.size * 8)
+    for (course in courses) {
+        val startSectionTime = course.getEffectiveStartTime(sectionTimes) ?: continue
+        val endSectionTime = course.getEffectiveEndTime(sectionTimes) ?: continue
+
+        val startHour = startSectionTime.substringBefore("-").substringBefore(":").toIntOrNull() ?: 8
+        val startMinute = startSectionTime.substringBefore("-").substringAfter(":").toIntOrNull() ?: 0
+        val endHour = endSectionTime.substringAfter("-").substringBefore(":").toIntOrNull() ?: 9
+        val endMinute = endSectionTime.substringAfter("-").substringAfter(":").toIntOrNull() ?: 0
+
+        // 为每个周次生成独立事件（避免非连续周的 RRULE 问题）
+        for ((week, actualDate) in icsEffectiveDatesForCourse(
+            course, semesterStartDate, rules, holidayEntries, holidayExclusion,
+            sectionTimes, sectionCount, repository.getTotalWeeks(scheduleName), lastWeekWithCourses,
+            holidayBeforeExclusion,
+        )) {
+            events += ScheduleCalendarEvent(
+                uid = icsEventUid(course.id, week, actualDate),
+                title = course.name,
+                location = listOfNotNull(
+                    course.classroom.takeIf { it.isNotBlank() },
+                    course.teacher.takeIf { it.isNotBlank() }
+                ).joinToString(" "),
+                description = CommonStr.weekN(week),
+                start = LocalDateTime(
+                    actualDate,
+                    LocalTime(startHour.coerceIn(0, 23), startMinute.coerceIn(0, 59), 0),
+                ),
+                end = LocalDateTime(
+                    actualDate,
+                    LocalTime(endHour.coerceIn(0, 23), endMinute.coerceIn(0, 59), 0),
+                ),
+            )
+        }
+    }
+    return events
+}
+
+/** 组装 ICS 文本（`DTSTART/DTEND` 用 [LocalDateTime] + [formatIcsTimestamp]）。 */
+private fun buildExportIcs(scheduleName: String): String? {
+    val events = buildScheduleCalendarEvents(scheduleName) ?: return null
+
     return buildString {
         appendLine("BEGIN:VCALENDAR")
         appendLine("VERSION:2.0")
@@ -931,48 +1023,16 @@ private fun buildExportIcs(scheduleName: String): String? {
         appendLine("CALSCALE:GREGORIAN")
         appendLine("METHOD:PUBLISH")
 
-        for (course in courses) {
-            val startSectionTime = course.getEffectiveStartTime(sectionTimes) ?: continue
-            val endSectionTime = course.getEffectiveEndTime(sectionTimes) ?: continue
-
-            val startHour = startSectionTime.substringBefore("-").substringBefore(":").toIntOrNull() ?: 8
-            val startMinute = startSectionTime.substringBefore("-").substringAfter(":").toIntOrNull() ?: 0
-            val endHour = endSectionTime.substringAfter("-").substringBefore(":").toIntOrNull() ?: 9
-            val endMinute = endSectionTime.substringAfter("-").substringAfter(":").toIntOrNull() ?: 0
-
-            // 为每个周次生成独立的 VEVENT（避免非连续周的 RRULE 问题）
-            for ((week, actualDate) in icsEffectiveDatesForCourse(
-                course, semesterStartDate, rules, holidayEntries, holidayExclusion,
-                sectionTimes, sectionCount, repository.getTotalWeeks(scheduleName), lastWeekWithCourses,
-                holidayBeforeExclusion,
-            )) {
-                val eventStart = LocalDateTime(
-                    actualDate,
-                    LocalTime(startHour.coerceIn(0, 23), startMinute.coerceIn(0, 59), 0),
-                )
-                val eventEnd = LocalDateTime(
-                    actualDate,
-                    LocalTime(endHour.coerceIn(0, 23), endMinute.coerceIn(0, 59), 0),
-                )
-
-                val uid = icsEventUid(course.id, week, actualDate)
-
-                appendLine("BEGIN:VEVENT")
-                appendLine("UID:$uid")
-                appendLine("DTSTART:${eventStart.formatIcsTimestamp()}")
-                appendLine("DTEND:${eventEnd.formatIcsTimestamp()}")
-                appendLine("RRULE:FREQ=WEEKLY;COUNT=1")
-                appendLine("SUMMARY:${course.name}")
-                if (course.classroom.isNotBlank() || course.teacher.isNotBlank()) {
-                    val location = listOfNotNull(
-                        course.classroom.takeIf { it.isNotBlank() },
-                        course.teacher.takeIf { it.isNotBlank() }
-                    ).joinToString(" ")
-                    appendLine("LOCATION:$location")
-                }
-                appendLine("DESCRIPTION:${CommonStr.weekN(week)}")
-                appendLine("END:VEVENT")
-            }
+        for (e in events) {
+            appendLine("BEGIN:VEVENT")
+            appendLine("UID:${e.uid}")
+            appendLine("DTSTART:${e.start.formatIcsTimestamp()}")
+            appendLine("DTEND:${e.end.formatIcsTimestamp()}")
+            appendLine("RRULE:FREQ=WEEKLY;COUNT=1")
+            appendLine("SUMMARY:${e.title}")
+            if (e.location.isNotBlank()) appendLine("LOCATION:${e.location}")
+            appendLine("DESCRIPTION:${e.description}")
+            appendLine("END:VEVENT")
         }
 
         appendLine("END:VCALENDAR")

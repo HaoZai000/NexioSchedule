@@ -100,6 +100,18 @@ object BackupStr {
     val wearableExportFailed = L("导出失败，请确认手环已连接", "Export failed. Make sure the wearable is connected")
     val exportEmptyScheduleN = L("「%s」课表为空，无法导出", "Schedule \"%s\" is empty and cannot be exported")
 
+    // ---- 同步到日历 ----
+
+    val syncToCalendar = L("同步到日历", "Sync to Calendar")
+    val syncToCalendarSummary = L("把课表逐节课写进系统日历", "Write every class into the system calendar")
+    val calendarSyncSuccessN = L("已同步 %d 节课到日历", "Synced %d classes to the calendar")
+    val calendarPermissionDenied = L("未获得日历权限，无法同步", "Calendar permission is required to sync")
+    val calendarNoWritable = L(
+        "没有可写入的日历，请先在系统日历中添加账户",
+        "No writable calendar. Add a calendar account first",
+    )
+    val calendarSyncFailed = L("同步到日历失败", "Failed to sync to the calendar")
+
     // ---- 导入 ----
 
     val importMethods = L("导入方式", "Import Methods")

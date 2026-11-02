@@ -75,6 +75,7 @@ import com.haooz.chedule.ui.activities.AboutScreen
 import com.haooz.chedule.ui.activities.AiImportScreen
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
 import com.haooz.chedule.ui.activities.BackupAndMigrationScreen
+import com.haooz.chedule.ui.activities.CalendarSyncResult
 import com.haooz.chedule.ui.activities.ChangelogScreen
 import com.haooz.chedule.ui.activities.CommunicationScreen
 import com.haooz.chedule.ui.activities.CourseManageScreen
@@ -788,6 +789,7 @@ fun BackupAndMigrationRoute(
         { source, _ -> Result.failure(IllegalStateException(ChromeStr.platformUnsupported(source.displayName))) },
     onShareSchedule: (scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit = { _, _ -> },
     onExportToWearable: suspend (scheduleName: String) -> String? = { null },
+    onSyncToCalendar: suspend (scheduleName: String) -> CalendarSyncResult = { CalendarSyncResult.Unsupported },
 ) {
     val title = when (mode) {
         ScheduleDataManageMode.Import -> ChromeStr.scheduleImport()
@@ -808,6 +810,7 @@ fun BackupAndMigrationRoute(
             onImportThirdParty = onImportThirdParty,
             onShareSchedule = onShareSchedule,
             onExportToWearable = onExportToWearable,
+            onSyncToCalendar = onSyncToCalendar,
         )
     }
 }

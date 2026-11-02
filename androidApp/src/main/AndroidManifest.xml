@@ -27,6 +27,9 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- 上课勿扰：读取/修改系统勿扰模式，需用户在「免打扰访问权限」中授权 -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <!-- 同步到日历：课表导出页写系统日历，运行时申请 -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
 
     <application
         android:name=".NexioApplication"

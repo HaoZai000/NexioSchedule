@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.haooz.chedule.calendar.rememberCalendarSyncAction
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.AndroidMiscStr
@@ -304,6 +305,8 @@ private fun AndroidBackupAndMigrationRoute(router: AppRouter, mode: ScheduleData
         },
         // 手环推送
         onExportToWearable = { name -> WearableScheduleSync.exportToWearable(context, name) },
+        // 同步到日历（缺权限时点一下就申请）
+        onSyncToCalendar = rememberCalendarSyncAction(),
     )
 }
 

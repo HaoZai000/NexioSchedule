@@ -14,6 +14,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import com.haooz.chedule.calendar.rememberCalendarSyncAction
 import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.AboutStr
@@ -108,6 +109,8 @@ fun AndroidSettingsScreen(
         settingsScrollBehavior = settingsScrollBehavior,
         liquidGlassBackdrop = liquidGlassBackdrop,
         androidPane = { dest ->
+            // 同步到日历：缺权限时点一下就地申请（导出面板用，launcher 只注册这一个）
+            val syncToCalendar = rememberCalendarSyncAction()
             when (dest) {
                 TabletSettingsDest.Reminder -> CourseReminderScreen(
                     settingsViewModel = settingsViewModel,
@@ -176,8 +179,7 @@ fun AndroidSettingsScreen(
                     liquidGlassBackdrop = liquidGlassBackdrop,
                     mode = ScheduleDataManageMode.Export,
                     scheduleFileController = remember { AndroidScheduleFileController(context) },
-                    onHolidayDataChanged = { CourseReminderHelper.onHolidayDataChanged(context) },
-                    onFetchShareCode = { code ->
+                    onHolidayDataChanged = { CourseReminderHelper.onHolidayDataChanged(context) },                    onFetchShareCode = { code ->
                         ShareCodeApi.fetchShare(code).map {
                             ShareCodeFetchResult(
                                 code = it.code,
@@ -200,6 +202,7 @@ fun AndroidSettingsScreen(
                     onExportToWearable = { name ->
                         WearableScheduleSync.exportToWearable(context, name)
                     },
+                    onSyncToCalendar = syncToCalendar,
                 )
 
                 TabletSettingsDest.LocalBackup -> LocalBackupScreen(
