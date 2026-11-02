@@ -116,6 +116,9 @@ function argbHex(value: number): string {
   return '#' + (value >>> 0).toString(16).padStart(8, '0');
 }
 
+/** 底栏层在胶囊之上多留的高度，给悬浮投影。 */
+const BAR_SHADOW_PAD: number = 12;
+
 @Entry
 @Component
 struct Index {
@@ -516,6 +519,8 @@ struct Index {
       }
     })
     .width('100%')
+    // 必须限高：HdsTabs 不限高会撑满父 Stack，空 TabContent 盖在 Compose 上就再也滑不动了
+    .height(this.barHeight() + this.bottomInsetVp + BAR_SHADOW_PAD)
     // 系统自己切选中态，点击瞬间就通知 Compose，不等动画结束
     .onTabBarClick((index: number): void => {
       if (index === this.settingsIndex()) {
