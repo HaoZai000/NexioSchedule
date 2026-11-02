@@ -361,8 +361,6 @@ internal fun CourseScheduleAppMainContent(
                     host = nativeBottomBarHost,
                     isShiftMode = isShiftMode,
                     selectedTab = selectedTab,
-                    // 宿主底栏在 Compose 之外，压栈的子页盖不住它，只能整条收起
-                    visible = !router.hasOverlay,
                     onTabSelected = onMainTabSelected,
                     onOpenSettings = { nativeBottomBarRouter.navigate(AppRoute.Settings) },
                 )

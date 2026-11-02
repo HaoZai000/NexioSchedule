@@ -11,7 +11,9 @@ import {
   registerTopBar,
   topBarAction,
   registerBottomBar,
-  bottomBarSelected
+  bottomBarSelected,
+  OverlayArkUIViewController,
+  registerOverlay
 } from 'libentry.so';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { fileIo } from '@kit.CoreFileKit';
@@ -116,18 +118,19 @@ function argbHex(value: number): string {
   return '#' + (value >>> 0).toString(16).padStart(8, '0');
 }
 
-/** 底栏层在胶囊之上多留的高度，给悬浮投影。 */
-const BAR_SHADOW_PAD: number = 12;
-
 @Entry
 @Component
 struct Index {
   private controller: ArkUIViewController | undefined = undefined;
+  /** 二级页那层（第二个 Compose 实例），z 序排在顶栏、底栏之后。 */
+  private overlayController: ArkUIViewController | undefined = undefined;
   private tabsController: HdsTabsController = new HdsTabsController();
 
   @State private topBar: NativeTopBarState | null = null;
   @State private titleH: number = 62;
   @State private bottomBar: NativeBottomBarState | null = null;
+  /** 有没有二级页。没有时覆盖层整层藏掉，否则全屏 XComponent 会吃掉主界面手势。 */
+  @State private overlayActive: boolean = false;
 
   // 翻页位移每帧都变，单独放，避免整份结构一起替换导致按钮晚一帧
   @State private sOffX: number = 0;
@@ -222,7 +225,13 @@ struct Index {
       }
     });
 
+    registerOverlay((active: boolean): void => {
+      this.overlayActive = active;
+    });
+
     this.controller = MainArkUIViewController();
+    // ⚠ 必须常驻：转场进度、页面状态都在这个组合里，按需创建等于把正在滑的页面扔掉
+    this.overlayController = OverlayArkUIViewController();
   }
 
   private setOffsets(sx: number, sy: number, tx: number, ty: number): void {
@@ -298,14 +307,20 @@ struct Index {
     return argbHex(this.topBar?.onSurface ?? 0xFF000000);
   }
 
+  /**
+   * 顶栏圆钮层：主界面之上、底栏之下的一层。
+   *
+   * 空白区域必须 `Transparent`，否则这一层会把主界面的滑动全部吃掉。
+   * 高度只用于排按钮，不参与布局 —— 主内容自己是全屏的，顶栏避让由 Compose 侧的状态栏 inset 负责。
+   */
   @Builder
-  navTitle() {
+  topBarLayer() {
     Stack({ alignContent: Alignment.TopEnd }) {
       this.scheduleGroup()
       this.todayGroup()
     }
     .width('100%')
-    .height('100%')
+    .height(this.titleHeight())
     .hitTestBehavior(HitTestMode.Transparent)
   }
 
@@ -519,8 +534,8 @@ struct Index {
       }
     })
     .width('100%')
-    // 必须限高：HdsTabs 不限高会撑满父 Stack，空 TabContent 盖在 Compose 上就再也滑不动了
-    .height(this.barHeight() + this.bottomInsetVp + BAR_SHADOW_PAD)
+    // 必须限高：HdsTabs 不限高会撑满父 Stack
+    .height(this.barHeight() + this.bottomInsetVp)
     // 系统自己切选中态，点击瞬间就通知 Compose，不等动画结束
     .onTabBarClick((index: number): void => {
       if (index === this.settingsIndex()) {
@@ -537,7 +552,10 @@ struct Index {
 
   build() {
     Navigation() {
-      Stack({ alignContent: Alignment.Bottom }) {
+      // 顺序即层级：二级页那层排在最后，才真的压得住顶栏按钮与底栏胶囊。
+      // 之前二级页和主界面挤在同一个 XComponent 里，一个层画不出「盖住 ArkUI 兄弟节点」，
+      // 只能靠整条收起顶栏/底栏装成被盖住 —— 那是假的。
+      Stack({ alignContent: Alignment.TopStart }) {
         if (this.controller !== undefined) {
           Compose({
             controller: this.controller,
@@ -547,8 +565,27 @@ struct Index {
             .width('100%')
             .height('100%')
         }
+        if (this.topBar !== null) {
+          this.topBarLayer()
+        }
         if (this.bottomBar !== null) {
-          this.bottomBarTabs()
+          Column() {
+            Blank()
+            this.bottomBarTabs()
+          }
+          .width('100%')
+          .height('100%')
+          .hitTestBehavior(HitTestMode.Transparent)
+        }
+        if (this.overlayController !== undefined) {
+          Compose({
+            controller: this.overlayController,
+            libraryName: 'entry',
+            onBackPressed: () => false
+          })
+            .width('100%')
+            .height('100%')
+            .visibility(this.overlayActive ? Visibility.Visible : Visibility.Hidden)
         }
       }
       .width('100%')
@@ -557,11 +594,9 @@ struct Index {
     .mode(NavigationMode.Stack)
     .titleMode(NavigationTitleMode.Mini)
     .hideBackButton(true)
-    .hideTitleBar(this.topBar === null)
-    .title(
-      { builder: (): void => { this.navTitle() }, height: this.titleHeight() } as NavigationCustomTitle,
-      { barStyle: BarStyle.STACK }
-    )
+    // 顶栏已改成 Stack 里的一层：Navigation 的标题栏永远不出现，
+    // 否则它属于 Navigation 的 chrome，二级页再怎么排也盖不住它。
+    .hideTitleBar(true)
     .width('100%')
     .height('100%')
   }

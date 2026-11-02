@@ -157,13 +157,13 @@ internal fun PublishNativeBottomBar(
     host: NativeBottomBarHost,
     isShiftMode: Boolean,
     selectedTab: Int,
-    /** false = 压了子页，宿主底栏在 Compose 之外盖不住，只能整条收起。 */
-    visible: Boolean,
     onTabSelected: (Int) -> Unit,
     onOpenSettings: (() -> Unit)?,
 ) {
     val tabsCount = if (isShiftMode) 1 else 2
-    if (!visible || host.suppressed) {
+    // 二级页在宿主那边是独立的一层，压在底栏上面，底栏不需要为它让位；
+    // 只有 Compose 内部的全屏层（外观页 / 切换课表页 / 详情页）盖不住它，才整条收起。
+    if (host.suppressed) {
         SideEffect {
             host.state = null
             host.onTabSelected = null

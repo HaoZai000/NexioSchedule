@@ -15,6 +15,7 @@
 
 // Kotlin 侧 @CName 导出的符号（见 ohos/ohosApp/src/ohosSharedCore）
 extern "C" napi_value MainArkUIViewController(napi_env env);
+extern "C" napi_value OverlayArkUIViewController(napi_env env);
 
 // 沙箱目录 + 屏幕像素：Kotlin 侧拿不到 UIAbilityContext，只能由 ArkTS 传。
 extern "C" void NexioSetAppEnv(const char *filesDir, int32_t screenW, int32_t screenH, int32_t cornerRadiusPx);
@@ -47,6 +48,13 @@ static napi_value NapiMainArkUIViewController(napi_env env, napi_callback_info i
     (void) info;
     OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "create ArkUIViewController");
     return MainArkUIViewController(env);
+}
+
+// 第二个 Compose 实例：二级页（设置等）住在这一层，z 序排在顶栏/底栏之后。
+static napi_value NapiOverlayArkUIViewController(napi_env env, napi_callback_info info) {
+    (void) info;
+    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "create overlay ArkUIViewController");
+    return OverlayArkUIViewController(env);
 }
 
 // ── 壁纸选图：ArkTS 注册回调，Kotlin 侧触发 ──────────────────────────────────
@@ -294,6 +302,39 @@ static napi_value NapiBottomBarSelected(napi_env env, napi_callback_info info) {
     return nullptr;
 }
 
+// ── 二级页覆盖层：有没有子页 → ArkUI 决定显不显示第二个 Compose 实例 ───────────
+// 覆盖层与顶栏/底栏是兄弟节点，排在其后就是真的压在上面；没有子页时整层藏起来，
+// 否则一个全屏 XComponent 会吃掉主界面的所有手势。
+static napi_ref g_overlayRef = nullptr;
+
+static napi_value NapiRegisterOverlay(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    napi_valuetype type = napi_undefined;
+    napi_typeof(env, args[0], &type);
+    if (type != napi_function) return nullptr;
+    g_env = env;
+    napi_create_reference(env, args[0], 1, &g_overlayRef);
+    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "overlay registered");
+    return nullptr;
+}
+
+/** Kotlin 侧的发布入口（函数指针交给 Kotlin）。必须在 JS 线程调用。 */
+static void HostPublishOverlay(bool active) {
+    if (g_env == nullptr || g_overlayRef == nullptr) return;
+    napi_value callback = nullptr;
+    if (napi_get_reference_value(g_env, g_overlayRef, &callback) != napi_ok || callback == nullptr) return;
+    napi_value undefined = nullptr;
+    napi_get_undefined(g_env, &undefined);
+    napi_value argv[1] = {nullptr};
+    napi_get_boolean(g_env, active, &argv[0]);
+    napi_value result = nullptr;
+    napi_call_function(g_env, undefined, callback, 1, argv, &result);
+}
+
+extern "C" void NexioOnOverlayHostReady(void (*fn)(bool));
+
 // 初始化协程的主线程调度器（Kotlin 侧 @CName("NexioInitMainHandler")）。
 // 不调的话 MainHandler.tsfn 恒为 null，Dispatchers.Main 会内联在调用方线程执行。
 extern "C" void NexioInitMainHandler(void *env);
@@ -303,6 +344,8 @@ static napi_value Init(napi_env env, napi_value exports) {
 
     napi_property_descriptor desc[] = {
         {"MainArkUIViewController", nullptr, NapiMainArkUIViewController,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"OverlayArkUIViewController", nullptr, NapiOverlayArkUIViewController,
          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setAppEnv", nullptr, NapiSetAppEnv,
          nullptr, nullptr, nullptr, napi_default, nullptr},
@@ -324,6 +367,8 @@ static napi_value Init(napi_env env, napi_value exports) {
          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"bottomBarSelected", nullptr, NapiBottomBarSelected,
          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"registerOverlay", nullptr, NapiRegisterOverlay,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
 
@@ -334,6 +379,7 @@ static napi_value Init(napi_env env, napi_value exports) {
     NexioOnToastHostReady(HostShowToast);
     NexioOnTopBarHostReady(HostPublishTopBar);
     NexioOnBottomBarHostReady(HostPublishBottomBar);
+    NexioOnOverlayHostReady(HostPublishOverlay);
     return exports;
 }
 

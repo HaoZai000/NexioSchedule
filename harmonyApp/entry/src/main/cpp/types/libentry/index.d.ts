@@ -7,6 +7,14 @@ import { ArkUIViewController } from 'libcompose_arkui_utils.so';
 export const MainArkUIViewController: () => ArkUIViewController;
 
 /**
+ * 第二个 Compose 实例：二级页（设置等）住在这一层。
+ *
+ * 一个 XComponent 只有一层，画在里面的东西盖不住 ArkUI 的兄弟节点；把子页拆到独立实例后，
+ * ArkUI 只要把这一层排在顶栏/底栏之后，设置页就是真的压在它们上面。
+ */
+export const OverlayArkUIViewController: () => ArkUIViewController;
+
+/**
  * 把运行环境交给 Kotlin/Native 侧（Kotlin 拿不到 UIAbilityContext）。
  *
  * @param filesDir  应用私有目录 `context.filesDir`（壁纸/缓存/设置都落在这里）
@@ -93,3 +101,10 @@ export const registerBottomBar: (
 
 /** 点了某格；`index >= tabsCount` 表示末尾的设置页签。 */
 export const bottomBarSelected: (index: number) => void;
+
+/**
+ * 有没有二级页 → 决定覆盖层显不显示。
+ *
+ * 无子页时必须整层藏掉：全屏 XComponent 即使内容为空也会吃掉主界面的手势。
+ */
+export const registerOverlay: (publish: (active: boolean) => void) => void;
