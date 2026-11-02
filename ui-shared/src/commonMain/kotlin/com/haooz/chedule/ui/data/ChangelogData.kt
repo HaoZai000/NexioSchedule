@@ -11,8 +11,8 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
-        version = "v1.6.8-1031",
-        date = "2026-10-31",
+        version = "v1.6.8-1103",
+        date = "2026-11-03",
         changes = listOf(
             L("新增课表页与今日页的时间轴视图，可在课表外观里切换", "Add a timeline view for the timetable and Today pages, switchable in Appearance"),
             L("新增课程备注，可按周单独填写", "Add course notes, with per-week notes supported"),
@@ -20,6 +20,7 @@ val changelogData = listOf(
             L("新增「无材质」材质档，无模糊、折射", "Add a \"No material\" tier with no blur or refraction"),
             L("新增多语言支持，默认跟随系统，可切换中文 / English", "Add multi-language support: follows the system by default, switchable between Chinese and English"),
             L("新增导入同名课表时可覆盖，不必改名新建", "Add overwrite when importing a timetable with the same name, instead of renaming"),
+            L("新增导出页「同步到日历」，可把课表逐节课写入系统日历", "Add \"Sync to Calendar\" on the export page to write each class into the system calendar"),
             L("优化设置页改为独立二级页，更名为「设置」", "Move Settings to its own secondary page and rename it from \"Profile\" to \"Settings\""),
             L("优化底栏布局，加入融球动效", "Improve the bottom bar layout and add a metaball animation"),
             L("优化今日助手卡排版", "Improve the Today assistant card layout"),
@@ -32,6 +33,8 @@ val changelogData = listOf(
             L("修复备份恢复后仍残留已删除的课表", "Fix deleted timetables lingering after a backup restore"),
             L("修复材质档切换后卡片模糊与折射不生效", "Fix card blur and refraction not applying after switching material tiers"),
             L("修复缩放与外观页玻璃卡片错位", "Fix glass card misalignment on the scale and appearance pages"),
+            L("修复低版本设备打开课表外观页黑屏", "Fix a black screen when opening Appearance on older Android versions"),
+            L("修复低版本设备连贯动画只显示上半截", "Fix shared-element transitions showing only the top half on older Android versions"),
         )
     ),
     ChangelogEntry(
