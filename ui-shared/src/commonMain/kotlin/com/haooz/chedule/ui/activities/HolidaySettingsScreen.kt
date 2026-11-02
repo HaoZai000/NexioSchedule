@@ -118,7 +118,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.squircle.squircleClip
+import com.kyant.capsule.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -1420,7 +1420,7 @@ private fun TeachingWeekdayRangeSelector(
                     modifier = Modifier
                         .weight(1f)
                         .height(32.dp)
-                        .squircleClip(10.dp)
+                        .continuousClip(10.dp)
                         .background(backgroundColor)
                         .clickable(
                             enabled = enabled,

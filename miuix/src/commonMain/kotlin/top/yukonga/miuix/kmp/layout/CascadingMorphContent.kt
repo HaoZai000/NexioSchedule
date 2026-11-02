@@ -42,7 +42,6 @@ import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.PopupLayoutPosition
 import top.yukonga.miuix.kmp.basic.popupClipReveal
-import top.yukonga.miuix.kmp.squircle.isSquircleEnabled
 
 private var deeperChildrenWarned = false
 
@@ -90,7 +89,7 @@ internal fun CascadingPrimaryContent(
                 scaleY = s
                 this.transformOrigin = transformOrigin
             }
-            .popupClipReveal(enterFraction, popupLayoutPosition, CascadingPopupCornerRadius, isSquircleEnabled())
+            .popupClipReveal(enterFraction, popupLayoutPosition, CascadingPopupCornerRadius, true)
             .dropShadow(shape = shape, shadow = CascadeShadow)
             .background(color = surfaceColor),
     ) {
@@ -239,7 +238,7 @@ internal fun CascadingSecondaryContent(
                 alpha = enterAlpha()
                 this.transformOrigin = transformOrigin
             }
-            .popupClipReveal(enterFraction, popupLayoutPosition, CascadingPopupCornerRadius, isSquircleEnabled())
+            .popupClipReveal(enterFraction, popupLayoutPosition, CascadingPopupCornerRadius, true)
             .drawWithCache {
                 val innerPath = Path()
                 onDrawWithContent {

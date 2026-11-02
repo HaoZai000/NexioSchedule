@@ -1,5 +1,3 @@
-// Nexio课程表 - 应用模块构建配置
-
 import org.gradle.api.artifacts.ModuleDependency
 import java.net.HttpURLConnection
 import java.net.URL
@@ -10,7 +8,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// ===== 本地签名（不进版本库）=====
 val keystorePropertiesProvider = providers.fileContents(
     rootProject.layout.projectDirectory.file("keystore.properties"),
 ).asText.map { text -> Properties().apply { text.reader().use { load(it) } } }
@@ -32,7 +29,7 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 168
-        versionName = "1.6.8-1031"
+        versionName = "1.6.8-1103"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -40,8 +37,7 @@ android {
     }
 
     signingConfigs {
-        // 只在钥匙真的存在时才创建：否则 assembleRelease 会因为 storeFile 为空而失败，
-        // 而 clone 下来只想跑 debug 的人根本不该被签名拦住。
+        // 只在钥匙存在时创建，否则 assembleRelease 会因 storeFile 为空失败
         if (hasSigningKey) {
             create("haooz") {
                 storeFile = signingStoreFile
@@ -62,8 +58,7 @@ android {
                 "proguard-rules.pro"
             )
         }
-        // 与手机上那个 release 包同签名，才能直接 `adb install -r` 覆盖安装、保留 data。
-        // 只影响签名，debuggable / Compose tooling 这些仍然照旧。
+        // 与 release 同签名，才能 adb install -r 覆盖安装、保留 data
         debug {
             if (hasSigningKey) signingConfig = signingConfigs.getByName("haooz")
         }
@@ -96,96 +91,74 @@ composeCompiler {
     stabilityConfigurationFiles.set(listOf(project.layout.projectDirectory.file("compose-stability.conf")))
 }
 
-// miuix-ui 已 fork 到本地 :miuix 模块（KMP），排除传递依赖中的 miuix-ui jar 避免 R8 重复定义
+// miuix-ui 已 fork 到 :miuix，排除传递依赖里的那份避免 R8 重复定义
 configurations.all {
     exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui-android")
+    // 圆角已统一到 com.kyant.capsule，squircle 只被 navigation3 传递进来
+    exclude(group = "top.yukonga.miuix.kmp", module = "miuix-squircle")
 }
 
 dependencies {
-    // ===== 跨平台共享模块（KMP）=====
     implementation(project(":core"))
 
-    // ===== 共享 UI（页面 / 主题，包名与调用方 import 保持不变）=====
     implementation(project(":ui-shared"))
 
-    // ===== 液态玻璃效果库（fork 自 kyant0:backdrop 2.0.1，KMP）=====
     implementation(project(":backdrop"))
 
-    // ===== 小米风格 UI 组件库（fork 自 miuix-ui 0.9.3，KMP；定制全在模块内）=====
     implementation(project(":miuix"))
 
-    // ===== 小米穿戴（手表 interconnect）=====
+    // 小米穿戴（手表 interconnect）
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
 
-    // ===== AndroidX / Compose 基础 =====
-    // Compose BOM：统一管理所有 Compose 库版本
+    // 统一管理所有 Compose 库版本
     implementation(platform(libs.androidx.compose.bom))
-    // Activity 与 Compose 集成（setContent 入口）
     implementation(libs.androidx.activity.compose)
-    // Compose UI 核心运行时
     implementation(libs.androidx.compose.ui)
-    // Compose 图形模块（Canvas、绘制等）
     implementation(libs.androidx.compose.ui.graphics)
-    // Material3 组件库
     implementation(libs.androidx.compose.material3)
-    // AndroidX 核心 KTX 扩展
     implementation(libs.androidx.core.ktx)
-    // 生命周期感知型运行时 KTX
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    // ViewModel 与 Compose 集成
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
-    // AndroidX WebKit，桌面版视口必须在页面脚本前注入
+    // 桌面版视口必须在页面脚本前注入
     implementation(libs.androidx.webkit)
 
-    // ===== Miuix UI =====
-    // ⚠ 下面每个官方子库都必须 exclude 官方 miuix-ui：它们各自传递依赖 miuix-ui，
-    // 与本模块的 fork 同包同名。Android 上类路径按名去重、不报错，但版本错配会在
-    // 运行时炸（NoSuchMethodError）；Kotlin/Native 上是链接期硬错误。
+    // 每个子库都要 exclude 官方 miuix-ui：与本 fork 同包同名，Android 会 NoSuchMethodError，Native 链接期报错
     val excludeOfficialMiuixUi: ModuleDependency.() -> Unit = {
         exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui")
     }
-    // 图标资源 / Squircle 形状 / 模糊效果 / Navigation3
     implementation(libs.miuix.icons) { excludeOfficialMiuixUi() }
-    implementation(libs.miuix.squircle) { excludeOfficialMiuixUi() }
     implementation(libs.miuix.blur) { excludeOfficialMiuixUi() }
-    implementation(libs.miuix.navigation3) { excludeOfficialMiuixUi() }
+    implementation(libs.miuix.navigation3) {
+        excludeOfficialMiuixUi()
+        exclude(group = "top.yukonga.miuix.kmp", module = "miuix-squircle")
+    }
 
-    // ===== NavigationEvent =====
-    // :miuix 的 androidMain（SearchBar / BottomSheet 返回键处理）需要
+    // :miuix 的 androidMain 需要（返回键处理）
     implementation(libs.navigationevent.compose)
 
-    // miuix blur 编译的 AGSL 运行时需要 org.jetbrains 注解；
-    // Material Color（miuix theme 的 Monet 取色依赖）
+    // AGSL 运行时注解 / Monet 取色
     implementation("org.jetbrains:annotations:26.1.0")
     implementation(libs.materialKolor.utilities)
 
-    // ===== 序列化 =====
-    // Gson：JSON 序列化/反序列化（课表数据持久化）
     implementation(libs.gson)
 
-    // ===== Shizuku =====
-    // Shizuku API：运行时服务调用
+    // Shizuku 运行时服务调用
     implementation(libs.shizuku.api)
-    // Shizuku Provider：进程间通信接入
     implementation(libs.shizuku.provider)
 
-    // ===== 网络 =====
-    // OkHttp：HTTP 客户端
     implementation(libs.okhttp)
 
-    // ===== 调试专用 =====
-    // Compose UI Tooling：Layout Inspector
+    // Layout Inspector
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
 
-// ===== 教务索引内置 =====
-// Release 构建时从云端拉取最新 school_index.pb 打包进 assets（每次拉取，不缓存）
+// Release 构建时拉最新 school_index.pb 进 assets（不缓存）
 tasks.register<DefaultTask>("downloadEduIndex") {
     group = "eduimport"
     description = "每次 Release 构建拉取最新 school_index.pb 到 assets/eduloader"
     val targetLocation = project.layout.projectDirectory.dir("src/main/assets/eduloader/school_index.pb").asFile
-    outputs.upToDateWhen { false } // 每次 Release 构建都重新拉取，确保内置索引最新
+    outputs.upToDateWhen { false } // 每次都重新拉，不缓存
     doLast {
         targetLocation.parentFile?.mkdirs()
         val url = "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse/raw/index-pb-release/school_index.pb"
@@ -200,7 +173,7 @@ tasks.register<DefaultTask>("downloadEduIndex") {
             }
             val contentType = connection.contentType?.lowercase() ?: ""
             if (contentType.contains("text/html")) {
-                // gitee 被反爬拦截时返回 HTML 挑战页，不能让它进 assets
+                // 被反爬拦截时 gitee 返回 HTML 挑战页，不能进 assets
                 throw RuntimeException("gitee 返回了 HTML 页面（可能被反爬拦截）")
             }
             connection.inputStream.use { inbound ->
@@ -210,13 +183,13 @@ tasks.register<DefaultTask>("downloadEduIndex") {
             }
             println("[EduIndex] 已拉取最新索引 -> ${targetLocation.absolutePath}")
         } catch (e: Exception) {
-            // 拉取失败不阻断构建，保留现有内置索引
+            // 失败不阻断构建，保留现有索引
             println("[EduIndex] 索引拉取失败（保留现有内置索引）: ${e.message}")
         }
     }
 }
 
-// 仅 Release 变体打包资产时拉取内嵌索引（Debug 不触发）；configureEach 惰性挂依赖，规避 release 任务未实例化时的急切解析。
+// 仅 Release 打包资产时拉取；configureEach 惰性挂依赖，避免急切解析。
 tasks.configureEach {
     if (name == "mergeReleaseAssets") {
         dependsOn("downloadEduIndex")

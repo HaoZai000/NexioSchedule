@@ -1,0 +1,23 @@
+# --- 鸿蒙端（harmonyApp）构建产物 ---
+# 注意：本文件在 harmonyApp/ 下，所有规则都相对本目录，别写 harmonyApp/ 前缀。
+.hvigor/
+.cxx/
+oh_modules/
+**/build/
+local.properties
+.clangd
+.clang-format
+.clang-tidy
+
+# DevEco 的本地预览/调试缓存
+**/.preview/
+**/.test/
+
+# Kotlin 构建产物：
+entry/libs/
+
+# 签名材料：证书 / profile / 密钥库一律不进库（密码在 build-profile.json5 里，那是 DevEco 写的加密串）
+sign/
+
+# AGC 服务配置：含 client_secret / api_key，不进库（每台机器从 AGC 控制台自己下）
+agconnect-services.json

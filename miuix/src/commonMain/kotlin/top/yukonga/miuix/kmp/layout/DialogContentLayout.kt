@@ -74,7 +74,7 @@ import top.yukonga.miuix.kmp.material.LocalGlassDialogBlurDp
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
 import top.yukonga.miuix.kmp.material.rememberMaterialEdgeLight
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.squircle.squircleSurface
+import com.kyant.capsule.continuousSurface
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.LocalScreenCornerRadius
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -263,7 +263,7 @@ internal fun DialogContentLayout(
                 scaleY = scale
                 alpha = progress
             } else {
-                translationY = (1f - progress) * windowInfo.containerDpSize.height.toPx()
+                translationY = (1f - progress) * windowInfo.containerSize.height.toFloat()
                 alpha = 1f
             }
         }
@@ -317,7 +317,7 @@ internal fun DialogContent(
 ) {
     val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
-    val windowHeight = windowInfo.containerDpSize.height
+    val windowHeight = with(density) { windowInfo.containerSize.height.toDp() }
     val isLargeScreen = DialogDefaults.isLargeScreen()
     val contentAlignment = remember(isLargeScreen) {
         if (isLargeScreen) Alignment.Center else Alignment.BottomCenter
@@ -480,8 +480,9 @@ object DialogDefaults {
     @Composable
     internal fun isLargeScreen(): Boolean {
         val windowInfo = LocalWindowInfo.current
-        val windowWidth = windowInfo.containerDpSize.width
-        val windowHeight = windowInfo.containerDpSize.height
+        val density = LocalDensity.current
+        val windowWidth = with(density) { windowInfo.containerSize.width.toDp() }
+        val windowHeight = with(density) { windowInfo.containerSize.height.toDp() }
         return windowHeight >= 480.dp && windowWidth >= 840.dp
     }
 

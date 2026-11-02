@@ -260,7 +260,7 @@ private fun BlurBottomSheetContent(
 
     // 圆角固定 36dp：不跟随屏幕物理圆角，否则圆角大的机型会过大。
     val sheetShape = remember { ContinuousRoundedRectangle(36.dp) }
-    val windowWidth = windowInfo.containerDpSize.width
+    val windowWidth = with(density) { windowInfo.containerSize.width.toDp() }
     val horizontalGap = if (sheetMaxWidth != Dp.Unspecified) {
         ((windowWidth - minOf(sheetMaxWidth, windowWidth)) / 2).coerceAtLeast(0.dp)
     } else 0.dp
@@ -335,7 +335,7 @@ private fun BlurBottomSheetContent(
             },
     ) {
         // 窗口高度在组合期读取一次，避免进入/拖拽动画期间逐帧做密度换算。
-        val windowHeightPx = with(density) { windowInfo.containerDpSize.height.toPx() }
+        val windowHeightPx = with(density) { windowInfo.containerSize.height.toFloat() }
         val sheetModifier = Modifier
             .graphicsLayer {
                 val progress = animationProgress.value
@@ -364,7 +364,7 @@ private fun BlurBottomSheetContent(
                     if (sheetMaxWidth != Dp.Unspecified) Modifier.width(sheetMaxWidth).fillMaxWidth()
                     else Modifier.fillMaxWidth()
                 )
-                .heightIn(max = windowInfo.containerDpSize.height)
+                .heightIn(max = with(density) { windowInfo.containerSize.height.toDp() })
                 .then(
                     when {
                         enableContentHeightSnap -> Modifier.blurBottomSheetDetentHeight(detentState)

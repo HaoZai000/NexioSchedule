@@ -46,8 +46,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleBorder
+import com.kyant.capsule.continuousBackground
+import com.kyant.capsule.continuousBorder
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -181,8 +181,8 @@ actual fun NativeMiuixTextField(
     Box(
         modifier = modifier
             .focusRequester(focusRequester)
-            .squircleBackground(color = backgroundColor, cornerRadius = cornerRadius)
-            .squircleBorder(
+            .continuousBackground(color = backgroundColor, cornerRadius = cornerRadius)
+            .continuousBorder(
                 width = borderWidth,
                 color = borderColor,
                 cornerRadius = cornerRadius
@@ -400,8 +400,8 @@ actual fun NativeMiuixTextField(
     Box(
         modifier = modifier
             .focusRequester(focusRequester)
-            .squircleBackground(color = backgroundColor, cornerRadius = cornerRadius)
-            .squircleBorder(
+            .continuousBackground(color = backgroundColor, cornerRadius = cornerRadius)
+            .continuousBorder(
                 width = borderWidth,
                 color = borderColor,
                 cornerRadius = cornerRadius

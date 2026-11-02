@@ -146,7 +146,7 @@ import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.squircle.addSquircleRect
+import com.kyant.capsule.addContinuousRoundRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 
@@ -1263,14 +1263,14 @@ fun CourseManageRoute(
                         }
                         .drawWithContent {
                             val cornerRadius = 16.dp.toPx()
-                            val squirclePath = Path().apply {
-                                addSquircleRect(
+                            val cardPath = Path().apply {
+                                addContinuousRoundRect(
                                     width = size.width,
                                     height = size.height,
                                     cornerRadius = cornerRadius
                                 )
                             }
-                            clipPath(squirclePath) { this@drawWithContent.drawContent() }
+                            clipPath(cardPath) { this@drawWithContent.drawContent() }
                         }
                 )
             }

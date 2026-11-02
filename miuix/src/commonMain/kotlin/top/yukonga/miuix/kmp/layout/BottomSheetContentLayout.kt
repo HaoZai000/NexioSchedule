@@ -91,7 +91,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
-import top.yukonga.miuix.kmp.squircle.squircleSurface
+import com.kyant.capsule.continuousSurface
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.LocalScreenTopCornerRadii
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -214,7 +214,7 @@ internal fun BottomSheetContentLayout(
             onBackCompleted = {
                 if (allowDismiss) {
                     coroutineScope.launch {
-                        val windowHeightPx = with(density) { windowInfo.containerDpSize.height.toPx() }
+                        val windowHeightPx = with(density) { windowInfo.containerSize.height.toFloat() }
                         animateDismissOffScreen(
                             dragOffsetY = dragOffsetY,
                             sheetHeightPx = sheetHeightPx.intValue,
@@ -286,7 +286,7 @@ internal fun BottomSheetContentLayout(
                 .graphicsLayer {
                     val progress = animationProgress.value
                     val currentHeight = sheetHeightPx.intValue.toFloat()
-                    val windowHeightPx = with(density) { windowInfo.containerDpSize.height.toPx() }
+                    val windowHeightPx = with(density) { windowInfo.containerSize.height.toFloat() }
                     val baseOffset = if (currentHeight > 0) currentHeight else windowHeightPx
                     translationY = baseOffset * (1f - progress) + dragOffsetY.value
                 }
@@ -356,7 +356,7 @@ internal fun BottomSheetContent(
 ) {
     val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
-    val windowHeight = windowInfo.containerDpSize.height
+    val windowHeight = with(density) { windowInfo.containerSize.height.toDp() }
     // Do NOT use windowHeight as a remember key — IME resize would recreate handlers and trigger dismiss.
     val currentWindowHeight by rememberUpdatedState(windowHeight)
     val coroutineScope = rememberCoroutineScope()
@@ -611,7 +611,7 @@ private fun BottomSheetColumn(
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val topLeft = screenCorners?.topLeft ?: cornerRadius
     val topRight = screenCorners?.topRight ?: cornerRadius
-    val windowWidth = LocalWindowInfo.current.containerDpSize.width
+    val windowWidth = with(density) { LocalWindowInfo.current.containerSize.width.toDp() }
     val horizontalGaps = remember { mutableStateOf(PaddingValues(0.dp)) }
 
     Box(
@@ -650,7 +650,7 @@ private fun BottomSheetColumn(
                 }
                 .then(if (defaultWindowInsetsPadding) Modifier.imePadding() else Modifier)
                 .padding(horizontal = outsideMargin.width)
-                .squircleSurface(
+                .continuousSurface(
                     color = backgroundColor,
                     topStart = if (isRtl) topRight else topLeft,
                     topEnd = if (isRtl) topLeft else topRight,

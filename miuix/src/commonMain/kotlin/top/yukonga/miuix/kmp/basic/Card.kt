@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.interfaces.HoldDownObserver
-import top.yukonga.miuix.kmp.squircle.squircleSurface
+import com.kyant.capsule.continuousSurface
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -145,7 +145,7 @@ private fun BasicCard(
                 .semantics(mergeDescendants = false) {
                     isTraversalGroup = true
                 }
-                .squircleSurface(color = colors.color, cornerRadius = cornerRadius),
+                .continuousSurface(color = colors.color, cornerRadius = cornerRadius),
             propagateMinConstraints = true,
         ) {
             content()

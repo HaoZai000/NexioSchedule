@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -25,6 +26,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -38,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.util.formatMonthDay
 import com.haooz.chedule.data.util.todayLocalDate
+import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
@@ -46,6 +50,10 @@ import com.haooz.chedule.ui.components.tabletNavRailStartPadding
 import com.haooz.chedule.ui.components.text.miuix.Text
 import com.haooz.chedule.ui.theme.scheduleAccentColor
 import com.haooz.chedule.ui.utils.LocalHostNavigation
+import com.haooz.chedule.ui.utils.LocalNativeTopBarHost
+import com.haooz.chedule.ui.utils.NativeTopBarHost
+import com.haooz.chedule.ui.utils.NativeTopBarMenuItem
+import com.haooz.chedule.ui.utils.NativeTopBarState
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.isRenderEffectSupported
@@ -107,6 +115,7 @@ fun ScheduleTopBar(
     onOpenSwitchSchedule: () -> Unit,
     onJumpWeek: () -> Unit = {},
     onEnterCustomize: () -> Unit = {},
+    onCourseManage: () -> Unit = {},
     isTablet: Boolean = false,
     isShiftMode: Boolean = false,
     liquidGlassBackdrop: Backdrop?,
@@ -121,11 +130,14 @@ fun ScheduleTopBar(
     onMoreMaterial: (Float) -> Unit = {},
     onMoreExpand: () -> Unit = {},
 ) {
+    val nativeTopBarHost = LocalNativeTopBarHost.current
+    val nativeTopRight = nativeTopBarHost?.ownsTopRight == true
     if (!visible || liquidGlassBackdrop == null) return
     // iOS 主界面右上角那一排（「更多」UIMenu + 课表切换）已由原生 chrome 接管
     // （见 iosApp/ContentView 的 mainMoreItem / mainSwitchItem）：有宿主导航即 iOS，
     // Compose 这一侧整排都不渲染。Android / desktop 没有宿主导航，照常显示。
-    val hostOwnsTopRight = LocalHostNavigation.current != null
+    // 鸿蒙同理：顶栏留着 Compose 画，只把右上角两颗交给 ArkUI。
+    val hostOwnsTopRight = LocalHostNavigation.current != null || nativeTopRight
     val nativeBarInset = (LocalHostNavigation.current?.topBarInset ?: 0.0).dp
 
     val titleText = when {
@@ -245,6 +257,10 @@ fun ScheduleTopBar(
         }
     }
 }
+
+/** Compose 的 Color → 0xAARRGGBB（宿主侧要的是普通 int，不是 Color 的 packed 值）。 */
+private fun Color.argbLong(): Long =
+    toArgb().toLong() and 0xFFFFFFFFL
 
 @Composable
 private fun DayOfWeekRow(

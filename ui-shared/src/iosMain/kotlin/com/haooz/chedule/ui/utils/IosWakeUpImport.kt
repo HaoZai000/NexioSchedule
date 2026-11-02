@@ -35,7 +35,7 @@ import platform.darwin.NSObject
 /**
  * iOS 的 WakeUp 课表导入：**无头 WKWebView 跑云端适配脚本**，对应 Android
  * `ThirdPartyShareImporter.importWakeUp`（无头 `WebView` + `@JavascriptInterface`）。
- * 脚本本体由 [IosShareImport] 用共享 `ScriptRepository` 下载好再传入 —— 下载是跨平台能力，
+ * 脚本本体由 [ShareCodeImport] 用共享 `ScriptRepository` 下载好再传入 —— 下载是跨平台能力，
  * 不与 WKWebView 绑在一起。
  *
  * ## 桥接差异（本文件唯一难的地方）
@@ -224,7 +224,7 @@ internal object IosWakeUpImport {
          *
          * ⚠ 自带 20s 超时并把 `TimeoutCancellationException` 换成可读文案：网络不通时
          * `didFinishNavigation` 不会来，不兜底就干等到外层 45s 超时、抛没人看得懂的
-         * "Timed out waiting for ..."（文案风格与 IosShareImport 一致）。
+         * "Timed out waiting for ..."（文案风格与 ShareCodeImport 一致）。
          */
         suspend fun awaitPageLoad() {
             try {

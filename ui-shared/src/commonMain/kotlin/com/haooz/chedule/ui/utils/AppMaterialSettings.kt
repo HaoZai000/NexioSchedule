@@ -57,6 +57,18 @@ object AppMaterialSettings {
     /** 当前档位；组合期可读，写入走 [apply]。 */
     var level: String by mutableStateOf(BALANCED)
 
+    /**
+     * 平台锁定的档位（null = 用户可选）。锁定后 [normalize] 一律返回它，
+     * 设置页也不展示切换入口。鸿蒙锁 [BEST]：那边玻璃能力固定，不暴露档位。
+     */
+    var lockedLevel: String? = null
+        private set
+
+    fun lockTo(level: String) {
+        lockedLevel = level
+        this.level = level
+    }
+
     fun labelOf(level: String): String =
         entries.firstOrNull { it.first == level }?.second ?: MiscStr.materialBalanced()
 
@@ -176,6 +188,7 @@ object AppMaterialSettings {
 
     /** 旧值 / 非法值落到清透磨砂档；模糊能力不可用（Android API < 31）一律锁进无材质档。 */
     private fun normalize(level: String): String {
+        lockedLevel?.let { return it }
         val resolved = when (level) {
             BEST, BALANCED, PERFORMANCE, NONE -> level
             else -> BALANCED

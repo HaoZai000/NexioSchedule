@@ -366,6 +366,7 @@
 					"$(inherited)",
 					"-framework",
 					NexioShared,
+					"-lsqlite3",
 				);
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -419,6 +420,7 @@
 					"$(inherited)",
 					"-framework",
 					NexioShared,
+					"-lsqlite3",
 				);
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

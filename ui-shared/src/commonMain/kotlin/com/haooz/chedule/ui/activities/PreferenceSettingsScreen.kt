@@ -49,6 +49,9 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.KEY_MONET_COLOR
 import com.haooz.chedule.ui.theme.LocalSystemDarkTheme
 import com.haooz.chedule.ui.theme.isMonetColorAvailable
+import com.haooz.chedule.ui.utils.AppMaterialSettings
+import com.haooz.chedule.ui.utils.FeatureLog
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.theme_preview_light
 import com.haooz.chedule.uishared.resources.theme_preview_night
@@ -66,8 +69,8 @@ import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
+import com.kyant.capsule.continuousBorder
+import com.kyant.capsule.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -140,21 +143,21 @@ fun PreferenceSettingsScreen(
     var appMaterialLevel by remember {
         mutableStateOf(
             appPrefs.getString(
-                com.haooz.chedule.ui.utils.AppMaterialSettings.KEY_APP_MATERIAL,
-                com.haooz.chedule.ui.utils.AppMaterialSettings.BALANCED
+                AppMaterialSettings.KEY_APP_MATERIAL,
+                AppMaterialSettings.BALANCED
             )
         )
     }
     // 统一限制：模糊能力不可用（Android API < 31）一律锁进无材质档；桌面 / iOS 恒支持不锁
     val materialLocked = !com.kyant.backdrop.isRenderEffectSupported()
     val effectiveMaterialLevel = if (materialLocked) {
-        com.haooz.chedule.ui.utils.AppMaterialSettings.NONE
+        AppMaterialSettings.NONE
     } else {
         appMaterialLevel
     }
     // 启动时同步到全局，后续材质效果直接读 AppMaterialSettings.level
     LaunchedEffect(Unit) {
-        com.haooz.chedule.ui.utils.AppMaterialSettings.apply(effectiveMaterialLevel)
+        AppMaterialSettings.apply(effectiveMaterialLevel)
     }
 
     val isTablet = isTabletWidth()
@@ -260,62 +263,61 @@ fun PreferenceSettingsScreen(
                         }
                     }
                 }
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(0.dp)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            val appMaterialEntry = DropdownEntry(
-                                items = (if (materialLocked) {
-                                    // 锁定态只留无材质一项，其余档位点不到
-                                    listOf(
-                                        com.haooz.chedule.ui.utils.AppMaterialSettings.NONE to
-                                            com.haooz.chedule.ui.utils.AppMaterialSettings.labelOf(
-                                                com.haooz.chedule.ui.utils.AppMaterialSettings.NONE
+                // 材质行被平台锁定时隐藏；锁定时若也没有岛光开关，整张卡片不占位（否则多出一格 12dp 间距）
+                if (AppMaterialSettings.lockedLevel == null || islandNotification) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                // 平台锁定档位时不给切换入口（鸿蒙：玻璃能力固定）
+                                if (AppMaterialSettings.lockedLevel == null) {
+                                    val appMaterialEntry = DropdownEntry(
+                                        items = (if (materialLocked) {
+                                            // 锁定态只留无材质一项，其余档位点不到
+                                            listOf(
+                                                AppMaterialSettings.NONE to
+                                                    AppMaterialSettings.labelOf(AppMaterialSettings.NONE)
                                             )
-                                    )
-                                } else {
-                                    com.haooz.chedule.ui.utils.AppMaterialSettings.entries
-                                }).map { (value, label) ->
-                                        DropdownItem(
-                                            text = label,
-                                            selected = effectiveMaterialLevel == value,
-                                            onClick = {
-                                                com.haooz.chedule.ui.utils.FeatureLog.preference(
-                                                    "app_material=$value"
-                                                )
-                                                appMaterialLevel = value
-                                                com.haooz.chedule.ui.utils.AppMaterialSettings.apply(value)
-                                                appPrefs.edit {
-                                                    putString(
-                                                        com.haooz.chedule.ui.utils.AppMaterialSettings.KEY_APP_MATERIAL,
-                                                        value
-                                                    )
+                                        } else {
+                                            AppMaterialSettings.entries
+                                        }).map { (value, label) ->
+                                            DropdownItem(
+                                                text = label,
+                                                selected = effectiveMaterialLevel == value,
+                                                onClick = {
+                                                    FeatureLog.preference("app_material=$value")
+                                                    appMaterialLevel = value
+                                                    AppMaterialSettings.apply(value)
+                                                    appPrefs.edit {
+                                                        putString(AppMaterialSettings.KEY_APP_MATERIAL, value)
+                                                    }
                                                 }
-                                            }
-                                        )
-                                    }
-                            )
-                            OverlayDropdownMenu(
-                                title = PreferenceStr.appMaterialEffect(),
-                                // summary 为空时自动显示当前选中档位；锁定态给出原因
-                                summary = if (materialLocked) PreferenceStr.materialLockedSummary() else null,
-                                entry = appMaterialEntry,
-                                collapseOnSelection = true,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                dropdownColors = liquidGlassDropdownColors,
-                            )
-                            CardExpand(visible = islandNotification) {
-                                SwitchPreference(
-                                    title = PreferenceStr.superIslandGlow(),
-                                    summary = PreferenceStr.superIslandGlowSummary(),
-                                    checked = islandExpandGlowEnabled,
-                                    onCheckedChange = {
-                                        islandExpandGlowEnabled = it
-                                        reminderPrefs.edit { putBoolean("island_expand_glow_enabled", it) }
-                                    }
-                                )
+                                            )
+                                        }
+                                    )
+                                    OverlayDropdownMenu(
+                                        title = PreferenceStr.appMaterialEffect(),
+                                        // summary 为空时自动显示当前选中档位；锁定态给出原因
+                                        summary = if (materialLocked) PreferenceStr.materialLockedSummary() else null,
+                                        entry = appMaterialEntry,
+                                        collapseOnSelection = true,
+                                        liquidGlassBackdrop = liquidGlassBackdrop,
+                                        dropdownColors = liquidGlassDropdownColors,
+                                    )
+                                }
+                                CardExpand(visible = islandNotification) {
+                                    SwitchPreference(
+                                        title = PreferenceStr.superIslandGlow(),
+                                        summary = PreferenceStr.superIslandGlowSummary(),
+                                        checked = islandExpandGlowEnabled,
+                                        onCheckedChange = {
+                                            islandExpandGlowEnabled = it
+                                            reminderPrefs.edit { putBoolean("island_expand_glow_enabled", it) }
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -377,7 +379,7 @@ fun PreferenceSettingsScreen(
                                         text = CommonStr.today(),
                                         selected = defaultHomepage == "今日",
                                         onClick = {
-                                            com.haooz.chedule.ui.utils.FeatureLog.preference("default_homepage=今日")
+                                            FeatureLog.preference("default_homepage=今日")
                                             settingsViewModel.setDefaultHomepage("今日")
                                         }
                                     ),
@@ -385,7 +387,7 @@ fun PreferenceSettingsScreen(
                                         text = PreferenceStr.schedule(),
                                         selected = defaultHomepage == "课程表",
                                         onClick = {
-                                            com.haooz.chedule.ui.utils.FeatureLog.preference("default_homepage=课程表")
+                                            FeatureLog.preference("default_homepage=课程表")
                                             settingsViewModel.setDefaultHomepage("课程表")
                                         }
                                     ),
@@ -405,7 +407,7 @@ fun PreferenceSettingsScreen(
                             var predictiveBackEnabled by remember {
                                 mutableStateOf(
                                     appPrefs.getBoolean(
-                                        com.haooz.chedule.ui.utils.PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
+                                        PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
                                         true
                                     )
                                 )
@@ -416,10 +418,10 @@ fun PreferenceSettingsScreen(
                                 checked = predictiveBackEnabled,
                                 onCheckedChange = {
                                     predictiveBackEnabled = it
-                                    com.haooz.chedule.ui.utils.PredictiveBackSettings.enabled = it
+                                    PredictiveBackSettings.enabled = it
                                     appPrefs.edit {
                                         putBoolean(
-                                            com.haooz.chedule.ui.utils.PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
+                                            PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
                                             it
                                         )
                                     }
@@ -601,7 +603,7 @@ private fun ThemeSelectionBox(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .squircleBorder(
+                .continuousBorder(
                     width = 3.dp,
                     color = if (selected) MiuixTheme.colorScheme.primary else Color.Transparent,
                     cornerRadius = 26.dp
@@ -612,7 +614,7 @@ private fun ThemeSelectionBox(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .squircleClip(20.dp)
+                    .continuousClip(20.dp)
             ) {
                 Image(
                     painter = painterResource(drawableRes),

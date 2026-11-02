@@ -542,3 +542,129 @@
     });
   });
 })();
+
+/* ==================== 支持 / 赞赏名单（分页） ==================== */
+(function () {
+  var list = document.getElementById('sp-items');
+  if (!list) return;
+
+  var prev = document.getElementById('sp-prev');
+  var next = document.getElementById('sp-next');
+  var pager = document.getElementById('sp-pager');
+  var pageno = document.getElementById('sp-pageno');
+  var pagetotal = document.getElementById('sp-pagetotal');
+  var stateEl = document.getElementById('sp-state');
+  var emptyEl = document.getElementById('sp-empty');
+
+  // tc.nexioschedule.icu 是 EdgeOne Pages 静态托管，没有 /api 反代，走主站绝对地址（后端已带 CORS: *）
+  var API_BASE = location.hostname === 'tc.nexioschedule.icu' ? 'https://nexioschedule.icu' : '';
+
+  var PAGE = 6;
+  var page = 1;
+  var total = 0;
+  var cache = {};
+  var loading = false;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function itemHtml(it) {
+    // 后端把匿名记成 "[匿名]"，显示时去掉方括号，头像取首字
+    var name = String(it.nickname || '').trim().replace(/^\[|\]$/g, '') || '匿名';
+    var initial = name.slice(0, 1).toUpperCase();
+    var time = String(it.time || '').slice(5);
+    var remark = String(it.remark || '').trim();
+    return '<li class="sp-item">' +
+      '<span class="sp-avatar" aria-hidden="true">' + esc(initial) + '</span>' +
+      '<div class="sp-main">' +
+      '<div class="sp-row"><span class="sp-name">' + esc(name) + '</span>' +
+      '<span class="sp-amount">' + esc(it.amount || '') + '</span></div>' +
+      (remark ? '<p class="sp-remark">' + esc(remark) + '</p>' : '') +
+      '</div>' +
+      '<time class="sp-time">' + esc(time) + '</time>' +
+      '</li>';
+  }
+
+  function paint() {
+    var pages = Math.max(1, Math.ceil(total / PAGE));
+    if (pageno) pageno.textContent = String(page);
+    if (pagetotal) pagetotal.textContent = String(pages);
+    if (pager) pager.hidden = total <= PAGE;
+    if (prev) prev.disabled = page <= 1;
+    if (next) next.disabled = page >= pages;
+    if (stateEl) stateEl.textContent = total ? total + ' 条' : '';
+  }
+
+  function render(items) {
+    list.innerHTML = items.map(itemHtml).join('');
+    if (emptyEl) emptyEl.hidden = items.length > 0;
+  }
+
+  function go(p) {
+    if (loading || p < 1) return;
+    var pages = Math.max(1, Math.ceil(total / PAGE));
+    if (total && p > pages) return;
+
+    if (cache[p]) {
+      page = p;
+      render(cache[p]);
+      paint();
+      return;
+    }
+
+    loading = true;
+    if (stateEl) stateEl.textContent = '加载中…';
+
+    fetch(API_BASE + '/api/appreciations?limit=' + PAGE + '&offset=' + (p - 1) * PAGE, { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var items = (data && data.records) || [];
+        total = (data && typeof data.total === 'number')
+          ? data.total
+          : (p - 1) * PAGE + items.length;
+        cache[p] = items;
+        page = p;
+        render(items);
+        paint();
+      })
+      .catch(function () {
+        if (stateEl) stateEl.textContent = '加载失败，稍后再试';
+        if (!total && emptyEl) emptyEl.hidden = false;
+      })
+      .then(function () {
+        loading = false;
+      });
+  }
+
+  if (location.protocol === 'file:') {
+    if (emptyEl) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = '本地直接打开文件时读不到名单，用 http 方式访问才会加载。';
+    }
+    if (stateEl) stateEl.textContent = '';
+    return;
+  }
+
+  if (prev) prev.addEventListener('click', function () { go(page - 1); });
+  if (next) next.addEventListener('click', function () { go(page + 1); });
+
+  // 按需加载：区块进入视口才请求第一页，首屏不白拉一次接口
+  var section = list.closest('section') || list;
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      if (entries[0].isIntersecting) {
+        io.disconnect();
+        go(1);
+      }
+    }, { rootMargin: '240px 0px' });
+    io.observe(section);
+  } else {
+    go(1);
+  }
+})();

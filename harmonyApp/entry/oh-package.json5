@@ -1,0 +1,12 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "Nexio课程表鸿蒙端主模块",
+  "main": "",
+  "author": "haooz",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "@cpf-kmp-cmp/compose": "file:../third_party/cpf-compose-1.9.2-1.2.0.har",
+    "libentry.so": "file:./src/main/cpp/types/libentry"
+  }
+}

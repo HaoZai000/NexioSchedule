@@ -15,7 +15,7 @@
   <meta property="og:type" content="website">
   <meta property="og:image" content="picture/app-icon.jpg">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20261031e">
   <noscript><style>.reveal{opacity:1!important;transform:none!important}.stats{visibility:visible!important;opacity:1!important;transform:none!important}</style></noscript>
   <link rel="icon" type="image/jpeg" href="picture/favicon.jpg">
   <link rel="preload" as="image" href="picture/主课程表.png">
@@ -50,6 +50,7 @@
         <a href="#features" data-nav="features">功能</a>
         <a href="#preview" data-nav="preview">界面</a>
         <a href="#download" data-nav="download">下载</a>
+        <a href="#support" data-nav="support">支持</a>
         <a href="#community" data-nav="community">社区</a>
       </nav>
       <div class="nav-right">
@@ -475,6 +476,41 @@
       </div>
     </section>
 
+    <!-- ==================== 支持 ==================== -->
+    <section class="sec support" id="support">
+      <div class="container">
+        <header class="sec-head reveal">
+          <div class="sec-tag"><i>05</i>支持</div>
+          <h2>名字留在<br>这一页上</h2>
+          <p class="sub">课表一直免费，服务器和域名不是。<b>这些人是它还在跑的原因。</b></p>
+        </header>
+
+        <div class="support-grid">
+          <div class="support-buy glass reveal">
+            <img class="sp-qr" src="picture/zanshangma.png" alt="微信赞赏码" loading="lazy" width="480" height="480">
+            <div class="sp-buy-meta">
+              <strong>扫码赞赏</strong>
+              <span>微信扫码，金额随意。留一句备注，右侧名单里就会看到你。</span>
+            </div>
+          </div>
+
+          <div class="support-list glass reveal" style="--d:.06s">
+            <div class="sp-head">
+              <span class="sp-title">最近支持</span>
+              <span class="sp-hint" id="sp-state">加载中…</span>
+            </div>
+            <ol class="sp-items" id="sp-items"></ol>
+            <p class="sp-empty" id="sp-empty" hidden>名单暂时没拉下来，刷新一下再试。</p>
+            <div class="sp-pager" id="sp-pager" hidden>
+              <button class="sp-page" id="sp-prev" type="button">上一页</button>
+              <span class="sp-page-info"><b id="sp-pageno">1</b> / <span id="sp-pagetotal">1</span></span>
+              <button class="sp-page" id="sp-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ==================== 社区 ==================== -->
     <section class="sec community" id="community">
       <div class="container">
@@ -536,6 +572,6 @@
     </a>
   </nav>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=20261031e"></script>
 </body>
 </html>

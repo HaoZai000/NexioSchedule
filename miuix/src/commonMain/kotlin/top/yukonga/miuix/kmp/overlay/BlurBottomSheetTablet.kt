@@ -192,7 +192,7 @@ private fun BlurBottomSheetTabletContent(
     val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
     // 滑入动画用的窗口高度在组合期读取一次，避免进入动画期间逐帧做密度换算
-    val windowHeightPx = with(density) { windowInfo.containerDpSize.height.toPx() }
+    val windowHeightPx = with(density) { windowInfo.containerSize.height.toFloat() }
     // 预测性返回（API 33+）进度实时驱动 sheet 下滑，取消回弹、完成关闭；低版本退化为立即关闭。
     // 走本模块 expect 封装（utils/NavigationBack.kt），commonMain 不直接依赖 AndroidX navigationevent。
     // backState 必须同时喂 handler 与进度读取（同一份状态），拆开跟手动画不动。
@@ -270,7 +270,7 @@ private fun BlurBottomSheetTabletContent(
     // 弹窗形状与 drawBackdrop 的 shape lambda 必须固定引用（否则模糊重编译）。
     // 圆角固定 38dp：平板弹窗是居中窄条不贴屏幕边缘，不跟屏幕物理圆角。
     val sheetShape = remember { ContinuousRoundedRectangle(38.dp) }
-    val windowWidth = windowInfo.containerDpSize.width
+    val windowWidth = with(density) { windowInfo.containerSize.width.toDp() }
     val horizontalGap = ((windowWidth - minOf(sheetMaxWidth, windowWidth)) / 2).coerceAtLeast(0.dp)
 
             Box(
@@ -294,7 +294,7 @@ private fun BlurBottomSheetTabletContent(
             modifier = sheetModifier
                 .width(sheetMaxWidth)
                 .fillMaxWidth()
-                .heightIn(max = if (sheetMaxHeight != Dp.Unspecified) sheetMaxHeight else windowInfo.containerDpSize.height * 0.8f)
+                .heightIn(max = if (sheetMaxHeight != Dp.Unspecified) sheetMaxHeight else with(density) { windowInfo.containerSize.height.toDp() } * 0.8f)
                 .then(
                     when {
                         enableContentHeightSnap -> Modifier.blurBottomSheetDetentHeight(detentState)

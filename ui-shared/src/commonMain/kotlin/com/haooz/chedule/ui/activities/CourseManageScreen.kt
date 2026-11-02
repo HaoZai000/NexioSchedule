@@ -93,8 +93,8 @@ import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
+import com.kyant.capsule.continuousBorder
+import com.kyant.capsule.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -455,13 +455,13 @@ fun CourseManageScreen(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .squircleBorder(
+                                            .continuousBorder(
                                                 width = 2.dp,
                                                 color = primaryColor.copy(alpha = borderAlpha),
                                                 cornerRadius = 12.dp
                                             )
                                             .padding(4.dp)
-                                            .squircleClip(8.dp)
+                                            .continuousClip(8.dp)
                                             .background(Color(color).copy(alpha = if (isDark) 0.22f else 0.16f))
                                     )
                                 }
@@ -491,13 +491,13 @@ fun CourseManageScreen(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .squircleBorder(
+                                            .continuousBorder(
                                                 width = 2.dp,
                                                 color = primaryColor.copy(alpha = customBorderAlpha),
                                                 cornerRadius = 12.dp
                                             )
                                             .padding(4.dp)
-                                            .squircleClip(8.dp)
+                                            .continuousClip(8.dp)
                                             .background(
                                                 if (isCustomColor) Color(newCourseColor).copy(alpha = if (isDark) 0.22f else 0.16f)
                                                 else if (isDark) ComposeColor(0xFF424242) else ComposeColor(0xFFF0F0F0)
@@ -741,7 +741,7 @@ private fun SectionChip(
 ) {
     Box(
         modifier = Modifier
-            .squircleClip(6.dp)
+            .continuousClip(6.dp)
             .background(courseTintBase(color))
             .padding(horizontal = 7.dp, vertical = 3.dp),
             contentAlignment = Alignment.Center
@@ -848,7 +848,7 @@ private fun CourseManageCard(
                     Spacer(modifier = Modifier.width(6.dp))
                     Box(
                         modifier = Modifier
-                            .squircleClip(5.dp)
+                            .continuousClip(5.dp)
                             .background(courseTintBase(color))
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                         contentAlignment = Alignment.Center
@@ -912,7 +912,7 @@ private fun CourseManageCard(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .squircleBorder(width = 2.dp, color = color, cornerRadius = 16.dp)
+                .continuousBorder(width = 2.dp, color = color, cornerRadius = 16.dp)
         )
     }
 }

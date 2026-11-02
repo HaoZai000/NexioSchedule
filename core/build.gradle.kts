@@ -1,12 +1,10 @@
-// Nexio课程表 - 跨平台共享模块（KMP）
-// AGP 9 起的 KMP 写法：插件是 com.android.kotlin.multiplatform.library（不是 com.android.library），Android 目标配置写在 kotlin { android { } } 里。
+// 跨平台共享模块（KMP）。
 
 import org.gradle.api.tasks.testing.Test
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kmp.library)
-    // 实体表（课程/课表/作息）的代码生成：SQL 是真相，查询在编译期校验，迁移是显式 .sqm 文件。
     alias(libs.plugins.sqldelight)
 }
 
@@ -14,11 +12,10 @@ sqldelight {
     databases {
         create("NexioDatabase") {
             packageName.set("com.haooz.chedule.data.db")
-            // 历史版本的基线库。verifyMigrations 需要它：拿 v1.db + 1.sqm 跑一遍，
-            // 结果必须与 .sq 声明的最新 schema 完全一致，否则编译失败。
-            // 加新版本时：改 .sq 前先跑 generateCommonMainNexioDatabaseSchema 落一份基线。
+            // 迁移基线：verifyMigrations 拿它跑一遍，结果必须与 .sq 的最新 schema 一致。
+            // 加新版本时，改 .sq 前先跑 generateCommonMainNexioDatabaseSchema 落基线。
             schemaOutputDirectory.set(file("src/commonMain/sqldelight/databases"))
-            // 迁移文件缺失时**编译失败**，而不是运行时丢数据。存量用户的数据只有一份。
+            // 迁移缺失时编译失败，而不是运行时丢数据。
             verifyMigrations.set(true)
         }
     }
@@ -29,13 +26,11 @@ kotlin {
         namespace = "com.haooz.chedule.core"
         compileSdk = 37
         minSdk = 26
-        // 开宿主机测试：:core 的 Android 实现（SharedPreferencesStore 等）。
-        // ⚠ 代价：commonTest 有 3 个类依赖真实设备字段或 Application 生命周期，宿主机上是桩 android.jar，实测 16 个用例必挂 —— 在 testAndroidHostTest 里显式排除，断言未改弱，仍由 jvmTest + iOS 门禁覆盖。
+        // 宿主机测试：3 个类依赖设备字段/Application 生命周期，在 testAndroidHostTest 里显式排除。
         withHostTest {}
     }
     jvm()
-    // ── iOS 目标：**默认关闭**，-Pnexio.ios=true 开启 ────────────────────────
-    // 开启后请改用联网构建：./gradlew -Pnexio.ios=true :core:compileKotlinIosArm64
+    // iOS target 默认关（-Pnexio.ios=true 开启），开启后需联网构建。
     val enableIos = (project.findProperty("nexio.ios") as? String)?.toBoolean() ?: false
     if (enableIos) {
         val iosTargets = listOf(iosArm64(), iosSimulatorArm64())
@@ -43,7 +38,7 @@ kotlin {
             target.compilations.getByName("main") {
                 cinterops.create("applesysctl") {
                     defFile = project.file("src/nativeInterop/cinterop/apple-sysctl.def")
-                    // 默认包名取 def 文件名（"apple-sysctl"），带连字符不是合法包名，显式指定
+                    // 包名必须显式给：默认取 def 文件名，带连字符不合法
                     packageName = "applesysctl"
                 }
             }
@@ -51,7 +46,7 @@ kotlin {
     }
 
     sourceSets {
-        // 「Android 与 JVM 桌面共用」的实现（java.io.File 系，FileAppFile 等）：与 :miuix/:backdrop 的 skikoMain 同一招 —— 用 srcDir 共享同一份源码
+        // Android 与 JVM 桌面共用的实现（java.io.File 系），用 srcDir 共享同一份源码
         androidMain {
             kotlin.srcDir("src/jvmShared/kotlin")
         }
@@ -60,18 +55,18 @@ kotlin {
         }
 
         commonMain.dependencies {
-            // java.time 的跨平台替代。必须 api —— LocalDate 出现在 :core 公开签名里（Course / HolidayEntry 等），implementation 不传递给下游。
+            // 必须 api：LocalDate 出现在公开签名里
             api(libs.kotlinx.datetime)
-            // 协程：StateFlow 出现在公开签名里，同理必须 api。
+            // 必须 api：StateFlow 出现在公开签名里
             api(libs.kotlinx.coroutines.core)
-            // JSON：替代 org.json。api —— JsonSupport 的扩展函数挂在 kotlinx.serialization.json.JsonObject 上，类型会出现在下游调用点。
+            // 必须 api：JsonSupport 的扩展挂在 JsonObject 上，类型出现在下游调用点
             api(libs.kotlinx.serialization.json)
             // 实体表运行时（生成的 NexioDatabase 依赖它）
             implementation(libs.sqldelight.runtime)
         }
 
         androidMain.dependencies {
-            // Android 侧网络仍走 OkHttp（与迁移前同一套引擎、同一套超时语义）；刻意不引入 Ktor，会连带把 kotlinx-coroutines 从 1.9.0 顶到 1.10+。
+            // 网络走 OkHttp；不引 Ktor，它会把 coroutines 顶到 1.10+
             implementation(libs.okhttp)
             implementation(libs.sqldelight.android.driver)
         }
@@ -81,25 +76,24 @@ kotlin {
             implementation(libs.sqldelight.sqlite.driver)
         }
 
-        // iOS 目标默认关闭（-Pnexio.ios=true 才建），所以驱动依赖也必须在同一个开关里加
+        // 驱动依赖跟 iOS target 同一个开关
         if (enableIos) {
             iosMain.dependencies {
                 implementation(libs.sqldelight.native.driver)
             }
         }
 
-        // round-trip 回归测试跑在 commonTest：KeyValueStore 的读写语义必须在所有平台一致，用 InMemory 实现即可验证，不需要 Android 设备。
+        // KeyValueStore 的读写语义要全平台一致，InMemory 实现即可验证
         commonTest.dependencies {
             implementation(kotlin("test"))
-            // HttpService 是 suspend 接口，契约测试需要协程测试运行时。
+            // HttpService 是 suspend 接口
             implementation(libs.kotlinx.coroutines.test)
         }
 
-        // 仅 JVM 测试用：拉真实 Gson 对拍 ScheduleCodec，确保换序列化实现后输出与 Gson 一致。不进任何产物。
+        // 仅 JVM 测试：用真 Gson 对拍 ScheduleCodec
         jvmTest.dependencies {
             implementation(libs.gson)
-            // 课程行表要跑真 SQL 才有意义：外键、级联、INSERT OR REPLACE 的顺序问题，
-            // 假后端一个都验不出来。内存库起步价几十毫秒。
+            // 课程行表要跑真 SQL：外键、级联、INSERT OR REPLACE 的顺序，假后端验不出来
             implementation(libs.sqldelight.sqlite.driver)
         }
     }
@@ -112,7 +106,7 @@ tasks.withType<Test>().configureEach {
     }
 }
 
-// ── Android 宿主机测试（withHostTest）的排除项 ────────────────────────────────
+// Android 宿主机测试的排除项
 tasks.withType<Test>().matching { it.name == "testAndroidHostTest" }.configureEach {
     filter {
         excludeTestsMatching("com.haooz.chedule.data.PlatformInfoTest")

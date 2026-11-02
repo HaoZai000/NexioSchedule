@@ -174,9 +174,17 @@ class SharedScrollBehavior(
                         val currentHeightOffset = state.heightOffset
                         val heightOffsetLimit = state.heightOffsetLimit
 
-                        // 当没有大标题时（heightOffsetLimit == -1f），或者 bar 已完全折叠时，
-                        // 更新 postCollapseScrollOffset 用于按钮材质/阴影动画
-                        if (currentHeightOffset <= heightOffsetLimit || heightOffsetLimit == -1f) {
+                        // 没有大标题的两种形态都必须不消费滚动：
+                        // -1f：显式标记「无大标题」（见下方 LaunchedEffect）；
+                        // -Float.MAX_VALUE（初值）：大标题**从未被测量**，例如原生顶栏接管后
+                        // Compose 根本不再组合 CollapsibleTopAppBar。此时 maxConsumable 是天文数字，
+                        // 向上滚动的位移会被整段吃掉 —— 表现为「能下滑、能左右滑，唯独上滑不动」。
+                        val noLargeTitle =
+                            heightOffsetLimit >= -1f || heightOffsetLimit <= -Float.MAX_VALUE / 2f
+
+                        // 无大标题 / bar 已完全折叠时，更新 postCollapseScrollOffset
+                        // 用于按钮材质/阴影动画
+                        if (currentHeightOffset <= heightOffsetLimit || noLargeTitle) {
                             postCollapseScrollOffset += -available.y
                             return Offset.Zero
                         }

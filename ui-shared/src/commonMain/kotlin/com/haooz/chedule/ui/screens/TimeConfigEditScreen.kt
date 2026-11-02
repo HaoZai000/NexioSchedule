@@ -71,6 +71,7 @@ import com.haooz.chedule.ui.activities.classschedule.describeSpecialDays
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.effects.motion.morphClip
 import com.haooz.chedule.ui.effects.motion.rememberMorphTransition
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
@@ -106,7 +107,7 @@ import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.squircle.squircleSurface
+import com.kyant.capsule.continuousSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -540,7 +541,7 @@ fun TimeConfigEditScreen(
                     translationX = s.translationX
                     translationY = s.translationY
                 }
-                .clip(morph.clipShape)
+                .morphClip(morph)
                 .background(
                     if (isFabCreation) MiuixTheme.colorScheme.primary
                     else MiuixTheme.colorScheme.background
@@ -708,7 +709,7 @@ fun TimeConfigEditScreen(
                                         if (quickExpanded) 32.dp else 20.dp,
                                         label = "bottomStart"
                                     )
-                                    val cardModifier = Modifier.fillMaxWidth().squircleSurface(
+                                    val cardModifier = Modifier.fillMaxWidth().continuousSurface(
                                         color = MiuixTheme.colorScheme.secondaryVariant,
                                         topStart = 20.dp,
                                         topEnd = 20.dp,

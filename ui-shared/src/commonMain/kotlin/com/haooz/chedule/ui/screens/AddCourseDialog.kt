@@ -92,8 +92,8 @@ import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
+import com.kyant.capsule.continuousBorder
+import com.kyant.capsule.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -1049,7 +1049,7 @@ private fun WeekdayCard(
                         modifier = Modifier
                             .weight(1f)
                             .height(32.dp)
-                            .squircleClip(10.dp)
+                            .continuousClip(10.dp)
                             .background(bgColor)
                             .clickable(
                                 interactionSource = null,
@@ -1388,13 +1388,13 @@ private fun RowScope.ColorSwatch(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .squircleBorder(
+                .continuousBorder(
                     width = 2.dp,
                     color = primaryColor.copy(alpha = borderAlpha),
                     cornerRadius = 12.dp
                 )
                 .padding(4.dp)
-                .squircleClip(8.dp)
+                .continuousClip(8.dp)
                 .background(Color(color).copy(alpha = if (isDark) 0.22f else 0.16f))
         )
     }
@@ -1428,13 +1428,13 @@ private fun RowScope.CustomColorSwatch(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .squircleBorder(
+                .continuousBorder(
                     width = 2.dp,
                     color = primaryColor.copy(alpha = customBorderAlpha),
                     cornerRadius = 12.dp
                 )
                 .padding(4.dp)
-                .squircleClip(8.dp)
+                .continuousClip(8.dp)
                 .background(
                     if (isCustomColor) Color(form.selectedColor).copy(alpha = if (isDark) 0.22f else 0.16f)
                     else if (isDark) Color(0xFF424242) else Color(0xFFF0F0F0)

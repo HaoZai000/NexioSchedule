@@ -62,6 +62,7 @@ import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.utils.LocalHostNavigation
+import com.haooz.chedule.ui.utils.LocalNativeBottomBarHost
 import com.haooz.chedule.ui.utils.PageBackdropSnapshot
 import com.haooz.chedule.ui.utils.ShiftModeRequest
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -230,10 +231,18 @@ fun CourseScheduleApp(
         // 顶栏/底栏各自再录一层：两者都在内容层之上，只有把它们也录进来，
         // 「比底栏更高一层」的组合采样层才成立
         topBarSampleBackdrop = rememberLayerBackdrop()
-        bottomBarSampleBackdrop = rememberLayerBackdrop()
-        overlayGlassBackdrop = rememberCombinedBackdrop(
-            liquidGlassBackdrop, topBarSampleBackdrop, bottomBarSampleBackdrop
-        )
+        // 宿主自己画底栏（鸿蒙 ArkUI）时 Compose 一个像素都不画，底栏那层永远录不到东西：
+        // 直接从组合里摘掉，别让每个玻璃节点白跑一次采样
+        if (LocalNativeBottomBarHost.current?.ownsBottomBar == true) {
+            overlayGlassBackdrop = rememberCombinedBackdrop(
+                liquidGlassBackdrop, topBarSampleBackdrop
+            )
+        } else {
+            bottomBarSampleBackdrop = rememberLayerBackdrop()
+            overlayGlassBackdrop = rememberCombinedBackdrop(
+                liquidGlassBackdrop, topBarSampleBackdrop, bottomBarSampleBackdrop
+            )
+        }
         // 供今日/课程表卡片玻璃采样：录的是共享壁纸层，不是页内透明占位
         sharedWallpaperBackdrop = rememberLayerBackdrop()
 
@@ -700,6 +709,13 @@ fun CourseScheduleApp(
                 host.onEnterCustomize = { enterCustomizePage() }
                 host.onJumpToDate = { todayJumpToDateTrigger++ }
             }
+        }
+        // 宿主底栏画在 Compose 之外，主界面上这几层全屏内容盖不住它，只能整条收起
+        val nativeBottomBarHost = LocalNativeBottomBarHost.current
+        val bottomBarSuppressed = showCustomizePage || showSwitchSchedule || showDetail ||
+                isWindowCutoutActive
+        SideEffect {
+            nativeBottomBarHost?.suppressed = bottomBarSuppressed
         }
     }
 

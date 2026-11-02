@@ -1,18 +1,11 @@
-// Nexio课程表 - 顶层构建配置：除插件声明外，还挂了 KMP 迁移相关的强制配置（平台纯净度检查、kotlinx-datetime 版本钉死），原因写在对应位置。
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.compose) apply false
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// commonMain / skikoMain 平台纯净度检查（静态兜底）
-// 拦「Android/JVM 全绿、iOS 编不过」：等 iOS 编译才发现太迟，正则扫描在编译前就能定位到行号。iOS 真编译门禁 opt-in（-Pnexio.ios=true，默认关的原因见对应模块注释），常态下静态检查是主力；已知盲区：正则查不出未知 API。
-// ─────────────────────────────────────────────────────────────────────────────
+// commonMain / skikoMain 纯净度检查：正则扫 JVM 专有 API，在 iOS 编译前兜底。
 
-/**
- * 一条禁止规则。[appliesTo] 用于排除文件级的已知例外。
- * 两个坑（已实测）：1. `@Volatile` 只有在文件未导入 `kotlin.concurrent.Volatile` 时才是问题，否则误报；2. `@JvmInline` / `import kotlin.jvm.JvmInline` 合法，value class 专用。
- */
+/** 一条禁止规则；[appliesTo] 用于排除已知误报。 */
 class Forbidden(
     val name: String,
     val regex: Regex,
@@ -22,11 +15,9 @@ class Forbidden(
 
 abstract class CheckKmpPurityTask : DefaultTask() {
 
-    /** 待扫描的 .kt 文件。 */
     @get:InputFiles
     abstract val sources: ConfigurableFileCollection
 
-    /** 仓库根路径，仅用于把绝对路径显示成相对路径。 */
     @get:Input
     abstract val rootPath: Property<String>
 
@@ -36,7 +27,7 @@ abstract class CheckKmpPurityTask : DefaultTask() {
         val violations = mutableListOf<String>()
         var scanned = 0
 
-        // 必须用 asFileTree 展开目录：ConfigurableFileCollection 里放的是目录本身，直接取 .files 只会拿到目录对象（曾因此扫描到 0 个文件却报通过 —— 假绿）。
+        // 必须 asFileTree 展开目录，直接取 .files 只会拿到目录对象（会假绿）。
         val ktFiles = sources.asFileTree.matching { include("**/*.kt") }.files
             .sortedBy { it.absolutePath }
 
@@ -47,7 +38,7 @@ abstract class CheckKmpPurityTask : DefaultTask() {
             val rel = src.absolutePath.removePrefix(root).trimStart('\\', '/')
 
             text.lines().forEachIndexed { index, line ->
-                // 跳过注释行，避免把 KDoc 里的「反例说明」当成违规
+                // 跳过注释行，避免把 KDoc 里的反例当违规
                 val trimmed = line.trimStart()
                 if (trimmed.startsWith("*") || trimmed.startsWith("//") || trimmed.startsWith("/*")) {
                     return@forEachIndexed
@@ -72,7 +63,7 @@ abstract class CheckKmpPurityTask : DefaultTask() {
     }
 
     companion object {
-        // 必须放伴生对象：@TaskAction 捕获 build script 实例会让配置缓存报 "cannot serialize Gradle script object references"。
+        // 必须放伴生对象：@TaskAction 捕获 script 实例会让配置缓存报无法序列化。
         val FORBIDDEN = listOf(
             Forbidden(
                 "@Volatile（无限定）",
@@ -112,8 +103,7 @@ abstract class CheckKmpPurityTask : DefaultTask() {
             ),
             Forbidden(
                 "字符串字面量 .format(...)（String.format 的扩展形式）",
-                // 只匹配字符串字面量的扩展调用（`"%.1f".format(x)`）；变量形式
-                // （`fmt.format(x)`）静态区分不了，靠 iOS 编译门禁兜底。
+                // 只匹配字符串字面量；变量形式区分不了，靠 iOS 编译门禁兜底。
                 Regex("\"[^\"]*\"\\s*\\.\\s*format\\("),
                 "String.format 的扩展形式，同样是 JVM 专有；改 padStart 或 :core 的 formatOneDecimal",
             ),
@@ -124,8 +114,7 @@ abstract class CheckKmpPurityTask : DefaultTask() {
             ),
             Forbidden(
                 "String.toByteArray()",
-                // 只匹配**字符串字面量**：`Collection<Byte>.toByteArray()` 是 common API，不能误伤。
-                // 变量形式（`s.toByteArray()`）静态区分不了，靠 iOS 编译门禁兜底。
+                // 只匹配字符串字面量（Collection<Byte>.toByteArray() 是 common API，不能误伤）。
                 Regex("\"[^\"]*\"\\s*\\.\\s*toByteArray\\(\\)"),
                 "String.toByteArray() 是 JVM 专有；跨平台用 encodeToByteArray()",
             ),
@@ -148,7 +137,6 @@ abstract class CheckKmpPurityTask : DefaultTask() {
     }
 }
 
-/** 需要扫描的源集：commonMain 是「必须跨平台」，skikoMain 是「jvm 与 iOS 共享」。 */
 val puritySourceSets = listOf("commonMain", "skikoMain")
 val purityModules = listOf("core", "backdrop", "miuix", "ui-shared")
 
@@ -163,7 +151,7 @@ tasks.register<CheckKmpPurityTask>("checkKmpPurity") {
     )
 }
 
-// 让各模块的 `check` 自动带上纯净度检查（否则很容易被忘掉）；根项目没有 java 插件、没有 check 任务，所以挂在子项目上。
+// 挂到子项目的 check 上；根项目没有 check 任务。
 val purityCheckTask = tasks.named("checkKmpPurity")
 
 subprojects {
@@ -172,9 +160,8 @@ subprojects {
     }
 }
 
-// kotlinx-datetime 版本钉死 —— 全应用只允许一个版本
-// CMP material3 在 **iOS 变体**上依赖 kotlinx-datetime 0.7.1，会把本项目锁定的 0.6.2 顶掉，而 Android/JVM 侧走 AndroidX material3（不拉 datetime）仍是 0.6.2。结果是同一个 iOS 二进制里 :core 按 0.6.2 编、:ui-shared 按 0.7.1 编 —— 两版 LocalDate 是不同类，链接期必炸（症状：Clock.System 报 Unresolved reference）。
-// 升级时必须全项目一起升（含 monthNumber → month、Clock → kotlin.time.Clock），然后删掉这条 force。
+// kotlinx-datetime 全应用只允许一个版本：iOS 侧 material3 会把它顶到 0.7.1，
+// 两版 LocalDate 是不同类，链接期必炸。升级时全项目一起升，然后删掉这条 force。
 subprojects {
     configurations.configureEach {
         resolutionStrategy.force("org.jetbrains.kotlinx:kotlinx-datetime:0.6.2")
