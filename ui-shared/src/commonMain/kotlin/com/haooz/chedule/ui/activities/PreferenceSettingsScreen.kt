@@ -42,7 +42,6 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.LanguagePref
 import com.haooz.chedule.i18n.LanguageStore
 import com.haooz.chedule.i18n.PreferenceStr
-import com.haooz.chedule.ui.activities.today.ClassEndEffectSettings
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.text.material.Text as Text
@@ -136,9 +135,6 @@ fun PreferenceSettingsScreen(
         mutableStateOf(
             appPrefs.getBoolean(com.haooz.chedule.ui.theme.KEY_HAPTIC_FEEDBACK, true)
         )
-    }
-    var classEndFireworks by remember {
-        mutableStateOf(appPrefs.getBoolean(ClassEndEffectSettings.KEY_FIREWORKS, true))
     }
     var appMaterialLevel by remember {
         mutableStateOf(
@@ -439,15 +435,6 @@ fun PreferenceSettingsScreen(
                                             it
                                         )
                                     }
-                                }
-                            )
-                            SwitchPreference(
-                                title = PreferenceStr.classEndFireworks(),
-                                summary = PreferenceStr.classEndFireworksSummary(),
-                                checked = classEndFireworks,
-                                onCheckedChange = {
-                                    classEndFireworks = it
-                                    ClassEndEffectSettings.setFireworks(it)
                                 }
                             )
                             SwitchPreference(

@@ -36,9 +36,6 @@ object PreferenceStr {
     val hapticFeedback = L("应用触感反馈", "Haptic Feedback")
     val hapticFeedbackSummary =
         L("点击、滑动、底栏切换等操作的震动反馈", "Vibration feedback for taps, swipes, and bottom bar switching")
-    val classEndFireworks = L("下课烟花", "Class-End Fireworks")
-    val classEndFireworksSummary =
-        L("今日页每天最后一节课结束后播放烟花", "Play fireworks on the Today page after the day's last class ends")
     val hideFromRecents = L("隐藏后台", "Hide from Recents")
     val hideFromRecentsSummary =
         L("返回桌面时，隐藏应用的最近任务卡片", "Hide the app's recent tasks card when returning to the home screen")

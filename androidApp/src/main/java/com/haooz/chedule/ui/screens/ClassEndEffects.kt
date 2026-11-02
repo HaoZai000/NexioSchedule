@@ -313,7 +313,6 @@ fun FireworksOverlay(
     var canvasUnit by remember { mutableStateOf(320f) }
 
     LaunchedEffect(trigger) {
-        if (!ClassEndEffectSettings.fireworksEnabled()) return@LaunchedEffect
         val random = Random(System.nanoTime() xor trigger.toLong())
         val scale = canvasUnit / 320f
         var stage = 0
