@@ -1,10 +1,37 @@
 {
   "app": {
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "release",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "./sign/nexio-release.cer",
+          "keyAlias": "keys",
+          "keyPassword": "0000001B7657010BD13A6D47CD834F0C3953CDF0A7C9B150F0C1D71BF55BD2C61CCA8412A0C0A3C4B7FDD6",
+          "profile": "./sign/nexio-release.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "./sign/Haoozhm.p12",
+          "storePassword": "0000001BF09FBC22284ED473CA0567059B85ECEDD219A836D16EE415A0BA5FBBCB0428F5462AACBC16F854"
+        }
+      },
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/haooz/.ohos/config/default_harmonyApp_hCaI7kTX1-7p8bNAnAwbHSZj6VDJOvj_vc5IerHTnOM=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B52839F277C067771B1EE1B352E809373D7BCB2E11BE8EEA17EE8899A023D3A688092A9CCFACE3D",
+          "profile": "/Users/haooz/.ohos/config/default_harmonyApp_hCaI7kTX1-7p8bNAnAwbHSZj6VDJOvj_vc5IerHTnOM=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/haooz/.ohos/config/default_harmonyApp_hCaI7kTX1-7p8bNAnAwbHSZj6VDJOvj_vc5IerHTnOM=.p12",
+          "storePassword": "0000001BA3A81D9135E74B1B98D60A21979E7235147F6FE6492B0E3684964FCFC84C04B8217B5E96E3F12D"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",
-        "signingConfig": "default",
+        "signingConfig": "release",
         "targetSdkVersion": "26.0.0",
         "compatibleSdkVersion": "26.0.0",
         "runtimeOS": "HarmonyOS",

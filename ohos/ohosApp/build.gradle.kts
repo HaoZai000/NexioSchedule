@@ -146,6 +146,7 @@ val syncComposeResources = tasks.register<Copy>("syncComposeResourcesToHarmony")
 }
 
 // 产物同步：Kotlin 编出来的 .so 交给 ArkTS 宿主，谁生成谁负责搬。
+// debug / release 各一个：宿主只有一个 libs 路径，所以出哪个包必须先链哪个变体。
 val publishToHarmonyApp by tasks.registering(Copy::class) {
     from(layout.buildDirectory.dir("bin/ohosArm64/debugShared")) {
         include("libnexioohos.so")
@@ -157,7 +158,24 @@ tasks.matching { it.name == "linkDebugSharedOhosArm64" }.configureEach {
     finalizedBy(publishToHarmonyApp)
 }
 
-// 链接完顺手把 compose resources 也搬过去
+val publishReleaseToHarmonyApp by tasks.registering(Copy::class) {
+    from(layout.buildDirectory.dir("bin/ohosArm64/releaseShared")) {
+        include("libnexioohos.so")
+    }
+    into(rootProject.file("../harmonyApp/entry/libs/arm64-v8a"))
+    // 永远执行：两边链接都可能 UP-TO-DATE，靠增量判断会在「调试/发布来回切」时留下另一变体的库。
+    // 包内体积不受影响 —— 符号表由 hvigor 打包时自己 strip（实测入库 84.6MB → 包内 61.9MB）。
+    outputs.upToDateWhen { false }
+}
+
+tasks.matching { it.name == "linkReleaseSharedOhosArm64" }.configureEach {
+    finalizedBy(publishReleaseToHarmonyApp)
+}
+
+// 链接完顺手把 compose resources 也搬过去（与变体无关）
 publishToHarmonyApp.configure {
+    finalizedBy(syncComposeResources)
+}
+publishReleaseToHarmonyApp.configure {
     finalizedBy(syncComposeResources)
 }

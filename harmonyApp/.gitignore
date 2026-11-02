@@ -13,6 +13,11 @@ local.properties
 **/.preview/
 **/.test/
 
-# Kotlin 构建产物：由 `cd ohos && ./gradlew :ohosApp:linkDebugSharedOhosArm64` 自动写入，
-# 不进版本库（debug 包近 90MB，且必须与当次源码同源）。
+# Kotlin 构建产物：
 entry/libs/
+
+# 签名材料：证书 / profile / 密钥库一律不进库（密码在 build-profile.json5 里，那是 DevEco 写的加密串）
+sign/
+
+# AGC 服务配置：含 client_secret / api_key，不进库（每台机器从 AGC 控制台自己下）
+agconnect-services.json
