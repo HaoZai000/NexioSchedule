@@ -108,3 +108,33 @@ export const bottomBarSelected: (index: number) => void;
  * 无子页时必须整层藏掉：全屏 XComponent 即使内容为空也会吃掉主界面的手势。
  */
 export const registerOverlay: (publish: (active: boolean) => void) => void;
+
+/**
+ * 系统返回键出栈。有二级页时在 `onBackPressed` 里调用并消费事件（返回 true），
+ * 否则系统默认行为是直接退出应用。
+ */
+export const overlayPopBack: () => void;
+
+/**
+ * 二三四级页的原生顶栏语义（per-route chrome，与 iOS 的 NativeDocumentChrome 同协议）。
+ *
+ * 内容数组：`[{key, title, tint, back, leading?, action?, secondary?}]`，
+ * `key` 是路由层 key（裸 id / `#2`…），数组顺序即层级顺序（末位 = 栈顶）。
+ */
+export const registerDocChrome: (publish: (json: string) => void) => void;
+
+/**
+ * 顶栏位移，转场期间逐帧：`[[key, centiX], …]`（最多两层）。
+ * centiX 单位是 1/100 屏宽，除以 100 得 fraction，再乘屏宽 = translate.x。
+ */
+export const registerDocChromeMotion: (publish: (json: string) => void) => void;
+
+/** 点了某一层顶栏的按钮：role = back / leading / action / secondary。 */
+export const docChromeAction: (key: string, role: string) => void;
+
+/**
+ * 主界面被推开的位移，转场期间逐帧：`@<centi>`，1/10000 的有符号整数
+ * （`-2400` = 左移 24% 屏宽）。顶栏圆钮与底栏胶囊跟着主界面一起滑。
+ */
+export const registerMainMotion: (publish: (json: string) => void) => void;
+

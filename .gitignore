@@ -62,3 +62,9 @@ iosApp/buildDerived/
 
 # iOS 侧 build phase 生成的 framework 软链（见 project.pbxproj 的脚本）
 iosApp/Frameworks/
+
+# --- 鸿蒙构建产物 / 工具缓存 ---
+harmonyApp/.hvigor/
+harmonyApp/**/build/
+harmonyApp/oh_modules/
+.hvigor/

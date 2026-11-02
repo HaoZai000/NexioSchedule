@@ -13,7 +13,12 @@ import {
   registerBottomBar,
   bottomBarSelected,
   OverlayArkUIViewController,
-  registerOverlay
+  registerOverlay,
+  overlayPopBack,
+  registerDocChrome,
+  registerDocChromeMotion,
+  docChromeAction,
+  registerMainMotion
 } from 'libentry.so';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { fileIo } from '@kit.CoreFileKit';
@@ -118,6 +123,31 @@ function argbHex(value: number): string {
   return '#' + (value >>> 0).toString(16).padStart(8, '0');
 }
 
+/** 二三四级页顶栏上的一颗文字动作。 */
+interface DocChip {
+  /** SF Symbol 名（与 iOS 同源）；空串 = 画文字。 */
+  symbol: string;
+  label: string;
+  enabled: boolean;
+}
+
+/** 一层子页的原生顶栏语义（Kotlin 的 NativeDocumentChrome，与 iOS 同协议）。 */
+interface NativeDocChrome {
+  key: string;
+  title: string;
+  /** 主题色 ARGB（accent），个别部件着色用；返回图标/动作文字不用它 */
+  tint: number;
+  /** 黑白前景 ARGB（onSurface，iOS 的 .label 对应物）：返回图标与动作文字 */
+  label: number;
+  /** 无 leading（编辑器取消）时显示返回钮。 */
+  back: boolean;
+  leading: DocChip | null;
+  action: DocChip | null;
+  secondary: DocChip | null;
+  /** 顶栏位移，1/10000 屏宽（栈顶 1-p、次顶 -0.24p，与 PageLayer 同式）。 */
+  fracX: number;
+}
+
 @Entry
 @Component
 struct Index {
@@ -130,7 +160,20 @@ struct Index {
   @State private titleH: number = 62;
   @State private bottomBar: NativeBottomBarState | null = null;
   /** 有没有二级页。没有时覆盖层整层藏掉，否则全屏 XComponent 会吃掉主界面手势。 */
-  @State private overlayActive: boolean = false;
+  @State @Watch('onOverlayChanged') private overlayActive: boolean = false;
+
+  /** 每层子页的原生顶栏（内容 + 位移合并后的可见集合，最多两层同屏）。 */
+  @State private docChromes: NativeDocChrome[] = [];
+  /** 内容缓存（低频），位移到达时合并成 docChromes。 */
+  private docContents: NativeDocChrome[] = [];
+  private docMotion: string[][] = [];
+
+  /** 覆盖层刚藏起来时，把页签选中态拉回 Compose 发布的值：设置格点击会把 HdsTabs 内部 index 带到越界位，参数 diff 不变就不会自己回来。 */
+  private onOverlayChanged(): void {
+    if (!this.overlayActive) {
+      this.tabsController.changeIndex(this.bottomBar?.selected ?? 0);
+    }
+  }
 
   // 翻页位移每帧都变，单独放，避免整份结构一起替换导致按钮晚一帧
   @State private sOffX: number = 0;
@@ -138,10 +181,18 @@ struct Index {
   @State private tOffX: number = 0;
   @State private tOffY: number = 0;
 
+  /** 主界面视差（vp）：顶栏圆钮与底栏胶囊跟主界面一起滑。 */
+  @State private mainShiftX: number = 0;
+
   /** 底部避让区高度（vp），由 EntryAbility 写入；沉浸式下底栏靠它避让导航条。 */
   @StorageProp('bottomInsetVp') private bottomInsetVp: number = 0;
+  /** 顶部避让区（状态栏）高度（vp）；子页顶栏壳从窗口 y=0 开始排，按钮要自己让出来。 */
+  @StorageProp('topInsetVp') private topInsetVp: number = 0;
 
-  /** 顶栏圆钮材质。 */
+  /**
+   * 顶栏圆钮材质。沉浸光感（systemMaterial）是系统硬限制：只在 Navigation.title
+   * 这类系统 chrome 结构里生效，所以顶栏必须留在 title，不能下放进 Stack。
+   */
   private buttonMaterial: uiMaterial.ImmersiveMaterial =
     new uiMaterial.ImmersiveMaterial({
       style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
@@ -229,9 +280,61 @@ struct Index {
       this.overlayActive = active;
     });
 
+    registerDocChrome((json: string): void => {
+      try {
+        const arr = JSON.parse(json) as NativeDocChrome[];
+        this.docContents = arr ?? [];
+        this.applyDocMotion();
+      } catch (e) {
+        hilog.warn(0x0000, 'nexio', 'doc chrome json parse failed');
+      }
+    });
+
+    registerDocChromeMotion((json: string): void => {
+      try {
+        const arr = JSON.parse(json) as string[][];
+        this.docMotion = arr ?? [];
+        this.applyDocMotion();
+      } catch (e) {
+        hilog.warn(0x0000, 'nexio', 'doc chrome motion parse failed');
+      }
+    });
+
+    // 主界面位移 `@<centi>`（1/10000 屏宽）。try 住旧 .so，避免拖垮整个 aboutToAppear。
+    try {
+      registerMainMotion((json: string): void => {
+        const x: number = Number.parseInt(json.substring(1), 10) / 10000 * this.screenWidthVp;
+        if (x !== this.mainShiftX) {
+          this.mainShiftX = x;
+        }
+      });
+    } catch (e) {
+      hilog.error(0x0000, 'nexio', 'registerMainMotion unavailable');
+    }
+
     this.controller = MainArkUIViewController();
     // ⚠ 必须常驻：转场进度、页面状态都在这个组合里，按需创建等于把正在滑的页面扔掉
     this.overlayController = OverlayArkUIViewController();
+  }
+
+  /**
+   * 系统返回键：有二级页时出栈并消费（Compose 的预测返回在鸿蒙是空实现，
+   * 不接这条链系统默认行为就是退出应用）；主界面保持系统默认。
+   */
+  private handleBack(): boolean {
+    if (this.overlayActive) {
+      overlayPopBack();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 返回键的真正入口是 @Entry 的生命周期钩子 —— `Compose` 组件的 onBackPressed
+   * 属性在鸿蒙上不会被系统调用。返回 true = 本次按键由页面自己处理（不退出应用）。
+   */
+  onBackPress(): boolean {
+    return this.handleBack();
   }
 
   private setOffsets(sx: number, sy: number, tx: number, ty: number): void {
@@ -247,6 +350,48 @@ struct Index {
     if (ty !== this.tOffY) {
       this.tOffY = ty;
     }
+  }
+
+  /** 内容 × 位移 → 可见集合。位移里没有的层不渲染（深层停泊时本来也在屏外）。
+   *  按 fracX 降序排：栈顶（位移最大）排在最后渲染，压在次顶壳之上。 */
+  private applyDocMotion(): void {
+    const motion = this.docMotion;
+    this.docChromes = this.docContents
+      .map((c: NativeDocChrome): NativeDocChrome => {
+        let fracX = -1;
+        for (const m of motion) {
+          if (m.length >= 2 && m[0] === c.key) {
+            fracX = Number(m[1]) / 10000;
+            break;
+          }
+        }
+        const out: NativeDocChrome = {
+          key: c.key,
+          title: c.title,
+          tint: c.tint,
+          label: typeof c.label === 'number' ? c.label : (c.tint ?? 0xFF000000),
+          back: c.back,
+          leading: c.leading ? {
+            symbol: typeof c.leading.symbol === 'string' ? c.leading.symbol : '',
+            label: c.leading.label,
+            enabled: c.leading.enabled
+          } : null,
+          action: c.action ? {
+            symbol: typeof c.action.symbol === 'string' ? c.action.symbol : '',
+            label: c.action.label,
+            enabled: c.action.enabled
+          } : null,
+          secondary: c.secondary ? {
+            symbol: typeof c.secondary.symbol === 'string' ? c.secondary.symbol : '',
+            label: c.secondary.label,
+            enabled: c.secondary.enabled
+          } : null,
+          fracX: fracX
+        };
+        return out;
+      })
+      .filter((c: NativeDocChrome): boolean => c.fracX > -0.5)
+      .sort((a: NativeDocChrome, b: NativeDocChrome): number => b.fracX - a.fracX);
   }
 
   private pickWallpaper(): void {
@@ -308,19 +453,17 @@ struct Index {
   }
 
   /**
-   * 顶栏圆钮层：主界面之上、底栏之下的一层。
-   *
-   * 空白区域必须 `Transparent`，否则这一层会把主界面的滑动全部吃掉。
-   * 高度只用于排按钮，不参与布局 —— 主内容自己是全屏的，顶栏避让由 Compose 侧的状态栏 inset 负责。
+   * Navigation.title 的内容：只有右上角圆钮，标题与其余内容仍由 Compose 画。
+   * 空白区域必须 Transparent，否则会把主界面的滑动全部吃掉。
    */
   @Builder
-  topBarLayer() {
+  navTitle() {
     Stack({ alignContent: Alignment.TopEnd }) {
       this.scheduleGroup()
       this.todayGroup()
     }
     .width('100%')
-    .height(this.titleHeight())
+    .height('100%')
     .hitTestBehavior(HitTestMode.Transparent)
   }
 
@@ -335,7 +478,7 @@ struct Index {
       }
     }
     .margin({ top: this.topDp(), right: this.rightPad() })
-    .translate({ x: this.sOffX, y: this.sOffY })
+    .translate({ x: this.sOffX + this.mainShiftX, y: this.sOffY })
   }
 
   @Builder
@@ -346,7 +489,7 @@ struct Index {
       }
     }
     .margin({ top: this.topDp(), right: this.rightPad() })
-    .translate({ x: this.tOffX, y: this.tOffY })
+    .translate({ x: this.tOffX + this.mainShiftX, y: this.tOffY })
   }
 
   @Builder
@@ -550,53 +693,267 @@ struct Index {
     })
   }
 
+  // ── 子页原生顶栏 ────────────────────────────────────────────────────────
+  // 每层子页一个 Navigation 壳：按钮住在 Navigation.title 里才有沉浸光感（系统硬限制）。
+  // 壳只占标题栏那么高、背景全透明，不挡下面覆盖层的手势；位移逐帧跟随 Compose 转场。
+  //
+  // ⚠ @Builder 按值传对象参数不会刷新 UI：docChromes 每帧整份替换、元素是全新对象，
+  //   Builder 里握着的永远是创建首帧那份快照（位移、按钮全部冻结）。所以所有 Builder
+  //   只收常量下标/角色字符串，数据一律经 this.docChromes 读取，让 ArkUI 的最小更新
+  //   逐帧重算属性。Kotlin 侧静止时不发布次顶层（p≥0.999），这里见到的都是活层。
+
+  // ── 顶栏壳几何（微调只改这几个数）─────────────────────────────────────
+  /** 按钮所在行的高度（不含状态栏避让）。 */
+  private docBarContentH: number = 48;
+  /** 返回钮距左边缘。 */
+  private docBarLeftPad: number = 16;
+  /** 返回钮图标大小（SymbolGlyph 字号）。 */
+  private docBackIconSize: number = 32;
+  /** 返回钮图标字重（可变字体数值 100-900）。 */
+  private docBackIconWeight: number = 300;
+  /** 返回钮图标水平微调（vp，负值左移；抵消箭头字形自身偏右）。 */
+  private docBackIconOffsetX: number = -1.5;
+  /** 动作图标大小（SymbolGlyph 字号）。 */
+  private docIconSize: number = 24;
+  /** 动作文字距右边缘。 */
+  private docBarRightPad: number = 16;
+  /** 圆形返回钮直径。 */
+  private docButtonSize: number = 40;
+  /** 壳底额外余量：给按钮材质/阴影留的绘制空间，不加会被 Navigation 裁掉。 */
+  private docShadowPad: number = 12;
+
+  private docTitleHeight(): number {
+    return this.topInsetVp + this.docBarContentH + this.docShadowPad;
+  }
+
+  /** 槽位 index 的层；越界（没有这一层）返回 null。 */
+  private docEntry(index: number): NativeDocChrome | null {
+    return index >= 0 && index < this.docChromes.length ? this.docChromes[index] : null;
+  }
+
+  /** 槽位 index 某个角色的文字动作；没有该层或该角色返回 null。 */
+  private docChip(index: number, role: string): DocChip | null {
+    const entry: NativeDocChrome | null = this.docEntry(index);
+    if (entry === null) {
+      return null;
+    }
+    if (role === 'leading') {
+      return entry.leading;
+    }
+    if (role === 'secondary') {
+      return entry.secondary;
+    }
+    return entry.action;
+  }
+
+  /** 槽位 index 的顶栏位移（0=落位，1=整层在屏外右）。 */
+  private docFracX(index: number): number {
+    const entry: NativeDocChrome | null = this.docEntry(index);
+    return entry !== null ? entry.fracX : 1;
+  }
+
+  @Builder
+  docChromeSlot(index: number) {
+    if (index < this.docChromes.length) {
+      Navigation() {
+      }
+      .mode(NavigationMode.Stack)
+      .titleMode(NavigationTitleMode.Mini)
+      .hideBackButton(true)
+      .title(
+        { builder: (): void => { this.docTitleBar(index) }, height: this.docTitleHeight() } as NavigationCustomTitle,
+        { barStyle: BarStyle.STACK }
+      )
+      .backgroundColor(Color.Transparent)
+      .width('100%')
+      .height(this.docTitleHeight())
+      .align(Alignment.Top)
+      .translate({ x: this.docFracX(index) * this.screenWidthVp })
+      .hitTestBehavior(HitTestMode.Transparent)
+    }
+  }
+
+  @Builder
+  docTitleBar(index: number) {
+    Row() {
+      Row({ space: 12 }) {
+        // 编辑器类页面（course 编辑）的取消占据返回位
+        if (this.docChip(index, 'leading') !== null) {
+          this.docTextButton(index, 'leading')
+        } else if (this.docEntry(index)?.back === true) {
+          this.docBackButton(index)
+        }
+      }
+      .alignItems(VerticalAlign.Center)
+
+      Blank()
+
+      Row({ space: 12 }) {
+        if (this.docChip(index, 'secondary') !== null) {
+          this.docTextButton(index, 'secondary')
+        }
+        if (this.docChip(index, 'action') !== null) {
+          this.docTextButton(index, 'action')
+        }
+      }
+      .alignItems(VerticalAlign.Center)
+    }
+    .width('100%')
+    // 固定高度并顶对齐：壳多出的 docShadowPad 只给阴影用，按钮位置不随它变
+    .height(this.topInsetVp + this.docBarContentH)
+    .padding({ left: this.docBarLeftPad, right: this.docBarRightPad, top: this.topInsetVp })
+    .hitTestBehavior(HitTestMode.Transparent)
+  }
+
+  @Builder
+  docBackButton(index: number) {
+    Button({ type: ButtonType.Circle, stateEffect: true }) {
+      SymbolGlyph($r('sys.symbol.chevron_left'))
+        .fontSize(this.docBackIconSize)
+        .fontWeight(this.docBackIconWeight)
+        .fontColor([argbHex(this.docEntry(index)?.label ?? 0xFF000000)])
+        .offset({ x: this.docBackIconOffsetX })
+    }
+    .width(this.docButtonSize)
+    .height(this.docButtonSize)
+    .backgroundColor(Color.Transparent)
+    .systemMaterial(this.buttonMaterial)
+    .onClick((): void => {
+      const key: string = this.docEntry(index)?.key ?? '';
+      if (key !== '') {
+        docChromeAction(key, 'back');
+      }
+    })
+  }
+
+  /** 动作按钮一律图标（与 iOS 的 systemName 一致）；无已知 symbol 的 chip 不渲染。 */
+  @Builder
+  docTextButton(index: number, role: string) {
+    if (this.docChipHasIcon(this.docChip(index, role)?.symbol ?? '')) {
+      Button({ type: ButtonType.Circle, stateEffect: true }) {
+        this.docChipGlyph(this.docChip(index, role)?.symbol ?? '', index)
+      }
+      .width(this.docButtonSize)
+      .height(this.docButtonSize)
+      .backgroundColor(Color.Transparent)
+      .systemMaterial(this.buttonMaterial)
+      .opacity((this.docChip(index, role)?.enabled ?? false) ? 1 : 0.35)
+      .onClick((): void => {
+        const chip: DocChip | null = this.docChip(index, role);
+        if (chip !== null && chip.enabled) {
+          docChromeAction(this.docEntry(index)?.key ?? '', role);
+        }
+      })
+    }
+  }
+
+  /** SF Symbol → 系统符号（sys.symbol）映射；返回空串表示没有对应物。 */
+  private docSymbolName(symbol: string): string {
+    switch (symbol) {
+      case 'plus': return 'plus';
+      case 'xmark': return 'xmark';
+      case 'checkmark': return 'checkmark';
+      case 'arrow.clockwise': return 'arrow_clockwise';
+      case 'play.fill': return 'play_fill';
+      case 'folder.badge.plus': return 'folder_badge_plus';
+      case 'chevron.backward': return 'chevron_left';
+      default: return '';
+    }
+  }
+
+  private docChipHasIcon(symbol: string): boolean {
+    return this.docSymbolName(symbol) !== '';
+  }
+
+  /** SymbolGlyph：系统符号字体渲染（对标 iOS UIImage(systemName:)），黑白染色。 */
+  @Builder
+  docChipGlyph(symbol: string, index: number) {
+    if (symbol === 'plus') {
+      SymbolGlyph($r('sys.symbol.plus'))
+        .fontSize(this.docIconSize)
+        .fontColor([argbHex(this.docEntry(index)?.label ?? 0xFF000000)])
+    } else if (symbol === 'xmark') {
+      SymbolGlyph($r('sys.symbol.xmark'))
+        .fontSize(this.docIconSize)
+        .fontColor([argbHex(this.docEntry(index)?.label ?? 0xFF000000)])
+    } else if (symbol === 'checkmark') {
+      SymbolGlyph($r('sys.symbol.checkmark'))
+        .fontSize(this.docIconSize)
+        .fontColor([argbHex(this.docEntry(index)?.label ?? 0xFF000000)])
+    } else if (symbol === 'arrow.clockwise') {
+      SymbolGlyph($r('sys.symbol.arrow_clockwise'))
+        .fontSize(this.docIconSize)
+        .fontColor([argbHex(this.docEntry(index)?.label ?? 0xFF000000)])
+    } else if (symbol === 'play.fill') {
+      SymbolGlyph($r('sys.symbol.play_fill'))
+        .fontSize(this.docIconSize)
+        .fontColor([argbHex(this.docEntry(index)?.label ?? 0xFF000000)])
+    } else if (symbol === 'folder.badge.plus') {
+      SymbolGlyph($r('sys.symbol.folder_badge_plus'))
+        .fontSize(this.docIconSize)
+        .fontColor([argbHex(this.docEntry(index)?.label ?? 0xFF000000)])
+    }
+  }
+
   build() {
-    Navigation() {
-      // 顺序即层级：二级页那层排在最后，才真的压得住顶栏按钮与底栏胶囊。
-      // 之前二级页和主界面挤在同一个 XComponent 里，一个层画不出「盖住 ArkUI 兄弟节点」，
-      // 只能靠整条收起顶栏/底栏装成被盖住 —— 那是假的。
-      Stack({ alignContent: Alignment.TopStart }) {
+    // ⚠ alignContent 必须显式 Top：默认居中会把不满屏的子页顶栏壳（docTitleHeight）
+    //   垂直居中到屏幕中部；满屏的兄弟节点（主 Navigation / 覆盖层）不受影响。
+    Stack({ alignContent: Alignment.Top }) {
+      Navigation() {
+        Stack({ alignContent: Alignment.Bottom }) {
         if (this.controller !== undefined) {
           Compose({
             controller: this.controller,
             libraryName: 'entry',
-            onBackPressed: () => false
+            onBackPressed: (): boolean => this.handleBack()
           })
             .width('100%')
             .height('100%')
         }
-        if (this.topBar !== null) {
-          this.topBarLayer()
-        }
-        if (this.bottomBar !== null) {
-          Column() {
-            Blank()
-            this.bottomBarTabs()
+          if (this.bottomBar !== null) {
+            Column() {
+              Blank()
+              this.bottomBarTabs()
+            }
+            .width('100%')
+            .height('100%')
+            .translate({ x: this.mainShiftX })
+            .hitTestBehavior(HitTestMode.Transparent)
           }
-          .width('100%')
-          .height('100%')
-          .hitTestBehavior(HitTestMode.Transparent)
         }
-        if (this.overlayController !== undefined) {
-          Compose({
-            controller: this.overlayController,
-            libraryName: 'entry',
-            onBackPressed: () => false
-          })
-            .width('100%')
-            .height('100%')
-            .visibility(this.overlayActive ? Visibility.Visible : Visibility.Hidden)
-        }
+        .width('100%')
+        .height('100%')
       }
+      .mode(NavigationMode.Stack)
+      .titleMode(NavigationTitleMode.Mini)
+      .hideBackButton(true)
+      .hideTitleBar(this.topBar === null)
+      .title(
+        { builder: (): void => { this.navTitle() }, height: this.titleHeight() } as NavigationCustomTitle,
+        { barStyle: BarStyle.STACK }
+      )
       .width('100%')
       .height('100%')
+
+      // 二级页：独立 Compose 实例，排在 Navigation 之外、之上 —— title 栏与底栏
+      // 胶囊都是 Navigation 的 chrome，只有 Navigation 的兄弟节点才真正盖得住。
+      // 无二级页时必须 Hidden：全屏 XComponent 空着也会吃掉主界面手势。
+      if (this.overlayController !== undefined) {
+        Compose({
+          controller: this.overlayController,
+          libraryName: 'entry',
+          onBackPressed: (): boolean => this.handleBack()
+        })
+          .width('100%')
+          .height('100%')
+          .visibility(this.overlayActive ? Visibility.Visible : Visibility.Hidden)
+      }
+
+      // 每层子页的原生顶栏：排在覆盖层之后才盖得住它。两个固定槽位（不动态增删节点），
+      // 槽位里按 docChromes 长度决定是否存在；先画次顶、后画栈顶，栈顶壳在最上层。
+      this.docChromeSlot(1)
+      this.docChromeSlot(0)
     }
-    .mode(NavigationMode.Stack)
-    .titleMode(NavigationTitleMode.Mini)
-    .hideBackButton(true)
-    // 顶栏已改成 Stack 里的一层：Navigation 的标题栏永远不出现，
-    // 否则它属于 Navigation 的 chrome，二级页再怎么排也盖不住它。
-    .hideTitleBar(true)
     .width('100%')
     .height('100%')
   }

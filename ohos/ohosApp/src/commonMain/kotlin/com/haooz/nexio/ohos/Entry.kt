@@ -58,7 +58,7 @@ fun NexioRoot() {
                     )
                 }
                 // 子页叠加层：设置、导入导出、文档页等
-                AppNavHost(router = router, mainTransition = mainTransition) { route ->
+                AppNavHost(router = router, mainTransition = mainTransition) { _, route ->
                     OhosRouteContent(router, route)
                 }
             }

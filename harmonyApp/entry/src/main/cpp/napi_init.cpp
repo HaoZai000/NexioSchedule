@@ -335,6 +335,127 @@ static void HostPublishOverlay(bool active) {
 
 extern "C" void NexioOnOverlayHostReady(void (*fn)(bool));
 
+// 系统返回键 → Kotlin 出栈（Compose 的预测返回在鸿蒙 target 是空实现，接不到系统返回）
+extern "C" void NexioOnOverlayPopBack(void);
+
+static napi_value NapiOverlayPopBack(napi_env env, napi_callback_info info) {
+    (void) env;
+    (void) info;
+    NexioOnOverlayPopBack();
+    return nullptr;
+}
+
+// ── 二三四级页原生顶栏：per-route chrome 内容 + 逐帧位移 ──────────────────────
+// 每个路由层一个 chrome（标题/返回/动作），内容低频、位移逐帧，分两条通道。
+static napi_ref g_docChromeRef = nullptr;
+static napi_ref g_docMotionRef = nullptr;
+
+static napi_value NapiRegisterDocChrome(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    napi_valuetype type = napi_undefined;
+    napi_typeof(env, args[0], &type);
+    if (type != napi_function) return nullptr;
+    g_env = env;
+    napi_create_reference(env, args[0], 1, &g_docChromeRef);
+    return nullptr;
+}
+
+static napi_value NapiRegisterDocChromeMotion(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    napi_valuetype type = napi_undefined;
+    napi_typeof(env, args[0], &type);
+    if (type != napi_function) return nullptr;
+    g_env = env;
+    napi_create_reference(env, args[0], 1, &g_docMotionRef);
+    return nullptr;
+}
+
+/** Kotlin 侧的发布入口（函数指针交给 Kotlin）。必须在 JS 线程调用。 */
+static void HostPublishDocChrome(const char *json) {
+    if (g_env == nullptr || g_docChromeRef == nullptr) return;
+    napi_value callback = nullptr;
+    if (napi_get_reference_value(g_env, g_docChromeRef, &callback) != napi_ok || callback == nullptr) return;
+    napi_value undefined = nullptr;
+    napi_get_undefined(g_env, &undefined);
+    napi_value argv[1] = {nullptr};
+    napi_create_string_utf8(g_env, json, NAPI_AUTO_LENGTH, &argv[0]);
+    napi_value result = nullptr;
+    napi_call_function(g_env, undefined, callback, 1, argv, &result);
+}
+
+static void HostPublishDocChromeMotion(const char *json) {
+    if (g_env == nullptr || g_docMotionRef == nullptr) return;
+    napi_value callback = nullptr;
+    if (napi_get_reference_value(g_env, g_docMotionRef, &callback) != napi_ok || callback == nullptr) return;
+    napi_value undefined = nullptr;
+    napi_get_undefined(g_env, &undefined);
+    napi_value argv[1] = {nullptr};
+    napi_create_string_utf8(g_env, json, NAPI_AUTO_LENGTH, &argv[0]);
+    napi_value result = nullptr;
+    napi_call_function(g_env, undefined, callback, 1, argv, &result);
+}
+
+extern "C" void NexioOnDocChromeHostReady(void (*fn)(const char *));
+extern "C" void NexioOnDocChromeMotionHostReady(void (*fn)(const char *));
+
+/** ArkTS 侧动作回传：docChromeAction(key, role)。 */
+extern "C" void NexioOnDocChromeAction(const char *key, const char *role);
+
+static napi_value NapiDocChromeAction(napi_env env, napi_callback_info info) {
+    size_t argc = 2;
+    napi_value args[2] = {nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    size_t len = 0;
+    if (napi_get_value_string_utf8(env, args[0], nullptr, 0, &len) != napi_ok) return nullptr;
+    char *key = new char[len + 1];
+    napi_get_value_string_utf8(env, args[0], key, len + 1, &len);
+    if (napi_get_value_string_utf8(env, args[1], nullptr, 0, &len) != napi_ok) {
+        delete[] key;
+        return nullptr;
+    }
+    char *role = new char[len + 1];
+    napi_get_value_string_utf8(env, args[1], role, len + 1, &len);
+    NexioOnDocChromeAction(key, role);
+    delete[] key;
+    delete[] role;
+    return nullptr;
+}
+
+// ── 主界面位移：顶栏圆钮 / 底栏胶囊与主界面一起被推开 ────────────────────────
+// 主界面在第一个 Compose 实例里按 -PARALLAX×p 左移，而这两块 chrome 是 ArkUI 的兄弟
+// 节点，不跟着发位移就是「内容滑走、按钮钉在原地」。转场期间逐帧发，只有一个整数。
+static napi_ref g_mainMotionRef = nullptr;
+
+static napi_value NapiRegisterMainMotion(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    napi_valuetype type = napi_undefined;
+    napi_typeof(env, args[0], &type);
+    if (type != napi_function) return nullptr;
+    g_env = env;
+    napi_create_reference(env, args[0], 1, &g_mainMotionRef);
+    return nullptr;
+}
+
+static void HostPublishMainMotion(const char *json) {
+    if (g_env == nullptr || g_mainMotionRef == nullptr) return;
+    napi_value callback = nullptr;
+    if (napi_get_reference_value(g_env, g_mainMotionRef, &callback) != napi_ok || callback == nullptr) return;
+    napi_value undefined = nullptr;
+    napi_get_undefined(g_env, &undefined);
+    napi_value argv[1] = {nullptr};
+    napi_create_string_utf8(g_env, json, NAPI_AUTO_LENGTH, &argv[0]);
+    napi_value result = nullptr;
+    napi_call_function(g_env, undefined, callback, 1, argv, &result);
+}
+
+extern "C" void NexioOnMainMotionHostReady(void (*fn)(const char *));
+
 // 初始化协程的主线程调度器（Kotlin 侧 @CName("NexioInitMainHandler")）。
 // 不调的话 MainHandler.tsfn 恒为 null，Dispatchers.Main 会内联在调用方线程执行。
 extern "C" void NexioInitMainHandler(void *env);
@@ -369,6 +490,16 @@ static napi_value Init(napi_env env, napi_value exports) {
          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"registerOverlay", nullptr, NapiRegisterOverlay,
          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"overlayPopBack", nullptr, NapiOverlayPopBack,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"registerDocChrome", nullptr, NapiRegisterDocChrome,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"registerDocChromeMotion", nullptr, NapiRegisterDocChromeMotion,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"docChromeAction", nullptr, NapiDocChromeAction,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"registerMainMotion", nullptr, NapiRegisterMainMotion,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
 
@@ -380,6 +511,9 @@ static napi_value Init(napi_env env, napi_value exports) {
     NexioOnTopBarHostReady(HostPublishTopBar);
     NexioOnBottomBarHostReady(HostPublishBottomBar);
     NexioOnOverlayHostReady(HostPublishOverlay);
+    NexioOnDocChromeHostReady(HostPublishDocChrome);
+    NexioOnDocChromeMotionHostReady(HostPublishDocChromeMotion);
+    NexioOnMainMotionHostReady(HostPublishMainMotion);
     return exports;
 }
 

@@ -281,7 +281,7 @@ internal fun NexioIosNavigation(host: IosAppHost) {
                 router,
                 mainTransition = mainTransition,
                 onOverlayActivityChanged = { host.navigationOverlayActive = it },
-            ) { route ->
+            ) { _, route ->
                 NexioIosRouteContent(router, route)
             }
             // 隐私同意弹窗：与 Android 同挂载方式（AppNavHost 之后、同层 Box），且须在此层——位于原生

@@ -51,12 +51,17 @@ fun AppNavHost(
     mainTransition: NavTransitionState,
     modifier: Modifier = Modifier,
     onOverlayActivityChanged: ((Boolean) -> Unit)? = null,
-    content: @Composable (AppRoute) -> Unit,
+    /**
+     * 外置的栈顶进度持有者。不传 = 内部自建（默认）。
+     * 鸿蒙宿主传入，以便在组合外逐帧读进度、驱动原生顶栏与页面同步滑移。
+     */
+    transitionState: NavTransitionState? = null,
+    content: @Composable (layerKey: String, AppRoute) -> Unit,
 ) {
     val stateHolder = rememberSaveableStateHolder()
     val scope = rememberCoroutineScope()
 
-    val progress = rememberNavTransitionState(initialValue = 1f)
+    val progress = transitionState ?: rememberNavTransitionState(initialValue = 1f)
     // pop 期间仍在屏幕上的那一层：已出栈，但要跟着把退出动画播完。
     // 连 [SaveableStateHolder] key 一起存 —— 销毁时栈可能又变过，重算会算到别的层上。
     var outgoing by remember { mutableStateOf<ExitingLayer?>(null) }
@@ -233,7 +238,7 @@ private fun NavLayerStack(
     stateHolder: SaveableStateHolder,
     modifier: Modifier = Modifier,
     onOverlayActivityChanged: ((Boolean) -> Unit)? = null,
-    content: @Composable (AppRoute) -> Unit,
+    content: @Composable (layerKey: String, AppRoute) -> Unit,
 ) {
     val (stackKeys, exitKey) = layerKeys(routes, exiting)
 
@@ -280,7 +285,7 @@ private fun NavLayerStack(
                 scrimAlpha = if (isTop) scrimAlpha else null,
                 inFlight = inFlight,
             ) {
-                stateHolder.SaveableStateProvider(renderKeys[index]) { content(layers[index]) }
+                stateHolder.SaveableStateProvider(renderKeys[index]) { content(renderKeys[index], layers[index]) }
             }
         }
     }

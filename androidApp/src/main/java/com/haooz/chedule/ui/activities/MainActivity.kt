@@ -228,7 +228,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         // ── 子页叠加层 ──
-                        AppNavHost(router, mainTransition = mainTransition) { route ->
+                        AppNavHost(router, mainTransition = mainTransition) { _, route ->
                             AppRouteContent(router, route)
                         }
 
