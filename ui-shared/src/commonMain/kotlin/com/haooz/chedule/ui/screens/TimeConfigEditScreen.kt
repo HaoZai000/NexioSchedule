@@ -71,6 +71,7 @@ import com.haooz.chedule.ui.activities.classschedule.describeSpecialDays
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.effects.motion.morphClip
 import com.haooz.chedule.ui.effects.motion.rememberMorphTransition
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
@@ -540,7 +541,7 @@ fun TimeConfigEditScreen(
                     translationX = s.translationX
                     translationY = s.translationY
                 }
-                .clip(morph.clipShape)
+                .morphClip(morph)
                 .background(
                     if (isFabCreation) MiuixTheme.colorScheme.primary
                     else MiuixTheme.colorScheme.background

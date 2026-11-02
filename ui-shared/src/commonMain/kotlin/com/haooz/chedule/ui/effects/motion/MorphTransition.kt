@@ -15,9 +15,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -466,4 +471,31 @@ fun rememberMorphTransition(
         animating = animatingState,
         onClose = { playClose(it) },
     )
+}
+
+/**
+ * 按当前形变状态裁剪页面内容 —— 必须在**绘制阶段**做。
+ *
+ * ⚠ 别改回 `Modifier.clip(morph.clipShape)` / `graphicsLayer { shape = ... }`：
+ * 裁切高度逐帧变大（卡片 → 全屏），而 RenderNode 会按第一次拿到的 outline 把绘制区域定死，
+ * 之后 outline 变大也不重建 —— 表现为展开后下半截整片空白，切后台（窗口重建）才恢复。
+ * 矩形走 `clipRect`、圆角走 `clipPath`（只有动画前段有非零圆角，那时页面在缩放，锯齿看不出来）。
+ */
+fun Modifier.morphClip(morph: MorphTransition): Modifier = drawWithContent {
+    // MorphClipShape 只读 size / density，不读布局方向
+    val outline = morph.clipShape.createOutline(size, LayoutDirection.Ltr, this)
+    when (outline) {
+        is Outline.Rectangle -> {
+            val r = outline.rect
+            if (r.left <= 0f && r.top <= 0f && r.right >= size.width && r.bottom >= size.height) {
+                drawContent()
+            } else {
+                clipRect(r.left, r.top, r.right, r.bottom) { this@drawWithContent.drawContent() }
+            }
+        }
+        is Outline.Rounded -> clipPath(Path().apply { addRoundRect(outline.roundRect) }) {
+            this@drawWithContent.drawContent()
+        }
+        is Outline.Generic -> clipPath(outline.path) { this@drawWithContent.drawContent() }
+    }
 }

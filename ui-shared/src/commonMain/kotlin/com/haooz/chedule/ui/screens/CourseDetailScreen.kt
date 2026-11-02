@@ -52,6 +52,7 @@ import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.effects.motion.morphClip
 import com.haooz.chedule.ui.effects.motion.rememberMorphTransition
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.TransitionLayerImage
@@ -185,7 +186,7 @@ fun CourseDetailScreen(
                     translationX = s.translationX
                     translationY = s.translationY
                 }
-                .clip(morph.clipShape)
+                .morphClip(morph)
                 .background(MiuixTheme.colorScheme.background)
         ) {
             if (cardSnapshot != null && s.snapshotAlpha > 0f) {

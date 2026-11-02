@@ -71,6 +71,7 @@ import com.haooz.chedule.ui.components.CardExpandSpec
 import com.haooz.chedule.ui.components.cardRevealLayer
 import com.haooz.chedule.ui.components.rememberCardRevealState
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.effects.motion.morphClip
 import com.haooz.chedule.ui.effects.motion.rememberMorphTransition
 import com.haooz.chedule.ui.utils.CourseSorting
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
@@ -320,7 +321,7 @@ fun CourseEditScreen(
                     translationX = s.translationX
                     translationY = s.translationY
                 }
-                .clip(morph.clipShape)
+                .morphClip(morph)
                 .background(MiuixTheme.colorScheme.surface)
                 .background(cardColor.copy(alpha = cardAlpha))
         ) {
