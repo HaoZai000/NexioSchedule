@@ -474,12 +474,7 @@ fun rememberMorphTransition(
 }
 
 /**
- * 按当前形变状态裁剪页面内容 —— 必须在**绘制阶段**做。
- *
- * ⚠ 别改回 `Modifier.clip(morph.clipShape)` / `graphicsLayer { shape = ... }`：
- * 裁切高度逐帧变大（卡片 → 全屏），而 RenderNode 会按第一次拿到的 outline 把绘制区域定死，
- * 之后 outline 变大也不重建 —— 表现为展开后下半截整片空白，切后台（窗口重建）才恢复。
- * 矩形走 `clipRect`、圆角走 `clipPath`（只有动画前段有非零圆角，那时页面在缩放，锯齿看不出来）。
+ * 按当前形变状态裁剪页面内容 —— 必须在**绘制阶段**做
  */
 fun Modifier.morphClip(morph: MorphTransition): Modifier = drawWithContent {
     // MorphClipShape 只读 size / density，不读布局方向
