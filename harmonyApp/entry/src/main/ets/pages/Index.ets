@@ -20,21 +20,6 @@ import { http } from '@kit.NetworkKit';
 import { util } from '@kit.ArkTS';
 import { display, promptAction, uiMaterial, LengthMetrics } from '@kit.ArkUI';
 
-const USE_CONTENT_GRADIENT_BLUR: boolean = true;
-
-interface BlurBand {
-  height: string;
-  radius: number;
-}
-
-const TOP_BAR_BLUR_BANDS: BlurBand[] = [
-  { height: '100%', radius: 3 },
-  { height: '76%', radius: 5 },
-  { height: '56%', radius: 8 },
-  { height: '38%', radius: 12 },
-  { height: '22%', radius: 16 }
-];
-
 function sendHttp(requestId: number, payloadJson: string, maxBytes: number): void {
   const fail = (message: string): void => {
     setHttpResult(requestId, -1, new util.TextEncoder().encodeInto(message), false);
@@ -91,31 +76,19 @@ function sendHttp(requestId: number, payloadJson: string, maxBytes: number): voi
     });
 }
 
-interface NativeTopBarDay {
-  label: string;
-  date: string;
-  today: boolean;
-}
-
 interface NativeTopBarMenuItem {
   id: string;
   label: string;
 }
 
 interface NativeTopBarState {
-  title: string;
-  materialVisible: boolean;
-  accent: number;
-  onSurface: number;
-  onSurfaceVariant: number;
   showsSwitch: boolean;
   showsMore: boolean;
-  leadingPadDp: number;
-  trailingPadDp: number;
-  heightDp: number;
-  titleHeightDp: number;
-  statusBarDp: number;
-  days: NativeTopBarDay[];
+  onSurface: number;
+  topDp: number;
+  sizeDp: number;
+  spacingDp: number;
+  rightPadDp: number;
   menu: NativeTopBarMenuItem[];
 }
 
@@ -128,7 +101,6 @@ function argbHex(value: number): string {
 struct Index {
   private controller: ArkUIViewController | undefined = undefined;
   @State private topBar: NativeTopBarState | null = null;
-  @State private topBarMaterial: number = 0;
 
   private buttonMaterial: uiMaterial.ImmersiveMaterial =
     new uiMaterial.ImmersiveMaterial({
@@ -176,24 +148,10 @@ struct Index {
         this.topBar = null;
         return;
       }
-      let next: NativeTopBarState;
       try {
-        next = JSON.parse(json) as NativeTopBarState;
+        this.topBar = JSON.parse(json) as NativeTopBarState;
       } catch (e) {
         hilog.warn(0x0000, 'nexio', 'top bar json parse failed');
-        return;
-      }
-      this.topBar = next;
-      const target: number = next.materialVisible ? 1 : 0;
-      if (target === this.topBarMaterial) {
-        return;
-      }
-      try {
-        this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, (): void => {
-          this.topBarMaterial = target;
-        });
-      } catch (e) {
-        this.topBarMaterial = target;
       }
     });
 
@@ -231,94 +189,9 @@ struct Index {
     }
   }
 
-  private navSlotWidth(): number {
-    const count = (this.topBar?.showsSwitch === true ? 1 : 0) +
-      (this.topBar?.showsMore === true ? 1 : 0);
-    return count === 0 ? 0 : count * 40 + (count - 1) * 8 + 16;
-  }
-
-  @Builder
-  navTitle() {
-    Stack({ alignContent: Alignment.TopStart }) {
-      if (!USE_CONTENT_GRADIENT_BLUR) {
-        this.navMaterial()
-      }
-
-      Column() {
-        Row() {
-          Blank().width(this.navSlotWidth())
-          Text(this.topBar?.title ?? '')
-            .layoutWeight(1)
-            .textAlign(TextAlign.Center)
-            .fontSize(19)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(argbHex(this.topBar?.onSurface ?? 0xFF000000))
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          this.navButtons()
-        }
-        .width('100%')
-        .height(56)
-        .alignItems(VerticalAlign.Center)
-
-        Row() {
-          ForEach(this.topBar?.days ?? [], (day: NativeTopBarDay) => {
-            Column() {
-              Text(day.label)
-                .fontSize(12)
-                .fontWeight(day.today ? FontWeight.Bold : FontWeight.Normal)
-                .fontColor(argbHex(day.today
-                  ? (this.topBar?.accent ?? 0)
-                  : (this.topBar?.onSurface ?? 0)))
-              if (day.date !== '') {
-                Text(day.date)
-                  .fontSize(10)
-                  .fontColor(argbHex(day.today
-                    ? (this.topBar?.accent ?? 0)
-                    : (this.topBar?.onSurfaceVariant ?? 0)))
-              }
-            }
-            .layoutWeight(1)
-            .justifyContent(FlexAlign.Center)
-          }, (day: NativeTopBarDay) => day.label + day.date)
-        }
-        .width('100%')
-        .height(40)
-        .alignItems(VerticalAlign.Center)
-        .padding({
-          left: this.topBar?.leadingPadDp ?? 0,
-          right: this.topBar?.trailingPadDp ?? 0
-        })
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.Start)
-      .padding({ top: this.topBar?.statusBarDp ?? 0 })
-    }
-    .width('100%')
-    .height('100%')
-    .hitTestBehavior(HitTestMode.Transparent)
-  }
-
-  @Builder
-  navMaterial() {
-    Stack({ alignContent: Alignment.TopStart }) {
-      ForEach(TOP_BAR_BLUR_BANDS, (band: BlurBand) => {
-        Column()
-          .width('100%')
-          .height(band.height)
-          .backdropBlur(band.radius)
-          .opacity(this.topBarMaterial)
-      }, (band: BlurBand) => band.height)
-    }
-    .width('100%')
-    .height('100%')
-    .hitTestBehavior(HitTestMode.Transparent)
-  }
-
   @Builder
   navButtons() {
-    Row({ space: 8 }) {
+    Row({ space: this.topBar?.spacingDp ?? 8 }) {
       if (this.topBar?.showsSwitch === true) {
         this.navSwitchButton()
       }
@@ -326,11 +199,7 @@ struct Index {
         this.navMoreButton()
       }
     }
-    .width(this.navSlotWidth())
-    .height(56)
-    .padding({ right: 16 })
-    .justifyContent(FlexAlign.End)
-    .alignItems(VerticalAlign.Center)
+    .margin({ top: this.topBar?.topDp ?? 0, right: this.topBar?.rightPadDp ?? 16 })
   }
 
   @Builder
@@ -340,8 +209,8 @@ struct Index {
         .fontSize(20)
         .fontColor([argbHex(this.topBar?.onSurface ?? 0xFF000000)])
     }
-    .width(40)
-    .height(40)
+    .width(this.topBar?.sizeDp ?? 42)
+    .height(this.topBar?.sizeDp ?? 42)
     .backgroundColor(Color.Transparent)
     .systemMaterial(this.buttonMaterial)
     .onClick((): void => {
@@ -356,8 +225,8 @@ struct Index {
         .fontSize(20)
         .fontColor([argbHex(this.topBar?.onSurface ?? 0xFF000000)])
     }
-    .width(40)
-    .height(40)
+    .width(this.topBar?.sizeDp ?? 42)
+    .height(this.topBar?.sizeDp ?? 42)
     .backgroundColor(Color.Transparent)
     .systemMaterial(this.buttonMaterial)
     .bindMenu(this.moreMenu)
@@ -382,13 +251,9 @@ struct Index {
     })
   }
 
-  private titleHeight(): number {
-    return (this.topBar?.statusBarDp ?? 0) + (this.topBar?.titleHeightDp ?? 118);
-  }
-
   build() {
     Navigation() {
-      Stack() {
+      Stack({ alignContent: Alignment.TopEnd }) {
         if (this.controller !== undefined) {
           Compose({
             controller: this.controller,
@@ -398,26 +263,17 @@ struct Index {
             .width('100%')
             .height('100%')
         }
+        if (this.topBar !== null) {
+          this.navButtons()
+        }
       }
       .width('100%')
       .height('100%')
-      .linearGradientBlur(USE_CONTENT_GRADIENT_BLUR ? 18 : 0, {
-        fractionStops: [
-          [1.0, 0.0],
-          [1.0, 0.14],
-          [0.0, 0.18]
-        ],
-        direction: GradientDirection.Bottom
-      })
     }
     .mode(NavigationMode.Stack)
     .titleMode(NavigationTitleMode.Mini)
     .hideBackButton(true)
-    .hideTitleBar(this.topBar === null)
-    .title(
-      { builder: (): void => { this.navTitle() }, height: this.titleHeight() } as NavigationCustomTitle,
-      { barStyle: BarStyle.STACK }
-    )
+    .hideTitleBar(true)
     .width('100%')
     .height('100%')
   }

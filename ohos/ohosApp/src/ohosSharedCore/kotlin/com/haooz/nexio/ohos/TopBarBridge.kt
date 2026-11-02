@@ -24,13 +24,11 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
 /**
- * 顶栏语义 → ArkUI。
+ * 顶栏右上角两颗按钮的语义 → ArkUI。
  *
- * 整条顶栏由 ArkUI 画（模糊要压在 Compose 内容之上、标题又要压在模糊之上，
- * skia 后端一块 XComponent 里给不出这个层序），这里只负责两件事：
- * 把 [NativeTopBarState] 编成 JSON 推过去，把宿主点到的按钮 id 转回 [NativeTopBarHost.onAction]。
- *
- * 状态很小（标题 + 七格日期 + 三个菜单项），不做差量，整份重发；内容没变就不发。
+ * 标题、星期行、渐进模糊都在 Compose 里画；只有这两颗按钮和它们的菜单交给 ArkUI
+ * （要的是系统沉浸光感材质 + 原生菜单）。这里只负责把 [NativeTopBarState] 编成 JSON
+ * 推过去，把宿主点到的按钮 id 转回 [NativeTopBarHost.onAction]。
  */
 object TopBarBridge {
 
@@ -70,28 +68,13 @@ object TopBarBridge {
     private fun encode(state: NativeTopBarState?): String {
         if (state == null) return "null"
         return buildJsonObject {
-            put("title", state.title)
-            put("materialVisible", state.materialVisible)
-            put("accent", state.accentArgb)
-            put("onSurface", state.onSurfaceArgb)
-            put("onSurfaceVariant", state.onSurfaceVariantArgb)
             put("showsSwitch", state.showsSwitch)
             put("showsMore", state.showsMore)
-            put("leadingPadDp", state.leadingPadDp.toDouble())
-            put("trailingPadDp", state.trailingPadDp.toDouble())
-            put("heightDp", state.heightDp.toDouble())
-            put("titleHeightDp", state.titleHeightDp.toDouble())
-            put("statusBarDp", state.statusBarDp.toDouble())
-            putJsonArray("days") {
-                state.days.forEach { day ->
-                    addJsonObject {
-                        put("label", day.label)
-                        // 课表没设日期时是 null，宿主按「不画第二行」处理
-                        put("date", day.date ?: "")
-                        put("today", day.isToday)
-                    }
-                }
-            }
+            put("onSurface", state.onSurfaceArgb)
+            put("topDp", state.topDp.toDouble())
+            put("sizeDp", state.sizeDp.toDouble())
+            put("spacingDp", state.spacingDp.toDouble())
+            put("rightPadDp", state.rightPadDp.toDouble())
             putJsonArray("menu") {
                 state.menu.forEach { item ->
                     addJsonObject {

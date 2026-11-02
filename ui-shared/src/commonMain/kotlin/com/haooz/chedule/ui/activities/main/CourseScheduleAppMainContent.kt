@@ -682,9 +682,9 @@ internal fun CourseScheduleAppMainContent(
                                 // 平板（rail）右上角不显示「更多」：跳转/管理/外观都在侧栏里。
                                 // iOS 主界面右上角那颗已由原生 UIMenu 接管，Compose 侧恒不渲染
                                 enabled = navBarStyle != "rail" && hostNavigation == null,
-                                // 鸿蒙：课程表页顶栏整条由 ArkUI 画，「更多」也在那边，
-                                // 这颗 Compose 触发按钮必须关掉，否则会从原生顶栏下面露出来
-                                scheduleMoreNative = LocalNativeTopBarHost.current?.ownsTopBar == true,
+                                // 鸿蒙：「更多」按钮和它的菜单由 ArkUI 画，
+                                // 这颗 Compose 触发按钮必须关掉，否则会从原生按钮下面露出来
+                                scheduleMoreNative = LocalNativeTopBarHost.current?.ownsTopRight == true,
                                 // 预测性返回由 LiquidGlassDropdownMenu 内部驱动同一个 fraction Animatable，
                                 // 外面再 snapTo/animateTo 会和它互相 cancel，动画直接卡死。
                                 onJumpWeek = { viewModel.showJumpWeekDialog() },

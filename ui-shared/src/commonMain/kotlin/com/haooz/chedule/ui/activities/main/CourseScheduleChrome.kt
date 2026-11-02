@@ -90,10 +90,10 @@ internal fun MorePopupMenus(
     // 平板右上角不显示「更多」：跳转/管理/外观都已在侧栏里
     enabled: Boolean = true,
     /**
-     * 课程表页的「更多」已由宿主（鸿蒙 ArkUI 顶栏）接管。
+     * 课程表页的「更多」由宿主（鸿蒙 ArkUI）画。
      *
      * 这颗按钮的**收起态就是按钮本身**（`LiquidGlassDropdownMenu` 的 trigger），
-     * 宿主接管后它还留在 Compose 里，会从原生顶栏下面露出一截（实测是几个黑点）。
+     * 宿主接管后它还留在 Compose 里，会从原生按钮下面露出一截（实测是几个黑点）。
      * 今日页那颗不受影响，所以这里只关课程表这一份。
      */
     scheduleMoreNative: Boolean = false,

@@ -31,14 +31,14 @@ fun MainArkUIViewController(env: napi_env): napi_value {
 }
 
 /**
- * 鸿蒙根：装上「宿主自绘顶栏」的注入点。
+ * 鸿蒙根：装上「右上角按钮交给宿主」的注入点。
  *
- * 顶栏整条由 ArkTS 画（见 [NativeTopBarHost] 的说明），这里只把 Compose 发布的状态推过去、
+ * 标题/星期行/渐进模糊仍由 Compose 画，只有右上角两颗按钮和菜单走 ArkTS，这里把语义推过去、
  * 把宿主点的按钮转回来。观察必须放在组合里：`snapshotFlow` 才能拿到 Compose 的状态快照。
  */
 @Composable
 private fun OhosRoot() {
-    val topBar = remember { NativeTopBarHost().apply { ownsTopBar = true } }
+    val topBar = remember { NativeTopBarHost().apply { ownsTopRight = true } }
     val scope = rememberCoroutineScope()
     LaunchedEffect(topBar, scope) {
         TopBarBridge.bind(topBar, scope)

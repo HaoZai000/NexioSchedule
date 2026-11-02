@@ -20,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,7 +51,6 @@ import com.haooz.chedule.ui.components.text.miuix.Text
 import com.haooz.chedule.ui.theme.scheduleAccentColor
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.LocalNativeTopBarHost
-import com.haooz.chedule.ui.utils.NativeTopBarDay
 import com.haooz.chedule.ui.utils.NativeTopBarHost
 import com.haooz.chedule.ui.utils.NativeTopBarMenuItem
 import com.haooz.chedule.ui.utils.NativeTopBarState
@@ -133,38 +131,26 @@ fun ScheduleTopBar(
     onMoreExpand: () -> Unit = {},
 ) {
     val nativeTopBarHost = LocalNativeTopBarHost.current
-    if (nativeTopBarHost?.ownsTopBar == true) {
-        // 顶栏整条由宿主画（鸿蒙 ArkUI）：模糊要压在内容之上、标题又要压在模糊之上，
-        // skia 后端一块 XComponent 里给不出这个层序。这里只发布语义，一个像素都不画。
-        PublishNativeTopBar(
+    val nativeTopRight = nativeTopBarHost?.ownsTopRight == true
+    if (nativeTopRight && nativeTopBarHost != null) {
+        PublishNativeTopRight(
             host = nativeTopBarHost,
-            // 不掺 liquidGlassBackdrop：宿主顶栏的材质由系统沉浸光感给，
-            // 与 Compose 侧的玻璃采样能力无关（拿它当开关会让顶栏在不支持玻璃的设备上整条消失）
-            visible = visible,
-            pagerCurrentPage = pagerCurrentPage,
-            currentWeek = currentWeek,
-            isHoliday = isHoliday,
-            dayRange = dayRange,
-            currentDayOfWeek = currentDayOfWeek,
-            isCurrentWeek = isCurrentWeek,
-            weekDates = weekDates,
-            isReorganized = isReorganized,
+            visible = visible && liquidGlassBackdrop != null,
             isTablet = isTablet,
             isShiftMode = isShiftMode,
-            scrollBehavior = scrollBehavior,
             titleEndPadding = titleEndPadding,
             onOpenSwitchSchedule = onOpenSwitchSchedule,
             onJumpWeek = onJumpWeek,
             onEnterCustomize = onEnterCustomize,
             onCourseManage = onCourseManage,
         )
-        return
     }
     if (!visible || liquidGlassBackdrop == null) return
     // iOS 主界面右上角那一排（「更多」UIMenu + 课表切换）已由原生 chrome 接管
     // （见 iosApp/ContentView 的 mainMoreItem / mainSwitchItem）：有宿主导航即 iOS，
     // Compose 这一侧整排都不渲染。Android / desktop 没有宿主导航，照常显示。
-    val hostOwnsTopRight = LocalHostNavigation.current != null
+    // 鸿蒙同理：顶栏留着 Compose 画，只把右上角两颗交给 ArkUI。
+    val hostOwnsTopRight = LocalHostNavigation.current != null || nativeTopRight
     val nativeBarInset = (LocalHostNavigation.current?.topBarInset ?: 0.0).dp
 
     val titleText = when {
@@ -285,61 +271,25 @@ fun ScheduleTopBar(
     }
 }
 
-/**
- * 宿主自绘顶栏的语义发布（鸿蒙 ArkUI）。只报状态，不做绘制。
- *
- * 这里**不**解锁 `rememberTopBarMaterialAlpha` 的逐帧动画值：那是绘制期读的值，一旦过桥
- * 就是每帧一次跨语言调用。只报「滚动是否过阈值」（与 Compose 顶栏同一判据 10dp），
- * 弹簧由宿主自己跑。
- */
+/** 右上角两颗按钮交给宿主画（鸿蒙 ArkUI）。只报位置与语义，标题/星期行/模糊仍在 Compose。 */
 @Composable
-private fun PublishNativeTopBar(
+private fun PublishNativeTopRight(
     host: NativeTopBarHost,
     visible: Boolean,
-    pagerCurrentPage: Int,
-    currentWeek: Int,
-    isHoliday: Boolean,
-    dayRange: List<Int>,
-    currentDayOfWeek: Int,
-    isCurrentWeek: Boolean,
-    weekDates: List<LocalDate>,
-    isReorganized: Boolean,
     isTablet: Boolean,
     isShiftMode: Boolean,
-    scrollBehavior: SharedScrollBehavior?,
     titleEndPadding: Dp,
     onOpenSwitchSchedule: () -> Unit,
     onJumpWeek: () -> Unit,
     onEnterCustomize: () -> Unit,
     onCourseManage: () -> Unit,
 ) {
-    val title = when {
-        isHoliday -> SchedStr.onBreak()
-        currentWeek < 1 -> SchedStr.semesterNotStarted()
-        else -> CommonStr.weekN(pagerCurrentPage + 1)
-    }
-    val days = remember(dayRange, weekDates, currentDayOfWeek, isCurrentWeek, isReorganized) {
-        dayRange.map { dayOfWeek ->
-            val date = weekDates.getOrNull(dayOfWeek - 1)
-            NativeTopBarDay(
-                label = DAY_NAMES[dayOfWeek - 1](),
-                date = date?.formatMonthDay(),
-                isToday = dayOfWeek == currentDayOfWeek && isCurrentWeek &&
-                    (!isReorganized || date == todayLocalDate()),
-            )
-        }
-    }
-    val thresholdPx = with(LocalDensity.current) { MaterialScrollThreshold.toPx() }
-    val materialVisible by remember(scrollBehavior, thresholdPx) {
-        derivedStateOf { (scrollBehavior?.state?.contentOffset ?: 0f) < -thresholdPx }
-    }
-    val noTopStatusBar = hostVerticalBarEdge()
-    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val topBarHeight = when {
-        noTopStatusBar -> 120.dp - NoStatusBarBlurReduction
-        statusBarHeight > 0.dp -> 120.dp + statusBarHeight
-        else -> 160.dp
-    }
+    val buttonSize = 42.dp
+    val statusBarHeight =
+        if (hostVerticalBarEdge()) 0.dp
+        else WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // 折叠顶栏 collapsed 高 52，按钮在其中垂直居中 ⇒ 与 Compose 侧同一中线
+    val top = statusBarHeight + (CollapsedHeight - buttonSize) / 2
     val menu = remember(isShiftMode) {
         buildList {
             add(NativeTopBarMenuItem("jumpWeek", ChromeStr.jumpToWeek()))
@@ -347,28 +297,19 @@ private fun PublishNativeTopBar(
             add(NativeTopBarMenuItem("customize", ChromeStr.scheduleAppearance()))
         }
     }
-    val scheme = MiuixTheme.colorScheme
     val state = NativeTopBarState(
-        title = title,
-        days = days,
-        materialVisible = materialVisible,
-        accentArgb = scheduleAccentColor().argbLong(),
-        onSurfaceArgb = scheme.onSurface.argbLong(),
-        onSurfaceVariantArgb = scheme.onSurfaceVariantActions.argbLong(),
         showsSwitch = !isShiftMode && !isTablet,
         showsMore = !isTablet,
+        onSurfaceArgb = MiuixTheme.colorScheme.onSurface.argbLong(),
         menu = menu,
-        leadingPadDp = scheduleSectionColumnWidth(isTablet).value,
-        trailingPadDp = (2.dp + titleEndPadding).value,
-        heightDp = topBarHeight.value,
-        // Navigation 标题栏只认「标题行 + 星期行」那一段，状态栏高度单独报
-        titleHeightDp = if (noTopStatusBar) (120.dp - NoStatusBarBlurReduction).value else 118f,
-        statusBarDp = if (noTopStatusBar) 0f else statusBarHeight.value,
+        topDp = top.value,
+        sizeDp = buttonSize.value,
+        spacingDp = 8f,
+        rightPadDp = (16.dp + titleEndPadding).value,
     )
     val suppressed = host.suppressed
     SideEffect {
         host.state = if (visible && !suppressed) state else null
-        // 动作在这里接：宿主只认识 id，具体做什么仍由这一页决定
         host.onAction = { id ->
             when (id) {
                 "switchSchedule" -> onOpenSwitchSchedule()
@@ -389,9 +330,6 @@ private fun PublishNativeTopBar(
 /** Compose 的 Color → 0xAARRGGBB（宿主侧要的是普通 int，不是 Color 的 packed 值）。 */
 private fun Color.argbLong(): Long =
     toArgb().toLong() and 0xFFFFFFFFL
-
-/** 顶栏材质出现的滚动阈值，与 [rememberTopBarMaterialAlpha] 内部同一判据（10dp）。 */
-private val MaterialScrollThreshold = 10.dp
 
 @Composable
 private fun DayOfWeekRow(
