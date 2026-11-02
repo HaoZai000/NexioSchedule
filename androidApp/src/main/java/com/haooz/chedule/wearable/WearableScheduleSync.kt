@@ -168,8 +168,12 @@ object WearableScheduleSync {
                     } else {
                         auth.requestPermission(id, Permission.DEVICE_MANAGER)
                             .addOnSuccessListener { perms ->
-                                val ok = perms.any { it == Permission.DEVICE_MANAGER }
-                                NexioLog.i(TAG, "requestPermission result ok=$ok")
+                                // 必须按权限名比较：SDK 的 Permission 没有重写 equals()，
+                                // requestPermission 回传的是 AIDL 反序列化出的新实例
+                                // （Permission(Parcel)），`it == Permission.DEVICE_MANAGER`
+                                // 是引用比较、恒为 false —— 用户明明点了允许，这次推送也发不出去。
+                                val ok = perms.any { it.name == Permission.DEVICE_MANAGER.name }
+                                NexioLog.i(TAG, "requestPermission result ok=$ok names=${perms.map { it.name }}")
                                 permissionGranted.set(ok)
                                 if (ok) {
                                     doPush(reason, scheduleName, id)
