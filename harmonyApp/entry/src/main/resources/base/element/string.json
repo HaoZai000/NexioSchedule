@@ -11,6 +11,10 @@
     {
       "name": "EntryAbility_label",
       "value": "Nexio课程表"
+    },
+    {
+      "name": "tab_settings",
+      "value": "设置"
     }
   ]
 }

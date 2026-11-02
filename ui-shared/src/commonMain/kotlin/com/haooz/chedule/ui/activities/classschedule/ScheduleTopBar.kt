@@ -132,19 +132,6 @@ fun ScheduleTopBar(
 ) {
     val nativeTopBarHost = LocalNativeTopBarHost.current
     val nativeTopRight = nativeTopBarHost?.ownsTopRight == true
-    if (nativeTopRight && nativeTopBarHost != null) {
-        PublishNativeTopRight(
-            host = nativeTopBarHost,
-            visible = visible && liquidGlassBackdrop != null,
-            isTablet = isTablet,
-            isShiftMode = isShiftMode,
-            titleEndPadding = titleEndPadding,
-            onOpenSwitchSchedule = onOpenSwitchSchedule,
-            onJumpWeek = onJumpWeek,
-            onEnterCustomize = onEnterCustomize,
-            onCourseManage = onCourseManage,
-        )
-    }
     if (!visible || liquidGlassBackdrop == null) return
     // iOS 主界面右上角那一排（「更多」UIMenu + 课表切换）已由原生 chrome 接管
     // （见 iosApp/ContentView 的 mainMoreItem / mainSwitchItem）：有宿主导航即 iOS，
@@ -267,62 +254,6 @@ fun ScheduleTopBar(
                 contentEndPadding = titleEndPadding,
                 modifier = Modifier.dayOfWeekTopPadding(statusBarHeight, noTopStatusBar, scrollBehavior)
             )
-        }
-    }
-}
-
-/** 右上角两颗按钮交给宿主画（鸿蒙 ArkUI）。只报位置与语义，标题/星期行/模糊仍在 Compose。 */
-@Composable
-private fun PublishNativeTopRight(
-    host: NativeTopBarHost,
-    visible: Boolean,
-    isTablet: Boolean,
-    isShiftMode: Boolean,
-    titleEndPadding: Dp,
-    onOpenSwitchSchedule: () -> Unit,
-    onJumpWeek: () -> Unit,
-    onEnterCustomize: () -> Unit,
-    onCourseManage: () -> Unit,
-) {
-    val buttonSize = 42.dp
-    val statusBarHeight =
-        if (hostVerticalBarEdge()) 0.dp
-        else WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    // 折叠顶栏 collapsed 高 52，按钮在其中垂直居中 ⇒ 与 Compose 侧同一中线
-    val top = statusBarHeight + (CollapsedHeight - buttonSize) / 2
-    val menu = remember(isShiftMode) {
-        buildList {
-            add(NativeTopBarMenuItem("jumpWeek", ChromeStr.jumpToWeek()))
-            if (!isShiftMode) add(NativeTopBarMenuItem("courseManage", ChromeStr.courseManage()))
-            add(NativeTopBarMenuItem("customize", ChromeStr.scheduleAppearance()))
-        }
-    }
-    val state = NativeTopBarState(
-        showsSwitch = !isShiftMode && !isTablet,
-        showsMore = !isTablet,
-        onSurfaceArgb = MiuixTheme.colorScheme.onSurface.argbLong(),
-        menu = menu,
-        topDp = top.value,
-        sizeDp = buttonSize.value,
-        spacingDp = 8f,
-        rightPadDp = (16.dp + titleEndPadding).value,
-    )
-    val suppressed = host.suppressed
-    SideEffect {
-        host.state = if (visible && !suppressed) state else null
-        host.onAction = { id ->
-            when (id) {
-                "switchSchedule" -> onOpenSwitchSchedule()
-                "jumpWeek" -> onJumpWeek()
-                "courseManage" -> onCourseManage()
-                "customize" -> onEnterCustomize()
-            }
-        }
-    }
-    DisposableEffect(host) {
-        onDispose {
-            host.state = null
-            host.onAction = null
         }
     }
 }

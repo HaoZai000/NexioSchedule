@@ -113,10 +113,13 @@ class CourseScheduleAppState {
      * [liquidGlassBackdrop]；录出来的这一层给更上面的组合层用。
      */
     lateinit var topBarSampleBackdrop: LayerBackdrop
-    /** 底栏那一层的玻璃采样层，用途同 [topBarSampleBackdrop] */
+    /**
+     * 底栏那一层的玻璃采样层，用途同 [topBarSampleBackdrop]。
+     * ⚠ 只有 Compose 真的画底栏时才创建（宿主接管时它永远录不到东西，直接不建也不进组合层）。
+     */
     lateinit var bottomBarSampleBackdrop: LayerBackdrop
     /**
-     * [liquidGlassBackdrop] + 顶栏 + 底栏 的组合层 = 「比底栏还高一层」的采样层。
+     * [liquidGlassBackdrop] + 顶栏（+ 底栏）的组合层 = 「比底栏还高一层」的采样层。
      * 画在弹窗层的东西（「更多」下拉菜单、OverlayDialog）采它，玻璃里才看得到顶栏/底栏。
      * 顶栏/底栏自己**不能**采它（会采到自己，见 LayerBackdropModifier 的循环采样问题）。
      */

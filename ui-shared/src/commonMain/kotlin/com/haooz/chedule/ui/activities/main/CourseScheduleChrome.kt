@@ -44,6 +44,7 @@ import com.haooz.chedule.ui.components.tabletNavRailStartPadding
 import com.haooz.chedule.ui.theme.rememberAppThemeController
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalHostNavigation
+import com.haooz.chedule.ui.utils.LocalNativeTopBarHost
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.kyant.backdrop.Backdrop
@@ -97,6 +98,8 @@ internal fun MorePopupMenus(
      * 今日页那颗不受影响，所以这里只关课程表这一份。
      */
     scheduleMoreNative: Boolean = false,
+    /** 今日页的「更多」同样由宿主画，这颗 Compose 触发按钮必须一起关掉。 */
+    todayMoreNative: Boolean = false,
 ) {
     if (!enabled) {
         // 菜单开着时切进/切出禁用场景（平板 rail、课表外观、课表切换）要强制收起，
@@ -214,8 +217,9 @@ internal fun MorePopupMenus(
             }
         }
         // 今日页「更多」
-        LiquidGlassDropdownMenu(
-            show = showTodayMorePopup,
+        if (!todayMoreNative) {
+            LiquidGlassDropdownMenu(
+                show = showTodayMorePopup,
             backdrop = liquidGlassBackdrop,
             fraction = todayMorePopupFraction,
             onDismiss = onTodayMorePopupDismiss,
@@ -272,6 +276,7 @@ internal fun MorePopupMenus(
                     )
                 }
             )
+            }
         }
     }
 }
@@ -365,7 +370,8 @@ internal fun TodayTopBar(
     if (liquidGlassBackdrop == null) return
     val isTabletLiquidGlass = navBarStyle == "rail"
     // 同 ScheduleTopBar：iOS 今日页右上角由原生 UIMenu 接管，Compose 侧不渲染
-    val hostOwnsTopRight = LocalHostNavigation.current != null
+    val hostOwnsTopRight = LocalHostNavigation.current != null ||
+        LocalNativeTopBarHost.current?.ownsTopRight == true
     // 平板：标题避让侧栏后左对齐用的附加修饰符
     val titleRailPadding = if (isTabletLiquidGlass) {
         tabletNavRailStartPadding().padding(start = 12.dp)

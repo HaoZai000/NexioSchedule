@@ -250,6 +250,50 @@ static napi_value NapiTopBarAction(napi_env env, napi_callback_info info) {
     return nullptr;
 }
 
+// ── 底部导航：胶囊与设置圆钮换成 Tabs 底部页签的系统沉浸光感材质 ──────────────
+static napi_ref g_bottomBarRef = nullptr;
+
+static napi_value NapiRegisterBottomBar(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    napi_valuetype type = napi_undefined;
+    napi_typeof(env, args[0], &type);
+    if (type != napi_function) return nullptr;
+    g_env = env;
+    napi_create_reference(env, args[0], 1, &g_bottomBarRef);
+    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "bottom bar registered");
+    return nullptr;
+}
+
+/** Kotlin 侧的发布入口（函数指针交给 Kotlin）。必须在 JS 线程调用。 */
+static void HostPublishBottomBar(const char *json) {
+    if (g_env == nullptr || g_bottomBarRef == nullptr) return;
+    napi_value callback = nullptr;
+    if (napi_get_reference_value(g_env, g_bottomBarRef, &callback) != napi_ok || callback == nullptr) return;
+    napi_value undefined = nullptr;
+    napi_get_undefined(g_env, &undefined);
+    napi_value argv[1] = {nullptr};
+    napi_create_string_utf8(g_env, json, NAPI_AUTO_LENGTH, &argv[0]);
+    napi_value result = nullptr;
+    napi_call_function(g_env, undefined, callback, 1, argv, &result);
+}
+
+extern "C" void NexioOnBottomBarHostReady(void (*fn)(const char *));
+
+/** ArkTS 侧动作回传：bottomBarSelected(2)。 */
+extern "C" void NexioOnBottomBarSelected(int index);
+
+static napi_value NapiBottomBarSelected(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    int32_t index = 0;
+    if (napi_get_value_int32(env, args[0], &index) != napi_ok) return nullptr;
+    NexioOnBottomBarSelected(index);
+    return nullptr;
+}
+
 // 初始化协程的主线程调度器（Kotlin 侧 @CName("NexioInitMainHandler")）。
 // 不调的话 MainHandler.tsfn 恒为 null，Dispatchers.Main 会内联在调用方线程执行。
 extern "C" void NexioInitMainHandler(void *env);
@@ -276,6 +320,10 @@ static napi_value Init(napi_env env, napi_value exports) {
          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"topBarAction", nullptr, NapiTopBarAction,
          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"registerBottomBar", nullptr, NapiRegisterBottomBar,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"bottomBarSelected", nullptr, NapiBottomBarSelected,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
 
@@ -285,6 +333,7 @@ static napi_value Init(napi_env env, napi_value exports) {
     NexioOnHttpHostReady(HostHttpSend);
     NexioOnToastHostReady(HostShowToast);
     NexioOnTopBarHostReady(HostPublishTopBar);
+    NexioOnBottomBarHostReady(HostPublishBottomBar);
     return exports;
 }
 

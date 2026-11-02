@@ -80,3 +80,16 @@ export const registerTopBar: (
 
 /** 顶栏按钮 / 菜单动作回传给 Compose（"switchSchedule" / "more" / "jumpWeek" / ...）。 */
 export const topBarAction: (id: string) => void;
+
+/**
+ * 底部导航语义：Compose 发布，ArkTS 用 `HdsTabs` 的悬浮页签胶囊渲染。
+ *
+ * JSON 字段与 Kotlin 的 `NativeBottomBarState` 一一对应：`selected` 是当前格，
+ * `tabsCount` 是页签格数（1 = 排班模式），设置格不算在内。
+ */
+export const registerBottomBar: (
+  publish: (json: string) => void
+) => void;
+
+/** 点了某格；`index >= tabsCount` 表示末尾的设置页签。 */
+export const bottomBarSelected: (index: number) => void;

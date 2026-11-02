@@ -2,13 +2,14 @@ package com.haooz.nexio.ohos
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.window.ComposeArkUIViewController
 import com.haooz.chedule.data.WallpaperStore
+import com.haooz.chedule.ui.utils.LocalNativeBottomBarHost
 import com.haooz.chedule.ui.utils.LocalNativeTopBarHost
+import com.haooz.chedule.ui.utils.NativeBottomBarHost
 import com.haooz.chedule.ui.utils.NativeTopBarHost
 import kotlin.experimental.ExperimentalNativeApi
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -31,20 +32,42 @@ fun MainArkUIViewController(env: napi_env): napi_value {
 }
 
 /**
- * 鸿蒙根：装上「右上角按钮交给宿主」的注入点。
+ * 鸿蒙根：装上「右上角按钮」「底部导航」交给宿主的注入点。
  *
- * 标题/星期行/渐进模糊仍由 Compose 画，只有右上角两颗按钮和菜单走 ArkTS，这里把语义推过去、
- * 把宿主点的按钮转回来。观察必须放在组合里：`snapshotFlow` 才能拿到 Compose 的状态快照。
+ * 标题/星期行/渐进模糊、页面内容仍由 Compose 画，只有右上角按钮、它的菜单、以及底部导航
+ * 走 ArkTS（要的是系统沉浸光感材质）。这里把语义推过去、把宿主点的东西转回来。
+ *
+ * 用 `onState` 同步出口而不是 `snapshotFlow`：后者要等 Compose 的 effect 协程被调度，
+ * 至少晚一帧，翻页时按钮会肉眼可见地落后于页面。
  */
 @Composable
 private fun OhosRoot() {
     val topBar = remember { NativeTopBarHost().apply { ownsTopRight = true } }
+    val bottomBar = remember { NativeBottomBarHost().apply { ownsBottomBar = true } }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(topBar, scope) {
+    DisposableEffect(topBar, scope) {
         TopBarBridge.bind(topBar, scope)
-        snapshotFlow { topBar.state }.collect { TopBarBridge.publish(it) }
+        topBar.onState = { TopBarBridge.publish(it) }
+        // 绑定前可能已经发布过（首帧顺序不定），补一次
+        TopBarBridge.publish(topBar.state)
+        onDispose {
+            topBar.onState = null
+            TopBarBridge.publish(null)
+        }
     }
-    CompositionLocalProvider(LocalNativeTopBarHost provides topBar) {
+    DisposableEffect(bottomBar, scope) {
+        BottomBarBridge.bind(bottomBar, scope)
+        bottomBar.onState = { BottomBarBridge.publish(it) }
+        BottomBarBridge.publish(bottomBar.state)
+        onDispose {
+            bottomBar.onState = null
+            BottomBarBridge.publish(null)
+        }
+    }
+    CompositionLocalProvider(
+        LocalNativeTopBarHost provides topBar,
+        LocalNativeBottomBarHost provides bottomBar,
+    ) {
         NexioRoot()
     }
 }

@@ -17,21 +17,27 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -57,6 +63,7 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
@@ -65,6 +72,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -86,7 +94,9 @@ import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.today.TodayScreen
 import com.haooz.chedule.ui.components.BackToNowFloatingButton
 import com.haooz.chedule.ui.components.LiquidNavigationRail
+import com.haooz.chedule.ui.components.PublishNativeBottomBar
 import com.haooz.chedule.ui.components.ScheduleBottomBar
+import com.haooz.chedule.ui.components.scheduleBottomBarHeight
 import com.haooz.chedule.ui.components.ShareImportDialog
 import com.haooz.chedule.ui.components.TabletNavSideState
 import com.haooz.chedule.ui.components.UpdateDialog
@@ -104,6 +114,12 @@ import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.LocalNativeTopBarHost
+import com.haooz.chedule.ui.utils.LocalNativeBottomBarHost
+import com.haooz.chedule.ui.utils.NativeTopBarGroup
+import com.haooz.chedule.ui.utils.NativeTopBarHost
+import com.haooz.chedule.ui.utils.NativeTopBarMenuItem
+import com.haooz.chedule.ui.utils.NativeTopBarState
+import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.addScreenCornerRect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
@@ -123,6 +139,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -309,6 +326,47 @@ internal fun CourseScheduleAppMainContent(
             val nativeBarInset = (hostNav?.topBarInset ?: 0.0).dp
             // 右侧避让量：右下角竖排的原生 tab bar 占的空间（折叠屏 iPhone 折叠态）。
             val titleEndPadding = (hostNav?.rightSafeAreaInset ?: 0.0).toFloat().dp
+            // 右上角两颗按钮的唯一发布点：今日页与课程表页各一组，跟着主 pager 平移。
+            // 读 pager 的位移只在这个小函数里，重组范围不外溢到整页。
+            val nativeBarHost = LocalNativeTopBarHost.current
+            if (nativeBarHost?.ownsTopRight == true) {
+                val nativeBarRouter = LocalAppRouter.current
+                PublishNativeTopBarButtons(
+                    host = nativeBarHost,
+                    pagerState = mainPagerState,
+                    vertical = useVerticalMainPager,
+                    isTablet = isTablet,
+                    isShiftMode = isShiftMode,
+                    screenWidthDp = with(androidx.compose.ui.platform.LocalDensity.current) {
+                        screenWPx.toDp().value
+                    },
+                    screenHeightDp = with(androidx.compose.ui.platform.LocalDensity.current) {
+                        screenHPx.toDp().value
+                    },
+                    titleEndPadding = titleEndPadding,
+                    onSwitchSchedule = { openScheduleLibrary() },
+                    onJumpWeek = { viewModel.showJumpWeekDialog() },
+                    onJumpToDate = { todayJumpToDateTrigger++ },
+                    onCourseManage = { nativeBarRouter.navigate(AppRoute.CourseManage) },
+                    onEnterCustomize = enterCustomizePage,
+                )
+            }
+            // 底栏语义发布点：和顶栏一样放在 Scaffold **之外**。
+            // 宿主接管时 Scaffold 的 bottomBar 槽里只有一个空 Box（ScheduleBottomBar 根本不组合），
+            // 把发布写进那个分支等于一次都不发 —— 宿主拿不到状态就是整条不画。
+            val nativeBottomBarHost = LocalNativeBottomBarHost.current
+            if (nativeBottomBarHost?.ownsBottomBar == true && navBarStyle != "rail" && !nativeBottomBar) {
+                val nativeBottomBarRouter = LocalAppRouter.current
+                PublishNativeBottomBar(
+                    host = nativeBottomBarHost,
+                    isShiftMode = isShiftMode,
+                    selectedTab = selectedTab,
+                    // 宿主底栏在 Compose 之外，压栈的子页盖不住它，只能整条收起
+                    visible = !router.hasOverlay,
+                    onTabSelected = onMainTabSelected,
+                    onOpenSettings = { nativeBottomBarRouter.navigate(AppRoute.Settings) },
+                )
+            }
             // 顶栏/底栏那两层录制**按需挂载**：只有真的有浮层在采「比底栏更高一层」的采样层时
             // 才挂上，否则滚动帧里会白白多录两条全宽条带。
             // ⚠️ Scaffold 先组 popup → 顶栏 → 底栏，**最后**才组 content，所以这里要读的
@@ -369,29 +427,40 @@ internal fun CourseScheduleAppMainContent(
                     bottomBar = {
                         // 平板导航在叠层；这里不占 Scaffold bottomBar，避免全屏挡住内容滚动
                         if (navBarStyle != "rail" && !nativeBottomBar) {
-                            // 底栏再录一层：弹窗层的玻璃（下拉菜单 / OverlayDialog）要采到它。
-                            // 只在真有浮层在采时挂——没挂时 backdrop.layerCoordinates 恒 null，
-                            // 组合采样自动退化成「只有内容」那一层，即收起态的行为。
-                            Box(
-                                modifier = if (overlayGlassActive) {
-                                    Modifier.liquidGlassLayerBackdrop(
-                                        backdrop = bottomBarSampleBackdrop,
-                                        recordKey = liquidGlassRecordKey,
-                                        mustRecord = chromeBarMustRecord,
-                                    )
-                                } else {
-                                    Modifier
-                                }
-                            ) {
-                                ScheduleBottomBar(
-                                    navBarStyle = navBarStyle,
-                                    isShiftMode = isShiftMode,
-                                    selectedTab = selectedTab,
-                                    onTabSelected = onMainTabSelected,
-                                    // 「我的 / 设置」已改成二级页：只压栈，不切 pager
-                                    onOpenSettings = { router.navigate(AppRoute.Settings) },
-                                    liquidGlassBackdrop = chromeBackdrop,
+                            if (LocalNativeBottomBarHost.current?.ownsBottomBar == true) {
+                                // 宿主画底栏（ArkUI 在 Compose 之外）：这里只留同高空位，
+                                // 否则内容会一直铺到屏幕最底、最后一行被底栏盖住。
+                                // 语义在上面那条 PublishNativeBottomBar 里发，这里一个像素都不画。
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(scheduleBottomBarHeight())
                                 )
+                            } else {
+                                // 底栏再录一层：弹窗层的玻璃（下拉菜单 / OverlayDialog）要采到它。
+                                // 只在真有浮层在采时挂——没挂时 backdrop.layerCoordinates 恒 null，
+                                // 组合采样自动退化成「只有内容」那一层，即收起态的行为。
+                                Box(
+                                    modifier = if (overlayGlassActive) {
+                                        Modifier.liquidGlassLayerBackdrop(
+                                            backdrop = bottomBarSampleBackdrop,
+                                            recordKey = liquidGlassRecordKey,
+                                            mustRecord = chromeBarMustRecord,
+                                        )
+                                    } else {
+                                        Modifier
+                                    }
+                                ) {
+                                    ScheduleBottomBar(
+                                        navBarStyle = navBarStyle,
+                                        isShiftMode = isShiftMode,
+                                        selectedTab = selectedTab,
+                                        onTabSelected = onMainTabSelected,
+                                        // 「我的 / 设置」已改成二级页：只压栈，不切 pager
+                                        onOpenSettings = { router.navigate(AppRoute.Settings) },
+                                        liquidGlassBackdrop = chromeBackdrop,
+                                    )
+                                }
                             }
                         }
                     },
@@ -498,10 +567,8 @@ internal fun CourseScheduleAppMainContent(
                                         // 动作仍回到这里 —— 与下面 MorePopupMenus 同一套语义
                                         val topBarRouter = LocalAppRouter.current
                                         ScheduleTopBar(
-                                            // 宿主顶栏在 Compose 之外、不会跟着 pager 滑动，
-                                            // 所以只在**停在课程表页**时发布：翻页中途与「今日」页都得收起，
-                                            // 否则它会浮在别的页面上
-                                            visible = scheduleTitleIdle,
+                                            // Compose 顶栏始终在，翻页靠 offset 位移
+                                            visible = true,
                                             // 标题跟着 currentViewingWeek 走：程序化跳周的那一帧就切成目标周，
                                             // 不会再有一段「点完还停在第 10 周」的空窗
                                             pagerCurrentPage = currentViewingWeek - 1,
@@ -685,6 +752,7 @@ internal fun CourseScheduleAppMainContent(
                                 // 鸿蒙：「更多」按钮和它的菜单由 ArkUI 画，
                                 // 这颗 Compose 触发按钮必须关掉，否则会从原生按钮下面露出来
                                 scheduleMoreNative = LocalNativeTopBarHost.current?.ownsTopRight == true,
+                                todayMoreNative = LocalNativeTopBarHost.current?.ownsTopRight == true,
                                 // 预测性返回由 LiquidGlassDropdownMenu 内部驱动同一个 fraction Animatable，
                                 // 外面再 snapTo/animateTo 会和它互相 cancel，动画直接卡死。
                                 onJumpWeek = { viewModel.showJumpWeekDialog() },
@@ -2184,6 +2252,96 @@ internal fun CourseScheduleAppMainContent(
                 }
             }
 
+        }
+    }
+}
+
+/**
+ * 右上角按钮的唯一发布点（鸿蒙 ArkUI 宿主）。
+ *
+ * 今日页与课程表页各发一组，位移按主 pager 的 `page + offsetFraction` 算 —— 宿主画在 Compose
+ * 之外，不跟着 pager 走，只能靠这个值让按钮随页面平移。
+ */
+@Composable
+private fun PublishNativeTopBarButtons(
+    host: NativeTopBarHost,
+    pagerState: PagerState,
+    vertical: Boolean,
+    isTablet: Boolean,
+    isShiftMode: Boolean,
+    screenWidthDp: Float,
+    screenHeightDp: Float,
+    titleEndPadding: Dp,
+    onSwitchSchedule: () -> Unit,
+    onJumpWeek: () -> Unit,
+    onJumpToDate: () -> Unit,
+    onCourseManage: () -> Unit,
+    onEnterCustomize: () -> Unit,
+) {
+    val buttonSize = 42.dp
+    val statusBarHeight =
+        if (hostVerticalBarEdge()) 0.dp
+        else WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // 折叠顶栏 collapsed 高 52，按钮在其中垂直居中 ⇒ 与 Compose 侧同一中线
+    val top = statusBarHeight + (CollapsedHeight - buttonSize) / 2
+
+    val page = pagerState.currentPage
+    val fraction = pagerState.currentPageOffsetFraction
+    // 与顶栏同一套 delta：今日页 0、课程表页 1（排班模式只有课程表页）
+    val todayDelta = (if (isShiftMode) -1f else 0f) - page - fraction
+    val scheduleDelta = (if (isShiftMode) 0f else 1f) - page - fraction
+
+    val todayMenu = remember {
+        listOf(
+            NativeTopBarMenuItem("jumpToDate", ChromeStr.jumpToDate()),
+            NativeTopBarMenuItem("courseManage", ChromeStr.courseManage()),
+            NativeTopBarMenuItem("customize", ChromeStr.scheduleAppearance()),
+        )
+    }
+    val scheduleMenu = remember(isShiftMode) {
+        buildList {
+            add(NativeTopBarMenuItem("jumpWeek", ChromeStr.jumpToWeek()))
+            if (!isShiftMode) add(NativeTopBarMenuItem("courseManage", ChromeStr.courseManage()))
+            add(NativeTopBarMenuItem("customize", ChromeStr.scheduleAppearance()))
+        }
+    }
+    val state = NativeTopBarState(
+        today = NativeTopBarGroup(
+            showsSwitch = false,
+            showsMore = !isTablet,
+            menu = todayMenu,
+            offsetXDp = if (vertical) 0f else todayDelta * screenWidthDp,
+            offsetYDp = if (vertical) todayDelta * screenHeightDp else 0f,
+        ),
+        schedule = NativeTopBarGroup(
+            showsSwitch = !isShiftMode && !isTablet,
+            showsMore = !isTablet,
+            menu = scheduleMenu,
+            offsetXDp = if (vertical) 0f else scheduleDelta * screenWidthDp,
+            offsetYDp = if (vertical) scheduleDelta * screenHeightDp else 0f,
+        ),
+        onSurfaceArgb = MiuixTheme.colorScheme.onSurface.toArgb().toLong() and 0xFFFFFFFFL,
+        topDp = top.value,
+        sizeDp = buttonSize.value,
+        spacingDp = 8f,
+        rightPadDp = (16.dp + titleEndPadding).value,
+    )
+    SideEffect {
+        host.state = state
+        host.onAction = { id ->
+            when (id) {
+                "switchSchedule" -> onSwitchSchedule()
+                "jumpWeek" -> onJumpWeek()
+                "jumpToDate" -> onJumpToDate()
+                "courseManage" -> onCourseManage()
+                "customize" -> onEnterCustomize()
+            }
+        }
+    }
+    DisposableEffect(host) {
+        onDispose {
+            host.state = null
+            host.onAction = null
         }
     }
 }
