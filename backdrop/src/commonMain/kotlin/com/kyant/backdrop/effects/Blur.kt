@@ -4,6 +4,7 @@ import androidx.annotation.FloatRange
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import com.kyant.backdrop.BackdropEffectScope
+import com.kyant.backdrop.BackdropEffectScopeImpl
 import com.kyant.backdrop.isRenderEffectSupported
 
 fun BackdropEffectScope.blur(
@@ -12,6 +13,9 @@ fun BackdropEffectScope.blur(
 ) {
     if (!isRenderEffectSupported()) return
     if (radius <= 0f) return
+
+    // 只做记录：能不能把颜色段折进折射着色器，由 applyEffects() 末尾统一判定（见 BackdropEffectScopeImpl.compileChain）
+    (this as? BackdropEffectScopeImpl)?.recordBlurOp(radius, edgeTreatment)
 
     if (edgeTreatment != TileMode.Clamp || renderEffect != null) {
         if (radius > padding) {

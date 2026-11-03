@@ -2,6 +2,7 @@ package com.kyant.backdrop.effects
 
 import androidx.compose.ui.graphics.RenderEffect
 import com.kyant.backdrop.BackdropEffectScope
+import com.kyant.backdrop.BackdropEffectScopeImpl
 import com.kyant.backdrop.RuntimeShader
 import com.kyant.backdrop.internal.RuntimeShaderEffect
 import com.kyant.backdrop.internal.chain
@@ -14,6 +15,8 @@ fun BackdropEffectScope.effect(effect: RenderEffect) {
     if (!isRenderEffectSupported()) return
 
     renderEffect = renderEffect.chain(effect)
+    // 自定义链无法拆解，整条保持原样（不参与「颜色折进折射」的合并）
+    (this as? BackdropEffectScopeImpl)?.recordRawOp()
 }
 
 @OptIn(ExperimentalContracts::class)
@@ -31,4 +34,6 @@ fun BackdropEffectScope.runtimeShaderEffect(
             uniformShaderName = uniformShaderName
         )
     renderEffect = renderEffect.chain(effect)
+    // 自写 AGSL 同理：无法与折射合并，整条退回旧链
+    (this as? BackdropEffectScopeImpl)?.recordRawOp()
 }

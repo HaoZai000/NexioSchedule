@@ -5,25 +5,27 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ColorMatrixColorFilter
 import com.kyant.backdrop.BackdropEffectScope
+import com.kyant.backdrop.BackdropEffectScopeImpl
 import com.kyant.backdrop.internal.ColorFilterEffect
+import com.kyant.backdrop.internal.colorControlsColorMatrix
+import com.kyant.backdrop.internal.opacityColorMatrix
+import com.kyant.backdrop.internal.saturationColorMatrix
 import com.kyant.backdrop.isRenderEffectSupported
 
+/**
+ * 任意颜色滤镜。矩阵未知，无法折进折射着色器，故整条链保持原样（退化为独立的颜色 pass）。
+ * 只有本文件自带的饱和度 / 亮度 / 对比度 / 不透明度会走 [applyTint]，它们能折。
+ */
 fun BackdropEffectScope.colorFilter(colorFilter: ColorFilter) {
     if (!isRenderEffectSupported()) return
 
     renderEffect = ColorFilterEffect(renderEffect, colorFilter)
+    (this as? BackdropEffectScopeImpl)?.recordRawOp()
 }
 
 fun BackdropEffectScope.opacity(@FloatRange(from = 0.0, to = 1.0) alpha: Float) {
-    val colorMatrix = ColorMatrix(
-        floatArrayOf(
-            1f, 0f, 0f, 0f, 0f,
-            0f, 1f, 0f, 0f, 0f,
-            0f, 0f, 1f, 0f, 0f,
-            0f, 0f, 0f, alpha, 0f
-        )
-    )
-    colorFilter(ColorMatrixColorFilter(colorMatrix))
+    val matrix = opacityColorMatrix(alpha)
+    applyTint(ColorMatrixColorFilter(ColorMatrix(matrix)), matrix)
 }
 
 fun BackdropEffectScope.colorControls(
@@ -35,41 +37,32 @@ fun BackdropEffectScope.colorControls(
         return
     }
 
-    colorFilter(colorControlsColorFilter(brightness, contrast, saturation))
+    val matrix = colorControlsColorMatrix(brightness, contrast, saturation)
+    applyTint(ColorMatrixColorFilter(ColorMatrix(matrix)), matrix)
 }
 
 private val VibrantColorFilter = colorControlsColorFilter(saturation = 1.5f)
+private val VibrantColorMatrix = saturationColorMatrix(1.5f)
 
 fun BackdropEffectScope.vibrancy() {
-    colorFilter(VibrantColorFilter)
+    applyTint(VibrantColorFilter, VibrantColorMatrix)
+}
+
+/**
+ * 应用一个「已知矩阵」的颜色算子：既按老路子挂到 RenderEffect 链上（不满足合并条件时原样生效），
+ * 也把矩阵记进 scope，供末尾把这一段折进折射着色器。
+ */
+private fun BackdropEffectScope.applyTint(colorFilter: ColorFilter, matrix: FloatArray) {
+    if (!isRenderEffectSupported()) return
+
+    renderEffect = ColorFilterEffect(renderEffect, colorFilter)
+    (this as? BackdropEffectScopeImpl)?.recordTintOp(matrix)
 }
 
 private fun colorControlsColorFilter(
     brightness: Float = 0f,
     contrast: Float = 1f,
     saturation: Float = 1f
-): ColorFilter {
-    val invSat = 1f - saturation
-    val r = 0.213f * invSat
-    val g = 0.715f * invSat
-    val b = 0.072f * invSat
-
-    val c = contrast
-    val t = (0.5f - c * 0.5f + brightness) * 255f
-    val s = saturation
-
-    val cr = c * r
-    val cg = c * g
-    val cb = c * b
-    val cs = c * s
-
-    val colorMatrix = ColorMatrix(
-        floatArrayOf(
-            cr + cs, cg, cb, 0f, t,
-            cr, cg + cs, cb, 0f, t,
-            cr, cg, cb + cs, 0f, t,
-            0f, 0f, 0f, 1f, 0f
-        )
-    )
-    return ColorMatrixColorFilter(colorMatrix)
-}
+): ColorFilter = ColorMatrixColorFilter(
+    ColorMatrix(colorControlsColorMatrix(brightness, contrast, saturation))
+)

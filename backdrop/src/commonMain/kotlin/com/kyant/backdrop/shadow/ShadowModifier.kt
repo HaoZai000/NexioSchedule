@@ -2,6 +2,8 @@ package com.kyant.backdrop.shadow
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
@@ -70,6 +72,14 @@ internal class ShadowNode(
 
     private val paint = Paint()
 
+    private var needsRecord = true
+    private var recordedOutline: Outline? = null
+    private var recordedSize: IntSize = IntSize.Zero
+    private var recordedRadius = Float.NaN
+    private var recordedOffsetX = Float.NaN
+    private var recordedOffsetY = Float.NaN
+    private var recordedColor: Color? = null
+
     override fun ContentDrawScope.draw() {
         val shadow = shadow() ?: return drawContent()
 
@@ -88,19 +98,38 @@ internal class ShadowNode(
             )
             val outline = shapeProvider.shape.createOutline(size, layoutDirection, density)
 
-            configurePaint(shadow)
+            val changed = needsRecord ||
+                    outline !== recordedOutline ||
+                    shadowSize != recordedSize ||
+                    radius != recordedRadius ||
+                    offsetX != recordedOffsetX ||
+                    offsetY != recordedOffsetY ||
+                    shadow.color != recordedColor
+
+            if (changed) {
+                needsRecord = false
+                recordedOutline = outline
+                recordedSize = shadowSize
+                recordedRadius = radius
+                recordedOffsetX = offsetX
+                recordedOffsetY = offsetY
+                recordedColor = shadow.color
+
+                configurePaint(shadow)
+
+                shadowLayer.record(shadowSize) {
+                    translate(radius * 2f + offsetX, radius * 2f + offsetY) {
+                        val canvas = drawContext.canvas
+                        canvas.drawOutline(outline, paint)
+                        canvas.translate(-offsetX, -offsetY)
+                        canvas.drawOutline(outline, ShadowMaskPaint)
+                        canvas.translate(offsetX, offsetY)
+                    }
+                }
+            }
 
             shadowLayer.alpha = shadow.alpha
             shadowLayer.blendMode = shadow.blendMode
-            shadowLayer.record(shadowSize) {
-                translate(radius * 2f + offsetX, radius * 2f + offsetY) {
-                    val canvas = drawContext.canvas
-                    canvas.drawOutline(outline, paint)
-                    canvas.translate(-offsetX, -offsetY)
-                    canvas.drawOutline(outline, ShadowMaskPaint)
-                    canvas.translate(offsetX, offsetY)
-                }
-            }
 
             translate(-radius * 2f, -radius * 2f) {
                 drawLayer(shadowLayer)
@@ -116,6 +145,8 @@ internal class ShadowNode(
             graphicsContext.createGraphicsLayer().apply {
                 compositingStrategy = CompositingStrategy.Offscreen
             }
+        // 新图层是空的，必须放弃上一轮（同节点重挂）的缓存判据
+        needsRecord = true
     }
 
     override fun onDetach() {
@@ -124,6 +155,10 @@ internal class ShadowNode(
             graphicsContext.releaseGraphicsLayer(layer)
             shadowLayer = null
         }
+        needsRecord = true
+        recordedOutline = null
+        recordedSize = IntSize.Zero
+        recordedColor = null
     }
 
     private fun DrawScope.configurePaint(shadow: Shadow) {

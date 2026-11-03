@@ -7,9 +7,11 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.util.fastCoerceAtMost
 import com.kyant.backdrop.BackdropEffectScope
+import com.kyant.backdrop.BackdropEffectScopeImpl
 import com.kyant.backdrop.internal.RoundedRectRefractionShaderString
 import com.kyant.backdrop.internal.RoundedRectRefractionWithDispersionShaderString
 import com.kyant.backdrop.internal.RuntimeShaderEffect
+import com.kyant.backdrop.internal.chain
 import com.kyant.backdrop.isRuntimeShaderEffectSupported
 import com.kyant.shapes.RoundedRectangularShape
 
@@ -28,6 +30,13 @@ fun BackdropEffectScope.lens(
 
     // 不支持的 shape（自定义 Shape / 非圆角矩形）直接跳过折射，**不能抛**——这里跑在 draw/measure 链路里，抛出去即整应用崩溃（曾因弹窗面板用自定义 AnimatedPanelRectShape 一开菜单就 FATAL）。
     val cornerRadii = cornerRadii ?: return
+    // 只做记录；能否把颜色段折进合并着色器由 applyEffects() 末尾统一判定
+    (this as? BackdropEffectScopeImpl)?.recordLensOp(
+        refractionHeight = refractionHeight,
+        refractionAmount = refractionAmount,
+        depthEffect = depthEffect,
+        chromaticAberration = chromaticAberration
+    )
     val shader =
         if (!chromaticAberration) {
             obtainRuntimeShader(
@@ -60,15 +69,16 @@ fun BackdropEffectScope.lens(
             setFloatUniform("chromaticAberration", 1f)
         }
     }
-    effect(RuntimeShaderEffect(shader, "content").also {
-        lensShader = shader
-        // 供全分辨率 ImageShader 直采路径重写 uniform（屏幕像素，未乘 downsample）
-        lensRefractionHeight = refractionHeight
-        lensRefractionAmount = refractionAmount
-        lensCornerRadii = floatArrayOf(
-            cornerRadii[0], cornerRadii[1], cornerRadii[2], cornerRadii[3]
-        )
-    })
+    // 直接挂链，**不能**走 effect()：那个入口会记一笔「不可合并的自定义效果」，
+    // 折射自己就成了合并的拦路石（曾经这样，导致整条合并逻辑静默失效）。
+    lensShader = shader
+    // 供全分辨率 ImageShader 直采路径重写 uniform（屏幕像素，未乘 downsample）
+    lensRefractionHeight = refractionHeight
+    lensRefractionAmount = refractionAmount
+    lensCornerRadii = floatArrayOf(
+        cornerRadii[0], cornerRadii[1], cornerRadii[2], cornerRadii[3]
+    )
+    renderEffect = renderEffect.chain(RuntimeShaderEffect(shader, "content"))
 }
 
 private val BackdropEffectScope.cornerRadii: FloatArray?

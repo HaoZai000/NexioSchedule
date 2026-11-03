@@ -176,8 +176,6 @@ internal class EdgeLightNode(
                     null
                 }
 
-            configurePaint(edgeLight)
-
             val strokeWidth = ceil(edgeLight.width.toPx().coerceAtMost(size.minDimension / 2f)) * 2f
             val blurRadius = edgeLight.blurRadius.toPx()
             val color = edgeLight.style.color
@@ -211,6 +209,10 @@ internal class EdgeLightNode(
                 recordedBlendMode = blendMode
                 recordedShaderKey = shaderKey
                 needsRecord = false
+
+                // 只在真正重录的这一帧配置画笔：paint.blur() 每次都会新建 BlurMaskFilter（native 对象），
+                // setRuntimeShader() 还要换一个 Shader 包装，参数没变时这些分配全是白做。
+                configurePaint(edgeLight, strokeWidth, blurRadius)
 
                 edgeLightLayer.record(safeSize) {
                     translate(1f, 1f) {
@@ -249,13 +251,16 @@ internal class EdgeLightNode(
 
     // 描边模糊走本模块的 expect/actual（Android=RenderEffect，iOS/Desktop=SkSL），不用 android.graphics.BlurMaskFilter + asFrameworkPaint()——
     // 后者会把整个文件钉死在 Android，是当初进不了 backdrop 模块的唯一障碍。
-    private fun DrawScope.configurePaint(edgeLight: EdgeLight) {
+    private fun DrawScope.configurePaint(
+        edgeLight: EdgeLight,
+        strokeWidth: Float,
+        blurRadius: Float
+    ) {
         paint.color = edgeLight.style.color
 
-        val strokeWidth = ceil(edgeLight.width.toPx().coerceAtMost(size.minDimension / 2f)) * 2f
         paint.strokeWidth = strokeWidth
 
-        paint.blur(edgeLight.blurRadius.toPx())
+        paint.blur(blurRadius)
 
         if (isRuntimeShaderSupported() && edgeLight.style !is EdgeLightStyle.Uniform) {
             val shader = createEdgeLightShader(

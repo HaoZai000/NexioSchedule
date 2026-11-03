@@ -506,7 +506,7 @@ private class DrawBackdropNode(
             return
         }
 
-        effectScope.apply(effects)
+        effectScope.applyEffects(effects)
         val effect = effectScope.renderEffect
         // 仅当需离屏运算（RenderEffect）或外扩（padding）时才建层；直采路径不碰离屏缓冲，几十张课卡省下等量 GraphicsLayer 的创建与释放。
         if (effect != null || effectScope.padding != 0f) {
