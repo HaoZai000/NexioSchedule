@@ -789,7 +789,7 @@ object IslandNotificationHelper {
         )
 
         val builder = Notification.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification_calendar)
             .setContentTitle(title)
             .setContentText(content)
             .setContentIntent(pendingIntent)
@@ -809,10 +809,10 @@ object IslandNotificationHelper {
         )
 
         val picsBundle = Bundle().apply {
-            putParcelable("miui.focus.pic_app_icon", Icon.createWithResource(context, R.mipmap.ic_launcher))
-            putParcelable("miui.focus.pic_app_icon_dark", Icon.createWithResource(context, R.mipmap.ic_launcher))
-            putParcelable("miui.focus.pic_small", Icon.createWithResource(context, R.mipmap.ic_launcher))
-            putParcelable("miui.focus.pic_small_dark", Icon.createWithResource(context, R.mipmap.ic_launcher))
+            putParcelable("miui.focus.pic_app_icon", Icon.createWithResource(context, R.mipmap.nexio_schedule))
+            putParcelable("miui.focus.pic_app_icon_dark", Icon.createWithResource(context, R.mipmap.nexio_schedule))
+            putParcelable("miui.focus.pic_small", Icon.createWithResource(context, R.mipmap.nexio_schedule))
+            putParcelable("miui.focus.pic_small_dark", Icon.createWithResource(context, R.mipmap.nexio_schedule))
         }
         builder.addExtras(Bundle().apply {
             putBundle("miui.focus.pics", picsBundle)
@@ -952,7 +952,7 @@ object IslandNotificationHelper {
         val content = buildIslandContent(section, classroom, teacher = "", isCustomTime = false)
 
         val builder = Notification.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification_calendar)
             .setContentTitle(title)
             .setContentText(content)
             .setContentIntent(pendingIntent)
@@ -972,10 +972,10 @@ object IslandNotificationHelper {
         )
 
         val picsBundle = Bundle().apply {
-            putParcelable("miui.focus.pic_app_icon", Icon.createWithResource(context, R.mipmap.ic_launcher))
-            putParcelable("miui.focus.pic_app_icon_dark", Icon.createWithResource(context, R.mipmap.ic_launcher))
-            putParcelable("miui.focus.pic_small", Icon.createWithResource(context, R.mipmap.ic_launcher))
-            putParcelable("miui.focus.pic_small_dark", Icon.createWithResource(context, R.mipmap.ic_launcher))
+            putParcelable("miui.focus.pic_app_icon", Icon.createWithResource(context, R.mipmap.nexio_schedule))
+            putParcelable("miui.focus.pic_app_icon_dark", Icon.createWithResource(context, R.mipmap.nexio_schedule))
+            putParcelable("miui.focus.pic_small", Icon.createWithResource(context, R.mipmap.nexio_schedule))
+            putParcelable("miui.focus.pic_small_dark", Icon.createWithResource(context, R.mipmap.nexio_schedule))
         }
         builder.addExtras(Bundle().apply {
             putBundle("miui.focus.pics", picsBundle)
