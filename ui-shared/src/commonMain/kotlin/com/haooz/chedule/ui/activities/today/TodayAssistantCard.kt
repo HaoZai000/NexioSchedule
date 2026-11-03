@@ -4,6 +4,7 @@ package com.haooz.chedule.ui.activities.today
 // ⚠ 文件名必须与 androidApp 的 `TodayAssistant.kt` 不同：同包同名 .kt 会让 Kotlin 生成同名
 //   facade 类，dex 只留一个 → 运行期 NoSuchMethodError。
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -28,8 +30,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,9 +53,11 @@ import com.haooz.chedule.data.util.coursePeriodOngoing
 import com.haooz.chedule.data.util.millisBetween
 import com.haooz.chedule.data.util.nowLocalTime
 import com.haooz.chedule.data.util.parseHourMinute
+import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.AssistantStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.ic_widget_location
 import com.haooz.chedule.uishared.resources.icon_cloudy
@@ -62,6 +75,12 @@ import com.haooz.chedule.uishared.resources.icon_sunny
 import com.haooz.chedule.uishared.resources.icon_sunny_night
 import com.haooz.chedule.uishared.resources.icon_t_storm
 import com.kyant.backdrop.Backdrop
+import kotlin.math.PI
+import kotlin.math.acos
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.datetime.LocalTime
@@ -123,25 +142,85 @@ private fun StatusBadge(text: String) {
 @Composable
 private fun CourseProgressBar(percent: Int) {
     val accent = MiuixTheme.colorScheme.primary
+    val barHeight = 6.dp
     val track = remember(accent) { accent.copy(alpha = 0.08f) }
     // 左淡右浓的横向渐变：已过的部分越靠前越实，尾巴留一点淡出，整条比实心色轻一档
     val fill = remember(accent) {
         Brush.horizontalGradient(
-            listOf(accent.copy(alpha = 0.28f), accent.copy(alpha = 0.62f))
+            listOf(accent.copy(alpha = 0.36f), accent.copy(alpha = 0.62f))
         )
     }
+    // 叠加层往白里混一档：深色卡几乎不混，浅色卡混得多
+    val isDark = isAppDarkTheme()
+    val overlayTint = remember(accent, isDark) {
+        lerp(accent, Color.White, if (isDark) 0.06f else 0.4f)
+    }
+    val frac = percent.coerceIn(0, 100) / 100f
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(5.dp)
+            .height(barHeight)
             .background(track, CircleShape)
     ) {
+        // 本体
         Box(
             modifier = Modifier
-                .fillMaxWidth(percent.coerceIn(0, 100) / 100f)
+                .fillMaxWidth(frac)
                 .fillMaxHeight()
                 .background(fill, CircleShape)
         )
+
+        // 叠加层：圆头 + 切线尾迹，一笔闭合路径。
+        // ⚠ 承载模糊的节点必须比条高，否则 RenderNode 只有条那么大，模糊会在上下被裁断。
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .requiredHeight(22.dp)
+                .align(Alignment.Center)
+                .blur(0.5.dp, BlurredEdgeTreatment.Unbounded)
+        ) {
+            if (frac <= 0f) return@Canvas
+            val cy = size.height / 2f
+            val rBar = (barHeight / 2).toPx()
+            val barRight = size.width * frac      // 条的右边缘（本体就是 fillMaxWidth(frac)）
+            val rHead = rBar * 1.4f
+            val headX = (barRight - rBar).coerceAtLeast(rHead)
+            val rTail = rBar * 1.4f
+            val xTail = (headX - headX.coerceAtMost(36.dp.toPx())).coerceAtLeast(0f)
+
+            val circle = Rect(
+                Offset(headX - rHead, cy - rHead),
+                Size(rHead * 2f, rHead * 2f)
+            )
+            val dx = headX - xTail
+            val dist = sqrt(dx * dx + rTail * rTail)
+            val path = Path()
+            if (dist <= rHead * 1.02f) {
+                // 尾巴短到没有直线段可用，退化成一个圆头
+                path.addOval(circle)
+            } else {
+                // 直线必须切于圆：圆心顶点的切线是水平的，直线直接连到顶点就是那个折角。
+                // 切点既作直线终点也作圆弧起点，接缝处方向连续。
+                val phi = atan2(rTail, dx) - (PI.toFloat() - acos((rHead / dist).coerceIn(-1f, 1f)))
+                val phiDeg = phi * (180f / PI.toFloat())
+                path.moveTo(xTail, cy - rTail)
+                path.lineTo(headX + rHead * cos(phi), cy + rHead * sin(phi))
+                // 从上方切点顺时针扫到镜像的下方切点，正好兜住整个圆头
+                path.arcTo(circle, phiDeg, -2f * phiDeg, false)
+                path.lineTo(xTail, cy + rTail)
+                path.close()
+            }
+            drawPath(
+                path,
+                Brush.horizontalGradient(
+                    0f to Color.Transparent,       // 尾部淡出，融进本体
+                    1f to overlayTint.copy(alpha = 0.72f),
+                    startX = xTail,
+                    endX = headX
+                )
+            )
+        }
     }
 }
 
@@ -290,20 +369,28 @@ private fun formatCountdownMinutes(minutes: Int): String {
     }
 }
 
-// 稳定轮换：同一钟点+时间桶内固定一条，避免每秒乱跳
+// 稳定但不呆板的轮换：同一时段内固定一条（不随每秒 tick 乱跳），
+// 但种子混了「日期 + 会话盐」，所以换一天、或重新进一次今日页就会换一句。
 private fun pickTip(variants: List<String>, seed: Int): String {
     if (variants.isEmpty()) return ""
-    val idx = ((seed % variants.size) + variants.size) % variants.size
-    return variants[idx]
+    // 乘法打散后再取模：相邻的 seed 不会落成同一个下标，
+    // 也不会像朴素取模那样每隔 size 就撞回同一条。
+    val mixed = (seed.toLong() * 2_654_435_761L + 0x9E37_79B9L) and 0x7FFF_FFFFL
+    return variants[(mixed % variants.size).toInt()]
 }
 private fun generateSmartTip(
     courses: List<Course>,
     tomorrowCourses: List<Course>,
     sectionTimes: Map<Int, String>,
     morningSections: Int,
-    afternoonSections: Int
+    afternoonSections: Int,
+    /** 会话盐：每次进入今日页重新取一次随机数，避免每次打开都是同一句 */
+    salt: Int = 0
 ): String? {
     val now = nowLocalTime()
+    // 日期入种子：同样的钟点，昨天和今天不说同一句话
+    val dayKey = todayLocalDate().toEpochDays()
+    fun seedOf(bucket: Int): Int = salt * 3607 + dayKey * 7919 + now.hour * 31 + bucket
     val ranges = buildCourseTimeRanges(courses, sectionTimes)
     val tomorrowRanges = buildCourseTimeRanges(tomorrowCourses, sectionTimes)
 
@@ -329,7 +416,7 @@ private fun generateSmartTip(
                     AssistantStr.timesMissingNoCountdown(courses.size),
                     AssistantStr.timesMissingFixIt(courses.size)
                 ),
-                seed = now.hour
+                seed = seedOf(0)
             )
         }
         val hour = now.hour
@@ -367,7 +454,7 @@ private fun generateSmartTip(
             )
             else -> listOf(AssistantStr.noClassToday())
         }
-        return pickTip(pool, seed = hour) + note
+        return pickTip(pool, seed = seedOf(0)) + note
     }
 
     val ongoing = ranges.find { coursePeriodOngoing(it.start, it.end, now) }
@@ -384,7 +471,8 @@ private fun generateSmartTip(
     val completedCount = ranges.count { coursePeriodCompleted(it.start, it.end, now) }
 
     return when {
-        // 正在上课：剩余 + 连堂，多套冷静说法
+        // 正在上课：按「课上到哪一段」分档，只说状态与下一步动作。
+        // 具体剩余时间由卡片顶部那条倒计时负责，这里再报分钟数就是重复。
         ongoing != null -> {
             // 连堂判断只对同日课有意义；跨午夜课结束点在次日，当天没有「下一节」
             val nextAfter = if (ongoing.end > ongoing.start) {
@@ -392,10 +480,10 @@ private fun generateSmartTip(
             } else null
             val gap = nextAfter?.let { ceilMinutesUntil(ongoing.end, it.start) }
             val gapPart = when {
-                gap != null && gap <= 3 -> AssistantStr.gapBackToBack(gap)
-                gap != null && gap <= 10 -> AssistantStr.gapQuickRefuel(gap)
-                gap != null && gap <= 15 -> AssistantStr.gapCatchBreath(gap)
-                gap != null && gap <= 30 -> AssistantStr.gapLeaveRoom(gap)
+                gap != null && gap <= 3 -> AssistantStr.gapBackToBack()
+                gap != null && gap <= 10 -> AssistantStr.gapQuickRefuel()
+                gap != null && gap <= 15 -> AssistantStr.gapCatchBreath()
+                gap != null && gap <= 30 -> AssistantStr.gapLeaveRoom()
                 else -> ""
             }
             val remaining = ceilMinutesUntil(now, ongoing.end)
@@ -406,30 +494,31 @@ private fun generateSmartTip(
                     AssistantStr.endFinalSeconds()
                 )
                 remaining <= 5 -> listOf(
-                    AssistantStr.endMinWindDown(remaining),
-                    AssistantStr.endMinBackpack(remaining),
-                    AssistantStr.endMinHangIn(remaining)
+                    AssistantStr.endWindDown(),
+                    AssistantStr.endPackUp(),
+                    AssistantStr.endHangIn()
                 )
                 remaining <= 15 -> listOf(
-                    AssistantStr.ongoingKeepRhythm(remaining),
-                    AssistantStr.ongoingSecondHalf(remaining),
-                    AssistantStr.ongoingKeyPart(remaining)
+                    AssistantStr.ongoingSecondHalf(),
+                    AssistantStr.ongoingKeyPart(),
+                    AssistantStr.ongoingKeepRhythm()
                 )
                 remaining <= 45 -> listOf(
-                    AssistantStr.ongoingMinutesLeft(remaining),
-                    AssistantStr.ongoingOwnPace(remaining),
-                    AssistantStr.ongoingNoEarlyDone(remaining)
+                    AssistantStr.ongoingMidClass(),
+                    AssistantStr.ongoingOwnPace(),
+                    AssistantStr.ongoingNoEarlyDone()
                 )
                 else -> listOf(
-                    AssistantStr.ongoingMinutesLeft(remaining),
-                    AssistantStr.ongoingJustStarted(remaining),
-                    AssistantStr.ongoingSaveFocus(remaining)
+                    AssistantStr.ongoingJustStarted(),
+                    AssistantStr.ongoingSaveFocus(),
+                    AssistantStr.ongoingLongStretch()
                 )
             }
-            pickTip(pool, seed = now.hour * 31 + remaining / 5) + gapPart
+            // 轮换粒度比原来粗一档：文案已不含数字，没必要每 5 分钟换一句
+            pickTip(pool, seed = seedOf(remaining / 15)) + gapPart
         }
 
-        // 课间：剩余 + 去向，多套说法
+        // 课间：只说「课间走到哪一步 + 下节去向」，分钟数交给顶部倒计时
         prev != null && next != null -> {
             val remainToNext = ceilMinutesUntil(now, next.start)
             val room = roomOf(next.course)
@@ -441,32 +530,32 @@ private fun generateSmartTip(
                     AssistantStr.breakZeroBuffer()
                 )
                 remainToNext <= 5 -> listOf(
-                    AssistantStr.breakHeadBack(remainToNext, room),
-                    AssistantStr.breakDontCutClose(remainToNext, room),
+                    AssistantStr.breakHeadBack(room),
+                    AssistantStr.breakDontCutClose(room),
                     AssistantStr.breakOnYourFeet(room)
                 )
                 remainToNext <= 10 -> listOf(
-                    AssistantStr.breakWatchTheClock(remainToNext, room),
-                    AssistantStr.breakClassWaiting(remainToNext, room, name),
-                    AssistantStr.breakPlanRoute(remainToNext, room)
+                    AssistantStr.breakWatchTheClock(room),
+                    AssistantStr.breakClassWaiting(room, name),
+                    AssistantStr.breakPlanRoute(room)
                 )
                 remainToNext <= 20 -> listOf(
-                    AssistantStr.breakNextRoom(remainToNext, room),
-                    AssistantStr.breakChill(remainToNext, name, room),
-                    AssistantStr.breakNoNewStarts(remainToNext)
+                    AssistantStr.breakNextRoom(room),
+                    AssistantStr.breakChill(name, room),
+                    AssistantStr.breakNoNewStarts()
                 )
                 remainToNext <= 45 -> listOf(
-                    AssistantStr.breakDontWander(remainToNext, room),
-                    AssistantStr.breakLongBreak(remainToNext, name),
-                    AssistantStr.breakRecover(remainToNext)
+                    AssistantStr.breakDontWander(room),
+                    AssistantStr.breakLongBreak(name),
+                    AssistantStr.breakRecover()
                 )
                 else -> listOf(
-                    AssistantStr.breakOwnRhythm(remainToNext, room),
-                    AssistantStr.breakBigGap(remainToNext, name, room),
-                    AssistantStr.breakTimeYours(remainToNext, room)
+                    AssistantStr.breakOwnRhythm(),
+                    AssistantStr.breakBigGap(name, room),
+                    AssistantStr.breakTimeYours()
                 )
             }
-            pickTip(pool, seed = now.hour * 31 + remainToNext / 5)
+            pickTip(pool, seed = seedOf(remainToNext / 10))
         }
 
         // 今天课已上完
@@ -480,13 +569,13 @@ private fun generateSmartTip(
                 else -> listOf(
                     AssistantStr.doneOnPlan(completedCount, totalCount),
                     AssistantStr.doneProgress(completedCount, totalCount),
-                    AssistantStr.doneSteadyFinish(totalCount - completedCount)
+                    AssistantStr.doneSteadyFinish()
                 )
             }
-            pickTip(pool, seed = now.hour) + tomorrowNote()
+            pickTip(pool, seed = seedOf(0)) + tomorrowNote()
         }
 
-        // 第一节课还没开始
+        // 第一节课还没开始：按「离上课还有多远」分档，文案只说该干嘛
         next != null -> {
             val minutes = ceilMinutesUntil(now, next.start)
             val room = roomOf(next.course)
@@ -509,37 +598,37 @@ private fun generateSmartTip(
                     AssistantStr.planLightDay(totalCount)
                 )
             }
-            val dayPlan = pickTip(dayPlanPool, seed = hour)
+            val dayPlan = pickTip(dayPlanPool, seed = seedOf(1))
             val pool = when {
                 minutes > 180 -> listOf(
-                    AssistantStr.firstFarHours(dayPlan, minutes / 60),
+                    AssistantStr.firstFarHours(dayPlan),
                     AssistantStr.firstFarOwnRhythm(dayPlan),
                     AssistantStr.firstFarDontCrash(dayPlan)
                 )
                 minutes > 90 -> listOf(
-                    AssistantStr.first90Room(dayPlan, minutes, room),
-                    AssistantStr.first90Until(dayPlan, name, minutes),
-                    AssistantStr.first90NoRush(dayPlan, minutes)
+                    AssistantStr.first90Room(dayPlan, room),
+                    AssistantStr.first90Until(dayPlan, name),
+                    AssistantStr.first90NoRush(dayPlan)
                 )
                 minutes > 30 -> listOf(
-                    AssistantStr.first30GetReady(dayPlan, minutes, room),
-                    AssistantStr.first30PackUp(minutes, name, room),
-                    AssistantStr.first30WarmUp(dayPlan, minutes)
+                    AssistantStr.first30GetReady(dayPlan, room),
+                    AssistantStr.first30PackUp(name, room),
+                    AssistantStr.first30WarmUp(dayPlan)
                 )
                 minutes > 15 -> listOf(
-                    AssistantStr.first15HeadOut(minutes, room),
-                    AssistantStr.first15RouteSet(minutes, name),
-                    AssistantStr.first15Buffer(minutes, room)
+                    AssistantStr.first15HeadOut(room),
+                    AssistantStr.first15RouteSet(name),
+                    AssistantStr.first15Buffer(room)
                 )
                 minutes > 5 -> listOf(
-                    AssistantStr.first5NoDawdle(minutes, room),
-                    AssistantStr.first5SteadyWalk(minutes, name),
-                    AssistantStr.first5LeaveNow(minutes, room)
+                    AssistantStr.first5NoDawdle(room),
+                    AssistantStr.first5SteadyWalk(room),
+                    AssistantStr.first5LeaveNow(room)
                 )
                 minutes >= 1 -> listOf(
-                    AssistantStr.first1KeepPace(minutes, room),
-                    AssistantStr.first1NoSprint(minutes, room),
-                    AssistantStr.first1TakeSeat(minutes, name)
+                    AssistantStr.first1KeepPace(room),
+                    AssistantStr.first1NoSprint(room),
+                    AssistantStr.first1TakeSeat(room)
                 )
                 else -> {
                     val periodHint = when {
@@ -556,7 +645,7 @@ private fun generateSmartTip(
                     )
                 }
             }
-            pickTip(pool, seed = hour * 31 + minutes / 15)
+            pickTip(pool, seed = seedOf(minutes / 15))
         }
 
         else -> pickTip(
@@ -565,7 +654,7 @@ private fun generateSmartTip(
                 AssistantStr.readyDayPlanned(totalCount),
                 AssistantStr.readyScheduleSet(totalCount)
             ),
-            seed = now.hour
+            seed = seedOf(0)
         )
     }
 }
@@ -592,11 +681,34 @@ fun TodayAssistantCard(
     val courseStatus = rememberCourseStatus(courses, sectionTimes)
     // 卡片强调色：状态徽标、倒计时、进度条、右上角柔光共用同一支，避免多色打架
     val accent = MiuixTheme.colorScheme.primary
+    // 卡片底部垫一层极淡的课程色（从下往上淡出），让颜色和「当前/下节」这门课对上
+    val tintCourse = courseStatus.currentCourse ?: courseStatus.nextCourse ?: courses.lastOrNull()
+    val isDarkTheme = isAppDarkTheme()
+    val tintColor = remember(tintCourse, isDarkTheme) {
+        tintCourse?.let { course ->
+            lerp(Color(course.colorRes), Color.White, if (isDarkTheme) 0.4f else 0.55f)
+        }
+    }
+    // 有壁纸时卡片是玻璃面，透上来的底子杂，渐变得浓一档才立得住；纯色卡底留很淡一层就够
+    val tintAlpha = if (wallpaperBackdrop != null) 0.24f else 0.1f
+    val tintBrush = remember(tintColor, tintAlpha) {
+        tintColor?.let { color ->
+            Brush.verticalGradient(
+                0f to Color.Transparent,
+                // 上半卡完全干净，只在下面这一段渐入，避免整卡泛色
+                0.4f to Color.Transparent,
+                1f to color.copy(alpha = tintAlpha)
+            )
+        }
+    }
     var smartTip by remember { mutableStateOf("") }
+    // 每次进今日页换一个盐：同一天的同一时段，重新进来也能看到不同的句子。
+    // 放在 remember 里而不是每次 tick 现算——否则文案会每秒跳一次。
+    val tipSalt = remember { kotlin.random.Random.nextInt() }
     LaunchedEffect(courses, tomorrowCourses, sectionTimes, morningSections, afternoonSections) {
         while (true) {
             val newTip = generateSmartTip(
-                courses, tomorrowCourses, sectionTimes, morningSections, afternoonSections
+                courses, tomorrowCourses, sectionTimes, morningSections, afternoonSections, tipSalt
             ).orEmpty()
             // 与顶部倒计时同频轮询；文案未变化时不写状态，避免每秒重组
             if (newTip != smartTip) smartTip = newTip
@@ -632,6 +744,8 @@ fun TodayAssistantCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // 渐变铺满整卡（含 padding 区），画在内容之下、玻璃面之上
+                .drawBehind { tintBrush?.let { drawRect(it) } }
                 .padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 12.dp)
         ) {
             val currentCourse = courseStatus.currentCourse

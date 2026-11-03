@@ -817,7 +817,7 @@ fun TodayScreen(
                             }
                             Spacer(modifier = Modifier.height(12.dp))
                             QuoteCard(
-                                isPageToday = isPageToday,
+                                pageDate = pageDate,
                                 todayCourses = if (isPageToday) pageCourses else emptyList(),
                                 tomorrowCourses = tomorrowCourses,
                                 sectionTimes = sectionTimes,
@@ -920,7 +920,7 @@ fun TodayScreen(
                         }
                         item {
                             QuoteCard(
-                                isPageToday = isPageToday,
+                                pageDate = pageDate,
                                 todayCourses = if (isPageToday) pageCourses else emptyList(),
                                 tomorrowCourses = tomorrowCourses,
                                 sectionTimes = sectionTimes,
@@ -1088,10 +1088,13 @@ fun TodayScreen(
 }
 
 // 格言 = 课表场景 × 时段加菜；场景优先，时段补充
+// 别的日子分两支：往后翻（未来）和往前翻（过去）说的话不一样——
+// 未来是「别提前焦虑」，过去是「改不了，别沉浸」。
 private enum class QuoteScene {
     DEEP_NIGHT,
     NO_CLASS,
-    OTHER_DAY,
+    PAST_DAY,
+    FUTURE_DAY,
     SCHEDULE_BROKEN,
     BEFORE_FIRST,
     IN_CLASS_JUST,
@@ -1138,12 +1141,16 @@ private fun buildQuoteRanges(
 }
 
 private fun computeQuoteScene(
-    isPageToday: Boolean,
+    pageDate: LocalDate,
     courses: List<Course>,
     sectionTimes: Map<Int, String>,
-    now: LocalTime = nowLocalTime()
+    now: LocalTime = nowLocalTime(),
+    today: LocalDate = todayLocalDate()
 ): QuoteScene {
-    if (!isPageToday) return QuoteScene.OTHER_DAY
+    // 别的日子分前后：往后是「还没到」，往前是「已经过去」，说的是两件事
+    if (pageDate != today) {
+        return if (pageDate > today) QuoteScene.FUTURE_DAY else QuoteScene.PAST_DAY
+    }
 
     val ranges = buildQuoteRanges(courses, sectionTimes)
     // 有课但时间对不上有效区间 → 明确报「课表残缺」，不要装没课或看别的天
@@ -1233,7 +1240,8 @@ private fun quotePoolFor(scene: QuoteScene, hour: Int): List<L10n> {
     val base = when (scene) {
         QuoteScene.DEEP_NIGHT -> TodayStr.quotesDeepNight
         QuoteScene.NO_CLASS -> TodayStr.quotesNoClass
-        QuoteScene.OTHER_DAY -> TodayStr.quotesOtherDay
+        QuoteScene.PAST_DAY -> TodayStr.quotesPastDay
+        QuoteScene.FUTURE_DAY -> TodayStr.quotesFutureDay
         QuoteScene.SCHEDULE_BROKEN -> TodayStr.quotesScheduleBroken
         QuoteScene.BEFORE_FIRST -> TodayStr.quotesBeforeFirst
         QuoteScene.IN_CLASS_JUST -> TodayStr.quotesInClassJust
@@ -1255,7 +1263,7 @@ private val quoteProcessId: Long = Random.nextLong()
 
 @Composable
 private fun QuoteCard(
-    isPageToday: Boolean,
+    pageDate: LocalDate,
     todayCourses: List<Course>,
     tomorrowCourses: List<Course> = emptyList(),
     sectionTimes: Map<Int, String>,
@@ -1265,15 +1273,15 @@ private fun QuoteCard(
 ) {
     var scene by remember {
         mutableStateOf(
-            computeQuoteScene(isPageToday, todayCourses, sectionTimes)
+            computeQuoteScene(pageDate, todayCourses, sectionTimes)
         )
     }
     var hour by remember { mutableIntStateOf(nowLocalTime().hour) }
     // 与助手同频：场景/整点切换时立刻换池。
     // 按「睡到下一分钟」而不是每秒轮询 —— 这个循环每页一个，且 computeQuoteScene 会做时间解析+排序
-    LaunchedEffect(isPageToday, todayCourses, sectionTimes) {
+    LaunchedEffect(pageDate, todayCourses, sectionTimes) {
         while (true) {
-            val nextScene = computeQuoteScene(isPageToday, todayCourses, sectionTimes)
+            val nextScene = computeQuoteScene(pageDate, todayCourses, sectionTimes)
             if (nextScene != scene) scene = nextScene
             val nextHour = nowLocalTime().hour
             if (nextHour != hour) hour = nextHour

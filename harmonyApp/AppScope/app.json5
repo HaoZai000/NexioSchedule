@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.haooz.schedule",
     "vendor": "haooz",
-    "versionCode": 168,
-    "versionName": "1.6.8",
+    "versionCode": 169,
+    "versionName": "1.6.9",
     "buildVersion": "1",
     "icon": "$media:layered_image",
     "label": "$string:app_name"

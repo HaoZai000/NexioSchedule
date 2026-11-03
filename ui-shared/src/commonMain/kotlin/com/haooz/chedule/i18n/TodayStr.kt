@@ -73,18 +73,32 @@ object TodayStr {
         L("今天省下的通勤，会在晚上变成刷夜", "The commute you saved today will turn into a night of scrolling")
     )
 
-    // ── 格言 · 底池：翻看别的日子 ──
-    val quotesOtherDay: List<L10n> = listOf(
-        L("翻别人的课表干嘛，今天的你才是重灾区", "Why browse another day's schedule? Today's you is the disaster zone"),
-        L("别对照了，你自己的进度也好看不到哪去", "Stop comparing — your own progress isn't much to look at either"),
-        L("看课表不能让课消失，但能让你更焦虑", "Staring at the schedule won't erase classes, but it will raise your anxiety"),
-        L("这一天的你：还没到，已经开始慌了", "You on that day: not there yet, already panicking"),
+    // ── 格言 · 底池：翻到往后的日子（未来） ──
+    // 未来向：别提前焦虑、计划可以做、慌没必要。
+    val quotesFutureDay: List<L10n> = listOf(
+        L("这天还没到，你提前慌什么", "That day isn't here yet — what exactly are you panicking about?"),
         L("提前预习焦虑，是你唯一的超前学习", "Pre-studying anxiety is the only advanced learning you do"),
-        L("别滑了，课不会因为你看两眼就少一节", "Stop scrolling — classes won't drop by one just because you looked"),
-        L("未来的苦，现在的你先替他尝了一口", "You're tasting future you's suffering ahead of schedule"),
-        L("看得挺认真，就是一点用没有", "Very focused reading — and utterly useless"),
-        L("现在研究那天的教室，那天你照样会迷路", "Study that day's classroom all you want — you'll still get lost"),
-        L("课表翻得越勤，心里越慌，很科学", "The more often you flip the schedule, the more you panic. Very scientific")
+        L("未来的苦，现在的你替它尝了一口", "You just took a sip of future-you's suffering"),
+        L("计划现在做可以，慌没必要现在慌", "Plan now if you like. No need to panic now"),
+        L("那天起不起得来，是那天的事", "Whether you get up that day is that day's problem"),
+        L("现在研究教室位置，那天你照样迷路", "Map out the classroom all you want — you'll still get lost"),
+        L("多看两眼，课也不会少一节", "Stare all you want — the class count won't drop by one"),
+        L("先把今天过完，比研究那天有用", "Finishing today beats studying that day"),
+        L("课表翻得越勤，心里越慌，很科学", "The more you flip ahead, the more you panic. Very scientific")
+    )
+
+    // ── 格言 · 底池：翻到从前的日子（过去） ──
+    // 过去向：改不了、别沉浸、复盘≠内耗。
+    val quotesPastDay: List<L10n> = listOf(
+        L("这天已经过去了，改不了，也补不了", "That day is gone. Can't edit it, can't redo it"),
+        L("回头看可以，别站那儿不走", "Looking back is fine. Standing there isn't"),
+        L("旧课表改不了，你的遗憾也一样", "The old schedule won't change — neither will your regret"),
+        L("翻旧账翻不出新东西", "Digging up old days won't turn up anything new"),
+        L("那节课没听懂，现在补也不晚，别装忘", "So you didn't get it. Not too late to learn it — just don't play dumb"),
+        L("回忆是用来参考的，不是用来住的", "The past is a reference, not an address"),
+        L("昨天不会因为你看得久就变好一点", "Yesterday won't improve from being stared at"),
+        L("复盘叫经验，反复看叫内耗", "Reviewing is learning. Replaying is just wear"),
+        L("前面还有课，别在这儿停太久", "There are classes ahead. Don't linger here too long")
     )
 
     // ── 格言 · 底池：课表残缺 ──
