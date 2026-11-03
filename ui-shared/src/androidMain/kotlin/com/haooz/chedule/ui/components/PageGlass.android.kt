@@ -18,6 +18,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
@@ -25,6 +26,11 @@ import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.node.GlobalPositionAwareModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import com.kyant.backdrop.RuntimeShader
@@ -100,6 +106,11 @@ actual fun PageGlass(
                 nodeCoordinates[0] = coordinates
                 registry.attachAnchor(coordinates)
             }
+            // 采样窗口失效源：**相对壁纸层**的位移。和「卡片几何」是两件事，必须分开。
+            // 翻周时卡片在页内的位置不变（几何不动、路径和 effect 都不用重建），但整页相对壁纸
+            // 平移了 —— 卡片底下露出的壁纸换了一块，采样窗口必须跟着移。这个位移是烤进显示列表的
+            // `translate(-offset)`，不重录就会一直采旧位置：现象是横滑时玻璃冻结、落页后仍冻结，
+            // 直到竖向滚动改了卡片几何才连带恢复。
             .graphicsLayer {
                 // 版本号一读即被观察：卡片挪动时让 layer 重录并把新矩形传给 shader
                 tick.intValue
@@ -137,6 +148,7 @@ actual fun PageGlass(
                     .createRuntimeShaderEffect(platformShader, "content")
                     .asComposeRenderEffect()
             }
+            .then(GlassSampleWindowElement(sourceCoordinates))
             .drawWithContent {
                 tick.intValue
                 // 并集路径只在卡片几何真的变了才重建。一页最多 88 段连续圆角轮廓，
@@ -190,9 +202,82 @@ actual fun PageGlass(
     )
 }
 
+/**
+ * 采样窗口失效源。
+ *
+ * `drawBackdropLayer` 里那句 `translate(-offset)` 是**烤进显示列表**的：offset 变了下一次绘制
+ * 必须重录，否则玻璃一直采旧位置。offset 的输入是「本节点相对壁纸层的位置」，所以判据就是它，
+ * 而不是卡片几何 —— 这正是「翻周冻结」那一版漏掉的那一半：
+ *
+ * - 翻周：几何不动（路径 / effect 复用），位移动（重录一次，每帧一次，省不掉）
+ * - 静止：两个都不动，零开销
+ * - 竖滚：几何动（路径重建），位移也动（重录）
+ *
+ * 用普通字段比较真实坐标再 `invalidateDraw()`，**不能**挂 snapshot state 在绘制期读：
+ * 那等于每帧主动失效整棵节点树的绘制。
+ */
+private class GlassSampleWindowNode(
+    var sourceCoordinates: LayoutCoordinates?
+) : Modifier.Node(), DrawModifierNode, GlobalPositionAwareModifierNode {
+
+    private var lastX = Float.NaN
+    private var lastY = Float.NaN
+
+    override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
+        if (!coordinates.isAttached) return
+        val position = try {
+            val source = sourceCoordinates
+            // 优先用「相对壁纸层」的位置：壁纸层自己动了（视差 / 缩放）也能捕捉到
+            if (source != null && source.isAttached) {
+                source.localPositionOf(coordinates, Offset.Zero)
+            } else {
+                coordinates.positionInWindow()
+            }
+        } catch (_: Exception) {
+            return
+        }
+        if (position.x != lastX || position.y != lastY) {
+            lastX = position.x
+            lastY = position.y
+            invalidateDraw()
+        }
+    }
+
+    /** 壁纸层换了（换壁纸 / 切共享层）：旧判据作废，下一次一定重录。 */
+    fun resetWindow() {
+        lastX = Float.NaN
+        lastY = Float.NaN
+    }
+
+    override fun ContentDrawScope.draw() {
+        drawContent()
+    }
+}
+
+private class GlassSampleWindowElement(
+    private val sourceCoordinates: LayoutCoordinates?
+) : ModifierNodeElement<GlassSampleWindowNode>() {
+
+    override fun create(): GlassSampleWindowNode = GlassSampleWindowNode(sourceCoordinates)
+
+    override fun update(node: GlassSampleWindowNode) {
+        if (node.sourceCoordinates !== sourceCoordinates) {
+            node.sourceCoordinates = sourceCoordinates
+            node.resetWindow()
+        }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is GlassSampleWindowElement) return false
+        return sourceCoordinates === other.sourceCoordinates
+    }
+
+    override fun hashCode(): Int = sourceCoordinates?.hashCode() ?: 0
+}
+
 /** 当前挂在 layer 上的 effect 对应哪一版几何 + 哪一组折射参数。普通字段，绘制期读写。 */
-private class EffectStamp {
-    private var version = Int.MIN_VALUE
+private class EffectStamp {    private var version = Int.MIN_VALUE
     private var refractionHeight = Float.NaN
     private var refractionAmount = Float.NaN
 
