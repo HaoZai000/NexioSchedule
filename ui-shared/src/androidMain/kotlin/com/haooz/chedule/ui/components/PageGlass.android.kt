@@ -19,7 +19,9 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
@@ -115,6 +117,12 @@ actual fun PageGlass(
                 // 版本号一读即被观察：卡片挪动时让 layer 重录并把新矩形传给 shader
                 tick.intValue
                 val platformShader = platformShader
+                // 诊断探针：整页离屏 pass 的代价上限（画面会失去折射，仅用于测量）
+                if (PageGlassTuning.probeNoRefractionEffect) {
+                    if (renderEffect != null) renderEffect = null
+                    effectStamp.invalidate()
+                    return@graphicsLayer
+                }
                 // 没有折射（材质档关闭 / 本机不支持 AGSL）时**绝不能**挂着 pass-through 的全页
                 // RenderEffect：它照样分配整页离屏缓冲、跑一遍全屏采样，输出与输入逐像素相同。
                 // 以前这里直接 return，effect 会一直留在 layer 上 —— 关掉折射反而更贵。
@@ -159,6 +167,10 @@ actual fun PageGlass(
                     unionPath.rewind()
                     val count = registry.cardCount
                     var drawn = 0
+                    var minX = Float.MAX_VALUE
+                    var minY = Float.MAX_VALUE
+                    var maxX = -Float.MAX_VALUE
+                    var maxY = -Float.MAX_VALUE
                     for (i in 0 until count) {
                         if (!registry.isOccupied(i)) continue
                         val base = i * 4
@@ -173,9 +185,13 @@ actual fun PageGlass(
                         val slot = slots[i]
                         val outlinePath = slot.pathFor(w, h, radius, density, layoutDirection)
                         unionPath.addPath(outlinePath, Offset(l, t))
+                        if (l < minX) minX = l
+                        if (t < minY) minY = t
+                        if (r > maxX) maxX = r
+                        if (b > maxY) maxY = b
                         drawn++
                     }
-                    pathCache.commit(registry.version, drawn)
+                    pathCache.commit(registry.version, drawn, minX, minY, maxX, maxY)
                 }
                 if (pathCache.pathCount > 0) {
                     val coordinates = nodeCoordinates[0]
@@ -186,7 +202,7 @@ actual fun PageGlass(
                             Offset.Zero
                         }
                     } else Offset.Zero
-                    clipPath(unionPath) {
+                    val drawWallpaper: DrawScope.() -> Unit = {
                         withTransform({
                             translate(-offset.x, -offset.y)
                             if (bakeScale != 1f && bakeScale > 0f) {
@@ -196,10 +212,47 @@ actual fun PageGlass(
                             drawLayer(bakedLayer)
                         }
                     }
+                    // 诊断开关见 PageGlassTuning：只把路径裁剪换成等面积矩形裁剪，
+                    // 用来单独量「84 段 G2 轮廓的裁剪光栅化」值多少（画面会变成方块，仅用于测量）。
+                    if (PageGlassTuning.probeRectClip) {
+                        clipRect(
+                            pathCache.left,
+                            pathCache.top,
+                            pathCache.right,
+                            pathCache.bottom
+                        ) { drawWallpaper() }
+                    } else {
+                        clipPath(unionPath) { drawWallpaper() }
+                    }
                 }
                 drawContent()
             }
     )
+}
+
+/**
+ * 页级玻璃的诊断开关。**只用来在真机上量代价，不是功能开关。**
+ *
+ * 玻璃这条链路的成本由三块拼成，靠猜永远猜不准，所以各留一个探针，逐项开关后
+ * 跑同一段手势（翻周 3 次 + 竖向滚动）看 framestats，就能知道该往哪砍：
+ *
+ * | 探针 | 关掉的东西 | 画面变化 |
+ * |---|---|---|
+ * | [probeNoRefractionEffect] | 整页离屏 + 全屏采样 + 合成 | 折射消失，玻璃变成「裁剪后的模糊壁纸」 |
+ * | [probeRectClip] | 84 段 G2 轮廓的裁剪光栅化（换成等面积矩形） | 卡片玻璃变方块 |
+ *
+ * 判读：
+ * - 只开 [probeNoRefractionEffect] 就掉很多 → 大头是离屏 pass，值得做「ImageShader 直采」
+ *   （用一张烘焙位图当纹理，省掉离屏/全屏采样/合成三趟，视觉完全不变）。
+ * - 只开 [probeRectClip] 就掉很多 → 大头是复杂路径裁剪，值得把形状遮罩挪进 shader。
+ * - 两个都不明显 → 玻璃这块到此为止，别再折腾，去看组合/测量。
+ */
+object PageGlassTuning {
+    @Volatile
+    var probeNoRefractionEffect: Boolean = false
+
+    @Volatile
+    var probeRectClip: Boolean = false
 }
 
 /**
@@ -308,11 +361,32 @@ private class UnionPathCache {
     var pathCount = 0
         private set
 
+    /** 并集包围盒（节点本地坐标）。只给诊断用的矩形裁剪探针，正式路径不用。 */
+    var left = 0f
+        private set
+    var top = 0f
+        private set
+    var right = 0f
+        private set
+    var bottom = 0f
+        private set
+
     fun isStale(version: Int): Boolean = this.version != version
 
-    fun commit(version: Int, pathCount: Int) {
+    fun commit(
+        version: Int,
+        pathCount: Int,
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float
+    ) {
         this.version = version
         this.pathCount = pathCount
+        this.left = left
+        this.top = top
+        this.right = right
+        this.bottom = bottom
     }
 }
 
