@@ -4,6 +4,10 @@ package com.haooz.chedule.ui.activities.today
 // ⚠ 文件名必须与 androidApp 的 `TodayAssistant.kt` 不同：同包同名 .kt 会让 Kotlin 生成同名
 //   facade 类，dex 只留一个 → 运行期 NoSuchMethodError。
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -13,7 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -33,9 +37,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -138,40 +144,80 @@ private fun StatusBadge(text: String) {
     }
 }
 
-/** 上课进度条：剩余时间从「文字」变成「刻度」，不占横向空间也读得出。 */
+/** 进度条长满时的高度。 */
+private val BAR_HEIGHT = 6.dp
+
+/** 静止态细线的高度。 */
+private val RULE_HEIGHT = 0.5.dp
+
+/** 条上下留白：静止与上课都固定 10dp */
+private val RULE_GAP = 10.dp
+
+/** 分隔线 / 进度条是同一根：静止时是一条 0.5dp 细线，上课中长成 6dp 的进度条。 */
 @Composable
-private fun CourseProgressBar(percent: Int) {
+private fun CourseRuleBar(percent: Int?) {
     val accent = MiuixTheme.colorScheme.primary
-    val barHeight = 6.dp
-    val track = remember(accent) { accent.copy(alpha = 0.08f) }
+    val isDark = isAppDarkTheme()
+    // 0 = 细线，1 = 满血进度条。只在测量期与绘制期读：长出/收回不会重组整张卡。
+    val morph = animateFloatAsState(
+        targetValue = if (percent != null) 1f else 0f,
+        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+        label = "assistantRuleBar"
+    )
+    val rawFrac = (percent ?: 0).coerceIn(0, 100) / 100f
+    // 下课瞬间 percent 变 null：留住最后一次的宽度，让它跟着高度一起淡出，
+    // 否则整条会先「啪」地消失、只剩一根空槽慢慢收回去。普通字段，不参与快照失效。
+    val lastFrac = remember { floatArrayOf(0f) }
+    if (percent != null) lastFrac[0] = rawFrac
+    val frac = if (percent != null) rawFrac else lastFrac[0]
+
+    val ruleColor = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.09f)
+    val trackColor = remember(accent) { accent.copy(alpha = 0.08f) }
     // 左淡右浓的横向渐变：已过的部分越靠前越实，尾巴留一点淡出，整条比实心色轻一档
-    val fill = remember(accent) {
+    val fillBrush = remember(accent) {
         Brush.horizontalGradient(
             listOf(accent.copy(alpha = 0.36f), accent.copy(alpha = 0.62f))
         )
     }
     // 叠加层往白里混一档：深色卡几乎不混，浅色卡混得多
-    val isDark = isAppDarkTheme()
     val overlayTint = remember(accent, isDark) {
         lerp(accent, Color.White, if (isDark) 0.06f else 0.4f)
     }
-    val frac = percent.coerceIn(0, 100) / 100f
 
+    // 高度给这条线自己：上下留白永远是 RULE_GAP，长高的只有中间那根。
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(barHeight)
-            .background(track, CircleShape)
+            // ⚠ 只在**测量期**读 morph：长出/收回只触发重排，不重组整张卡
+            .layout { measurable, constraints ->
+                val h = (RULE_HEIGHT + (BAR_HEIGHT - RULE_HEIGHT) * morph.value).roundToPx()
+                val placeable = measurable.measure(
+                    constraints.copy(minHeight = h, maxHeight = h)
+                )
+                layout(placeable.width, h) { placeable.place(0, 0) }
+            }
     ) {
-        // 本体
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(frac)
-                .fillMaxHeight()
-                .background(fill, CircleShape)
-        )
+        // 轨道 + 本体：不模糊，边缘保持锐利。容器高度就是条高，画满即可。
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val m = morph.value
+            val radius = CornerRadius(size.height / 2f, size.height / 2f)
+            // 细线 → 轨道：颜色跟着高度一起过渡，不会先跳粗细再跳色
+            drawRoundRect(
+                color = lerp(ruleColor, trackColor, m),
+                size = size,
+                cornerRadius = radius
+            )
+            if (frac > 0f) {
+                drawRoundRect(
+                    brush = fillBrush,
+                    size = Size(size.width * frac, size.height),
+                    cornerRadius = radius,
+                    alpha = m
+                )
+            }
+        }
 
-        // 叠加层：圆头 + 切线尾迹，一笔闭合路径。
+        // 叠加层：圆头 + 切线尾迹，一笔闭合路径。半径跟着动画高度走，圆头随条一起长大。
         // ⚠ 承载模糊的节点必须比条高，否则 RenderNode 只有条那么大，模糊会在上下被裁断。
         Canvas(
             modifier = Modifier
@@ -180,10 +226,11 @@ private fun CourseProgressBar(percent: Int) {
                 .align(Alignment.Center)
                 .blur(0.5.dp, BlurredEdgeTreatment.Unbounded)
         ) {
-            if (frac <= 0f) return@Canvas
+            val m = morph.value
+            if (frac <= 0f || m <= 0f) return@Canvas
             val cy = size.height / 2f
-            val rBar = (barHeight / 2).toPx()
-            val barRight = size.width * frac      // 条的右边缘（本体就是 fillMaxWidth(frac)）
+            val rBar = (RULE_HEIGHT + (BAR_HEIGHT - RULE_HEIGHT) * m).toPx() / 2f
+            val barRight = size.width * frac      // 条的右边缘
             val rHead = rBar * 1.4f
             val headX = (barRight - rBar).coerceAtLeast(rHead)
             val rTail = rBar * 1.4f
@@ -212,13 +259,14 @@ private fun CourseProgressBar(percent: Int) {
                 path.close()
             }
             drawPath(
-                path,
-                Brush.horizontalGradient(
+                path = path,
+                brush = Brush.horizontalGradient(
                     0f to Color.Transparent,       // 尾部淡出，融进本体
                     1f to overlayTint.copy(alpha = 0.72f),
                     startX = xTail,
                     endX = headX
-                )
+                ),
+                alpha = m
             )
         }
     }
@@ -733,7 +781,14 @@ fun TodayAssistantCard(
         }
     }
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            // 尺寸动画：动画期间 BlurCard 的采样区域每帧变
+            .animateContentSize(
+                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing)
+            )
+    ) {
         BlurCard(
             wallpaperBackdrop = wallpaperBackdrop,
             blurRadius = blurRadius,
@@ -825,24 +880,10 @@ fun TodayAssistantCard(
                 )
             }
 
-            // 上课中多给一条进度：剩余时间从「文字」变成「刻度」，不占横向空间也读得出。
-            // 有进度条时上下各留 8dp（比常规的 14dp 紧一档，进度条因此贴着课程信息收成一组）。
-            val progress = courseStatus.progressPercent
-            if (currentCourse != null && progress != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                CourseProgressBar(percent = progress)
-                Spacer(modifier = Modifier.height(10.dp))
-            } else {
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 2.dp)
-                    .height(0.5.dp)
-                    .background(MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.09f))
-            )
-            Spacer(modifier = Modifier.height(14.dp))
+            // 分隔线同时是进度条：上下各留 RULE_GAP，长高的只有中间那根线
+            Spacer(modifier = Modifier.height(RULE_GAP))
+            CourseRuleBar(percent = if (currentCourse != null) courseStatus.progressPercent else null)
+            Spacer(modifier = Modifier.height(RULE_GAP))
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
