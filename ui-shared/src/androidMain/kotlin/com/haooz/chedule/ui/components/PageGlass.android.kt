@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import com.kyant.backdrop.RuntimeShader
@@ -47,6 +46,13 @@ import com.kyant.capsule.ContinuousRoundedRectangle
  *
  * 表面色与描边**不进 shader**：它们留在卡片上由 Compose 绘制。实验页量过，省下的那点录制成本
  * 只有 0.2ms，却要拿形状保真去换，不划算。
+ *
+ * ## 三层缓存（顺序即代价从高到低）
+ * 1. [GlassCardRegistry.version]：卡片**相对本节点**的几何。翻周（pager 平移）不改它，
+ *    所以「挪一整页」不会触发下面任何一层。
+ * 2. 并集路径：只在 version 变时 rewind + addPath，一页最多 88 段连续圆角轮廓。
+ * 3. RenderEffect 实例：只在 version / 折射参数变时重建。换实例本身就会让 hwui 把整层判为
+ *    失效并重算一次全屏 pass，比比较一个 int 贵几个数量级。
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
@@ -65,15 +71,14 @@ actual fun PageGlass(
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     val nodeCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
-    // 本节点的 root 位置：卡片登记的是 root 坐标，绘制期换算成节点局部坐标。
-    // 普通字段而非 state —— 绘制期读 state，滚动就会变成每帧主动失效。
-    val nodeRoot = remember { floatArrayOf(0f, 0f) }
     val tick = remember { mutableIntStateOf(0) }
 
     val slots = remember(registry) { Array(registry.capacity) { SlotOutline() } }
     val unionPath = remember { Path() }
-    val localRects = remember(registry) { FloatArray(registry.capacity * 4) }
-    val localRadii = remember(registry) { FloatArray(registry.capacity * 4) }
+    // 当前挂在 layer 上的 effect 对应哪一版几何 / 哪一组参数。Int.MIN_VALUE = 没有 effect。
+    val effectStamp = remember(registry) { EffectStamp() }
+    // 并集路径缓存：一页最多 88 段连续圆角路径，静止时逐点相同
+    val pathCache = remember(registry) { UnionPathCache() }
 
     val wantsRefraction = refractionHeight > 0f && refractionAmount > 0f
     val shader = if (wantsRefraction && isRuntimeShaderSupported()) {
@@ -91,70 +96,64 @@ actual fun PageGlass(
         modifier = modifier
             .fillMaxSize()
             .onGloballyPositioned { coordinates ->
+                // 本节点即坐标原点：卡片登记「相对我」的矩形，pager 平移在这个坐标系里恒等。
                 nodeCoordinates[0] = coordinates
-                val pos = try {
-                    coordinates.positionInRoot()
-                } catch (_: Exception) {
-                    null
-                }
-                if (pos != null) {
-                    nodeRoot[0] = pos.x
-                    nodeRoot[1] = pos.y
-                }
+                registry.attachAnchor(coordinates)
             }
             .graphicsLayer {
                 // 版本号一读即被观察：卡片挪动时让 layer 重录并把新矩形传给 shader
                 tick.intValue
-                if (platformShader != null) {
-                    val count = registry.cardCount
-                    if (count <= 0) {
-                        // 本页没有登记任何卡（无壁纸 / 不采样 / 全在视口外）：不能挂着空的全页
-                        // RenderEffect —— 空内容也要分配整页离屏缓冲，翻页时几页叠加就是纯亏。
-                        if (renderEffect != null) renderEffect = null
-                        return@graphicsLayer
-                    }
-                    val nx = nodeRoot[0]
-                    val ny = nodeRoot[1]
-                    for (i in 0 until count) {
-                        val base = i * 4
-                        // 注册的矩形已是「含变换的边界」，缩放/位置都由 Compose 算好，这里只做坐标平移
-                        localRects[base] = registry.rects[base] - nx
-                        localRects[base + 1] = registry.rects[base + 1] - ny
-                        localRects[base + 2] = registry.rects[base + 2] - nx
-                        localRects[base + 3] = registry.rects[base + 3] - ny
-                        for (k in 0 until 4) {
-                            localRadii[base + k] = registry.radii[base + k]
-                        }
-                    }
-                    platformShader.setFloatUniform("cardRects", localRects)
-                    platformShader.setFloatUniform("cardRadii", localRadii)
-                    platformShader.setIntUniform("cardCount", count)
-                    platformShader.setFloatUniform("refractionHeight", refractionHeight)
-                    // 与原 lens() 一致：位移方向取负（向卡内采）
-                    platformShader.setFloatUniform("refractionAmount", -refractionAmount)
-                    platformShader.setFloatUniform("depthEffect", 0f)
-                    // 每帧换新实例：uniform 变化本身不会让 hwui 感知到，只有换 effect 才强制重算
-                    renderEffect = PlatformRenderEffect
-                        .createRuntimeShaderEffect(platformShader, "content")
-                        .asComposeRenderEffect()
+                val platformShader = platformShader
+                // 没有折射（材质档关闭 / 本机不支持 AGSL）时**绝不能**挂着 pass-through 的全页
+                // RenderEffect：它照样分配整页离屏缓冲、跑一遍全屏采样，输出与输入逐像素相同。
+                // 以前这里直接 return，effect 会一直留在 layer 上 —— 关掉折射反而更贵。
+                if (platformShader == null) {
+                    if (renderEffect != null) renderEffect = null
+                    effectStamp.invalidate()
+                    return@graphicsLayer
                 }
+                val count = registry.cardCount
+                if (count <= 0) {
+                    // 本页没有登记任何卡（无壁纸 / 不采样 / 全在视口外）：不能挂着空的全页
+                    // RenderEffect —— 空内容也要分配整页离屏缓冲，翻页时几页叠加就是纯亏。
+                    if (renderEffect != null) renderEffect = null
+                    effectStamp.invalidate()
+                    return@graphicsLayer
+                }
+                // 矩形已是本节点本地坐标，可整份交给 shader（不再逐帧减原点、逐帧拷贝 704 个 float）
+                if (effectStamp.isCurrent(registry.version, refractionHeight, refractionAmount)) {
+                    return@graphicsLayer
+                }
+                effectStamp.commit(registry.version, refractionHeight, refractionAmount)
+                platformShader.setFloatUniform("cardRects", registry.rects)
+                platformShader.setFloatUniform("cardRadii", registry.radii)
+                platformShader.setIntUniform("cardCount", count)
+                platformShader.setFloatUniform("refractionHeight", refractionHeight)
+                // 与原 lens() 一致：位移方向取负（向卡内采）
+                platformShader.setFloatUniform("refractionAmount", -refractionAmount)
+                platformShader.setFloatUniform("depthEffect", 0f)
+                // uniform 变化本身不会让 hwui 感知到，只有换 effect 才强制重算 —— 所以几何一变就得换新实例
+                renderEffect = PlatformRenderEffect
+                    .createRuntimeShaderEffect(platformShader, "content")
+                    .asComposeRenderEffect()
             }
             .drawWithContent {
                 tick.intValue
-                val coordinates = nodeCoordinates[0]
-                if (coordinates != null) {
-                    val nx = nodeRoot[0]
-                    val ny = nodeRoot[1]
+                // 并集路径只在卡片几何真的变了才重建。一页最多 88 段连续圆角轮廓，
+                // 每帧 rewind + addPath 全是主线程的路径拷贝；而静止时它们逐点相同。
+                // ▸ 失效源就是 registry.version：它存的已经是「相对本节点」的坐标，
+                //   pager 平移不再碰它，所以翻周期间这里一次都不重建。
+                if (pathCache.isStale(registry.version)) {
                     unionPath.rewind()
                     val count = registry.cardCount
                     var drawn = 0
                     for (i in 0 until count) {
                         if (!registry.isOccupied(i)) continue
                         val base = i * 4
-                        val l = registry.rects[base] - nx
-                        val t = registry.rects[base + 1] - ny
-                        val r = registry.rects[base + 2] - nx
-                        val b = registry.rects[base + 3] - ny
+                        val l = registry.rects[base]
+                        val t = registry.rects[base + 1]
+                        val r = registry.rects[base + 2]
+                        val b = registry.rects[base + 3]
                         val w = r - l
                         val h = b - t
                         if (w <= 0f || h <= 0f) continue
@@ -164,27 +163,72 @@ actual fun PageGlass(
                         unionPath.addPath(outlinePath, Offset(l, t))
                         drawn++
                     }
-                    if (drawn > 0) {
-                        val offset = try {
+                    pathCache.commit(registry.version, drawn)
+                }
+                if (pathCache.pathCount > 0) {
+                    val coordinates = nodeCoordinates[0]
+                    val offset = if (coordinates != null) {
+                        try {
                             sourceCoordinates.localPositionOf(coordinates, Offset.Zero)
                         } catch (_: Exception) {
                             Offset.Zero
                         }
-                        clipPath(unionPath) {
-                            withTransform({
-                                translate(-offset.x, -offset.y)
-                                if (bakeScale != 1f && bakeScale > 0f) {
-                                    scale(1f / bakeScale, 1f / bakeScale, Offset.Zero)
-                                }
-                            }) {
-                                drawLayer(bakedLayer)
+                    } else Offset.Zero
+                    clipPath(unionPath) {
+                        withTransform({
+                            translate(-offset.x, -offset.y)
+                            if (bakeScale != 1f && bakeScale > 0f) {
+                                scale(1f / bakeScale, 1f / bakeScale, Offset.Zero)
                             }
+                        }) {
+                            drawLayer(bakedLayer)
                         }
                     }
                 }
                 drawContent()
             }
     )
+}
+
+/** 当前挂在 layer 上的 effect 对应哪一版几何 + 哪一组折射参数。普通字段，绘制期读写。 */
+private class EffectStamp {
+    private var version = Int.MIN_VALUE
+    private var refractionHeight = Float.NaN
+    private var refractionAmount = Float.NaN
+
+    fun isCurrent(version: Int, refractionHeight: Float, refractionAmount: Float): Boolean =
+        this.version == version &&
+                this.refractionHeight == refractionHeight &&
+                this.refractionAmount == refractionAmount
+
+    fun commit(version: Int, refractionHeight: Float, refractionAmount: Float) {
+        this.version = version
+        this.refractionHeight = refractionHeight
+        this.refractionAmount = refractionAmount
+    }
+
+    /** effect 被撤掉后必须让下一次一定重建。 */
+    fun invalidate() {
+        version = Int.MIN_VALUE
+        refractionHeight = Float.NaN
+        refractionAmount = Float.NaN
+    }
+}
+
+/** 页级并集路径的失效判据。 */
+private class UnionPathCache {
+    private var version = Int.MIN_VALUE
+
+    /** 上次重建时真正加进路径的卡片数；0 表示本页没有可画的卡。 */
+    var pathCount = 0
+        private set
+
+    fun isStale(version: Int): Boolean = this.version != version
+
+    fun commit(version: Int, pathCount: Int) {
+        this.version = version
+        this.pathCount = pathCount
+    }
 }
 
 /** 每槽一个复用的轮廓 Path：卡片尺寸/圆角不变时不重建（一页 30 张卡、每帧都 new Path 会造成 GC 抖动）。 */
