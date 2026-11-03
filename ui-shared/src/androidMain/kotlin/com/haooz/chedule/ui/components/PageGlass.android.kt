@@ -19,9 +19,7 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
@@ -43,24 +41,17 @@ import com.kyant.backdrop.isRuntimeShaderSupported
 import com.kyant.capsule.ContinuousRoundedRectangle
 
 /**
- * 页级玻璃（Android 实现）。
+ * 页级玻璃（Android）：一页只挂**一个**采样节点，把所有课卡轮廓并成一条路径去裁壁纸，
+ * 再用一次 AGSL 折射 pass 覆盖整页。形状仍由 `clipPath` 走与卡片同源的
+ * `ContinuousRoundedRectangle`，不在 shader 里复刻，避免 1~2px 的角部差异。
  *
- * 一页只挂**一个**采样节点：把页内所有课卡的轮廓合并成一条路径去裁壁纸，再让一次 AGSL
- * 折射 pass 覆盖整页。相比「每张卡各自 drawBackdrop」：
- *  - Compose 侧失效源 N → 1（不再每帧从整页重录 N 份采样 display list）
- *  - GPU 侧折射离屏 pass N → 1
- *  - 形状仍走 Compose 的 `clipPath`，与卡片轮廓逐点同源（`ContinuousRoundedRectangle`），
- *    不存在「shader 复刻连续圆角」的 1~2px 角部差异
+ * 三层缓存，顺序即代价从高到低：
+ * 1. [GlassCardRegistry.version]（卡片相对本节点的几何）—— 翻周不改它，所以下两层都不动；
+ * 2. 并集路径 —— 只在 version 变时重建；
+ * 3. RenderEffect 实例 —— 只在 version / 折射参数变时重建。换实例会让 hwui 把整层判失效。
  *
- * 表面色与描边**不进 shader**：它们留在卡片上由 Compose 绘制。实验页量过，省下的那点录制成本
- * 只有 0.2ms，却要拿形状保真去换，不划算。
- *
- * ## 三层缓存（顺序即代价从高到低）
- * 1. [GlassCardRegistry.version]：卡片**相对本节点**的几何。翻周（pager 平移）不改它，
- *    所以「挪一整页」不会触发下面任何一层。
- * 2. 并集路径：只在 version 变时 rewind + addPath，一页最多 88 段连续圆角轮廓。
- * 3. RenderEffect 实例：只在 version / 折射参数变时重建。换实例本身就会让 hwui 把整层判为
- *    失效并重算一次全屏 pass，比比较一个 int 贵几个数量级。
+ * 另有一个**独立**失效源：采样窗口（见 [GlassSampleWindowNode]），它决定要不要重录。
+ * 实测（PKB110）：整条链路关掉只省 1~2ms、jank 不变，所以不要再往这里加东西。
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
@@ -83,9 +74,7 @@ actual fun PageGlass(
 
     val slots = remember(registry) { Array(registry.capacity) { SlotOutline() } }
     val unionPath = remember { Path() }
-    // 当前挂在 layer 上的 effect 对应哪一版几何 / 哪一组参数。Int.MIN_VALUE = 没有 effect。
     val effectStamp = remember(registry) { EffectStamp() }
-    // 并集路径缓存：一页最多 88 段连续圆角路径，静止时逐点相同
     val pathCache = remember(registry) { UnionPathCache() }
 
     val wantsRefraction = refractionHeight > 0f && refractionAmount > 0f
@@ -94,7 +83,7 @@ actual fun PageGlass(
     } else null
     val platformShader = remember(shader) { shader?.asAndroidRuntimeShader() }
 
-    // 卡片几何变化 → 让本节点重绘一次；静止时 version 不变，零开销
+    // 几何变化 → 重绘一次；静止时 version 不变，零开销
     SideEffect { registry.onInvalidate = { tick.intValue = registry.version } }
     DisposableEffect(registry) {
         onDispose { registry.onInvalidate = null }
@@ -104,46 +93,26 @@ actual fun PageGlass(
         modifier = modifier
             .fillMaxSize()
             .onGloballyPositioned { coordinates ->
-                // 本节点即坐标原点：卡片登记「相对我」的矩形，pager 平移在这个坐标系里恒等。
+                // 本节点即坐标原点，卡片登记「相对我」的矩形
                 nodeCoordinates[0] = coordinates
                 registry.attachAnchor(coordinates)
             }
-            // 采样窗口失效源：**相对壁纸层**的位移。和「卡片几何」是两件事，必须分开。
-            // 翻周时卡片在页内的位置不变（几何不动、路径和 effect 都不用重建），但整页相对壁纸
-            // 平移了 —— 卡片底下露出的壁纸换了一块，采样窗口必须跟着移。这个位移是烤进显示列表的
-            // `translate(-offset)`，不重录就会一直采旧位置：现象是横滑时玻璃冻结、落页后仍冻结，
-            // 直到竖向滚动改了卡片几何才连带恢复。
             .graphicsLayer {
-                // 版本号一读即被观察：卡片挪动时让 layer 重录并把新矩形传给 shader
                 tick.intValue
                 val platformShader = platformShader
-                // 诊断探针：整页离屏 pass 的代价上限（画面会失去折射，仅用于测量）
-                if (PageGlassTuning.probeNoRefractionEffect) {
-                    if (renderEffect != null) renderEffect = null
-                    effectStamp.invalidate()
-                    return@graphicsLayer
-                }
-                // 没有折射（材质档关闭 / 本机不支持 AGSL）时**绝不能**挂着 pass-through 的全页
-                // RenderEffect：它照样分配整页离屏缓冲、跑一遍全屏采样，输出与输入逐像素相同。
-                // 以前这里直接 return，effect 会一直留在 layer 上 —— 关掉折射反而更贵。
-                if (platformShader == null) {
-                    if (renderEffect != null) renderEffect = null
-                    effectStamp.invalidate()
-                    return@graphicsLayer
-                }
+                // 没有折射（材质档关闭 / 不支持 AGSL）时必须撤掉 effect：pass-through 的全页
+                // RenderEffect 照样分配整页离屏缓冲并跑一遍全屏采样，比不挂更贵。
                 val count = registry.cardCount
-                if (count <= 0) {
-                    // 本页没有登记任何卡（无壁纸 / 不采样 / 全在视口外）：不能挂着空的全页
-                    // RenderEffect —— 空内容也要分配整页离屏缓冲，翻页时几页叠加就是纯亏。
+                if (platformShader == null || count <= 0) {
                     if (renderEffect != null) renderEffect = null
                     effectStamp.invalidate()
                     return@graphicsLayer
                 }
-                // 矩形已是本节点本地坐标，可整份交给 shader（不再逐帧减原点、逐帧拷贝 704 个 float）
                 if (effectStamp.isCurrent(registry.version, refractionHeight, refractionAmount)) {
                     return@graphicsLayer
                 }
                 effectStamp.commit(registry.version, refractionHeight, refractionAmount)
+                // 矩形已是本节点本地坐标，整份交给 shader 即可
                 platformShader.setFloatUniform("cardRects", registry.rects)
                 platformShader.setFloatUniform("cardRadii", registry.radii)
                 platformShader.setIntUniform("cardCount", count)
@@ -151,7 +120,7 @@ actual fun PageGlass(
                 // 与原 lens() 一致：位移方向取负（向卡内采）
                 platformShader.setFloatUniform("refractionAmount", -refractionAmount)
                 platformShader.setFloatUniform("depthEffect", 0f)
-                // uniform 变化本身不会让 hwui 感知到，只有换 effect 才强制重算 —— 所以几何一变就得换新实例
+                // uniform 变化 hwui 不感知，换 effect 实例才强制重算 —— 所以几何一变就得换新实例
                 renderEffect = PlatformRenderEffect
                     .createRuntimeShaderEffect(platformShader, "content")
                     .asComposeRenderEffect()
@@ -159,18 +128,10 @@ actual fun PageGlass(
             .then(GlassSampleWindowElement(sourceCoordinates))
             .drawWithContent {
                 tick.intValue
-                // 并集路径只在卡片几何真的变了才重建。一页最多 88 段连续圆角轮廓，
-                // 每帧 rewind + addPath 全是主线程的路径拷贝；而静止时它们逐点相同。
-                // ▸ 失效源就是 registry.version：它存的已经是「相对本节点」的坐标，
-                //   pager 平移不再碰它，所以翻周期间这里一次都不重建。
                 if (pathCache.isStale(registry.version)) {
                     unionPath.rewind()
                     val count = registry.cardCount
                     var drawn = 0
-                    var minX = Float.MAX_VALUE
-                    var minY = Float.MAX_VALUE
-                    var maxX = -Float.MAX_VALUE
-                    var maxY = -Float.MAX_VALUE
                     for (i in 0 until count) {
                         if (!registry.isOccupied(i)) continue
                         val base = i * 4
@@ -181,19 +142,15 @@ actual fun PageGlass(
                         val w = r - l
                         val h = b - t
                         if (w <= 0f || h <= 0f) continue
-                        val radius = registry.radii[base]
                         val slot = slots[i]
-                        val outlinePath = slot.pathFor(w, h, radius, density, layoutDirection)
-                        unionPath.addPath(outlinePath, Offset(l, t))
-                        if (l < minX) minX = l
-                        if (t < minY) minY = t
-                        if (r > maxX) maxX = r
-                        if (b > maxY) maxY = b
+                        // 轮廓 Path 按卡片尺寸复用，位置靠 addPath 偏移，不重复建 Path
+                        val outline = slot.pathFor(w, h, registry.radii[base], density, layoutDirection)
+                        unionPath.addPath(outline, Offset(l, t))
                         drawn++
                     }
-                    pathCache.commit(registry.version, drawn, minX, minY, maxX, maxY)
+                    pathCache.commit(registry.version, drawn)
                 }
-                if (pathCache.pathCount > 0) {
+                if (pathCache.hasCards) {
                     val coordinates = nodeCoordinates[0]
                     val offset = if (coordinates != null) {
                         try {
@@ -202,7 +159,8 @@ actual fun PageGlass(
                             Offset.Zero
                         }
                     } else Offset.Zero
-                    val drawWallpaper: DrawScope.() -> Unit = {
+                    clipPath(unionPath) {
+                        // 先移到壁纸层原点，再按 1/bakeScale 放大回全屏坐标（矩阵右乘，T 必须在 S 左侧）
                         withTransform({
                             translate(-offset.x, -offset.y)
                             if (bakeScale != 1f && bakeScale > 0f) {
@@ -212,18 +170,6 @@ actual fun PageGlass(
                             drawLayer(bakedLayer)
                         }
                     }
-                    // 诊断开关见 PageGlassTuning：只把路径裁剪换成等面积矩形裁剪，
-                    // 用来单独量「84 段 G2 轮廓的裁剪光栅化」值多少（画面会变成方块，仅用于测量）。
-                    if (PageGlassTuning.probeRectClip) {
-                        clipRect(
-                            pathCache.left,
-                            pathCache.top,
-                            pathCache.right,
-                            pathCache.bottom
-                        ) { drawWallpaper() }
-                    } else {
-                        clipPath(unionPath) { drawWallpaper() }
-                    }
                 }
                 drawContent()
             }
@@ -231,43 +177,13 @@ actual fun PageGlass(
 }
 
 /**
- * 页级玻璃的诊断开关。**只用来在真机上量代价，不是功能开关。**
+ * 采样窗口失效源：`translate(-offset)` 是烤进显示列表的，offset 变了必须重录，否则一直采旧位置
+ * （现象：横滑时玻璃像贴纸随卡片平移，落页后停在拖动中途那一帧）。
  *
- * 玻璃这条链路的成本由三块拼成，靠猜永远猜不准，所以各留一个探针，逐项开关后
- * 跑同一段手势（翻周 3 次 + 竖向滚动）看 framestats，就能知道该往哪砍：
+ * 判据是「本节点相对壁纸层的位置」，不是卡片几何 —— 翻周时几何不动但位移动，每帧重录一次省不掉。
  *
- * | 探针 | 关掉的东西 | 画面变化 |
- * |---|---|---|
- * | [probeNoRefractionEffect] | 整页离屏 + 全屏采样 + 合成 | 折射消失，玻璃变成「裁剪后的模糊壁纸」 |
- * | [probeRectClip] | 84 段 G2 轮廓的裁剪光栅化（换成等面积矩形） | 卡片玻璃变方块 |
- *
- * 判读：
- * - 只开 [probeNoRefractionEffect] 就掉很多 → 大头是离屏 pass，值得做「ImageShader 直采」
- *   （用一张烘焙位图当纹理，省掉离屏/全屏采样/合成三趟，视觉完全不变）。
- * - 只开 [probeRectClip] 就掉很多 → 大头是复杂路径裁剪，值得把形状遮罩挪进 shader。
- * - 两个都不明显 → 玻璃这块到此为止，别再折腾，去看组合/测量。
- */
-object PageGlassTuning {
-    @Volatile
-    var probeNoRefractionEffect: Boolean = false
-
-    @Volatile
-    var probeRectClip: Boolean = false
-}
-
-/**
- * 采样窗口失效源。
- *
- * `drawBackdropLayer` 里那句 `translate(-offset)` 是**烤进显示列表**的：offset 变了下一次绘制
- * 必须重录，否则玻璃一直采旧位置。offset 的输入是「本节点相对壁纸层的位置」，所以判据就是它，
- * 而不是卡片几何 —— 这正是「翻周冻结」那一版漏掉的那一半：
- *
- * - 翻周：几何不动（路径 / effect 复用），位移动（重录一次，每帧一次，省不掉）
- * - 静止：两个都不动，零开销
- * - 竖滚：几何动（路径重建），位移也动（重录）
- *
- * 用普通字段比较真实坐标再 `invalidateDraw()`，**不能**挂 snapshot state 在绘制期读：
- * 那等于每帧主动失效整棵节点树的绘制。
+ * ⚠ 必须挂在 `graphicsLayer` **内侧**：挂外侧时 `invalidateDraw()` 不会把图层录制标记为脏，
+ * 图层继续复用旧内容（实测 250 次回调只换来 11 次重录）。
  */
 private class GlassSampleWindowNode(
     var sourceCoordinates: LayoutCoordinates?
@@ -280,7 +196,7 @@ private class GlassSampleWindowNode(
         if (!coordinates.isAttached) return
         val position = try {
             val source = sourceCoordinates
-            // 优先用「相对壁纸层」的位置：壁纸层自己动了（视差 / 缩放）也能捕捉到
+            // 用相对壁纸层的位置：壁纸层自己动了（视差 / 缩放）也能捕捉到
             if (source != null && source.isAttached) {
                 source.localPositionOf(coordinates, Offset.Zero)
             } else {
@@ -289,6 +205,7 @@ private class GlassSampleWindowNode(
         } catch (_: Exception) {
             return
         }
+        // 普通字段比较真实坐标，不能挂 snapshot state 再在 draw 期读
         if (position.x != lastX || position.y != lastY) {
             lastX = position.x
             lastY = position.y
@@ -296,7 +213,7 @@ private class GlassSampleWindowNode(
         }
     }
 
-    /** 壁纸层换了（换壁纸 / 切共享层）：旧判据作废，下一次一定重录。 */
+    /** 壁纸层换了（换壁纸 / 切共享层）：旧判据作废。 */
     fun resetWindow() {
         lastX = Float.NaN
         lastY = Float.NaN
@@ -329,8 +246,9 @@ private class GlassSampleWindowElement(
     override fun hashCode(): Int = sourceCoordinates?.hashCode() ?: 0
 }
 
-/** 当前挂在 layer 上的 effect 对应哪一版几何 + 哪一组折射参数。普通字段，绘制期读写。 */
-private class EffectStamp {    private var version = Int.MIN_VALUE
+/** 当前挂在 layer 上的 effect 对应哪一版几何 / 哪组参数；Int.MIN_VALUE = 没有 effect。 */
+private class EffectStamp {
+    private var version = Int.MIN_VALUE
     private var refractionHeight = Float.NaN
     private var refractionAmount = Float.NaN
 
@@ -353,51 +271,30 @@ private class EffectStamp {    private var version = Int.MIN_VALUE
     }
 }
 
-/** 页级并集路径的失效判据。 */
+/** 并集路径的失效判据。 */
 private class UnionPathCache {
     private var version = Int.MIN_VALUE
 
-    /** 上次重建时真正加进路径的卡片数；0 表示本页没有可画的卡。 */
-    var pathCount = 0
+    /** 上次重建时真正进路径的卡片数；0 = 本页没有可画的卡。 */
+    var cardCount = 0
         private set
 
-    /** 并集包围盒（节点本地坐标）。只给诊断用的矩形裁剪探针，正式路径不用。 */
-    var left = 0f
-        private set
-    var top = 0f
-        private set
-    var right = 0f
-        private set
-    var bottom = 0f
-        private set
+    val hasCards: Boolean get() = cardCount > 0
 
     fun isStale(version: Int): Boolean = this.version != version
 
-    fun commit(
-        version: Int,
-        pathCount: Int,
-        left: Float,
-        top: Float,
-        right: Float,
-        bottom: Float
-    ) {
+    fun commit(version: Int, cardCount: Int) {
         this.version = version
-        this.pathCount = pathCount
-        this.left = left
-        this.top = top
-        this.right = right
-        this.bottom = bottom
+        this.cardCount = cardCount
     }
 }
 
-/** 每槽一个复用的轮廓 Path：卡片尺寸/圆角不变时不重建（一页 30 张卡、每帧都 new Path 会造成 GC 抖动）。 */
+/** 每槽一个复用的轮廓 Path：尺寸/圆角不变就复用（一页 30 张卡每帧 new Path 会造成 GC 抖动）。 */
 private class SlotOutline {
     private val path = Path()
-    private val shape = ContinuousRoundedRectangle(CornerSize(0f))
     private var w = -1f
     private var h = -1f
     private var radius = -1f
-    private var cornerSize = CornerSize(0f)
 
     fun pathFor(
         width: Float,
@@ -410,8 +307,7 @@ private class SlotOutline {
         w = width
         h = height
         radius = radiusPx
-        cornerSize = CornerSize(radiusPx)
-        val outline = ContinuousRoundedRectangle(cornerSize)
+        val outline = ContinuousRoundedRectangle(CornerSize(radiusPx))
             .createOutline(Size(width, height), layoutDirection, density)
         path.rewind()
         when (outline) {
@@ -424,13 +320,8 @@ private class SlotOutline {
 }
 
 /**
- * 只做「折射位移」的页级 shader。
- *
- * 形状、抗锯齿、裁剪全部由 Compose 的 `clipPath` 完成（路径与卡片同源），所以这里不需要
- * SDF 判形状、也不需要 `smoothstep` 描边。唯一的必要条件是：要知道每个像素相对**它所属那张卡**
- * 的位置，才能算出局部位移方向 —— 这正是 `cardRects` 数组的用途。
- *
- * 透明像素（卡片之外）直接早退：滚动期它们占页面的一半以上，早退省下的带宽比逐卡比较更值。
+ * 只做折射位移的页级 shader：形状、抗锯齿、裁剪都交给 `clipPath`，这里只算每像素相对
+ * **它所属那张卡**的位置，决定往哪采。卡片外的像素 alpha 为 0，第一行就早退。
  */
 private val PAGE_GLASS_REFRACTION_SHADER = """
 uniform shader content;
