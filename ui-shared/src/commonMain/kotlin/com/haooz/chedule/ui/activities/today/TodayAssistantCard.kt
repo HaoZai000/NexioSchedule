@@ -1,9 +1,5 @@
 package com.haooz.chedule.ui.activities.today
 
-// 今日助手卡（纯展示与纯逻辑）：天气/定位由平台侧算好后按参数传入，下课烟花走 `fireworksOverlay` 槽位。
-// ⚠ 文件名必须与 androidApp 的 `TodayAssistant.kt` 不同：同包同名 .kt 会让 Kotlin 生成同名
-//   facade 类，dex 只留一个 → 运行期 NoSuchMethodError。
-
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -730,13 +726,25 @@ fun TodayAssistantCard(
     // 卡片强调色：状态徽标、倒计时、进度条、右上角柔光共用同一支，避免多色打架
     val accent = MiuixTheme.colorScheme.primary
     // 卡片底部垫一层极淡的课程色（从下往上淡出），让颜色和「当前/下节」这门课对上
-    val tintCourse = courseStatus.currentCourse ?: courseStatus.nextCourse ?: courses.lastOrNull()
+    // ⚠ 不要回落到 courses.lastOrNull()：全部上完后状态已经是「当前没有课程」，
+    //   颜色却还挂着最后一节课 —— 那就是一片永远散不掉的残留色斑。
+    val tintCourse = courseStatus.currentCourse ?: courseStatus.nextCourse
     val isDarkTheme = isAppDarkTheme()
-    val tintColor = remember(tintCourse, isDarkTheme) {
+    val tintTarget = remember(tintCourse, isDarkTheme) {
         tintCourse?.let { course ->
             lerp(Color(course.colorRes), Color.White, if (isDarkTheme) 0.4f else 0.55f)
         }
     }
+    // 颜色收起也要连贯：留住最后一次的颜色，让它跟着 420ms 淡出，
+    // 与线收回、卡片高度收缩同一个节拍。普通数组，不参与快照失效。
+    val tintLast = remember { arrayOfNulls<Color>(1) }
+    if (tintTarget != null) tintLast[0] = tintTarget
+    val tintColor = tintTarget ?: tintLast[0]
+    val tintFade = animateFloatAsState(
+        targetValue = if (tintTarget != null) 1f else 0f,
+        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+        label = "assistantTintFade"
+    )
     // 有壁纸时卡片是玻璃面，透上来的底子杂，渐变得浓一档才立得住；纯色卡底留很淡一层就够
     val tintAlpha = if (wallpaperBackdrop != null) 0.24f else 0.1f
     val tintBrush = remember(tintColor, tintAlpha) {
@@ -799,8 +807,9 @@ fun TodayAssistantCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                // 渐变铺满整卡（含 padding 区），画在内容之下、玻璃面之上
-                .drawBehind { tintBrush?.let { drawRect(it) } }
+                // 渐变铺满整卡（含 padding 区），画在内容之下、玻璃面之上。
+                // alpha 在绘制期读：淡出只失效绘制，不重组整张卡
+                .drawBehind { tintBrush?.let { drawRect(it, alpha = tintFade.value) } }
                 .padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 12.dp)
         ) {
             val currentCourse = courseStatus.currentCourse
