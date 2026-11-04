@@ -116,7 +116,11 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
 
     // 只返回分钟数，节次映射由 applyScheduleData 用用户配置完成
     val startTotalMinutes = startHour * 60 + startMinute
-    val endTotalMinutes = endHour * 60 + endMinute
+    // 跨午夜（结束不晚于开始）按次日结束算：与 CourseTimeSpan.crossesMidnight 同语义。
+    // 不补这一天的话，下游 require(endMinutes > startMinutes) 会直接抛错，整份 ICS 导入失败。
+    val endTotalMinutes = (endHour * 60 + endMinute).let {
+        if (it <= startTotalMinutes) it + 24 * 60 else it
+    }
 
     val startDate = LocalDate(startYear, startMonth, startDay)
     val dayOfWeek = startDate.dayOfWeek.isoDayNumber
@@ -142,36 +146,59 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
         }
     }
 
-    // LOCATION 约定：前导空格=仅教师；尾随/无空格=仅教室；中间空格分隔两者
+    // LOCATION 约定：前导空格=仅教师；尾随/无空格=仅教室；中间空格分隔两者。
+    // 优先读导出侧写的扩展属性 —— LOCATION 一个字段表达不了「教室本身含空格」，
+    // 别的日历 App 会忽略 X- 前缀，不影响互通。
+    val explicitClassroom = event["X-NEXIO-CLASSROOM"]
+    val explicitTeacher = event["X-NEXIO-TEACHER"]
     val classroom: String
     val teacher: String
-    when {
-        location.startsWith(" ") -> {
-            classroom = ""
-            teacher = location.trim()
-        }
-        location.trimEnd().endsWith(" ") || !location.contains(" ") -> {
-            classroom = location.trim()
-            teacher = ""
-        }
-        else -> {
-            val spaceIndex = location.indexOf(' ')
-            classroom = location.substring(0, spaceIndex).trim()
-            teacher = location.substring(spaceIndex + 1).trim()
+    if (explicitClassroom != null || explicitTeacher != null) {
+        classroom = explicitClassroom.orEmpty().trim()
+        teacher = explicitTeacher.orEmpty().trim()
+    } else {
+        when {
+            location.startsWith(" ") -> {
+                classroom = ""
+                teacher = location.trim()
+            }
+            location.trimEnd().endsWith(" ") || !location.contains(" ") -> {
+                classroom = location.trim()
+                teacher = ""
+            }
+            else -> {
+                val spaceIndex = location.indexOf(' ')
+                classroom = location.substring(0, spaceIndex).trim()
+                teacher = location.substring(spaceIndex + 1).trim()
+            }
         }
     }
 
-    return mapOf(
-        "name" to summary,
-        "classroom" to classroom,
-        "teacher" to teacher,
-        "dayOfWeek" to dayOfWeek,
-        "startTotalMinutes" to startTotalMinutes,
-        "endTotalMinutes" to endTotalMinutes,
-        "selectedWeeks" to emptyList<Int>(),
-        "startDate" to startDateStr,
-        "untilDate" to untilStr,
-        "count" to countStr,
-        "isAllDay" to isAllDay
-    )
+    // 自定义时间的课：ICS 本身不带节次，导出侧用 X-NEXIO-CUSTOM-* 带出来。
+    // 只有显式带了扩展属性才算「自定义时间课」—— 外部 ICS 的普通事件不该被我们
+    // 标成自定义时间，那会把它们的节次映射改成硬编码钟点。
+    val customStartAttr = event["X-NEXIO-CUSTOM-START"]?.trim()
+    val customEndAttr = event["X-NEXIO-CUSTOM-END"]?.trim()
+    val hasExplicitCustomTime = !customStartAttr.isNullOrBlank() && !customEndAttr.isNullOrBlank()
+
+    // 用 buildMap 而不是 mapOf：自定义时间的两个键只在命中时才加，避免 map 的值类型
+    // 被推断成 Any?（下游契约是 Map<String, Any>，null 值会一路传进 Course）。
+    return buildMap<String, Any> {
+        put("name", summary)
+        put("classroom", classroom)
+        put("teacher", teacher)
+        put("dayOfWeek", dayOfWeek)
+        put("startTotalMinutes", startTotalMinutes)
+        put("endTotalMinutes", endTotalMinutes)
+        put("selectedWeeks", emptyList<Int>())
+        put("startDate", startDateStr)
+        put("untilDate", untilStr)
+        put("count", countStr)
+        put("isAllDay", isAllDay)
+        put("isCustomTime", hasExplicitCustomTime)
+        if (hasExplicitCustomTime) {
+            put("customStartTime", customStartAttr.orEmpty())
+            put("customEndTime", customEndAttr.orEmpty())
+        }
+    }
 }

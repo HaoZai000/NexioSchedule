@@ -49,6 +49,7 @@ import com.haooz.chedule.data.repo.DayScheduleResolver
 import com.haooz.chedule.data.util.formatDateTimeMinute
 import com.haooz.chedule.data.util.formatIcsTimestamp
 import com.haooz.chedule.data.util.localDateTimeAt
+import com.haooz.chedule.data.util.plusDays
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.CommonStr
@@ -934,6 +935,14 @@ data class ScheduleCalendarEvent(
     val description: String,
     val start: LocalDateTime,
     val end: LocalDateTime,
+    /** 原始教室/教师：LOCATION 那一个字段塞不下「教室本身带空格」的情况，
+     *  ICS 导出时会另写 X-NEXIO-* 扩展属性，导入侧优先读它们。 */
+    val classroom: String = "",
+    val teacher: String = "",
+    /** 自定义时间的课（不按节次走）。ICS 里节次信息会丢，必须单独带出去，
+     *  否则再导入时会退化成「按时间映射节次」，跨午夜课尤其会算错。 */
+    val customStartTime: String? = null,
+    val customEndTime: String? = null,
 )
 
 /** 「同步到日历」的结果。未实现的平台恒为 [Unsupported]。 */
@@ -990,22 +999,34 @@ fun buildScheduleCalendarEvents(scheduleName: String): List<ScheduleCalendarEven
             sectionTimes, sectionCount, repository.getTotalWeeks(scheduleName), lastWeekWithCourses,
             holidayBeforeExclusion,
         )) {
+            val startTime = LocalTime(startHour.coerceIn(0, 23), startMinute.coerceIn(0, 59), 0)
+            val endTime = LocalTime(endHour.coerceIn(0, 23), endMinute.coerceIn(0, 59), 0)
+            // 跨午夜课（23:00-00:30）：DTEND 必须落到次日。否则 ICS 里 end < start，
+            // 日历侧显示 0/负时长；再导回本 App 还会撞 endMinutes > startMinutes 断言，
+            // 导致整份 ICS 导入失败。
+            val crossesMidnight = endTime <= startTime
             events += ScheduleCalendarEvent(
                 uid = icsEventUid(course.id, week, actualDate),
                 title = course.name,
-                location = listOfNotNull(
-                    course.classroom.takeIf { it.isNotBlank() },
-                    course.teacher.takeIf { it.isNotBlank() }
-                ).joinToString(" "),
+                // LOCATION 的兼容约定见 IcsCodec 的解析：前导空格 = 仅教师；
+                // 尾随/无空格 = 仅教室；中间空格 = 教室 + 教师。
+                location = when {
+                    course.classroom.isNotBlank() && course.teacher.isNotBlank() ->
+                        "${course.classroom} ${course.teacher}"
+                    course.classroom.isNotBlank() -> course.classroom
+                    course.teacher.isNotBlank() -> " ${course.teacher}"
+                    else -> ""
+                },
                 description = CommonStr.weekN(week),
-                start = LocalDateTime(
-                    actualDate,
-                    LocalTime(startHour.coerceIn(0, 23), startMinute.coerceIn(0, 59), 0),
-                ),
+                start = LocalDateTime(actualDate, startTime),
                 end = LocalDateTime(
-                    actualDate,
-                    LocalTime(endHour.coerceIn(0, 23), endMinute.coerceIn(0, 59), 0),
+                    if (crossesMidnight) actualDate.plusDays(1) else actualDate,
+                    endTime,
                 ),
+                classroom = course.classroom,
+                teacher = course.teacher,
+                customStartTime = course.customStartTime.takeIf { course.hasValidCustomTime() },
+                customEndTime = course.customEndTime.takeIf { course.hasValidCustomTime() },
             )
         }
     }
@@ -1031,6 +1052,16 @@ private fun buildExportIcs(scheduleName: String): String? {
             appendLine("RRULE:FREQ=WEEKLY;COUNT=1")
             appendLine("SUMMARY:${e.title}")
             if (e.location.isNotBlank()) appendLine("LOCATION:${e.location}")
+            // 扩展属性：LOCATION 一个字段表达不了「教室本身含空格」，这里带上原值，
+            // 导入侧优先用它们。别的日历 App 会忽略 X- 前缀属性。
+            if (e.classroom.isNotBlank()) appendLine("X-NEXIO-CLASSROOM:${e.classroom}")
+            if (e.teacher.isNotBlank()) appendLine("X-NEXIO-TEACHER:${e.teacher}")
+            // 自定义时间的课：节次信息在 ICS 里不存在，不单独带出去的话再导入会退化成
+            // 「按钟点映射节次」，跨午夜课（DTEND 在次日）更是直接对不上。
+            if (!e.customStartTime.isNullOrBlank() && !e.customEndTime.isNullOrBlank()) {
+                appendLine("X-NEXIO-CUSTOM-START:${e.customStartTime}")
+                appendLine("X-NEXIO-CUSTOM-END:${e.customEndTime}")
+            }
             appendLine("DESCRIPTION:${e.description}")
             appendLine("END:VEVENT")
         }
