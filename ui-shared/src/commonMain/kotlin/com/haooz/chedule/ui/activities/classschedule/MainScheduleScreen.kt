@@ -103,6 +103,7 @@ import com.haooz.chedule.ui.utils.PagerTakeoverGestureState
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.courseCardSolidBacking
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
+import com.haooz.chedule.ui.utils.isAndroidPlatform
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.pagerAxisTakeoverGesture
 import com.haooz.chedule.ui.utils.rememberPagerTakeoverGestureState
@@ -121,6 +122,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.isRenderEffectSupported
+import com.kyant.backdrop.isRuntimeShaderSupported
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
@@ -798,10 +800,20 @@ fun MainScheduleScreen(
      *
      * [pageGlassSuppressed] 是第三种退回原因：主内容正被外层缩放（见参数注释）。
      */
-    // 不判 AGSL：PageGlass 内部（PageGlass.android.kt:78-81）已经自己判了 ——
-    // 没有 RuntimeShader 时它只是不折射，仍然「一条 unionPath 裁一次 + 一次 drawLayer」。
-    // 在这里再卡 API 33，等于把「失效源 N→1」整条关掉，退回每张卡各自 drawBackdrop（一页几十个采样节点）。
-    val pageGlassActive = hasSharedBlur && !pageGlassSuppressed
+    // ⚠ 这里必须按平台分开判，不能简单去掉 AGSL 条件。
+    //
+    // Android 的 PageGlass 是**唯一的真实现**，且它内部（PageGlass.android.kt:78-81）已经
+    // 自己判过 AGSL：拿不到 RuntimeShader 时它只是不折射，仍然「N 张卡并成一条 unionPath、
+    // 裁一次、drawLayer 一次」。外层再卡一次 API 33，等于把「失效源 N→1」整条关掉，
+    // 在 Android 12 上退回每张卡各自 drawBackdrop（一页几十个采样节点）。
+    //
+    // iOS / 鸿蒙 / 桌面的 PageGlass 是 no-op 空实现。那里一旦让 pageGlassActive 成立，
+    // CourseCard 的 usesExternalGlass 会变 true、卡片不再自己采样，而接管方什么都不画 ——
+    // 玻璃直接消失。鸿蒙尤其要小心：它的 isRenderEffectSupported() 是 true，
+    // hasSharedBlur 成立，只差 isRuntimeShaderSupported() 这一道闸。
+    // 所以非 Android 端保持原判据不变。
+    val pageGlassActive = hasSharedBlur && !pageGlassSuppressed &&
+        (isAndroidPlatform || isRuntimeShaderSupported())
     // OFF 档两个值都是 0，传下去等于不折射
     val pageGlassRefractionHeightPx =
         with(density) { cardRefraction.lensRadiusDp.dp.toPx() }
