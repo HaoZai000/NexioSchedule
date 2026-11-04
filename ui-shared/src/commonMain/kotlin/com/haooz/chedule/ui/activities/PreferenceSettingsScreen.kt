@@ -42,6 +42,7 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.LanguagePref
 import com.haooz.chedule.i18n.LanguageStore
 import com.haooz.chedule.i18n.PreferenceStr
+import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.text.material.Text as Text
@@ -96,7 +97,8 @@ fun PreferenceSettingsScreen(
     var holidaySource by remember { mutableStateOf(HolidayManager.holidaySource()) }
 
     val weatherPrefs = remember { AppStorage.store("weather_prefs") }
-    var weatherSource by remember { mutableStateOf(weatherPrefs.getString("weather_source", "caiyun")) }
+    // 旧值 "caiyun"/"itboy" 不再有对应实现，Source.from 会回落到融合源
+    var weatherSource by remember { mutableStateOf(weatherPrefs.getString("weather_source", "fusion")) }
     // 天气定位摘要：有定位权限显示当前定位，否则回退显示上次定位
     val lastLocationName = weatherPrefs.getStringOrNull("last_location_name")
     val weatherHasPermission = hasLocationPermission()
@@ -501,25 +503,21 @@ fun PreferenceSettingsScreen(
 
                             val weatherSourceEntry = DropdownEntry(
                                 items = listOf(
+                                    "fusion" to WeatherStr.sourceFusion(),
+                                    "xiaomi" to WeatherStr.sourceXiaomi(),
+                                    "weathercn" to WeatherStr.sourceWeatherCn(),
+                                    "openmeteo" to WeatherStr.sourceOpenMeteo(),
+                                ).map { (key, label) ->
                                     DropdownItem(
-                                        text = PreferenceStr.aggregateApi(),
-                                        selected = weatherSource == "itboy",
+                                        text = label,
+                                        selected = weatherSource == key,
                                         onClick = {
-                                            weatherSource = "itboy"
-                                            weatherPrefs.edit { putString("weather_source", "itboy") }
+                                            weatherSource = key
+                                            weatherPrefs.edit { putString("weather_source", key) }
                                             onInvalidateWeatherCache()
                                         }
-                                    ),
-                                    DropdownItem(
-                                        text = PreferenceStr.caiyunWeather(),
-                                        selected = weatherSource == "caiyun",
-                                        onClick = {
-                                            weatherSource = "caiyun"
-                                            weatherPrefs.edit { putString("weather_source", "caiyun") }
-                                            onInvalidateWeatherCache()
-                                        }
-                                    ),
-                                )
+                                    )
+                                }
                             )
 
                             OverlayDropdownMenu(
