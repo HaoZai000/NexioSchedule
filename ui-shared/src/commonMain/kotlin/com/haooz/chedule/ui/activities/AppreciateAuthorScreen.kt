@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +50,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.ic_anonymous_avatar
 import com.haooz.chedule.uishared.resources.zanshangma
+import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import org.jetbrains.compose.resources.painterResource
 import top.yukonga.miuix.kmp.basic.Card
@@ -264,7 +264,7 @@ private fun PodiumColumn(
                 Box(
                     modifier = Modifier
                         .size(avatarSize + 18.dp)
-                        .clip(CircleShape)
+                        .clip(ContinuousCapsule())
                         .background(
                             Brush.radialGradient(
                                 colors = listOf(
@@ -284,12 +284,12 @@ private fun PodiumColumn(
                             radius = this.size.minDimension / 2f + 2.5.dp.toPx()
                         )
                     }
-                    .clip(CircleShape)
+                    .clip(ContinuousCapsule())
                     .background(MiuixTheme.colorScheme.surfaceContainerHigh)
                     .border(
                         width = if (rank == 1) 2.5.dp else 1.5.dp,
                         color = accent,
-                        shape = CircleShape
+                        shape = ContinuousCapsule()
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -398,7 +398,7 @@ private fun DonorAvatar(item: AppreciationItem, size: androidx.compose.ui.unit.D
     Box(
         modifier = Modifier
             .size(size)
-            .clip(CircleShape)
+            .clip(ContinuousCapsule())
             .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
         contentAlignment = Alignment.Center
     ) {
@@ -502,7 +502,7 @@ private fun AppreciationListItem(item: AppreciationItem) {
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(CircleShape)
+                .clip(ContinuousCapsule())
                 .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {

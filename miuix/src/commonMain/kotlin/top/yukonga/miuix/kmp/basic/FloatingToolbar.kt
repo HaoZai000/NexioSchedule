@@ -7,7 +7,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.NonRestartableComposable
 import androidx.compose.runtime.remember
@@ -18,6 +17,7 @@ import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.kyant.capsule.ContinuousRoundedRectangle
 import com.kyant.capsule.continuousBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -44,7 +44,7 @@ fun FloatingToolbar(
     showDivider: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val shape = remember(cornerRadius) { RoundedCornerShape(cornerRadius) }
+    val shape = remember(cornerRadius) { ContinuousRoundedRectangle(cornerRadius) }
     val dividerColor = MiuixTheme.colorScheme.dividerLine
 
     val dividerMod = if (showDivider) {

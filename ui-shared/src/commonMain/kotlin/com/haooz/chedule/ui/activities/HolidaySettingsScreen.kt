@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -78,6 +77,7 @@ import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.kyant.backdrop.Backdrop
+import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.floor
 import kotlinx.coroutines.launch
@@ -1314,7 +1314,7 @@ private fun TeachingWeekRuleTimelineItem(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(8.dp)
-                    .clip(CircleShape)
+                    .clip(ContinuousCapsule())
                     .background(markerColor),
             )
         }

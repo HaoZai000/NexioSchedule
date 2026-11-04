@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -86,6 +85,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.isRenderEffectSupported
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
@@ -322,7 +322,7 @@ fun CourseScheduleApp(
                         if (isRenderEffectSupported() && com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()) {
                             Modifier.drawBackdrop(
                                 backdrop = liquidGlassBackdrop,
-                                shape = { RoundedCornerShape(36.dp) },
+                                shape = { ContinuousRoundedRectangle(36.dp) },
                                 effects = {
                                     vibrancy()
                                     blur(warmupBlurPx)

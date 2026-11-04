@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -60,6 +59,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CompletableDeferred
@@ -387,7 +387,7 @@ fun Snackbar(
                 }
                 .padding(SnackbarDefaults.OuterPadding)
                 .dropShadow(
-                    shape = RoundedCornerShape(cornerRadius),
+                    shape = ContinuousRoundedRectangle(cornerRadius),
                     shadow = Shadow(
                         radius = 10.dp,
                         color = Color.Black,

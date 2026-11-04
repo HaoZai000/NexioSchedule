@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +42,7 @@ import com.haooz.chedule.ui.activities.classschedule.parseHmMinutes
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.theme.rememberCourseColors
 import com.kyant.backdrop.Backdrop
+import com.kyant.capsule.ContinuousCapsule
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -194,7 +194,7 @@ private fun TodayTimelineCard(
                     .padding(start = 10.dp, top = 10.dp, bottom = 10.dp)
                     .width(AccentBarWidth)
                     .fillMaxHeight()
-                    .clip(CircleShape)
+                    .clip(ContinuousCapsule())
                     .background(colors.tint)
             )
             Column(

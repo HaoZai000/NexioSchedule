@@ -8,7 +8,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -34,6 +33,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.DropdownColors
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownImpl
@@ -73,7 +73,7 @@ internal fun CascadingPrimaryContent(
     onCollapseSecondary: () -> Unit,
 ) {
     val isExpanded = expandedItem != null
-    val shape = remember { RoundedCornerShape(CascadingPopupCornerRadius) }
+    val shape = remember { ContinuousRoundedRectangle(CascadingPopupCornerRadius) }
     Box(
         modifier = Modifier
             .graphicsLayer {

@@ -25,7 +25,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -848,13 +847,13 @@ private fun WidgetPreviewSmall2x2(
                     Box(
                         modifier = Modifier
                             .size(7.dp)
-                            .background(ComposeColor(0xFF4CAF50), CircleShape)
+                            .background(ComposeColor(0xFF4CAF50), ContinuousCapsule())
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Box(
                         modifier = Modifier
                             .size(7.dp)
-                            .background(ComposeColor(0xFF2196F3), CircleShape)
+                            .background(ComposeColor(0xFF2196F3), ContinuousCapsule())
                     )
                 }
             }

@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -169,7 +168,7 @@ fun SearchBar(
                                 scaleY = scale
                                 alpha = scale
                             }
-                            .clip(CircleShape)
+                            .clip(ContinuousCapsule())
                             .clickable { onActionClick() },
                         contentAlignment = Alignment.Center
                     ) {
@@ -189,14 +188,14 @@ fun SearchBar(
                                     .matchParentSize()
                                     .drawBackdrop(
                                         backdrop = backdrop,
-                                        shape = { CircleShape },
+                                        shape = { ContinuousCapsule() },
                                         effects = actionEffects,
                                         highlight = null,
                                         shadow = null,
                                         layerBlock = { alpha = backdropAlpha },
                                         onDrawSurface = {}
                                     )
-                                    .edgeLight(shape = CircleShape, edgeLight = rememberMaterialEdgeLight(baseColor = MiuixTheme.colorScheme.surfaceContainerHigh))
+                                    .edgeLight(shape = ContinuousCapsule(), edgeLight = rememberMaterialEdgeLight(baseColor = MiuixTheme.colorScheme.surfaceContainerHigh))
                             )
                         }
                         Box(
@@ -207,7 +206,7 @@ fun SearchBar(
                                         MiuixTheme.colorScheme.surfaceContainerHigh
                                             .copy(alpha = if (materialNone) 1f else 0.6f)
                                     } else MiuixTheme.colorScheme.surfaceContainerHigh,
-                                    shape = CircleShape,
+                                    shape = ContinuousCapsule(),
                                 ),
                             contentAlignment = Alignment.Center
                         ) {

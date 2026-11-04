@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,6 +56,7 @@ import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
+import com.kyant.capsule.ContinuousCapsule
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -540,7 +540,7 @@ private fun CoursePreviewRow(
             Box(
                 modifier = Modifier
                     .size(10.dp)
-                    .background(Color(course.colorRes), RoundedCornerShape(50))
+                    .background(Color(course.colorRes), ContinuousCapsule())
             )
             Spacer(modifier = Modifier.size(10.dp))
             Column(modifier = Modifier.weight(1f)) {

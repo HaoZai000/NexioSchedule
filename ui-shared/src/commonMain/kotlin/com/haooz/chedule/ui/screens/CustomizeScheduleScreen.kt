@@ -38,7 +38,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -1208,7 +1207,7 @@ fun CustomizeScheduleScreen(
                             Box(
                                 modifier = Modifier
                                     .size(56.dp)
-                                    .clip(CircleShape)
+                                    .clip(ContinuousCapsule())
                                     .background(if (hasWallpaper) Color(0xFFB71C1C) else Color(0xFF363636))
                                     .clickable {
                                         if (hasWallpaper) onClearWallpaper() else onPickWallpaper()
@@ -1232,7 +1231,7 @@ fun CustomizeScheduleScreen(
                             VerticalDivider(
                                 Modifier
                                     .height(36.dp)
-                                    .clip(CircleShape),
+                                    .clip(ContinuousCapsule()),
                                 thickness = 2.dp,
                                 color = Color(0xFF363636)
                             )
@@ -1246,7 +1245,7 @@ fun CustomizeScheduleScreen(
                             Box(
                                 modifier = Modifier
                                     .size(56.dp)
-                                    .clip(CircleShape)
+                                    .clip(ContinuousCapsule())
                                     .background(Color(0xFF363636))
                                     .clickable { showEffectSheet = true },
                                 contentAlignment = Alignment.Center
@@ -1268,7 +1267,7 @@ fun CustomizeScheduleScreen(
                             Box(
                                 modifier = Modifier
                                     .size(56.dp)
-                                    .clip(CircleShape)
+                                    .clip(ContinuousCapsule())
                                     .background(Color(0xFF363636))
                                     .clickable { showCustomizeSheet = true },
                                 contentAlignment = Alignment.Center

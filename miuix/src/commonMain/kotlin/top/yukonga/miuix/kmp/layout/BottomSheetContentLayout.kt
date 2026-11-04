@@ -35,7 +35,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -81,6 +80,7 @@ import androidx.compose.ui.util.lerp
 // 预测性返回走本模块的 expect 封装（utils/NavigationBack.kt）——上游这里直接 import
 // androidx.navigationevent（AndroidX 库，CMP 的 iOS/Desktop artifact 里没有）。
 // 2026-10-11 补全 fork 时按 fork 既有写法（ListPopupLayout / DialogContentLayout）改写。
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.utils.LocalPredictiveBackEnabled
 import top.yukonga.miuix.kmp.utils.rememberNavigationBack
 import kotlinx.coroutines.CoroutineScope
@@ -752,7 +752,7 @@ private fun DragHandleArea(
     val isPressing = remember { mutableFloatStateOf(0f) }
     val pressScale = remember { Animatable(1f) }
     val pressWidth = remember { Animatable(45f) }
-    val handleShape = remember { RoundedCornerShape(2.dp) }
+    val handleShape = remember { ContinuousRoundedRectangle(2.dp) }
 
     Box(
         modifier = Modifier

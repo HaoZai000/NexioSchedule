@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -71,6 +69,7 @@ import com.kyant.backdrop.backdrops.SharedBlurBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
+import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -884,7 +883,7 @@ private fun BoxScope.CardContent(
                 .align(Alignment.BottomEnd)
                 .padding(if (isTablet) 6.dp else 5.dp)
                 .size(8.dp)
-                .background(color = textColor, shape = CircleShape)
+                .background(color = textColor, shape = ContinuousCapsule())
         )
     }
 
@@ -913,7 +912,7 @@ private fun BoxScope.CardContent(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(if (isTablet) 6.dp else 5.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .clip(ContinuousRoundedRectangle(4.dp))
                 .background(badgeBackground)
                 .padding(horizontal = 2.dp, vertical = 1.dp),
             maxLines = 1,
@@ -929,7 +928,7 @@ private fun BoxScope.CardContent(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(if (isTablet) 6.dp else 5.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .clip(ContinuousRoundedRectangle(4.dp))
                 .background(textColor.copy(alpha = 0.1f))
                 .padding(horizontal = 4.dp, vertical = 1.dp),
             maxLines = 1,
@@ -947,7 +946,7 @@ private fun BoxScope.CardContent(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(if (isTablet) 6.dp else 5.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .clip(ContinuousRoundedRectangle(4.dp))
                 .background(textColor.copy(alpha = 0.1f))
                 .padding(horizontal = 4.dp, vertical = 1.dp),
             maxLines = 1,

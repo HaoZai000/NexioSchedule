@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +32,7 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.CourseEditStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.kyant.backdrop.Backdrop
+import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
@@ -245,7 +244,7 @@ private fun SpecialItemIconButton(
     Box(
         modifier = Modifier
             .size(38.dp)
-            .clip(CircleShape)
+            .clip(ContinuousCapsule())
             .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -300,7 +299,7 @@ fun SpecialItemsEditorSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 6.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(ContinuousRoundedRectangle(16.dp))
                     .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f))
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically

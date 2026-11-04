@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +50,7 @@ import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
+import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.interactive.computeDragTransform
@@ -263,12 +263,12 @@ fun ShortcutMenu(
                     Box(
                         modifier = Modifier
                             .size(itemSize)
-                            .clip(CircleShape)
+                            .clip(ContinuousCapsule())
                             // 登记横向区间 + 命中高亮（遮罩色与 150ms 淡变都取菜单同一套）
                             .dropdownPanelEntry(
                                 enabled = true,
                                 state = dragSelectState,
-                                highlightShape = CircleShape,
+                                highlightShape = ContinuousCapsule(),
                                 action = activate,
                             )
                             // 面板手势层没有语义动作，读屏/键盘仍要能触发

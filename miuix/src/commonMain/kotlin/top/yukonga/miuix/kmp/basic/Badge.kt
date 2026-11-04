@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -30,6 +29,7 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastFirst
+import com.kyant.capsule.ContinuousCapsule
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.LocalTextStyles
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -133,7 +133,7 @@ fun Badge(
     content: @Composable (RowScope.() -> Unit)? = null,
 ) {
     val size = if (content != null) BadgeDefaults.LargeSize else BadgeDefaults.Size
-    val shape = CircleShape
+    val shape = ContinuousCapsule()
 
     Row(
         modifier =

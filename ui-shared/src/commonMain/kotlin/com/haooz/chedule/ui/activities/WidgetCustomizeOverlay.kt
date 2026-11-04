@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -510,7 +509,7 @@ fun WidgetCustomizeOverlay(
                 Box(
                     modifier = Modifier
                         .size(width = 2.dp, height = 36.dp)
-                        .clip(CircleShape)
+                        .clip(ContinuousCapsule())
                         .background(WidgetCustomizeToolColor)
                 )
             }
@@ -602,7 +601,7 @@ private fun WidgetToolButton(
     Box(
         modifier = Modifier
             .size(WidgetCustomizeToolSize)
-            .clip(CircleShape)
+            .clip(ContinuousCapsule())
             .background(containerColor)
             .clickable(
                 interactionSource = null,

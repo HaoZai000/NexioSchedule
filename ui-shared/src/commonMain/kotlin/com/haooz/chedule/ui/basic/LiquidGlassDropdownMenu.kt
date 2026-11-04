@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -69,6 +68,7 @@ import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
+import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.abs
 import kotlin.math.max
@@ -418,7 +418,7 @@ fun LiquidGlassDropdownMenu(
                         .align(Alignment.TopEnd)
                         .size(ButtonDiameter)
                         // 裁成圆：否则 clickable 的涟漪会按矩形画，展开时露出直角
-                        .clip(CircleShape)
+                        .clip(ContinuousCapsule())
                         .graphicsLayer {
                             // 图标从右上角移向容器中心，到达时刚好淡完；退出系数更小 → 更早出现
                             val iconK = if (show) 2.5f else 1.7f

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -38,6 +37,7 @@ import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
+import com.kyant.capsule.ContinuousCapsule
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -89,7 +89,7 @@ fun LiquidTopBarButton(
     // 玻璃模糊随材质档位：通透玻璃档更低（折射接管通透感），其余档 8；无材质档整体关
     val glassBlur = com.haooz.chedule.ui.utils.AppMaterialSettings.glassBlurDp()
     val glassEffectsOn = com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()
-    val buttonShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { CircleShape } }
+    val buttonShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { ContinuousCapsule() } }
     val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens, glassBlur, glassEffectsOn) {
         {
             if (glassEffectsOn) {
@@ -184,7 +184,7 @@ fun LiquidTopBarButton(
                     layerBlock = { alpha = backdropAlpha },
                     onDrawSurface = buttonOnDrawSurface
                 )
-                .edgeLight(shape = CircleShape, edgeLight = rememberDefaultEdgeLight(degradedBaseColor = resolvedContainerColor))
+                .edgeLight(shape = ContinuousCapsule(), edgeLight = rememberDefaultEdgeLight(degradedBaseColor = resolvedContainerColor))
                 .zIndex(0f)
         )
         // 按压高光单独一层、与材质层平级：drawBackdrop 的 layerBlock 会把整个节点 alpha
@@ -195,7 +195,7 @@ fun LiquidTopBarButton(
                 .size(buttonHeight)
                 // 必须 clip：光晕半径是 minDimension * 1.5，本就溢出圆形，
                 // 不裁会画成一个亮方块。放在 interactiveHighlight 之前（外层）。
-                .clip(CircleShape)
+                .clip(ContinuousCapsule())
                 .then(interactiveHighlight.modifier)
                 .then(if (enabled) interactiveHighlight.gestureModifier else Modifier)
                 .clickable(

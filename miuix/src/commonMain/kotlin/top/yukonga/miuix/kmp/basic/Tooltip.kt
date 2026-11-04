@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -73,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.jvm.JvmInline
 import kotlin.math.max
 import kotlin.time.Duration.Companion.milliseconds
@@ -594,7 +594,7 @@ private fun TooltipScope.TooltipSurface(
                     bottom = if (drawCaret && !caretOnTop) caretSize.height else 0.dp,
                 )
                 .dropShadow(
-                    shape = RoundedCornerShape(cornerRadius),
+                    shape = ContinuousRoundedRectangle(cornerRadius),
                     shadow = Shadow(radius = 10.dp, color = Color.Black, alpha = 0.1f),
                 )
                 .continuousBackground(color = containerColor, cornerRadius = cornerRadius)
