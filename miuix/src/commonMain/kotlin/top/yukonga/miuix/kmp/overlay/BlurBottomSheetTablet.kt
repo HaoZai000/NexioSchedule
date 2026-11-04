@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxHeight as fillMaxHeightModifier
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -115,7 +114,6 @@ fun BlurBottomSheetTablet(
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
     onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
-    enableContentHeightSnap: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val visibleState = remember { mutableStateOf(show) }
@@ -139,7 +137,6 @@ fun BlurBottomSheetTablet(
             show = show,
             visibleState = visibleState,
             title = title,
-            enableContentHeightSnap = enableContentHeightSnap,
             dimBackground = dimBackground,
             sheetMaxWidth = sheetMaxWidth,
             sheetMaxHeight = sheetMaxHeight,
@@ -158,7 +155,6 @@ fun BlurBottomSheetTablet(
 private fun BlurBottomSheetTabletContent(
     show: Boolean,
     visibleState: MutableState<Boolean>,
-    fillMaxHeight: Boolean = false,
     title: String,
     dimBackground: Boolean = false,
     sheetMaxWidth: Dp = 560.dp,
@@ -169,7 +165,6 @@ private fun BlurBottomSheetTabletContent(
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
     onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
-    enableContentHeightSnap: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     // 弹窗跟随应用主题，不受壁纸强制主题影响。
@@ -212,7 +207,7 @@ private fun BlurBottomSheetTabletContent(
     // 显示/隐藏动画同时驱动位移与遮罩透明度，确保二者完全同步
     LaunchedEffect(show) {
         if (show) {
-            if (enableContentHeightSnap) detentState.reset()
+            detentState.reset()
             backProgress.snapTo(0f)
             animationProgress.animateTo(
                 targetValue = 1f,
@@ -287,7 +282,7 @@ private fun BlurBottomSheetTabletContent(
                 val progress = animationProgress.value
                 // 从屏幕底部滑入；backProgress 为返回手势把 sheet 向下推出屏幕
                 translationY = windowHeightPx * (1f - progress) + backProgress.value * windowHeightPx +
-                    if (enableContentHeightSnap) detentState.dismissOffsetPx else 0f
+                    detentState.dismissOffsetPx
             }
 
         Box(
@@ -295,13 +290,7 @@ private fun BlurBottomSheetTabletContent(
                 .width(sheetMaxWidth)
                 .fillMaxWidth()
                 .heightIn(max = if (sheetMaxHeight != Dp.Unspecified) sheetMaxHeight else with(density) { windowInfo.containerSize.height.toDp() } * 0.8f)
-                .then(
-                    when {
-                        enableContentHeightSnap -> Modifier.blurBottomSheetDetentHeight(detentState)
-                        fillMaxHeight -> Modifier.fillMaxHeightModifier()
-                        else -> Modifier
-                    },
-                )
+                .blurBottomSheetDetentHeight(detentState)
                 .then(if (isBottomAligned) Modifier.padding(bottom = 20.dp) else Modifier)
                 .clip(sheetShape)
                 // 弹窗本体不做壁纸玻璃模糊，纯实色
@@ -310,7 +299,7 @@ private fun BlurBottomSheetTabletContent(
                 // A centered sheet already clears the window edges by this distance.
                 .consumeWindowInsets(PaddingValues(horizontal = horizontalGap))
                 .onGloballyPositioned { coordinates ->
-                    if (enableContentHeightSnap) detentState.updateCollapsedHeight(coordinates.size.height)
+                    detentState.updateCollapsedHeight(coordinates.size.height)
                 }
                 .pointerInput(Unit) {
                     // 消费弹窗空白处的点击，防止事件穿透到背景层触发关闭
@@ -415,30 +404,26 @@ private fun BlurBottomSheetTabletContent(
                     LocalSheetTopBarMaterial provides topBarMaterial,
                     LocalSheetContentBackdrop provides
                             if (sheetBackdropMounted) sheetContentBackdrop else placeholderBackdrop,
-                    LocalBlurBottomSheetContentExpanded provides
-                        (enableContentHeightSnap && isDetentExpanded),
+                    LocalBlurBottomSheetContentExpanded provides isDetentExpanded,
                 ) {
-                    if (enableContentHeightSnap) {
-                        BlurBottomSheetDragHandle(
-                            enabled = true,
-                            onDrag = detentState::dragBy,
-                            onDragStarted = { detentState.beginDrag() },
-                            onDragStopped = { velocity ->
-                                detentState.settle(
-                                    velocityY = velocity,
-                                    velocityThresholdPx = with(density) { 800.dp.toPx() },
-                                    dismissThresholdPx = with(density) { 150.dp.toPx() },
-                                    onDismiss = currentOnDismissRequest,
-                                )
-                            },
-                        )
-                    }
+                    BlurBottomSheetDragHandle(
+                        onDrag = detentState::dragBy,
+                        onDragStarted = { detentState.beginDrag() },
+                        onDragStopped = { velocity ->
+                            detentState.settle(
+                                velocityY = velocity,
+                                velocityThresholdPx = with(density) { 800.dp.toPx() },
+                                dismissThresholdPx = with(density) { 150.dp.toPx() },
+                                onDismiss = currentOnDismissRequest,
+                            )
+                        },
+                    )
                     // 内容区域（layerBackdrop 捕获「底色+内容」）
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(
-                                if (enableContentHeightSnap && isDetentExpanded) {
+                                if (isDetentExpanded) {
                                     Modifier.fillMaxHeight()
                                 } else {
                                     Modifier.wrapContentHeight()

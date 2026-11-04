@@ -121,8 +121,6 @@ fun CourseDetailSheet(
     onEdit: ((Course) -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
 ) {
-    // 与「节假日与调休」页的弹窗同一套结构：内容高度吸附（半屏），往上拖可拉满全屏
-    val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val startAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
         LiquidTopBarButton(
@@ -154,7 +152,6 @@ fun CourseDetailSheet(
             title = SchedStr.courseDetails(),
             dimBackground = true,
             isBottomAligned = true,
-            enableContentHeightSnap = true,
             onDismissRequest = onDismiss,
             startAction = startAction,
             endAction = endAction,
@@ -165,9 +162,6 @@ fun CourseDetailSheet(
             show = show,
             title = SchedStr.courseDetails(),
             dimBackground = true,
-            // 内容高度吸附：打开时只占内容高度，往上拖可以拉满全屏
-            enableContentHeightSnap = true,
-            sheetOffsetDp = statusBarsPadding + 5.dp,
             onDismissRequest = onDismiss,
             startAction = startAction,
             endAction = endAction,

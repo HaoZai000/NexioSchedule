@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,6 +53,7 @@ import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -229,9 +231,14 @@ fun ShiftScheduleScreen(
     } // wallpaper Box
 
 
+    val sheetBottomPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 60.dp
     val detailContent: @Composable () -> Unit = {
         Column(
             modifier = Modifier
+                .then(
+                    if (LocalBlurBottomSheetContentExpanded.current) Modifier.fillMaxHeight()
+                    else Modifier,
+                )
                 .overScrollVertical()
                 .scrollEndHaptic(
                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
@@ -274,7 +281,7 @@ fun ShiftScheduleScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(if (isTablet) 0.dp else 260.dp))
+            Spacer(modifier = Modifier.height(if (isTablet) 0.dp else sheetBottomPadding))
         }
     }
 

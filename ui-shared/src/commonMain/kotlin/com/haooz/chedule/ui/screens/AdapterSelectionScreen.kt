@@ -9,7 +9,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -56,6 +60,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
 import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -102,6 +107,7 @@ fun AdapterSelectionBottomSheet(
     var customUrl by remember { mutableStateOf("") }
 
     val isTablet = screenWidthDp() >= 600
+    val sheetBottomPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 60.dp
 
     val startAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
@@ -139,6 +145,10 @@ fun AdapterSelectionBottomSheet(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .then(
+                            if (LocalBlurBottomSheetContentExpanded.current) Modifier.fillMaxHeight()
+                            else Modifier,
+                        )
                         .overScrollVertical()
                         .scrollEndHaptic(
                             hapticFeedbackType = HapticFeedbackType.TextHandleMove
@@ -172,7 +182,7 @@ fun AdapterSelectionBottomSheet(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(if (isTablet) 4.dp else 160.dp))
+                    Spacer(modifier = Modifier.height(if (isTablet) 4.dp else sheetBottomPadding))
                 }
             }
         }
@@ -194,7 +204,6 @@ fun AdapterSelectionBottomSheet(
             title = currentSchool?.name ?: "",
             dimBackground = true,
             onDismissRequest = onDismissRequest,
-            sheetOffsetDp = 100.dp,
             startAction = startAction,
         ) {
             sheetContent()

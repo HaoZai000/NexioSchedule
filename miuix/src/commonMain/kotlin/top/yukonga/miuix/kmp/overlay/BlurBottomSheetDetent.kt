@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
@@ -29,6 +28,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.roundToInt
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -214,7 +214,6 @@ fun Modifier.blurBottomSheetDetentHeight(
 
 @Composable
 internal fun BlurBottomSheetDragHandle(
-    enabled: Boolean,
     onDrag: (Float) -> Unit = {},
     onDragStarted: suspend () -> Unit = {},
     onDragStopped: suspend (Float) -> Unit = {},
@@ -223,7 +222,7 @@ internal fun BlurBottomSheetDragHandle(
     val pressScale = remember { Animatable(1f) }
     val pressWidth = remember { Animatable(45f) }
     val isPressing = remember { mutableFloatStateOf(0f) }
-    val handleShape = remember { RoundedCornerShape(2.dp) }
+    val handleShape = remember { ContinuousRoundedRectangle(2.dp) }
 
     Box(
         modifier = Modifier
@@ -252,7 +251,6 @@ internal fun BlurBottomSheetDragHandle(
             }
             .draggable(
                 orientation = Orientation.Vertical,
-                enabled = enabled,
                 state = rememberDraggableState(onDrag),
                 onDragStarted = { onDragStarted() },
                 onDragStopped = { onDragStopped(it) },

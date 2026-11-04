@@ -341,7 +341,6 @@ fun AddCourseDialog(
             onDismiss()
         }
     }
-    val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isTablet = isTabletWidth()
 
     if (isTablet) {
@@ -416,8 +415,6 @@ fun AddCourseDialog(
             show = show,
             title = if (isEdit) CourseEditStr.editCourse() else CourseEditStr.addCourse(),
             dimBackground = true,
-            fillMaxHeight = true,
-            sheetOffsetDp = statusBarsPadding + 5.dp,
             onDismissRequest = dismissSheet,
             onSheetContentBackdropCreated = { sheetContentBackdropHolder.value = it },
             startAction = {

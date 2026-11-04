@@ -135,6 +135,7 @@ import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
 import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -1636,6 +1637,9 @@ fun CustomizeScheduleScreen(
                     }
                 }
 
+                val sheetBottomPadding =
+                    WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 60.dp
+
                 if (isTablet) {
                     BlurBottomSheetTablet(
                         show = showEffectSheet,
@@ -1671,7 +1675,10 @@ fun CustomizeScheduleScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 580.dp)
+                                .then(
+                                    if (LocalBlurBottomSheetContentExpanded.current) Modifier.fillMaxHeight()
+                                    else Modifier.heightIn(max = 580.dp)
+                                )
                                 .overScrollVertical()
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
@@ -1681,7 +1688,7 @@ fun CustomizeScheduleScreen(
                         ) {
                             Spacer(Modifier.height(58.dp))
                             effectSheetContent()
-                            Spacer(Modifier.height(240.dp))
+                            Spacer(Modifier.height(sheetBottomPadding))
                         }
                     }
                 }
@@ -1721,7 +1728,10 @@ fun CustomizeScheduleScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 580.dp)
+                                .then(
+                                    if (LocalBlurBottomSheetContentExpanded.current) Modifier.fillMaxHeight()
+                                    else Modifier.heightIn(max = 580.dp)
+                                )
                                 .overScrollVertical()
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
@@ -1731,7 +1741,7 @@ fun CustomizeScheduleScreen(
                         ) {
                             Spacer(Modifier.height(58.dp))
                             customizeSheetContent()
-                            Spacer(Modifier.height(240.dp))
+                            Spacer(Modifier.height(sheetBottomPadding))
                         }
                     }
                 }

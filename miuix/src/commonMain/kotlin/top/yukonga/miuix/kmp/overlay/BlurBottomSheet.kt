@@ -6,18 +6,14 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +25,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -41,7 +38,6 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,7 +76,6 @@ import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.capsule.ContinuousRoundedRectangle
-import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -138,6 +133,9 @@ class BackdropHolder {
 /**
  * 自定义模糊底部弹窗组件，支持全区域（包括标题栏）的模糊背景效果。
  *
+ * 只有一种形态：打开时高度吸附内容（半屏），拖顶部把手可拉满全屏，下拉关闭。
+ * 不再区分「可变高度 / 固定高度」两套实现，所有弹窗共用同一套手势与高度计算。
+ *
  * @param show 是否显示
  * @param title 标题文字
  * @param dimBackground 是否压暗背景
@@ -152,16 +150,13 @@ class BackdropHolder {
 fun BlurBottomSheet(
     show: Boolean,
     title: String,
-    fillMaxHeight: Boolean = false,
     dimBackground: Boolean = false,
     sheetBackgroundColor: Color? = null,
-    sheetOffsetDp: Dp = Dp.Unspecified,
     sheetMaxWidth: Dp = Dp.Unspecified,
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
     onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
-    enableContentHeightSnap: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val visibleState = remember { mutableStateOf(show) }
@@ -185,16 +180,13 @@ fun BlurBottomSheet(
             show = show,
             visibleState = visibleState,
             title = title,
-            enableContentHeightSnap = enableContentHeightSnap,
             dimBackground = dimBackground,
             sheetBackgroundColor = sheetBackgroundColor,
             onDismissRequest = onDismissRequest,
             startAction = startAction,
             endAction = endAction,
             onSheetContentBackdropCreated = onSheetContentBackdropCreated,
-            sheetOffsetDp = sheetOffsetDp,
             sheetMaxWidth = sheetMaxWidth,
-            fillMaxHeight = fillMaxHeight,
             content = content,
         )
     }
@@ -204,17 +196,14 @@ fun BlurBottomSheet(
 private fun BlurBottomSheetContent(
     show: Boolean,
     visibleState: MutableState<Boolean>,
-    fillMaxHeight: Boolean = false,
     title: String,
     dimBackground: Boolean = false,
     sheetBackgroundColor: Color? = null,
-    sheetOffsetDp: Dp = Dp.Unspecified,
     sheetMaxWidth: Dp = Dp.Unspecified,
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
     onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
-    enableContentHeightSnap: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     // 弹窗跟随应用主题，不受壁纸强制主题影响。
@@ -235,9 +224,6 @@ private fun BlurBottomSheetContent(
     CompositionLocalProvider(LocalForcedDarkTheme provides null) {
         MiuixTheme(controller = sheetAppController) {
             val animationProgress = remember { Animatable(0f) }
-    // 拖拽位移用 floatState（绘制期读取，零重组、零协程分配）；松手回弹单独用 Animatable，二者相加得总位移。
-    val dragOffsetY = remember { mutableFloatStateOf(0f) }
-    val settleOffsetY = remember { Animatable(0f) }
     val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
     val sheetHeightPx = remember { mutableIntStateOf(0) }
@@ -268,10 +254,7 @@ private fun BlurBottomSheetContent(
             // 显示/隐藏动画同时驱动位移与遮罩透明度，确保二者完全同步
     LaunchedEffect(show) {
         if (show) {
-            if (enableContentHeightSnap) detentState.reset()
-            dragOffsetY.floatValue = 0f
-            settleOffsetY.stop()
-            settleOffsetY.snapTo(0f)
+            detentState.reset()
             backProgress.snapTo(0f)
             animationProgress.animateTo(
                 targetValue = 1f,
@@ -341,10 +324,10 @@ private fun BlurBottomSheetContent(
                 val progress = animationProgress.value
                 val currentHeight = sheetHeightPx.intValue.toFloat()
                 val baseOffset = if (currentHeight > 0) currentHeight else windowHeightPx
-                // backProgress：返回手势把 sheet 向下推出屏幕
-                translationY = baseOffset * (1f - progress) + dragOffsetY.floatValue + settleOffsetY.value +
+                // backProgress：返回手势把 sheet 向下推出屏幕；dismissOffsetPx：把手下拉的收起位移
+                translationY = baseOffset * (1f - progress) +
                     backProgress.value * currentHeight +
-                    if (enableContentHeightSnap) detentState.dismissOffsetPx else 0f
+                    detentState.dismissOffsetPx
             }
             // 水平系统栏避让加在外壳上：整张卡片（底色/圆角/边缘光）一起内缩，内容不再单独避让；
             // 否则会出现「实底铺到系统栏下、文字却缩一条」的歪斜。指定 sheetMaxWidth 时为居中窄条不贴边，不加。
@@ -354,7 +337,8 @@ private fun BlurBottomSheetContent(
                 } else Modifier
             )
 
-        val sheetOffsetDpValue = if (sheetOffsetDp != Dp.Unspecified) sheetOffsetDp else 200.dp
+        // 卡片整体下移：全屏态时顶上沿落在状态栏下方（顶栏标题才不会钻到状态栏里），半屏态靠这段位移把底边溢出屏幕。
+        val sheetOffsetDpValue = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 5.dp
 
         Box(
             modifier = sheetModifier
@@ -365,20 +349,14 @@ private fun BlurBottomSheetContent(
                     else Modifier.fillMaxWidth()
                 )
                 .heightIn(max = with(density) { windowInfo.containerSize.height.toDp() })
-                .then(
-                    when {
-                        enableContentHeightSnap -> Modifier.blurBottomSheetDetentHeight(detentState)
-                        fillMaxHeight -> Modifier.fillMaxHeight()
-                        else -> Modifier
-                    },
-                )
+                .blurBottomSheetDetentHeight(detentState)
                 .onGloballyPositioned { coordinates ->
                     if (imeInsets.getBottom(density) == 0) {
                         val newHeight = coordinates.size.height
                         if (sheetHeightPx.intValue != newHeight) {
                             sheetHeightPx.intValue = newHeight
                         }
-                        if (enableContentHeightSnap) detentState.updateCollapsedHeight(newHeight)
+                        detentState.updateCollapsedHeight(newHeight)
                     }
                 }
                 .imePadding()
@@ -396,48 +374,7 @@ private fun BlurBottomSheetContent(
                         onDismissRequest()
                         true
                     }
-                }
-                .then(if (enableContentHeightSnap) Modifier else Modifier.draggable(
-                    orientation = Orientation.Vertical,
-                    state = rememberDraggableState { dragAmount ->
-                        // 直接写 floatState，不为每个指针事件起协程（拖拽时约每秒上百次分配）
-                        val current = dragOffsetY.floatValue + settleOffsetY.value
-                        val newOffset = current + dragAmount
-                        // 往上拖时加阻尼，越往上越难拖
-                        val dampedOffset = if (newOffset < 0f) {
-                            val resistance = 1f / (1f + abs(newOffset) / 30f)
-                            current + dragAmount * resistance
-                        } else {
-                            newOffset
-                        }
-                        dragOffsetY.floatValue = dampedOffset
-                    },
-                    onDragStarted = {
-                        // 打断回弹并将剩余位移并入拖拽位移，保证总位移连续不跳变
-                        val pending = dragOffsetY.floatValue + settleOffsetY.value
-                        settleOffsetY.stop()
-                        settleOffsetY.snapTo(0f)
-                        dragOffsetY.floatValue = pending
-                    },
-                    onDragStopped = { velocity ->
-                        val shouldDismiss = velocity > velocityThresholdPx || dragOffsetY.floatValue > dismissThresholdPx
-                        if (shouldDismiss) {
-                            onDismissRequest()
-                        } else {
-                            // spring 回弹并传入初始速度让回弹更自然；onDragStopped 已是挂起作用域，无需再 launch
-                            settleOffsetY.snapTo(dragOffsetY.floatValue)
-                            dragOffsetY.floatValue = 0f
-                            settleOffsetY.animateTo(
-                                targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = 0.72f,
-                                    stiffness = Spring.StiffnessMediumLow
-                                ),
-                                initialVelocity = velocity * 0.12f
-                            )
-                        }
-                    },
-                )),
+                },
             content = {
                 // 顶栏机制
                 val topBarState = rememberCollapsibleTopAppBarState()
@@ -536,24 +473,18 @@ private fun BlurBottomSheetContent(
                     LocalSheetTopBarMaterial provides topBarMaterial,
                     LocalSheetContentBackdrop provides
                             if (sheetBackdropMounted) sheetContentBackdrop else placeholderBackdrop,
-                    LocalBlurBottomSheetContentExpanded provides
-                        (enableContentHeightSnap && isDetentExpanded),
+                    LocalBlurBottomSheetContentExpanded provides isDetentExpanded,
                 ) {
                     BlurBottomSheetDragHandle(
-                        enabled = enableContentHeightSnap,
                         onDrag = detentState::dragBy,
-                        onDragStarted = {
-                            if (enableContentHeightSnap) detentState.beginDrag()
-                        },
+                        onDragStarted = { detentState.beginDrag() },
                         onDragStopped = { velocity ->
-                            if (enableContentHeightSnap) {
-                                detentState.settle(
-                                    velocityY = velocity,
-                                    velocityThresholdPx = velocityThresholdPx,
-                                    dismissThresholdPx = dismissThresholdPx,
-                                    onDismiss = currentOnDismissRequest,
-                                )
-                            }
+                            detentState.settle(
+                                velocityY = velocity,
+                                velocityThresholdPx = velocityThresholdPx,
+                                dismissThresholdPx = dismissThresholdPx,
+                                onDismiss = currentOnDismissRequest,
+                            )
                         },
                     )
 
@@ -562,7 +493,7 @@ private fun BlurBottomSheetContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(
-                                if (enableContentHeightSnap && isDetentExpanded) {
+                                if (isDetentExpanded) {
                                     Modifier.fillMaxHeight()
                                 } else {
                                     Modifier.wrapContentHeight()
