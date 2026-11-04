@@ -42,17 +42,21 @@ jobs:
           distribution: temurin
           java-version: '25'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      # compileSdk = 37 / targetSdk = 37（androidApp/build.gradle.kts）。
-      # ubuntu runner 预装的 platform 版本不一定够新，这里显式装一次。
+      # 不用 android-actions/setup-android@v3：它内部会去装早已移除的 `tools` 包，
+      # 报 "Failed to find package 'tools'" 直接失败（实测）。ubuntu runner 自带
+      # Android SDK（ANDROID_HOME 已设好），直接用它的 sdkmanager 就够。
+      #
+      # compileSdk = 37 / targetSdk = 37（androidApp/build.gradle.kts），
+      # runner 预装的 platform 不一定够新，这里显式装一次。
       - name: Install SDK platform for compileSdk 37
         run: |
-          yes | sdkmanager --install \
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKMANAGER=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | head -1)
+          echo "sdkmanager=$SDKMANAGER"
+          yes | "$SDKMANAGER" --install \
             "platform-tools" \
             "platforms;android-37.0" \
-            "build-tools;37.0.0" > /dev/null
+            "build-tools;37.0.0" 2>&1 | grep -vE "^\[|Fetch remote|Computing updates" || true
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
