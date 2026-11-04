@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +25,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextStyle
@@ -37,7 +40,9 @@ import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.weather.WeatherSnapshot
 import com.haooz.chedule.weather.localHourMinute
+import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -156,7 +161,6 @@ private fun fmt(kind: DetailMetric, value: Double): String = when (kind) {
 @Composable
 internal fun MetricTrendBody(snapshot: WeatherSnapshot, kind: DetailMetric) {
     val reading = readingOf(snapshot, kind)
-    val accent = MiuixTheme.colorScheme.primary
 
     ReadingHero(reading)
 
@@ -182,11 +186,8 @@ internal fun MetricTrendBody(snapshot: WeatherSnapshot, kind: DetailMetric) {
     }
 
     if (hourly.size >= 2) {
-        TrendSection(
-            title = WeatherStr.trendHourlyTitle(),
-            trailing = rangeOf(hourly, kind),
-        ) {
-            HourlyTrendChart(hourly, accent)
+        TrendSection(title = WeatherStr.trendHourlyTitle()) {
+            HourlyTrendChart(hourly, kind)
         }
     }
     if (daily.isNotEmpty()) {
@@ -302,104 +303,196 @@ private fun EmptyTrendHint() {
     )
 }
 
-/** 一段走势的最高 / 最低，压成一行放在段标题右端（不再自己占一行把图往下推）。 */
-private fun rangeOf(points: List<TrendPoint>, kind: DetailMetric): String? {
-    if (points.size < 2) return null
-    val unit = trendUnit(kind)
-    fun f(v: Double) = if (unit.isBlank()) fmt(kind, v) else "${fmt(kind, v)}$unit"
-    return WeatherStr.trendRange(f(points.maxOf { it.value }), f(points.minOf { it.value }))
-}
-
 // ── 逐时折线 ──────────────────────────────────────────────────────────
 
-@Composable
-private fun HourlyTrendChart(points: List<TrendPoint>, color: Color) {
-    val values = points.map { it.value }
-    val maxV = values.max()
-    val minV = values.min()
-    // 平线也要有"这是平的"的样子：跨度兜到 1 个单位，点才不会被压到边缘
-    val span = (maxV - minV).coerceAtLeast(1.0)
-    val grid = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.13f)
+/** 逐时纵轴：部分指标从 0 起，部分围绕基准上下波动。 */
+private class HourlyAxis(
+    val min: Double,
+    val max: Double,
+    /** 非 null 时画一条虚线基准（温度=区间中值，气压=1013hPa）。 */
+    val baseline: Double? = null,
+) {
+    val span: Double get() = (max - min).coerceAtLeast(1e-3)
+    fun frac(v: Double): Float = ((v - min) / span).coerceIn(0.0, 1.0).toFloat()
+}
 
-    Canvas(modifier = Modifier.fillMaxWidth().height(112.dp)) {
-        val padX = 6.dp.toPx()
-        val padY = 10.dp.toPx()
-        val w = size.width - padX * 2
-        val h = size.height - padY * 2
-        val n = points.size
-        fun xAt(i: Int): Float = padX + w * i / (n - 1f)
-        fun yAt(i: Int): Float {
-            val f = ((values[i] - minV) / span).coerceIn(0.0, 1.0).toFloat()
-            return padY + h * (1f - f)
+private fun hourlyAxisOf(kind: DetailMetric, values: List<Double>): HourlyAxis {
+    val lo = values.min()
+    val hi = values.max()
+    return when (kind) {
+        DetailMetric.Humidity -> HourlyAxis(0.0, 100.0)
+        DetailMetric.Uv -> HourlyAxis(0.0, maxOf(11.0, ceil(hi * 1.2)))
+        DetailMetric.Wind -> HourlyAxis(0.0, maxOf(20.0, ceil(hi * 1.2 / 5.0) * 5.0))
+        DetailMetric.Visibility -> HourlyAxis(0.0, maxOf(10.0, ceil(hi * 1.2)))
+        DetailMetric.Pressure -> {
+            val span = maxOf(5.0, abs(hi - 1013.0), abs(lo - 1013.0)) * 1.4
+            HourlyAxis(1013.0 - span, 1013.0 + span, 1013.0)
         }
-
-        val pts = points.indices.map { Offset(xAt(it), yAt(it)) }
-
-        // 两条极淡的参考线（上沿 / 中线）：只有一条曲线时"高多少"全靠猜
-        for (i in 0..1) {
-            val y = padY + h * i
-            drawLine(grid, Offset(padX, y), Offset(padX + w, y), strokeWidth = 1.dp.toPx())
+        // 温度 / 体感 / 露点：围绕区间中值上下，不从 0 起，否则 24 小时的 3° 波动会被压平
+        DetailMetric.FeelsLike, DetailMetric.Dew -> {
+            val pad = maxOf(1.0, (hi - lo) * 0.15)
+            HourlyAxis(floor(lo - pad), ceil(hi + pad), (lo + hi) / 2.0)
         }
-
-        // 曲线（Catmull-Rom → 三次贝塞尔）：和逐小时温度条同一套画法，整页手感一致
-        val line = Path().apply {
-            moveTo(pts.first().x, pts.first().y)
-            for (i in 0 until pts.lastIndex) {
-                val p0 = pts.getOrElse(i - 1) { pts[i] }
-                val p1 = pts[i]
-                val p2 = pts[i + 1]
-                val p3 = pts.getOrElse(i + 2) { pts[i + 1] }
-                cubicTo(
-                    p1.x + (p2.x - p0.x) / 6f, p1.y + (p2.y - p0.y) / 6f,
-                    p2.x - (p3.x - p1.x) / 6f, p2.y - (p3.y - p1.y) / 6f,
-                    p2.x, p2.y,
-                )
-            }
-        }
-        // 曲线下的渐隐填充：只有线的话，一屏看不到"高多少"
-        val area = Path().apply {
-            addPath(line)
-            lineTo(pts.last().x, size.height)
-            lineTo(pts.first().x, size.height)
-            close()
-        }
-        drawPath(
-            path = area,
-            brush = Brush.verticalGradient(
-                colors = listOf(color.copy(alpha = 0.20f), color.copy(alpha = 0.02f)),
-                startY = padY,
-                endY = size.height,
-            ),
-        )
-        drawPath(line, color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
-
-        pts.forEach { p -> drawCircle(color.copy(alpha = 0.85f), radius = 1.8.dp.toPx(), center = p) }
-        // ⚠ 白心圆标**第一个点**（= 现在），不是终点：面板上方那个大数字就是当前读数，
-        // 圆标在 23 小时之后那头，等于说"现在的值在最右边"，位置是错的。
-        drawCircle(color, radius = 3.2.dp.toPx(), center = pts.first())
-        drawCircle(Color.White, radius = 1.6.dp.toPx(), center = pts.first())
+        DetailMetric.Sun -> HourlyAxis(0.0, 1.0)
     }
+}
 
-    Spacer(Modifier.height(9.dp))
-    // 时间轴标 6 个点（原来只有 4 个，一天里对不准）；最左边那个是"现在" ——
-    // 曲线从当前整点起画，标钟点会让人以为是"今天 8 点那一格"。
-    // 左右各让 6dp，跟折线两端对齐。
-    if (points.size >= 2) {
-        val count = 6
-        val marks = (0 until count)
-            .map { it * points.lastIndex / (count - 1) }
-            .distinct()
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+/** 各指标的主色；温度类走冷→暖渐变，不走统一色。 */
+private fun hourlyColor(kind: DetailMetric): Color = when (kind) {
+    DetailMetric.Humidity -> Color(0xFF58C0EA)   // 天蓝
+    DetailMetric.Uv -> Color(0xFF9B7BFF)         // 紫
+    DetailMetric.Wind -> Color(0xFF4FB3A8)       // 青绿
+    DetailMetric.Pressure -> Color(0xFFF0A55B)   // 琥珀
+    DetailMetric.Visibility -> Color(0xFF7FB2D9) // 灰蓝
+    DetailMetric.FeelsLike, DetailMetric.Dew -> Color(0xFFE8A05A)
+    DetailMetric.Sun -> Color(0xFFF2C14E)
+}
+
+private val TEMP_COLD = Color(0xFF5AA9E6)
+private val TEMP_WARM = Color(0xFFF2C14E)
+private val TEMP_HOT = Color(0xFFE85D4A)
+
+private fun isTemperature(kind: DetailMetric): Boolean =
+    kind == DetailMetric.FeelsLike || kind == DetailMetric.Dew
+
+private fun tempColor(frac: Float): Color =
+    if (frac <= 0.5f) lerp(TEMP_COLD, TEMP_WARM, frac * 2f)
+    else lerp(TEMP_WARM, TEMP_HOT, (frac - 0.5f) * 2f)
+
+private fun axisText(kind: DetailMetric, value: Double, withUnit: Boolean): String {
+    val text = fmt(kind, value)
+    return if (withUnit) text + trendUnit(kind) else text
+}
+
+@Composable
+private fun HourlyTrendChart(points: List<TrendPoint>, kind: DetailMetric) {
+    val values = points.map { it.value }
+    val axis = remember(points, kind) { hourlyAxisOf(kind, values) }
+    val baseColor = hourlyColor(kind)
+    val temperature = isTemperature(kind)
+    val grid = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.13f)
+    val axisColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val labelStyle = TextStyle(fontSize = 10.sp, color = axisColor)
+
+    Row(modifier = Modifier.fillMaxWidth()) {
+        // 纵坐标：上 / 中 / 下三档；高度与绘图区对齐（上下各让 padY=10dp）
+        Column(
+            // 宽度取三行里最宽的那行，不写死固定值：短标签（0、50）不会在左侧留一大块空白
+            modifier = Modifier.width(IntrinsicSize.Max).height(112.dp).padding(vertical = 10.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.End,
         ) {
-            marks.forEachIndexed { order, i ->
-                Text(
-                    text = if (order == 0) WeatherStr.now() else points[i].label,
-                    fontSize = 11.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    maxLines = 1,
-                )
+            Text(axisText(kind, axis.max, true), style = labelStyle, maxLines = 1)
+            Text(axisText(kind, (axis.max + axis.min) / 2.0, true), style = labelStyle, maxLines = 1)
+            Text(axisText(kind, axis.min, true), style = labelStyle, maxLines = 1)
+        }
+        Spacer(Modifier.width(4.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Canvas(modifier = Modifier.fillMaxWidth().height(112.dp)) {
+                val padX = 4.dp.toPx()
+                val padY = 10.dp.toPx()
+                val w = size.width - padX * 2
+                val h = size.height - padY * 2
+                val n = points.size
+                fun xAt(i: Int): Float = padX + w * i / (n - 1f)
+                fun yAt(v: Double): Float = padY + h * (1f - axis.frac(v))
+
+                val pts = points.indices.map { Offset(xAt(it), yAt(values[it])) }
+
+                // 上沿 / 中线 / 下沿，与左侧三档刻度对应
+                for (i in 0..2) {
+                    val y = padY + h * i / 2f
+                    drawLine(grid, Offset(padX, y), Offset(padX + w, y), strokeWidth = 1.dp.toPx())
+                }
+                axis.baseline?.let { baseline ->
+                    val y = yAt(baseline)
+                    drawLine(
+                        color = baseColor.copy(alpha = 0.35f),
+                        start = Offset(padX, y),
+                        end = Offset(padX + w, y),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())),
+                    )
+                }
+
+                val line = Path().apply {
+                    moveTo(pts.first().x, pts.first().y)
+                    for (i in 0 until pts.lastIndex) {
+                        val p0 = pts.getOrElse(i - 1) { pts[i] }
+                        val p1 = pts[i]
+                        val p2 = pts[i + 1]
+                        val p3 = pts.getOrElse(i + 2) { pts[i + 1] }
+                        cubicTo(
+                            p1.x + (p2.x - p0.x) / 6f, p1.y + (p2.y - p0.y) / 6f,
+                            p2.x - (p3.x - p1.x) / 6f, p2.y - (p3.y - p1.y) / 6f,
+                            p2.x, p2.y,
+                        )
+                    }
+                }
+                val area = Path().apply {
+                    addPath(line)
+                    lineTo(pts.last().x, size.height)
+                    lineTo(pts.first().x, size.height)
+                    close()
+                }
+
+                if (temperature) {
+                    val lineBrush = Brush.verticalGradient(
+                        colors = listOf(TEMP_HOT, TEMP_WARM, TEMP_COLD),
+                        startY = padY,
+                        endY = padY + h,
+                    )
+                    val areaBrush = Brush.verticalGradient(
+                        colors = listOf(
+                            TEMP_HOT.copy(alpha = 0.20f),
+                            TEMP_WARM.copy(alpha = 0.10f),
+                            TEMP_COLD.copy(alpha = 0.02f),
+                        ),
+                        startY = padY,
+                        endY = padY + h,
+                    )
+                    drawPath(area, brush = areaBrush)
+                    drawPath(line, brush = lineBrush, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+                } else {
+                    drawPath(
+                        path = area,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(baseColor.copy(alpha = 0.20f), baseColor.copy(alpha = 0.02f)),
+                            startY = padY,
+                            endY = size.height,
+                        ),
+                    )
+                    drawPath(line, baseColor, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+                }
+
+                pts.forEachIndexed { i, p ->
+                    val c = if (temperature) tempColor(axis.frac(values[i])) else baseColor
+                    drawCircle(c.copy(alpha = 0.85f), radius = 1.8.dp.toPx(), center = p)
+                }
+                val firstColor = if (temperature) tempColor(axis.frac(values.first())) else baseColor
+                drawCircle(firstColor, radius = 3.2.dp.toPx(), center = pts.first())
+                drawCircle(Color.White, radius = 1.6.dp.toPx(), center = pts.first())
+            }
+
+            Spacer(Modifier.height(9.dp))
+            if (points.size >= 2) {
+                val count = 6
+                val marks = (0 until count)
+                    .map { it * points.lastIndex / (count - 1) }
+                    .distinct()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    marks.forEachIndexed { order, i ->
+                        Text(
+                            text = if (order == 0) WeatherStr.now() else points[i].label,
+                            fontSize = 11.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
         }
     }

@@ -26,7 +26,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -433,14 +432,14 @@ private fun WindDial(deg: Int?) {
     val track = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.30f)
     val ink = MiuixTheme.colorScheme.onSurface
     // 圆心那块底必须**等于瓦片底色**，否则就是一颗"洞"。固定口径（不跟主题色跑）：
-    // 浅色 = 白 + 6% 黑；深色 = 黑 + 10% 白。
-    // ⚠ 别用 `lerp(surface, onSurface, 5%)`：深色下 surface 本身就接近纯黑，
-    // 叠完还是纯黑 —— 用户看到的"调成全黑"就是这个。
+    // 浅色 = 纯白圆 + 6% 黑叠层；深色 = #242424 圆 + 10% 白叠层。
+    // 分两层画而不是先混成一个颜色，叠层才能正确压在底圆上。
     val darkScheme = MiuixTheme.colorScheme.surface.luminance() < 0.5f
-    val core = if (darkScheme) {
-        lerp(Color.Black, Color.White, 0.10f)
+    val coreBase = if (darkScheme) Color(0xFF242424) else Color.White
+    val coreTint = if (darkScheme) {
+        Color.White.copy(alpha = 0.10f)
     } else {
-        lerp(Color.White, Color.Black, 0.06f)
+        Color.Black.copy(alpha = 0.06f)
     }
     Canvas(modifier = Modifier.fillMaxSize()) {
         val c = center
@@ -496,7 +495,8 @@ private fun WindDial(deg: Int?) {
             drawCircle(ink, radius = 3.2.dp.toPx(), center = tail)
         }
         // 中心留白盖住刻度线与针身中段，数字才立得住
-        drawCircle(core, radius = r * 0.46f, center = c)
+        drawCircle(coreBase, radius = r * 0.46f, center = c)
+        drawCircle(coreTint, radius = r * 0.46f, center = c)
     }
 }
 
