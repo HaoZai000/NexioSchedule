@@ -90,8 +90,8 @@ object BackupStr {
     val shareCodeExport = L("口令分享导出", "Share Code Export")
     val shareCodeExportSummary = L("生成趣味口令与分享图片", "Generate a fun share code and image")
     val shareExportConfirmSummaryN = L(
-        "将课表「%s」上传生成分享口令？\n口令 30 分钟内有效",
-        "Upload schedule \"%s\" to generate a share code?\nThe code is valid for 30 minutes",
+        "将课表「%s」上传生成分享口令？\n口令有效期有限，过期后可重新生成",
+        "Upload schedule \"%s\" to generate a share code?\nThe code expires after a while; you can generate a new one anytime",
     )
     val confirmShare = L("确认分享", "Share")
     val exportToWearable = L("导出到手环", "Export to Wearable")
@@ -140,7 +140,7 @@ object BackupStr {
     val shareCodeImport = L("分享口令导入", "Share Code Import")
     val shareCodeImportSummary = L("输入好友分享的口令导入课表", "Enter a share code from a friend to import a schedule")
     val shareCodeImportTitle = L("口令导入", "Share Code Import")
-    val shareCodeDialogSummary = L("输入好友分享的口令，30 分钟内有效", "Enter a share code from a friend. Valid for 30 minutes")
+    val shareCodeDialogSummary = L("输入好友分享的口令，过期后需重新获取", "Enter a share code from a friend. Ask for a new one if it has expired")
     val shareCodeLabel = L("分享口令", "Share Code")
     val wakeUpCodeImport = L("WakeUp课程表口令导入", "WakeUp Share Code Import")
     val wakeUpCodeImportSummary = L("输入WakeUp分享口令即可获取", "Enter a WakeUp share code to fetch the schedule")

@@ -34,7 +34,7 @@ object SwitchStr {
     // —— 分享确认 ——
     val shareScheduleTitle = L("分享课表", "Share Schedule")
     val shareConfirmSummary =
-        L("将课表「%s」上传生成分享口令？\n口令 30 分钟内有效", "Upload schedule \"%s\" to generate a share code?\nThe code is valid for 30 minutes")
+        L("将课表「%s」上传生成分享口令？\n口令有效期有限，过期后可重新生成", "Upload schedule \"%s\" to generate a share code?\nThe code expires after a while; you can generate a new one anytime")
     val confirmShare = L("确认分享", "Share")
 
     // —— 删除 / 解散确认 ——

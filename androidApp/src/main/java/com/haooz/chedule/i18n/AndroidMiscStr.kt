@@ -31,14 +31,15 @@ object AndroidMiscStr {
     val serverNoCodeReturned = L("服务器未返回口令", "The server did not return a share code")
     val scheduleDataInvalid = L("课表数据无效", "Invalid schedule data")
     val sharedScheduleName = L("分享的课表", "Shared schedule")
+    // 有效期用服务端返回的 expires_in 渲染（此前写死「30 分钟」，服务端一调就与实际不符）
     val shareTextNN = L(
-        "我分享了课表「%s」\n口令：%s\n打开 Nexio课程表，用口令导入即可（30 分钟内有效）",
-        "I shared my schedule \"%s\"\nCode: %s\nOpen Nexio Schedule and import with this code (valid for 30 minutes)"
+        "我分享了课表「%s」\n口令：%s\n打开 Nexio课程表，用口令导入即可（%s 分钟内有效）",
+        "I shared my schedule \"%s\"\nCode: %s\nOpen Nexio Schedule and import with this code (valid for %s minutes)"
     )
     val shareScheduleChooser = L("分享课表", "Share Schedule")
     val scheduleEmptyNoShareN = L("「%s」课表为空，无法分享", "\"%s\" is empty and cannot be shared")
     val generatingShareCode = L("正在生成分享口令…", "Generating share code…")
-    val codeCopiedValidN = L("口令已复制：「%s」30 分钟内有效", "Code copied: \"%s\". Valid for 30 minutes")
+    val codeCopiedValidN = L("口令已复制：「%s」%s 分钟内有效", "Code copied: \"%s\". Valid for %s minutes")
     val codeCopiedImageFailedN = L("口令已复制「%s」，但生成图片失败", "Code copied: \"%s\", but generating the image failed")
     val shareFailedN = L("分享失败：%s", "Share failed: %s")
     val networkErrorShort = L("网络错误", "Network error")
