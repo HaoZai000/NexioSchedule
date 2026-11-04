@@ -121,7 +121,6 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.isRenderEffectSupported
-import com.kyant.backdrop.isRuntimeShaderSupported
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
@@ -799,7 +798,10 @@ fun MainScheduleScreen(
      *
      * [pageGlassSuppressed] 是第三种退回原因：主内容正被外层缩放（见参数注释）。
      */
-    val pageGlassActive = hasSharedBlur && isRuntimeShaderSupported() && !pageGlassSuppressed
+    // 不判 AGSL：PageGlass 内部（PageGlass.android.kt:78-81）已经自己判了 ——
+    // 没有 RuntimeShader 时它只是不折射，仍然「一条 unionPath 裁一次 + 一次 drawLayer」。
+    // 在这里再卡 API 33，等于把「失效源 N→1」整条关掉，退回每张卡各自 drawBackdrop（一页几十个采样节点）。
+    val pageGlassActive = hasSharedBlur && !pageGlassSuppressed
     // OFF 档两个值都是 0，传下去等于不折射
     val pageGlassRefractionHeightPx =
         with(density) { cardRefraction.lensRadiusDp.dp.toPx() }
