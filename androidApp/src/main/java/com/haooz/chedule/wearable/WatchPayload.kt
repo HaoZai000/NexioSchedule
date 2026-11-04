@@ -82,6 +82,18 @@ object WatchPayload {
     /** override 条数上限：单包体积保护（手环 interconnect 有消息大小限制） */
     private const val MAX_OVERRIDE_DAYS = 90
 
+    /**
+     * 单包字节硬上限。
+     *
+     * 手环端 interconnect 的具体上限没有公开契约，这里取一个保守值：正常课表
+     * （20 门课 + 假期）大约 20–30 KB，留够余量。超了不是「发失败」而是
+     * `sendMessage` 静默失败 —— 所以必须自己裁。
+     */
+    private const val MAX_PAYLOAD_BYTES = 48 * 1024
+
+    /** `,"overrides":[]` 这层信封本身的字节余量。 */
+    private const val OVERRIDES_ENVELOPE_BYTES = 64
+
     /** 单个调休区间最多展开的天数（防脏数据把区间写成整年） */
     private const val MAX_OVERRIDE_RANGE_DAYS = 31
 
@@ -152,8 +164,16 @@ object WatchPayload {
         val holidaysArr = buildHolidaysJson(flatHolidays)
         // overrides 依赖 resolveDaySchedule，它内部按「当前课表」取课程与周次；
         // 推非当前课表时结果会串表 —— 宁可不发（手表回退 v4.0 推算），也不发错答案。
+        //
+        // 整段包 runCatching：以前 getTimeConfig / effective 抛异常会直接冒到
+        // buildFullJson 外面，整包构建失败 → 手环一条都收不到。overrides 只是增强，
+        // 失败就退化成老载荷（手环自己推算），不该拖累主功能。
         val overridesArr = if (sid == repository.getCurrentScheduleId()) {
-            buildOverridesJson(repository, sid, flatHolidays, windowFirst, windowLast, entriesByYear)
+            runCatching {
+                buildOverridesJson(repository, sid, flatHolidays, windowFirst, windowLast, entriesByYear)
+            }.onFailure {
+                NexioLog.w("WatchPayload", "overrides build fail, degrade to plain payload: ${it.message}")
+            }.getOrDefault(JSONArray())
         } else {
             JSONArray()
         }
@@ -164,7 +184,7 @@ object WatchPayload {
                 "holidays=${holidaysArr.length()} overrides=${overridesArr.length()}"
         )
 
-        return JSONObject()
+        val payload = JSONObject()
             .put("protocol", PROTOCOL)
             .put("version", VERSION)
             .put("action", "replace")
@@ -174,8 +194,50 @@ object WatchPayload {
             .put("times", times)
             .put("courses", courseArr)
             .put("holidays", holidaysArr)
-            .put("overrides", overridesArr)
-            .toString()
+        // 字节预算：手环 interconnect 有单包上限，超了 sendMessage 会失败而 UI 不知情。
+        // 按 UTF-8 实际字节裁 overrides（它是最可裁的部分），主数据一条不动。
+        val fittedOverrides = fitOverridesWithinBudget(payload, overridesArr)
+        payload.put("overrides", fittedOverrides)
+        val json = payload.toString()
+        NexioLog.i(
+            "WatchPayload",
+            "payload bytes=${json.toByteArray(Charsets.UTF_8).size} " +
+                "overrides=${fittedOverrides.length()}/${overridesArr.length()}"
+        )
+        return json
+    }
+
+    /**
+     * 把 overrides 裁进单包字节预算内。
+     *
+     * 以前只限制了「天数」（[MAX_OVERRIDE_DAYS]），但每个 override 日内联完整课程对象，
+     * 最坏能顶到上百 KB。超限时 sendMessage 直接失败，而导出 UI 照样提示成功 ——
+     * 用户看到的就是「点了没反应」。宁可少发几天，也不要整包发不出去。
+     */
+    private fun fitOverridesWithinBudget(base: JSONObject, overrides: JSONArray): JSONArray {
+        if (overrides.length() == 0) return overrides
+        // base 还没挂 overrides，先按它的实际字节数留出余量
+        val baseBytes = base.toString().toByteArray(Charsets.UTF_8).size
+        var budget = MAX_PAYLOAD_BYTES - baseBytes - OVERRIDES_ENVELOPE_BYTES
+        if (budget <= 0) {
+            NexioLog.w("WatchPayload", "payload base already ${baseBytes}B, overrides dropped")
+            return JSONArray()
+        }
+        val kept = JSONArray()
+        for (i in 0 until overrides.length()) {
+            val item = overrides.optJSONObject(i) ?: continue
+            val cost = item.toString().toByteArray(Charsets.UTF_8).size + 1
+            if (cost > budget) {
+                NexioLog.w(
+                    "WatchPayload",
+                    "overrides budget hit: keep=$i/${overrides.length()} budget=${budget}B cost=${cost}B",
+                )
+                break
+            }
+            kept.put(item)
+            budget -= cost
+        }
+        return kept
     }
 
     /**
