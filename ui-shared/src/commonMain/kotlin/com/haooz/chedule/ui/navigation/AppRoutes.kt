@@ -70,11 +70,14 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.ChromeStr
+import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.activities.AboutScreen
 import com.haooz.chedule.ui.activities.AiImportScreen
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
 import com.haooz.chedule.ui.activities.BackupAndMigrationScreen
+import com.haooz.chedule.ui.activities.weather.WeatherScreen
+import com.haooz.chedule.weather.WeatherStore
 import com.haooz.chedule.ui.activities.CalendarSyncResult
 import com.haooz.chedule.ui.activities.ChangelogScreen
 import com.haooz.chedule.ui.activities.CommunicationScreen
@@ -144,6 +147,7 @@ import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -266,6 +270,73 @@ fun CommunicationRoute(router: AppRouter) {
 fun AppreciateAuthorRoute(router: AppRouter) {
     DocumentPageScaffold(title = ChromeStr.donate(), onBack = { router.popBack() }) { scrollBehavior, _ ->
         AppreciateAuthorScreen(scrollBehavior = scrollBehavior)
+    }
+}
+
+/**
+ * 天气详情路由。
+ *
+ * 零平台触点：数据由 [com.haooz.chedule.weather.WeatherStore] 提供（今日卡先落地），
+ * 定位权限、刷新都在数据层，本页只画。所以 Android / iOS 都能直接调这一个函数。
+ */
+@Composable
+fun WeatherRoute(router: AppRouter) {
+    // ⚠ recordKey 不能省：`layerBackdrop` 在 recordKey == null 时会**每帧**把整页录进图层
+    // （滚动时整页画两遍 + 顶栏玻璃每帧重采样），天气页上下滑动掉帧的主因就是这个。
+    // 指纹只要覆盖"会让被采样像素变的东西"：数据、载入态、主题底色。
+    // 折叠动画那部分由脚手架自己的 mustRecord（draw 期比较 heightOffset）负责。
+    val snapshot by WeatherStore.snapshot.collectAsState()
+    val loading by WeatherStore.loading.collectAsState()
+    val surface = MiuixTheme.colorScheme.surface
+    val recordKey = remember(snapshot, loading, surface) { listOf(snapshot, loading, surface) }
+    val scope = rememberCoroutineScope()
+    val refresh: () -> Unit = { scope.launch { WeatherStore.requestRefresh() } }
+
+    // iOS 原生文档页的顶栏按钮由 Swift 画，Compose 顶栏看不到 —— 照抄教务导入的做法，
+    // 把同一个动作发布给原生 chrome（symbol 用系统的刷新图标）。
+    NativeDocumentActionEffect(
+        NativeDocumentAction(
+            symbol = "arrow.clockwise",
+            label = CommonStr.update(),
+            enabled = !loading,
+            busy = loading,
+            onClick = refresh,
+        )
+    )
+
+    DocumentPageScaffold(
+        title = WeatherStr.title(),
+        onBack = { router.popBack() },
+        recordKey = recordKey,
+        endAction = { backdropAlpha, shadowAlpha, backdrop ->
+            // 与「教务导入」那颗一模一样：真实采样层当 backdrop（空层渲染出来是纯色圆，
+            // 这就是之前"没有玻璃效果"的原因）、28dp 图标、载入中换成 20dp 转圈。
+            // 唯一区别是图标用 Refresh。
+            if (loading) {
+                Box(
+                    modifier = Modifier
+                        .offset(x = (-6).dp, y = (-4).dp)
+                        .size(40.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            } else {
+                LiquidTopBarButton(
+                    onClick = refresh,
+                    backdrop = backdrop,
+                    icon = MiuixIcons.Normal.Refresh,
+                    contentDescription = CommonStr.update(),
+                    iconSize = 28.dp,
+                    backdropAlpha = backdropAlpha,
+                    shadowAlpha = shadowAlpha,
+                )
+            }
+        },
+    ) { scrollBehavior, _ ->
+        WeatherScreen(scrollBehavior = scrollBehavior)
     }
 }
 
@@ -481,7 +552,7 @@ fun HolidaySettingsRoute(
     DocumentPageScaffold(
         title = ChromeStr.holidaysTitle(),
         onBack = { router.popBack() },
-        endAction = { backdropAlpha, shadowAlpha ->
+        endAction = { backdropAlpha, shadowAlpha, backdrop ->
             if (loading) {
                 Box(
                     modifier = Modifier
@@ -497,7 +568,7 @@ fun HolidaySettingsRoute(
             } else {
                 LiquidTopBarButton(
                     onClick = { requestYear(year) },
-                    backdrop = rememberLayerBackdrop(),
+                    backdrop = backdrop,
                     icon = MiuixIcons.Normal.Update,
                     contentDescription = CommonStr.update(),
                     iconSize = 28.dp,
@@ -739,10 +810,10 @@ fun WebDavSettingsRoute(
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         },
-        endAction = { backdropAlpha, shadowAlpha ->
+        endAction = { backdropAlpha, shadowAlpha, backdrop ->
             LiquidTopBarButton(
                 onClick = { onTestConnection() },
-                backdrop = rememberLayerBackdrop(),
+                backdrop = backdrop,
                 icon = if (connected) MiuixIcons.Ok else MiuixIcons.Play,
                 contentDescription = if (connected) ChromeStr.connected() else ChromeStr.testConnection(),
                 backdropAlpha = backdropAlpha,

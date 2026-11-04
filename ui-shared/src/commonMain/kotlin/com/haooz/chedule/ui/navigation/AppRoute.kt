@@ -19,6 +19,11 @@ sealed interface AppRoute {
         override val id: String get() = "settings"
     }
 
+    /** 天气详情页（今日卡天气行的入口）。 */
+    data object Weather : AppRoute {
+        override val id: String get() = "weather"
+    }
+
     /** 关于页。 */
     data object About : AppRoute {
         override val id: String get() = "about"
@@ -133,6 +138,7 @@ sealed interface AppRoute {
         /** 按 [id] 还原路由；未知 id 返回 null（版本回退/脏数据时由调用方兜底）。 */
         fun fromId(id: String): AppRoute? = when (id) {
             Settings.id -> Settings
+            Weather.id -> Weather
             About.id -> About
             Changelog.id -> Changelog
             License.id -> License

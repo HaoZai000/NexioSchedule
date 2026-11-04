@@ -43,6 +43,7 @@ import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.navigation.AppreciateAuthorRoute
 import com.haooz.chedule.ui.navigation.BackupAndMigrationRoute
 import com.haooz.chedule.ui.navigation.ChangelogRoute
+import com.haooz.chedule.ui.navigation.WeatherRoute
 import com.haooz.chedule.ui.navigation.CommunicationRoute
 import com.haooz.chedule.ui.navigation.CourseManageRoute
 import com.haooz.chedule.ui.navigation.CourseReminderRoute
@@ -243,6 +244,7 @@ internal fun NexioIosMain(host: IosAppHost) {
                             surfaceOpacity = d.surfaceOpacity,
                             // 下课烟花是 Android 专有（LocalContext/nanoTime），iOS 不渲染
                             fireworksOverlay = null,
+                            onOpenWeather = { router.navigate(AppRoute.Weather) },
                         )
                     },
                     // 外部分享进来的文件（Swift 侧 .onOpenURL → IosSharedFileReceiver）
@@ -337,6 +339,7 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
         )
         // 纯文档壳路由，iOS 直接可用
         AppRoute.Changelog -> ChangelogRoute(router)
+        AppRoute.Weather -> WeatherRoute(router)
         AppRoute.License -> LicenseRoute(router)
         AppRoute.PrivacyPolicy -> PrivacyPolicyRoute(router)
         AppRoute.Communication -> CommunicationRoute(router)

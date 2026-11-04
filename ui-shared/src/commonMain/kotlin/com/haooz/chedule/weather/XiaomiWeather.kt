@@ -1,8 +1,6 @@
 package com.haooz.chedule.weather
 
 import com.haooz.chedule.data.util.parseJsonArray
-import com.haooz.chedule.data.util.optDouble
-import com.haooz.chedule.data.util.optInt
 import com.haooz.chedule.data.util.optJsonArray
 import com.haooz.chedule.data.util.optJsonObject
 import com.haooz.chedule.data.util.optString

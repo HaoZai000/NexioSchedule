@@ -78,6 +78,7 @@ fun AppRouteContent(
 
         // 纯文档壳路由，直接调跨平台版
         AppRoute.Changelog -> ChangelogRoute(router)
+        AppRoute.Weather -> WeatherRoute(router)
         AppRoute.License -> LicenseRoute(router)
         AppRoute.PrivacyPolicy -> PrivacyPolicyRoute(router)
         AppRoute.Communication -> CommunicationRoute(router)

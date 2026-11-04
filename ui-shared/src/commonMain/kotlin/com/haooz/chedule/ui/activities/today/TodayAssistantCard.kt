@@ -1,6 +1,13 @@
 package com.haooz.chedule.ui.activities.today
 
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -20,7 +27,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -67,16 +74,23 @@ import com.haooz.chedule.uishared.resources.icon_cloudy_night
 import com.haooz.chedule.uishared.resources.icon_float_dirt
 import com.haooz.chedule.uishared.resources.icon_heavy_rain
 import com.haooz.chedule.uishared.resources.icon_heavy_snow
+import com.haooz.chedule.uishared.resources.icon_fog
+import com.haooz.chedule.uishared.resources.icon_fog_night
 import com.haooz.chedule.uishared.resources.icon_ice_rain
 import com.haooz.chedule.uishared.resources.icon_light_rain
 import com.haooz.chedule.uishared.resources.icon_light_snow
 import com.haooz.chedule.uishared.resources.icon_moderate_rain
 import com.haooz.chedule.uishared.resources.icon_moderate_snow
 import com.haooz.chedule.uishared.resources.icon_overcast
+import com.haooz.chedule.uishared.resources.icon_pm_dirt
+import com.haooz.chedule.uishared.resources.icon_rain_snow
+import com.haooz.chedule.uishared.resources.icon_sand
 import com.haooz.chedule.uishared.resources.icon_sunny
 import com.haooz.chedule.uishared.resources.icon_sunny_night
 import com.haooz.chedule.uishared.resources.icon_t_storm
 import com.kyant.backdrop.Backdrop
+import com.kyant.capsule.ContinuousCapsule
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.PI
 import kotlin.math.acos
 import kotlin.math.atan2
@@ -88,27 +102,48 @@ import kotlinx.coroutines.delay
 import kotlinx.datetime.LocalTime
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-// 中国天气网 type（中文）→ 图标
-private fun getWeatherIconRes(type: String, isNight: Boolean = false): DrawableResource = when {
+/**
+ * 中文现象文本 → 图标。
+ *
+ * 按**关键词**匹配而不是枚举：三家源的现象词表各写各的（"小到中雨"/"强阵雨"/"霾"），
+ * 枚举永远落后一步，关键词包含关系才是稳的。internal 是因为天气详情页也要用同一套，
+ * 两处图标打起来比没有图标更难看。
+ *
+ * 判断顺序是**强度从重到轻**，不是从常见到少见：
+ * 「大到暴雪」同时含"暴雪"和"雪"，先命中哪条决定画哪个图标；暴雨/大雪排在小雨/小雪前面，
+ * 否则所有雨天都会退化成毛毛雨图标。同理「雨夹雪」必须排在"雨"判定之前。
+ *
+ * ⚠ 资源里**没有风图标、也没有"未知"图标**：大风借中性云顶替，空现象同样走中性云 ——
+ * 千万别让它落到兜底的"晴"（阴天显示大太阳是最容易被当成 bug 报上来的）。
+ */
+internal fun weatherIconRes(type: String, isNight: Boolean = false): DrawableResource = when {
     type.contains("冰雹") || type.contains("雷") -> Res.drawable.icon_t_storm
-    type.contains("雾") || type.contains("霾") || type.contains("浮尘") ||
-        type.contains("扬沙") || type.contains("沙尘") -> Res.drawable.icon_float_dirt
-    type.contains("冻雨") -> Res.drawable.icon_ice_rain
-    type.contains("雨夹雪") -> Res.drawable.icon_light_snow
+    // 「冻雨」「冻毛毛雨」都算冻雨；必须排在"雨"之前
+    type.contains("冻") -> Res.drawable.icon_ice_rain
+    type.contains("雨夹雪") -> Res.drawable.icon_rain_snow
+    type.contains("霾") -> Res.drawable.icon_pm_dirt
+    type.contains("沙尘") || type.contains("扬沙") -> Res.drawable.icon_sand
+    type.contains("浮尘") -> Res.drawable.icon_float_dirt
+    type.contains("雾") -> if (isNight) Res.drawable.icon_fog_night else Res.drawable.icon_fog
     type.contains("暴雨") || type.contains("大雨") -> Res.drawable.icon_heavy_rain
     type.contains("中雨") -> Res.drawable.icon_moderate_rain
     type.contains("小雨") || type.contains("阵雨") || type.contains("雨") -> Res.drawable.icon_light_rain
     type.contains("暴雪") || type.contains("大雪") -> Res.drawable.icon_heavy_snow
     type.contains("中雪") -> Res.drawable.icon_moderate_snow
-    type.contains("小雪") || type.contains("雪") -> Res.drawable.icon_light_snow
+    type.contains("小雪") || type.contains("阵雪") || type.contains("雪") -> Res.drawable.icon_light_snow
+    // 国标 33（大风）手上没有风图标，用中性云顶一下，至少不像"晴"
+    type.contains("风") -> Res.drawable.icon_overcast
     type.contains("阴") -> Res.drawable.icon_overcast
     type.contains("多云") -> if (isNight) Res.drawable.icon_cloudy_night else Res.drawable.icon_cloudy
     type.contains("晴") -> if (isNight) Res.drawable.icon_sunny_night else Res.drawable.icon_sunny
-    else -> if (isNight) Res.drawable.icon_sunny_night else Res.drawable.icon_sunny
+    else -> Res.drawable.icon_overcast
 }
-/** 天气图标（普通 painterResource，无 Android 图形 API 依赖）。 */
+/** 天气图标（普通 painterResource，不依赖平台图形栈）。 */
 @Composable
 private fun WeatherIcon(
     resource: DrawableResource,
@@ -121,13 +156,13 @@ private fun WeatherIcon(
     )
 }
 
-/** 状态徽标：胶囊底 + 主题色文字，比裸文字更能一眼分辨「正在上课 / 下节课」。 */
+/** 状态徽标：胶囊底 + 主题色文字。 */
 @Composable
 private fun StatusBadge(text: String) {
     val accent = MiuixTheme.colorScheme.primary
     Box(
         modifier = Modifier
-            .background(accent.copy(alpha = 0.14f), CircleShape)
+            .background(accent.copy(alpha = 0.14f), ContinuousCapsule())
             .padding(horizontal = 9.dp, vertical = 3.dp)
     ) {
         Text(
@@ -140,51 +175,46 @@ private fun StatusBadge(text: String) {
     }
 }
 
-/** 进度条长满时的高度。 */
+// 条高两态：静止 0.5dp 细线 ↔ 满血 6dp；上下留白恒为 RULE_GAP
 private val BAR_HEIGHT = 6.dp
-
-/** 静止态细线的高度。 */
 private val RULE_HEIGHT = 0.5.dp
-
-/** 条上下留白：静止与上课都固定 10dp */
 private val RULE_GAP = 10.dp
 
-/** 分隔线 / 进度条是同一根：静止时是一条 0.5dp 细线，上课中长成 6dp 的进度条。 */
+/** 分隔线与进度条是同一根：静止 0.5dp 细线，上课中长成 6dp 进度条。 */
 @Composable
 private fun CourseRuleBar(percent: Int?) {
     val accent = MiuixTheme.colorScheme.primary
     val isDark = isAppDarkTheme()
-    // 0 = 细线，1 = 满血进度条。只在测量期与绘制期读：长出/收回不会重组整张卡。
+    // 0 = 细线，1 = 满血条；只在测量期与绘制期读，长出/收回不重组整张卡
     val morph = animateFloatAsState(
         targetValue = if (percent != null) 1f else 0f,
         animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
         label = "assistantRuleBar"
     )
     val rawFrac = (percent ?: 0).coerceIn(0, 100) / 100f
-    // 下课瞬间 percent 变 null：留住最后一次的宽度，让它跟着高度一起淡出，
-    // 否则整条会先「啪」地消失、只剩一根空槽慢慢收回去。普通字段，不参与快照失效。
+    // 下课瞬间 percent 变 null，留住最后一次宽度跟着高度淡出（普通字段，不进快照）
     val lastFrac = remember { floatArrayOf(0f) }
     if (percent != null) lastFrac[0] = rawFrac
     val frac = if (percent != null) rawFrac else lastFrac[0]
 
     val ruleColor = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.09f)
     val trackColor = remember(accent) { accent.copy(alpha = 0.08f) }
-    // 左淡右浓的横向渐变：已过的部分越靠前越实，尾巴留一点淡出，整条比实心色轻一档
+    // 左淡右浓，尾巴淡出
     val fillBrush = remember(accent) {
         Brush.horizontalGradient(
             listOf(accent.copy(alpha = 0.36f), accent.copy(alpha = 0.62f))
         )
     }
-    // 叠加层往白里混一档：深色卡几乎不混，浅色卡混得多
+    // 叠加层往白里混一档：深色卡轻、浅色卡重
     val overlayTint = remember(accent, isDark) {
         lerp(accent, Color.White, if (isDark) 0.06f else 0.4f)
     }
 
-    // 高度给这条线自己：上下留白永远是 RULE_GAP，长高的只有中间那根。
+    // 高度给线自己：留白恒为 RULE_GAP，长高的只有中间那根
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            // ⚠ 只在**测量期**读 morph：长出/收回只触发重排，不重组整张卡
+            // ⚠ 只在测量期读 morph：只触发重排，不重组整张卡
             .layout { measurable, constraints ->
                 val h = (RULE_HEIGHT + (BAR_HEIGHT - RULE_HEIGHT) * morph.value).roundToPx()
                 val placeable = measurable.measure(
@@ -193,11 +223,11 @@ private fun CourseRuleBar(percent: Int?) {
                 layout(placeable.width, h) { placeable.place(0, 0) }
             }
     ) {
-        // 轨道 + 本体：不模糊，边缘保持锐利。容器高度就是条高，画满即可。
+        // 轨道 + 本体：不模糊，容器高度就是条高
         Canvas(modifier = Modifier.fillMaxSize()) {
             val m = morph.value
             val radius = CornerRadius(size.height / 2f, size.height / 2f)
-            // 细线 → 轨道：颜色跟着高度一起过渡，不会先跳粗细再跳色
+            // 颜色跟着高度一起过渡，不先跳粗细再跳色
             drawRoundRect(
                 color = lerp(ruleColor, trackColor, m),
                 size = size,
@@ -213,8 +243,8 @@ private fun CourseRuleBar(percent: Int?) {
             }
         }
 
-        // 叠加层：圆头 + 切线尾迹，一笔闭合路径。半径跟着动画高度走，圆头随条一起长大。
-        // ⚠ 承载模糊的节点必须比条高，否则 RenderNode 只有条那么大，模糊会在上下被裁断。
+        // 叠加层：圆头 + 切线尾迹，一笔闭合路径
+        // ⚠ 承载模糊的节点必须比条高，否则 RenderNode 只有条那么大，模糊上下被裁断
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
@@ -228,6 +258,7 @@ private fun CourseRuleBar(percent: Int?) {
             val rBar = (RULE_HEIGHT + (BAR_HEIGHT - RULE_HEIGHT) * m).toPx() / 2f
             val barRight = size.width * frac      // 条的右边缘
             val rHead = rBar * 1.4f
+            // 光/圆头锚在圆头圆心，不是条的右边缘
             val headX = (barRight - rBar).coerceAtLeast(rHead)
             val rTail = rBar * 1.4f
             val xTail = (headX - headX.coerceAtMost(36.dp.toPx())).coerceAtLeast(0f)
@@ -243,8 +274,7 @@ private fun CourseRuleBar(percent: Int?) {
                 // 尾巴短到没有直线段可用，退化成一个圆头
                 path.addOval(circle)
             } else {
-                // 直线必须切于圆：圆心顶点的切线是水平的，直线直接连到顶点就是那个折角。
-                // 切点既作直线终点也作圆弧起点，接缝处方向连续。
+                // 直线必须切于圆：连到顶点就是折角。切点兼作弧起点，接缝处方向连续
                 val phi = atan2(rTail, dx) - (PI.toFloat() - acos((rHead / dist).coerceIn(-1f, 1f)))
                 val phiDeg = phi * (180f / PI.toFloat())
                 path.moveTo(xTail, cy - rTail)
@@ -300,16 +330,11 @@ private data class CourseStatus(
     val timeMessage: String = "",
     /** 当前课结束时刻；跨过该时刻时触发下课庆祝 */
     val currentEnd: LocalTime? = null,
-    /** 当前课已过的整数百分比（0..100）；null = 不在课上，不画进度 */
+    /** 当前课已过的整数百分比（0..100）；null = 不在课上 */
     val progressPercent: Int? = null
 )
 
-/**
- * 上课进度，按整数百分比量化。
- *
- * 量化是刻意的：每秒重算只有跨过 1% 才会让 [CourseStatus] 变化，
- * 一节课 45 分钟约 27 秒才触发一次重组，进度条看起来仍连续。
- */
+/** 上课进度按整数百分比量化：一节课约 27 秒才跨 1%，进度条看起来仍连续。 */
 private fun progressPercentOf(range: CourseTimeRange, now: LocalTime): Int {
     // 起止相同按满 24 小时处理，与 CourseTimeSpan 的口径一致
     val total = millisBetween(range.start, range.end, allowRollover = true)
@@ -323,13 +348,12 @@ private fun rememberCourseStatus(
     courses: List<Course>,
     sectionTimes: Map<Int, String>
 ): CourseStatus {
-    // 时间区间只随 courses/sectionTimes 重算，循环内复用；保持原顺序以兼容 first-match
+    // 时间区间只随 courses/sectionTimes 重算；保持原顺序以兼容 first-match
     val ranges = remember(courses, sectionTimes) {
         buildCourseTimeRanges(courses, sectionTimes, sortByStart = false)
     }
     fun statusAt(now: LocalTime): CourseStatus {
-        // 与 generateSmartTip 同一判定：开始含、结束不含，避免整点卡在「正在上课」。
-        // 跨午夜课（23:00-00:30）由 coursePeriodOngoing 按「start→午夜」段判定
+        // 开始含、结束不含，避免整点卡在「正在上课」；跨午夜课由 coursePeriodOngoing 兜住
         val current = ranges.find { coursePeriodOngoing(it.start, it.end, now) }
         val next = ranges.find { now < it.start }
         val message = when {
@@ -346,13 +370,12 @@ private fun rememberCourseStatus(
             progressPercent = current?.let { progressPercentOf(it, now) }
         )
     }
-    // 初值必须当场算出来：留空会让新组合的助手卡先闪一帧「当前没有课程」，
-    // 一秒后才跳回真实课程（借位页 / 首次进今日页都踩得到）。
+    // 初值当场算出来：留空会让新组合的卡先闪一帧「当前没有课程」（借位页 / 首次进页都踩得到）
     var status by remember(courses, sectionTimes) { mutableStateOf(statusAt(nowLocalTime())) }
     LaunchedEffect(ranges) {
         while (true) {
             val newStatus = statusAt(nowLocalTime())
-            // 文案未变化时不写状态，避免每秒重组
+            // 未变化不写状态，避免每秒重组
             if (newStatus != status) status = newStatus
             delay(1000L.milliseconds)
         }
@@ -372,8 +395,8 @@ private fun formatRemainingUntil(
         val seconds = ((remainMillis + 999L) / 1000L).toInt().coerceIn(1, 60)
         return if (isCountdownToStart) AssistantStr.secondsToStart(seconds) else AssistantStr.secondsLeft(seconds)
     }
-    val minutes = ceilMinutesUntil(from, to)
-    val duration = formatCountdownMinutes(minutes)
+    // 直接复用已算出的毫秒差，不再多算一次 millisBetween
+    val duration = formatCountdownMinutes(ceilMinutesOf(remainMillis))
     return if (isCountdownToStart) AssistantStr.durationToStart(duration)
     else AssistantStr.durationLeft(duration)
 }
@@ -398,11 +421,12 @@ private fun buildCourseTimeRanges(
 }
 
 // 向上取整，与顶部倒计时、系统岛倒计时共用同一套「剩余分钟」口径
-private fun ceilMinutesUntil(from: LocalTime, to: LocalTime): Int {
-    val remain = millisBetween(from, to, allowRollover = true)
-    if (remain <= 0L) return 0
-    return ((remain + 59_999L) / 60_000L).toInt()
-}
+private fun ceilMinutesOf(remainMillis: Long): Int =
+    if (remainMillis <= 0L) 0 else ((remainMillis + 59_999L) / 60_000L).toInt()
+
+private fun ceilMinutesUntil(from: LocalTime, to: LocalTime): Int =
+    ceilMinutesOf(millisBetween(from, to, allowRollover = true))
+
 private fun formatCountdownMinutes(minutes: Int): String {
     val hours = minutes / 60
     val mins = minutes % 60
@@ -413,26 +437,26 @@ private fun formatCountdownMinutes(minutes: Int): String {
     }
 }
 
-// 稳定但不呆板的轮换：同一时段内固定一条（不随每秒 tick 乱跳），
-// 但种子混了「日期 + 会话盐」，所以换一天、或重新进一次今日页就会换一句。
+// 同一时段内固定一条（不随每秒 tick 乱跳），种子混了日期 + 会话盐 ⇒ 换天/重进就换句
 private fun pickTip(variants: List<String>, seed: Int): String {
     if (variants.isEmpty()) return ""
-    // 乘法打散后再取模：相邻的 seed 不会落成同一个下标，
-    // 也不会像朴素取模那样每隔 size 就撞回同一条。
+    // 乘法打散再取模：相邻 seed 不会落成同一下标
     val mixed = (seed.toLong() * 2_654_435_761L + 0x9E37_79B9L) and 0x7FFF_FFFFL
     return variants[(mixed % variants.size).toInt()]
 }
+
+/** 智能提醒文案：按时段/课间/课前分档轮换；分钟数一律交给顶部倒计时，不在这里重复。 */
 private fun generateSmartTip(
     courses: List<Course>,
     tomorrowCourses: List<Course>,
     sectionTimes: Map<Int, String>,
     morningSections: Int,
     afternoonSections: Int,
-    /** 会话盐：每次进入今日页重新取一次随机数，避免每次打开都是同一句 */
+    /** 会话盐：每次进入今日页换一次随机数，避免每次打开都是同一句 */
     salt: Int = 0
 ): String? {
     val now = nowLocalTime()
-    // 日期入种子：同样的钟点，昨天和今天不说同一句话
+    // 日期入种子：同样的钟点，昨天和今天不说同一句
     val dayKey = todayLocalDate().toEpochDays()
     fun seedOf(bucket: Int): Int = salt * 3607 + dayKey * 7919 + now.hour * 31 + bucket
     val ranges = buildCourseTimeRanges(courses, sectionTimes)
@@ -442,8 +466,7 @@ private fun generateSmartTip(
         course.classroom.ifBlank { AssistantStr.roomTbd() }
 
     fun tomorrowNote(): String {
-        val hour = now.hour
-        if (hour < 20) return ""
+        if (now.hour < 20) return ""
         val n = tomorrowCourses.size
         if (n == 0) return AssistantStr.tomorrowFree()
         val first = tomorrowRanges.firstOrNull()?.course
@@ -505,18 +528,10 @@ private fun generateSmartTip(
     val next = ranges.find { now < it.start }
     val prev = ranges.lastOrNull { coursePeriodCompleted(it.start, it.end, now) }
 
-    val eveningCount = courses.count {
-        it.periodIndex(sectionTimes, morningSections, afternoonSections) == Course.PERIOD_EVENING
-    }
-    val afternoonCount = courses.count {
-        it.periodIndex(sectionTimes, morningSections, afternoonSections) == Course.PERIOD_AFTERNOON
-    }
     val totalCount = courses.size
-    val completedCount = ranges.count { coursePeriodCompleted(it.start, it.end, now) }
 
     return when {
-        // 正在上课：按「课上到哪一段」分档，只说状态与下一步动作。
-        // 具体剩余时间由卡片顶部那条倒计时负责，这里再报分钟数就是重复。
+        // 上课中：按「课上到哪一段」分档，剩余时间交给顶部倒计时
         ongoing != null -> {
             // 连堂判断只对同日课有意义；跨午夜课结束点在次日，当天没有「下一节」
             val nextAfter = if (ongoing.end > ongoing.start) {
@@ -558,11 +573,11 @@ private fun generateSmartTip(
                     AssistantStr.ongoingLongStretch()
                 )
             }
-            // 轮换粒度比原来粗一档：文案已不含数字，没必要每 5 分钟换一句
+            // 文案不含数字，轮换粒度粗一档：15 分钟才换一句
             pickTip(pool, seed = seedOf(remaining / 15)) + gapPart
         }
 
-        // 课间：只说「课间走到哪一步 + 下节去向」，分钟数交给顶部倒计时
+        // 课间：只说走到哪一步 + 下节去向，分钟数交给顶部倒计时
         prev != null && next != null -> {
             val remainToNext = ceilMinutesUntil(now, next.start)
             val room = roomOf(next.course)
@@ -604,6 +619,7 @@ private fun generateSmartTip(
 
         // 今天课已上完
         prev != null && next == null -> {
+            val completedCount = ranges.count { coursePeriodCompleted(it.start, it.end, now) }
             val pool = when {
                 completedCount >= totalCount -> listOf(
                     AssistantStr.doneClaimKnowledge(totalCount),
@@ -619,7 +635,7 @@ private fun generateSmartTip(
             pickTip(pool, seed = seedOf(0)) + tomorrowNote()
         }
 
-        // 第一节课还没开始：按「离上课还有多远」分档，文案只说该干嘛
+        // 还没上课：按「离上课还有多远」分档
         next != null -> {
             val minutes = ceilMinutesUntil(now, next.start)
             val room = roomOf(next.course)
@@ -675,6 +691,13 @@ private fun generateSmartTip(
                     AssistantStr.first1TakeSeat(room)
                 )
                 else -> {
+                    // 只有这一支要统计午/晚节数，别每次调用都全表扫两遍
+                    val afternoonCount = courses.count {
+                        it.periodIndex(sectionTimes, morningSections, afternoonSections) == Course.PERIOD_AFTERNOON
+                    }
+                    val eveningCount = courses.count {
+                        it.periodIndex(sectionTimes, morningSections, afternoonSections) == Course.PERIOD_EVENING
+                    }
                     val periodHint = when {
                         afternoonCount > 0 && hour in 12..13 ->
                             AssistantStr.hintAfternoonMore(afternoonCount)
@@ -721,13 +744,19 @@ fun TodayAssistantCard(
     surfaceOpacity: Float,
     /** 下课烟花（Android = FireworksOverlay，依赖 LocalContext/nanoTime）；null = 该端无此效果 */
     fireworksOverlay: (@Composable (trigger: Int, modifier: Modifier) -> Unit)? = null,
+    /** 点击天气行进入天气详情页；null = 该端还没接详情页（此时整行不可点） */
+    onOpenWeather: (() -> Unit)? = null,
 ) {
     val courseStatus = rememberCourseStatus(courses, sectionTimes)
-    // 卡片强调色：状态徽标、倒计时、进度条、右上角柔光共用同一支，避免多色打架
+    // 徽标、倒计时、进度条、柔光共用同一支强调色，避免多色打架
     val accent = MiuixTheme.colorScheme.primary
-    // 卡片底部垫一层极淡的课程色（从下往上淡出），让颜色和「当前/下节」这门课对上
-    // ⚠ 不要回落到 courses.lastOrNull()：全部上完后状态已经是「当前没有课程」，
-    //   颜色却还挂着最后一节课 —— 那就是一片永远散不掉的残留色斑。
+    // TextStyle.copy 会新建对象，按主题记一次，别每次重组都重建
+    val textStyles = MiuixTheme.textStyles
+    val nameStyle = remember(textStyles) { textStyles.body1.copy(fontSize = 18.sp) }
+    val metaStyle = remember(textStyles) { textStyles.body2.copy(fontSize = 13.sp) }
+    val countdownStyle = remember(textStyles) { textStyles.footnote1.copy(fontSize = 13.sp) }
+    // ⚠ 不要回落到 courses.lastOrNull()：全部上完后状态已是「当前没有课程」，
+    //   颜色却还挂着最后一节课 —— 那就是一片永远散不掉的残留色斑
     val tintCourse = courseStatus.currentCourse ?: courseStatus.nextCourse
     val isDarkTheme = isAppDarkTheme()
     val tintTarget = remember(tintCourse, isDarkTheme) {
@@ -735,8 +764,7 @@ fun TodayAssistantCard(
             lerp(Color(course.colorRes), Color.White, if (isDarkTheme) 0.4f else 0.55f)
         }
     }
-    // 颜色收起也要连贯：留住最后一次的颜色，让它跟着 420ms 淡出，
-    // 与线收回、卡片高度收缩同一个节拍。普通数组，不参与快照失效。
+    // 颜色收起同理：留住最后一次颜色跟着 420ms 淡出（普通数组，不进快照）
     val tintLast = remember { arrayOfNulls<Color>(1) }
     if (tintTarget != null) tintLast[0] = tintTarget
     val tintColor = tintTarget ?: tintLast[0]
@@ -745,29 +773,34 @@ fun TodayAssistantCard(
         animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
         label = "assistantTintFade"
     )
-    // 有壁纸时卡片是玻璃面，透上来的底子杂，渐变得浓一档才立得住；纯色卡底留很淡一层就够
+    // 有壁纸时是玻璃面，透上来的底子杂，渐变要浓一档才立得住
     val tintAlpha = if (wallpaperBackdrop != null) 0.24f else 0.1f
     val tintBrush = remember(tintColor, tintAlpha) {
         tintColor?.let { color ->
             Brush.verticalGradient(
                 0f to Color.Transparent,
-                // 上半卡完全干净，只在下面这一段渐入，避免整卡泛色
+                // 上半卡保持干净，只在下半段渐入
                 0.4f to Color.Transparent,
                 1f to color.copy(alpha = tintAlpha)
             )
         }
     }
     var smartTip by remember { mutableStateOf("") }
-    // 每次进今日页换一个盐：同一天的同一时段，重新进来也能看到不同的句子。
-    // 放在 remember 里而不是每次 tick 现算——否则文案会每秒跳一次。
+    // 盐放 remember：每次进今日页换一次，同一时段重进也能换句；现算会每秒跳
     val tipSalt = remember { kotlin.random.Random.nextInt() }
+    // 每秒唤醒，但文案的分档全按分钟量化 ⇒ 只在分钟变化时重算，省掉 59/60 的重复计算
     LaunchedEffect(courses, tomorrowCourses, sectionTimes, morningSections, afternoonSections) {
+        var lastMinute = -1
         while (true) {
-            val newTip = generateSmartTip(
-                courses, tomorrowCourses, sectionTimes, morningSections, afternoonSections, tipSalt
-            ).orEmpty()
-            // 与顶部倒计时同频轮询；文案未变化时不写状态，避免每秒重组
-            if (newTip != smartTip) smartTip = newTip
+            val now = nowLocalTime()
+            val minute = now.hour * 60 + now.minute
+            if (minute != lastMinute) {
+                lastMinute = minute
+                val newTip = generateSmartTip(
+                    courses, tomorrowCourses, sectionTimes, morningSections, afternoonSections, tipSalt
+                ).orEmpty()
+                if (newTip != smartTip) smartTip = newTip
+            }
             delay(1_000L.milliseconds)
         }
     }
@@ -789,14 +822,9 @@ fun TodayAssistantCard(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            // 尺寸动画：动画期间 BlurCard 的采样区域每帧变
-            .animateContentSize(
-                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing)
-            )
-    ) {
+    // ⚠ 别给这个 Box 挂 animateContentSize：它会按目标尺寸裁内容，首帧就是从 0 高度展开、
+    //   底部圆角先被切成直角。高度变化交给下面各行动画自己收拢
+    Box(modifier = Modifier.fillMaxWidth()) {
         BlurCard(
             wallpaperBackdrop = wallpaperBackdrop,
             blurRadius = blurRadius,
@@ -804,172 +832,232 @@ fun TodayAssistantCard(
             showEdgeLight = wallpaperBackdrop != null && blurRadius > 0f,
             modifier = Modifier.fillMaxWidth()
         ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                // 渐变铺满整卡（含 padding 区），画在内容之下、玻璃面之上。
-                // alpha 在绘制期读：淡出只失效绘制，不重组整张卡
-                .drawBehind { tintBrush?.let { drawRect(it, alpha = tintFade.value) } }
-                .padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 12.dp)
-        ) {
-            val currentCourse = courseStatus.currentCourse
-            val nextCourse = courseStatus.nextCourse
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // 渐变画在内容之下、玻璃面之上；alpha 在绘制期读，淡出只失效绘制
+                    .drawBehind { tintBrush?.let { drawRect(it, alpha = tintFade.value) } }
+                    .padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 10.dp)
+            ) {
+                val currentCourse = courseStatus.currentCourse
+                val nextCourse = courseStatus.nextCourse
+                // 当前优先、其次下一节；两者都空才是「当前没有课程」
+                val active = currentCourse ?: nextCourse
 
-            val label = when {
-                currentCourse != null -> AssistantStr.inClass()
-                nextCourse != null -> AssistantStr.nextClass()
-                else -> ""
-            }
-            val name = when {
-                currentCourse != null -> currentCourse.name
-                nextCourse != null -> nextCourse.name
-                courses.isEmpty() -> AssistantStr.noCourseTodayRest()
-                else -> AssistantStr.noCourseNow()
-            }
+                val label = when {
+                    currentCourse != null -> AssistantStr.inClass()
+                    nextCourse != null -> AssistantStr.nextClass()
+                    else -> ""
+                }
+                val name = active?.name
+                    ?: if (courses.isEmpty()) AssistantStr.noCourseTodayRest() else AssistantStr.noCourseNow()
 
-            // 第一行只放状态徽标与倒计时：两者都从课名那一行搬出来，
-            // 课名因此独占整卡宽度（最多两行），长课名不再被右侧倒计时挤成两三个字。
-            if (label.isNotBlank() || courseStatus.timeMessage.isNotBlank()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // ⚠ AnimatedVisibility 播 exit 时 content 仍在重组，此时 label / timeMessage 已是空串；
+                //   必须留住最后一次非空值，否则那行先瞬间消失、只剩空白慢慢收
+                val lastLabel = remember { arrayOf("") }
+                val lastTime = remember { arrayOf("") }
+                if (label.isNotBlank()) lastLabel[0] = label
+                if (courseStatus.timeMessage.isNotBlank()) lastTime[0] = courseStatus.timeMessage
+                val shownLabel = if (label.isNotBlank()) label else lastLabel[0]
+                val shownTime =
+                    if (courseStatus.timeMessage.isNotBlank()) courseStatus.timeMessage else lastTime[0]
+
+                // 第一行只放徽标与倒计时，课名独占整卡宽度；行消隐走 expand/shrink，
+                // 卡片高度始终等于内容高度，不裁内容
+                AnimatedVisibility(
+                    visible = label.isNotBlank() || courseStatus.timeMessage.isNotBlank(),
+                    enter = expandVertically(tween(300, easing = FastOutSlowInEasing)) +
+                        fadeIn(tween(200)),
+                    exit = shrinkVertically(tween(300, easing = FastOutSlowInEasing)) +
+                        fadeOut(tween(140))
                 ) {
-                    if (label.isNotBlank()) {
-                        StatusBadge(text = label)
-                    }
-                    if (courseStatus.timeMessage.isNotBlank()) {
-                        Text(
-                            text = courseStatus.timeMessage,
-                            style = MiuixTheme.textStyles.footnote1.copy(fontSize = 13.sp),
-                            fontWeight = FontWeight.Medium,
-                            color = accent,
-                            textAlign = TextAlign.End,
-                            maxLines = 1
-                        )
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (shownLabel.isNotBlank()) {
+                                StatusBadge(text = shownLabel)
+                            }
+                            if (shownTime.isNotBlank()) {
+                                Text(
+                                    text = shownTime,
+                                    style = countdownStyle,
+                                    fontWeight = FontWeight.Medium,
+                                    color = accent,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
 
-            Text(
-                text = name,
-                style = MiuixTheme.textStyles.body1.copy(fontSize = 18.sp),
-                fontWeight = FontWeight.SemiBold,
-                color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            val location = when {
-                currentCourse != null -> currentCourse.classroom
-                nextCourse != null -> nextCourse.classroom
-                else -> ""
-            }
-            val teacher = when {
-                currentCourse != null -> currentCourse.teacher
-                nextCourse != null -> nextCourse.teacher
-                else -> ""
-            }
-            val displayLocation = if (showClassroom) location else ""
-            val displayTeacher = if (showTeacher) teacher else ""
-            val meta = buildString {
-                if (displayLocation.isNotBlank()) append(displayLocation)
-                if (displayLocation.isNotBlank() && displayTeacher.isNotBlank()) append(" · ")
-                if (displayTeacher.isNotBlank()) append(displayTeacher)
-            }
-            if (meta.isNotBlank()) {
-                Spacer(modifier = Modifier.height(5.dp))
                 Text(
-                    text = meta,
-                    style = MiuixTheme.textStyles.body2.copy(fontSize = 13.sp),
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    maxLines = 1,
+                    text = name,
+                    style = nameStyle,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-            }
 
-            // 分隔线同时是进度条：上下各留 RULE_GAP，长高的只有中间那根线
-            Spacer(modifier = Modifier.height(RULE_GAP))
-            CourseRuleBar(percent = if (currentCourse != null) courseStatus.progressPercent else null)
-            Spacer(modifier = Modifier.height(RULE_GAP))
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (smartTip.isNotBlank()) {
-                    Text(
-                        text = smartTip,
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurface
-                    )
+                val meta = buildString {
+                    val location = if (showClassroom) active?.classroom.orEmpty() else ""
+                    val teacher = if (showTeacher) active?.teacher.orEmpty() else ""
+                    if (location.isNotBlank()) append(location)
+                    if (location.isNotBlank() && teacher.isNotBlank()) append(" · ")
+                    if (teacher.isNotBlank()) append(teacher)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (weather.loaded && !weather.temperature.isNaN()) {
-                        WeatherIcon(
-                            resource = getWeatherIconRes(weather.weatherType, weather.isNight()),
-                            size = 23.dp,
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
+                // 同上：exit 期间 meta 已变空，留住上一次的「教室 · 老师」淡出去
+                val lastMeta = remember { arrayOf("") }
+                if (meta.isNotBlank()) lastMeta[0] = meta
+                val shownMeta = if (meta.isNotBlank()) meta else lastMeta[0]
+                AnimatedVisibility(
+                    visible = meta.isNotBlank(),
+                    enter = expandVertically(tween(300, easing = FastOutSlowInEasing)) +
+                        fadeIn(tween(200)),
+                    exit = shrinkVertically(tween(300, easing = FastOutSlowInEasing)) +
+                        fadeOut(tween(140))
+                ) {
+                    Column {
+                        Spacer(modifier = Modifier.height(5.dp))
                         Text(
-                            text = "${weather.temperature.toInt()}°C ${weather.weatherType} · ${weather.notice}",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            text = shownMeta,
+                            style = metaStyle,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    } else if (weather.needsLocation) {
-                        Box(modifier = Modifier.padding(vertical = 4.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Image(
-                                    painter = painterResource(
-                                        Res.drawable.ic_widget_location
-                                    ),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                    }
+                }
+
+                // 分隔线同时是进度条：上下各留 RULE_GAP
+                Spacer(modifier = Modifier.height(RULE_GAP))
+                CourseRuleBar(percent = courseStatus.progressPercent)
+                Spacer(modifier = Modifier.height(RULE_GAP))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // 文案会换、行数跟着变：AnimatedContent + clip = false 让高度随字走且不裁
+                    AnimatedContent(
+                        targetState = smartTip,
+                        transitionSpec = {
+                            (fadeIn(tween(240)) togetherWith fadeOut(tween(160)))
+                                .using(
+                                    SizeTransform(clip = false) { _, _ ->
+                                        tween(300, easing = FastOutSlowInEasing)
+                                    }
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = if (hasLocationPermission) AssistantStr.locationFailedTapRetry() else AssistantStr.locationPermissionNeeded(),
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                    modifier = Modifier.clickable { onRequestLocation() }
+                        },
+                        label = "assistantTip"
+                    ) { tip ->
+                        if (tip.isNotBlank()) {
+                            Text(
+                                text = tip,
+                                style = textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                    // 整行可点 = 天气详情入口。点击区把图标+文字+箭头包在一起，
+                    // 不然只有文字窄条能点，手指按在图标上没反应。
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = if (onOpenWeather != null) {
+                            Modifier
+                                .clip(ContinuousRoundedRectangle(8.dp))
+                                .clickable(onClick = onOpenWeather)
+                                .padding(vertical = 2.dp, horizontal = 2.dp)
+                        } else {
+                            Modifier
+                        }
+                    ) {
+                        if (weather.loaded && !weather.temperature.isNaN()) {
+                            WeatherIcon(
+                                resource = weatherIconRes(weather.weatherType, weather.isNight()),
+                                size = 23.dp,
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                // 兜底字段可能为空：别拼出「7°C 雾 · 」这种挂着的分隔符
+                                text = buildString {
+                                    append("${weather.temperature.toInt()}°C ${weather.weatherType}")
+                                    if (weather.notice.isNotBlank()) append(" · ${weather.notice}")
+                                },
+                                style = textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                // weight 只吃剩余空间、不撑满，箭头才会紧跟在文字尾部
+                                modifier = Modifier.weight(1f, fill = false),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (onOpenWeather != null) {
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Icon(
+                                    imageVector = MiuixIcons.ChevronForward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
                             }
-                        }
-                    } else if (weather.apiError) {
-                        Box(modifier = Modifier.padding(vertical = 4.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Image(
-                                    painter = painterResource(
-                                        Res.drawable.ic_widget_location
-                                    ),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = AssistantStr.weatherServiceTapRetry(),
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                    modifier = Modifier.clickable { onRequestLocation() }
-                                )
+                        } else if (weather.needsLocation) {
+                            Box(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Image(
+                                        painter = painterResource(Res.drawable.ic_widget_location),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (hasLocationPermission) {
+                                            AssistantStr.locationFailedTapRetry()
+                                        } else {
+                                            AssistantStr.locationPermissionNeeded()
+                                        },
+                                        style = textStyles.body2,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        modifier = Modifier.clickable { onRequestLocation() }
+                                    )
+                                }
                             }
+                        } else if (weather.apiError) {
+                            Box(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Image(
+                                        painter = painterResource(Res.drawable.ic_widget_location),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = AssistantStr.weatherServiceTapRetry(),
+                                        style = textStyles.body2,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        modifier = Modifier.clickable { onRequestLocation() }
+                                    )
+                                }
+                            }
+                        } else {
+                            WeatherIcon(
+                                resource = Res.drawable.icon_overcast,
+                                size = 23.dp,
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = CommonStr.loading(),
+                                style = textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            )
                         }
-                    } else {
-                        WeatherIcon(
-                            resource = Res.drawable.icon_overcast,
-                            size = 23.dp,
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = CommonStr.loading(),
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
                     }
                 }
             }
         }
-    }
         fireworksOverlay?.invoke(
             fireworksTrigger,
             Modifier

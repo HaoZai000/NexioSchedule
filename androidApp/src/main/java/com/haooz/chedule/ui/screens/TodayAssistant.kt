@@ -3,22 +3,20 @@ package com.haooz.chedule.ui.screens
 // ════════════════════════════════════════════════════════════════════════
 //  今日助手卡 · Android 侧数据来源
 //
-//  卡片本体与纯逻辑已迁 `:ui-shared` 的 `TodayAssistantCard.kt`（同包，不同文件）。
-//  本文件只剩**平台专有部分**：定位（LocationManager / Geocoder / 权限）、
-//  天气 HTTP（OkHttp）、JSON（Gson）、缓存与刷新节流。
+//  卡片本体与纯逻辑在 `:ui-shared` 的 `TodayAssistantCard.kt`；天气抓取与融合在
+//  `:ui-shared` 的 `weather/`（走 :core 的 HttpService，全平台一份）。
+//  本文件只剩**Android 专有的一件事**：拿坐标（LocationManager + 权限）。
 //
 //  宿主（MainActivity）用法：
 //      todayAssistantCard = { d ->
 //          val (weather, hasPerm, request) = rememberWeather()
-//          TodayAssistantCard(weather, hasPerm, request, d.courses, …,
-//                              fireworksOverlay = { t, m -> FireworksOverlay(t, m) })
+//          TodayAssistantCard(weather, hasPerm, request, d.courses, …)
 //      }
 // ════════════════════════════════════════════════════════════════════════
 
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.location.Geocoder
 import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,64 +24,36 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import com.google.gson.Gson
 import com.haooz.chedule.data.platform.PrivacyConsent
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.ui.activities.today.WeatherData
-import java.util.Locale
-import java.util.concurrent.TimeUnit
+import com.haooz.chedule.ui.activities.today.toCardData
+import com.haooz.chedule.weather.WeatherPlace
+import com.haooz.chedule.weather.WeatherRepository
+import com.haooz.chedule.weather.WeatherStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 
-// 供设置页作废缓存，下次进入今日页按新设置重拉
+/** 卡片自己的三种"没有数据"状态，有快照时全被覆盖。 */
+private enum class WeatherPhase { IDLE, NEEDS_LOCATION, FAILED }
+
+/**
+ * 设置页改天气源后作废缓存 —— 下次进今日页按新设置重拉。
+ *
+ * 只作废存储层缓存，不主动重拉：设置页出栈时今日页会重组，`weather_source` 是
+ * `LaunchedEffect` 的 key，自己就会重跑一次。
+ */
 fun invalidateWeatherCache() {
-    lastWeatherFetchTime = 0L
-    cachedWeather = null
+    WeatherStore.invalidate()
 }
-private val httpClient = OkHttpClient.Builder()
-    .connectTimeout(5, TimeUnit.SECONDS)
-    .readTimeout(5, TimeUnit.SECONDS)
-    .build()
-private var lastWeatherFetchTime = 0L
-private var cachedWeather: WeatherData? = null
-private const val WEATHER_REFRESH_INTERVAL = 2 * 60 * 1000L
 
-// assets/city_code.json 懒加载后进程内缓存
-private var cityCodeMap: Map<String, String>? = null
-private val cityCodeMapLock = Any()
-private fun getCityCodeMap(context: Context): Map<String, String> {
-    cityCodeMap?.let { return it }
-    synchronized(cityCodeMapLock) {
-        cityCodeMap?.let { return it }
-        val map = mutableMapOf<String, String>()
-        try {
-            context.assets.open("city_code.json").bufferedReader().use { reader ->
-                @Suppress("UNCHECKED_CAST")
-                val root = Gson().fromJson(reader.readText(), Map::class.java) as? Map<String, Any>
-                @Suppress("UNCHECKED_CAST")
-                val provinces = root?.get("城市代码") as? List<Map<String, Any>>
-                provinces?.forEach { province ->
-                    @Suppress("UNCHECKED_CAST")
-                    (province["市"] as? List<Map<String, Any>>)?.forEach { city ->
-                        val name = city["市名"] as? String
-                        val code = city["编码"] as? String
-                        if (!name.isNullOrBlank() && !code.isNullOrBlank()) map[name] = code
-                    }
-                }
-            }
-        } catch (_: Exception) { }
-        cityCodeMap = map
-        return map
-    }
-}
 // GPS 优先，回退 NETWORK；无权限/未开定位/无记录返回 null
 @Suppress("MissingPermission")
 private fun getLastKnownLocation(context: Context, useLocation: Boolean): android.location.Location? {
@@ -108,95 +78,38 @@ private fun getLastKnownLocation(context: Context, useLocation: Boolean): androi
     }
 }
 
-// 记录上次定位，供关闭定位权限后回退
-private fun saveLastLocation(
-    context: Context,
-    name: String,
-    cityCode: String? = null,
-    lngLat: String? = null
-) {
+// 记录上次定位：关掉定位权限后仍能靠它出天气（城市级精度够用很久）
+private fun saveLastLocation(context: Context, lngLat: String, name: String?) {
     AppStorage.store("weather_prefs").edit {
-        putString("last_location_name", name)
-        if (cityCode != null) putString("last_city_code", cityCode)
-        if (lngLat != null) putString("last_lnglat", lngLat)
+        if (!name.isNullOrBlank()) putString("last_location_name", name)
+        putString("last_lnglat", lngLat)
     }
 }
 
-// 上次定位经纬度（无权限时彩云回退用）
+/** 上次定位经纬度（存的是 "lng,lat"，与旧版本键名保持一致，升级不丢定位）。 */
 private fun readLastLngLat(context: Context): Pair<Double, Double>? {
-    val s = AppStorage.store("weather_prefs")
-        .getStringOrNull("last_lnglat") ?: return null
+    val s = AppStorage.store("weather_prefs").getStringOrNull("last_lnglat") ?: return null
     val parts = s.split(",")
     if (parts.size != 2) return null
     val lng = parts[0].toDoubleOrNull() ?: return null
     val lat = parts[1].toDoubleOrNull() ?: return null
-    return Pair(lng, lat)
-}
-
-// 定位 → Geocoder → citykey；无定位时回退上次 citykey
-private fun resolveCityCode(context: Context, useLocation: Boolean): String? {
-    val map = getCityCodeMap(context)
-    val loc = getLastKnownLocation(context, useLocation)
-    if (loc == null) {
-        return AppStorage.store("weather_prefs")
-            .getStringOrNull("last_city_code")
-    }
-    return try {
-        val geocoder = Geocoder(context, Locale.getDefault())
-        @Suppress("DEPRECATION")
-        val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
-        val addr = addresses?.firstOrNull()
-        // locality > subAdminArea > adminArea（直辖市兜底）
-        val candidates = listOfNotNull(
-            addr?.locality, addr?.subAdminArea, addr?.adminArea
-        ).filter { it.isNotBlank() }
-        for (raw in candidates) {
-            val cleaned = raw.removeSuffix("市")
-                .removeSuffix("地区").removeSuffix("自治州").removeSuffix("盟")
-            // 直辖市 locality 可能是区名，剥「区」后也能匹配区码
-            val cleanedDistrict = if (cleaned.endsWith("区") && cleaned.length > 2)
-                cleaned.removeSuffix("区") else cleaned
-            val code = map[cleanedDistrict] ?: map[cleaned] ?: map[raw]
-            if (code != null) {
-                saveLastLocation(context, raw, cityCode = code)
-                return code
-            }
-        }
-        null
-    } catch (_: Exception) {
-        null
-    }
-}
-
-// 彩云源取经纬度；无定位时回退上次经纬度
-private fun resolveCoordinates(context: Context, useLocation: Boolean): Pair<Double, Double>? {
-    val loc = getLastKnownLocation(context, useLocation)
-    if (loc == null) return readLastLngLat(context)
-    val lng = loc.longitude
-    val lat = loc.latitude
-    val name = try {
-        val geocoder = Geocoder(context, Locale.getDefault())
-        @Suppress("DEPRECATION")
-        val addresses = geocoder.getFromLocation(lat, lng, 1)
-        val addr = addresses?.firstOrNull()
-        listOfNotNull(addr?.locality, addr?.subAdminArea, addr?.adminArea)
-            .firstOrNull { it.isNotBlank() }
-    } catch (_: Exception) {
-        null
-    }
-    saveLastLocation(context, name ?: "%.2f,%.2f".format(lat, lng), lngLat = "$lng,$lat")
-    return Pair(lng, lat) // 彩云 URL 经度在前
+    return Pair(lng, lat) // 经度在前，与写入时一致
 }
 
 @Composable
 fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
     val context = LocalContext.current
     val weatherPrefs = remember { AppStorage.store("weather_prefs") }
-    val weatherSource = weatherPrefs.getString("weather_source", "caiyun")
+    // 源改了要重拉；旧的 "caiyun"/"itboy" 由 Source.from 统一回落到融合源，无需迁移
+    val sourceKey = weatherPrefs.getString("weather_source", "fusion")
     // 合规：可观察的隐私同意状态；未同意前不定位/不查询，同意后自动重新执行
-    val privacyConsented by com.haooz.chedule.data.platform.PrivacyConsent.consented.collectAsState()
+    val privacyConsented by PrivacyConsent.consented.collectAsState()
 
-    var weather by remember { mutableStateOf(cachedWeather ?: WeatherData()) }
+    val snapshot by WeatherStore.snapshot.collectAsState()
+    // 详情页点「重试」时若本卡还没定位过，靠这个信号把定位流程再走一遍
+    val refreshToken by WeatherStore.refreshToken.collectAsState()
+
+    var phase by remember { mutableStateOf(WeatherPhase.IDLE) }
     var hasLocationPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -211,118 +124,60 @@ fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
         hasLocationPermission = grants.values.any { it }
-        if (hasLocationPermission) lastWeatherFetchTime = 0L // 授权后强制刷新
+        if (hasLocationPermission) WeatherStore.invalidate() // 授权后强制刷新
     }
 
-    var refreshTrigger by remember { mutableStateOf(0) }
+    var refreshTrigger by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(hasLocationPermission, weatherSource, refreshTrigger, privacyConsented) {
+    LaunchedEffect(hasLocationPermission, sourceKey, refreshTrigger, privacyConsented, refreshToken) {
         // 合规：用户同意隐私政策前，不进行定位与天气数据获取；同意后会因 key 变化自动重跑
         if (!privacyConsented) return@LaunchedEffect
-        val now = System.currentTimeMillis()
-        if (now - lastWeatherFetchTime < WEATHER_REFRESH_INTERVAL && cachedWeather != null) {
-            weather = cachedWeather!!
-            return@LaunchedEffect
-        }
-        lastWeatherFetchTime = now
         withContext(Dispatchers.IO) {
-            when (weatherSource) {
-                "caiyun" -> {
-                    val coords = resolveCoordinates(context, hasLocationPermission)
-                    if (coords == null) {
-                        weather = WeatherData(needsLocation = true, loaded = true)
-                        return@withContext
-                    }
-                    try {
-                        val (lng, lat) = coords
-                        val url = "https://v1.apizero.cn/api/weather?location=$lng,$lat"
-                        val request = Request.Builder().url(url).build()
-                        httpClient.newCall(request).execute().use { resp ->
-                            val body = resp.body?.string() ?: return@use
-                            @Suppress("UNCHECKED_CAST")
-                            val json = Gson().fromJson(body, Map::class.java) as? Map<String, Any> ?: return@use
-                            val code = (json["code"] as? Number)?.toInt() ?: -1
-                            if (code != 0) {
-                                val errorData = WeatherData(loaded = true, apiError = true)
-                                cachedWeather = errorData
-                                weather = errorData
-                                return@use
-                            }
-                            @Suppress("UNCHECKED_CAST")
-                            val data = json["data"] as? Map<String, Any> ?: return@use
-                            @Suppress("UNCHECKED_CAST")
-                            val summary = data["summary"] as? Map<String, Any> ?: return@use
-                            val temp = (summary["temperature"] as? Number)?.toFloat() ?: Float.NaN
-                            val type = (summary["skycon"] as? String).orEmpty()
-                            val notice = (data["forecast_keypoint"] as? String).orEmpty()
-                            @Suppress("UNCHECKED_CAST")
-                            val daily = data["daily"] as? Map<String, Any> ?: return@use
-                            @Suppress("UNCHECKED_CAST")
-                            val astroList = daily["astro"] as? List<Map<String, Any>> ?: emptyList()
-                            val astro = astroList.firstOrNull() ?: return@use
-                            @Suppress("UNCHECKED_CAST")
-                            val sunriseObj = astro["sunrise"] as? Map<String, Any>
-                            @Suppress("UNCHECKED_CAST")
-                            val sunsetObj = astro["sunset"] as? Map<String, Any>
-                            val sunrise = (sunriseObj?.get("time") as? String).orEmpty()
-                            val sunset = (sunsetObj?.get("time") as? String).orEmpty()
-                            val newData = WeatherData(temp, type, sunset, sunrise, notice, true)
-                            cachedWeather = newData
-                            weather = newData
-                        }
-                    } catch (_: Exception) {
-                        val errorData = WeatherData(loaded = true, apiError = true)
-                        cachedWeather = errorData
-                        weather = errorData
-                    }
-                }
-                else -> {
-                    // 中国天气网：定位 → citykey → 拉取
-                    val cityCode = resolveCityCode(context, hasLocationPermission)
-                    if (cityCode == null) {
-                        weather = WeatherData(needsLocation = true, loaded = true)
-                        return@withContext
-                    }
-                    try {
-                        val url = "http://t.weather.itboy.net/api/weather/city/$cityCode"
-                        val request = Request.Builder().url(url).build()
-                        httpClient.newCall(request).execute().use { resp ->
-                            val body = resp.body?.string() ?: return@use
-                            @Suppress("UNCHECKED_CAST")
-                            val json = Gson().fromJson(body, Map::class.java) as? Map<String, Any> ?: return@use
-                            @Suppress("UNCHECKED_CAST")
-                            val data = json["data"] as? Map<String, Any> ?: return@use
-                            val wendu = (data["wendu"] as? String).orEmpty()
-                            val temp = wendu.substringBefore("℃").trim().toFloatOrNull() ?: Float.NaN
-                            @Suppress("UNCHECKED_CAST")
-                            val forecast = data["forecast"] as? List<Map<String, Any>> ?: emptyList()
-                            val today = forecast.firstOrNull() ?: return@use
-                            val type = (today["type"] as? String).orEmpty()
-                            val sunrise = (today["sunrise"] as? String).orEmpty()
-                            val sunset = (today["sunset"] as? String).orEmpty()
-                            val notice = (today["notice"] as? String).orEmpty()
-                            val newData = WeatherData(temp, type, sunset, sunrise, notice, true)
-                            cachedWeather = newData
-                            weather = newData
-                        }
-                    } catch (_: Exception) {
-                        val errorData = WeatherData(loaded = true, apiError = true)
-                        cachedWeather = errorData
-                        weather = errorData
-                    }
-                }
+            val loc = getLastKnownLocation(context, hasLocationPermission)
+            val coords = if (loc != null) Pair(loc.latitude, loc.longitude)
+            else readLastLngLat(context)?.let { (lng, lat) -> Pair(lat, lng) }
+            if (coords == null) {
+                phase = WeatherPhase.NEEDS_LOCATION
+                return@withContext
+            }
+            val (lat, lng) = coords
+            val place = WeatherPlace(latitude = lat, longitude = lng)
+            val loaded = WeatherStore.ensureLoaded(place, WeatherRepository.Source.from(sourceKey))
+            if (loaded != null) {
+                phase = WeatherPhase.IDLE
+                // 数据源自己反查的城市名比 Geocoder 稳（海外、离线都不用额外权限）
+                saveLastLocation(context, "$lng,$lat", loaded.placeName)
+            } else {
+                phase = WeatherPhase.FAILED
             }
         }
     }
+
+    val weather = remember(snapshot, phase) {
+        snapshot?.toCardData() ?: when (phase) {
+            WeatherPhase.NEEDS_LOCATION -> WeatherData(needsLocation = true, loaded = true)
+            WeatherPhase.FAILED -> WeatherData(loaded = true, apiError = true)
+            WeatherPhase.IDLE -> WeatherData()
+        }
+    }
+
     // 合规：未同意隐私政策前不申请定位权限，也不触发天气查询
-    val onRequestWeather: () -> Unit = {
-        if (privacyConsented) {
-            if (!hasLocationPermission) {
-                permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-            } else {
-                lastWeatherFetchTime = 0L
-                weather = WeatherData(loaded = false)
-                refreshTrigger++
+    // 记一次：每次重组都新建 lambda，会让下级卡片拿不到稳定引用、白白跟着重组
+    val onRequestWeather: () -> Unit = remember(privacyConsented, hasLocationPermission) {
+        {
+            if (privacyConsented) {
+                if (!hasLocationPermission) {
+                    permissionLauncher.launch(
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    )
+                } else {
+                    WeatherStore.invalidate()
+                    phase = WeatherPhase.IDLE
+                    refreshTrigger++
+                }
             }
         }
     }

@@ -10,24 +10,18 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.haooz.chedule.data.platform.createHttpService
-import com.haooz.chedule.data.util.optDouble
-import com.haooz.chedule.data.util.optInt
-import com.haooz.chedule.data.util.optJsonArray
-import com.haooz.chedule.data.util.optJsonObject
-import com.haooz.chedule.data.util.optString
-import com.haooz.chedule.data.platform.HttpService
-import com.haooz.chedule.data.platform.HttpTimeouts
 import com.haooz.chedule.data.platform.PrivacyConsent
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.storage.AppStorage
-import com.haooz.chedule.data.util.parseJsonObject
 import com.haooz.chedule.ui.activities.today.WeatherData
+import com.haooz.chedule.ui.activities.today.toCardData
+import com.haooz.chedule.weather.WeatherPlace
+import com.haooz.chedule.weather.WeatherRepository
+import com.haooz.chedule.weather.WeatherStore
 import kotlin.coroutines.resume
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
 import platform.CoreLocation.CLLocation
 import platform.CoreLocation.CLLocationManager
 import platform.CoreLocation.CLLocationManagerDelegateProtocol
@@ -42,15 +36,8 @@ import platform.darwin.NSObject
  *
  * ## 与 Android 的分工
  *
- * 卡片本体与展示逻辑已迁 `:ui-shared` 的 `TodayAssistantCard.kt`；本文件只负责**取数**：
- * CoreLocation 拿坐标 → 共享 `HttpService`（NSURLSession）拉天气 → 包成共享 [WeatherData]。
- * 合约与 Android 一致：`Triple<WeatherData, hasLocationPermission, onRequestLocation>`。
- *
- * ## 与 Android 的行为差异（有意为之）
- *
- * Android 有两套源（`caiyun` 按经纬度 / 中国天气网按城市码）。**iOS 只做经纬度那套**：
- * 城市码源依赖 `getCityCodeMap(context)` 读 Android assets 城市表，iOS 没有这份资产；且默认源
- * 就是 `caiyun`、精度更高 —— 故 iOS 恒走经纬度源，`weather_source` 在 iOS 不参与分支。
+ * 卡片本体在 `:ui-shared` 的 `TodayAssistantCard.kt`；抓取与多源融合也在共享层的
+ * `weather/`（走 :core 的 `HttpService` → NSURLSession）。**本文件只剩 CoreLocation**。
  *
  * ## 合规
  *
@@ -58,19 +45,12 @@ import platform.darwin.NSObject
  * 是 StateFlow，同意后自动重跑（在 `LaunchedEffect` 的 key 里）。
  */
 
-/** 天气缓存与刷新节流：与 Android 的 `WEATHER_REFRESH_INTERVAL` 同值（30 分钟） */
-private const val WEATHER_REFRESH_INTERVAL = 30L * 60L * 1000L
-private var lastFetchTime = 0L
-private var cachedWeatherIos: WeatherData? = null
+/** 卡片自己的三种"没有数据"状态，有快照时全被覆盖。 */
+private enum class IosWeatherPhase { IDLE, NEEDS_LOCATION, FAILED }
 
-private val http: HttpService by lazy {
-    createHttpService(HttpTimeouts(connectSeconds = 12, readSeconds = 20))
-}
-
-/** 设置页改天气源后作废缓存（与 Android `invalidateWeatherCache` 对应） */
+/** 设置页改天气源后作废缓存（与 Android `invalidateWeatherCache` 对应）。 */
 fun invalidateWeatherCacheIos() {
-    lastFetchTime = 0L
-    cachedWeatherIos = null
+    WeatherStore.invalidate()
 }
 
 /**
@@ -80,105 +60,58 @@ fun invalidateWeatherCacheIos() {
  */
 @Composable
 fun rememberWeatherIos(): Triple<WeatherData, Boolean, () -> Unit> {
-    // 与 Android 一样读一次天气源偏好（iOS 不做分支，但保留读取以免将来对齐）
     val weatherPrefs = remember { AppStorage.store("weather_prefs") }
-    remember { weatherPrefs.getString("weather_source", "caiyun") }
+    // 每次重组都现读：设置页改完源回来要立刻生效
+    val sourceKey = weatherPrefs.getString("weather_source", "fusion")
 
     // 合规：未同意前不定位、不查询；同意后 key 变化自动重跑
     val privacyConsented by PrivacyConsent.consented.collectAsState()
+    val snapshot by WeatherStore.snapshot.collectAsState()
+    val refreshToken by WeatherStore.refreshToken.collectAsState()
 
     val locationClient = remember { IosLocationClient() }
-    var weather by remember { mutableStateOf(cachedWeatherIos ?: WeatherData()) }
+    var phase by remember { mutableStateOf(IosWeatherPhase.IDLE) }
     var hasLocationPermission by remember { mutableStateOf(locationClient.isAuthorized()) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(hasLocationPermission, refreshTrigger, privacyConsented) {
+    LaunchedEffect(hasLocationPermission, sourceKey, refreshTrigger, privacyConsented, refreshToken) {
         if (!privacyConsented) return@LaunchedEffect
-        val now = Clock.System.now().toEpochMilliseconds()
-        val cached = cachedWeatherIos
-        if (cached != null && now - lastFetchTime < WEATHER_REFRESH_INTERVAL) {
-            weather = cached
-            return@LaunchedEffect
-        }
-        lastFetchTime = now
-
         val coords = if (hasLocationPermission) locationClient.requestLocation() else null
         if (coords == null) {
-            weather = WeatherData(needsLocation = true, loaded = true)
+            phase = IosWeatherPhase.NEEDS_LOCATION
             return@LaunchedEffect
         }
-        val data = withContext(ioDispatcher) { fetchWeather(coords.first, coords.second) }
-        cachedWeatherIos = data
-        weather = data
+        // pairOf 给的是 (latitude, longitude)，别跟 Android 的 (lng, lat) 混了
+        val place = WeatherPlace(latitude = coords.first, longitude = coords.second)
+        val loaded = withContext(ioDispatcher) {
+            WeatherStore.ensureLoaded(place, WeatherRepository.Source.from(sourceKey))
+        }
+        phase = if (loaded != null) IosWeatherPhase.IDLE else IosWeatherPhase.FAILED
     }
 
-    val onRequestWeather: () -> Unit = {
-        if (privacyConsented) {
-            if (!hasLocationPermission) {
-                locationClient.requestAuthorization { granted -> hasLocationPermission = granted }
-            } else {
-                lastFetchTime = 0L
-                weather = WeatherData(loaded = false)
-                refreshTrigger++
+    val weather = remember(snapshot, phase) {
+        snapshot?.toCardData() ?: when (phase) {
+            IosWeatherPhase.NEEDS_LOCATION -> WeatherData(needsLocation = true, loaded = true)
+            IosWeatherPhase.FAILED -> WeatherData(loaded = true, apiError = true)
+            IosWeatherPhase.IDLE -> WeatherData()
+        }
+    }
+
+    // 记一次：每次重组都新建 lambda，会让下级卡片拿不到稳定引用、白白跟着重组
+    val onRequestWeather: () -> Unit = remember(privacyConsented, hasLocationPermission) {
+        {
+            if (privacyConsented) {
+                if (!hasLocationPermission) {
+                    locationClient.requestAuthorization { granted -> hasLocationPermission = granted }
+                } else {
+                    WeatherStore.invalidate()
+                    phase = IosWeatherPhase.IDLE
+                    refreshTrigger++
+                }
             }
         }
     }
     return Triple(weather, hasLocationPermission, onRequestWeather)
-}
-
-/**
- * 拉天气（和风/apizero 聚合接口，与 Android `caiyun` 分支同一 URL 与字段）。
- *
- * 失败一律返回 `apiError = true` 的已加载态（同 Android 兜底：卡片显示「获取失败」而不是一直转圈）。
- */
-private suspend fun fetchWeather(lng: Double, lat: Double): WeatherData {
-    val error = WeatherData(loaded = true, apiError = true)
-    return try {
-        val resp = http.get("https://v1.apizero.cn/api/weather?location=$lng,$lat")
-        if (!resp.isSuccessful) return error
-        val json = parseJsonObject(resp.text)
-        if (json.optInt("code", -1) != 0) return error
-        val data = json.optJsonObject("data") ?: return error
-        val summary = data.optJsonObject("summary") ?: return error
-        val temperature = summary.optDouble("temperature", Double.NaN).toFloat()
-        val skycon = summary.optString("skycon")
-        val notice = data.optString("forecast_keypoint")
-        val astro = data.optJsonObject("daily")
-            ?.optJsonArray("astro")
-            ?.optJsonObject(0)
-        val sunrise = astro?.optJsonObject("sunrise")?.optString("time").orEmpty()
-        val sunset = astro?.optJsonObject("sunset")?.optString("time").orEmpty()
-        WeatherData(
-            temperature = temperature,
-            weatherType = skyconToChinese(skycon),
-            sunset = sunset,
-            sunrise = sunrise,
-            notice = notice,
-            loaded = true,
-        )
-    } catch (_: Exception) {
-        error
-    }
-}
-
-/**
- * 和风 `skycon`（英文枚举）→ 中国天气网风格的中文描述。
- *
- * 卡片的 `getWeatherIconRes` 按**中文关键词**匹配图标，不转中文会全部落到兜底的「晴」。
- */
-private fun skyconToChinese(skycon: String): String = when (skycon.uppercase()) {
-    "CLEAR_DAY" -> "晴"
-    "CLEAR_NIGHT" -> "晴"
-    "PARTLY_CLOUDY_DAY" -> "多云"
-    "PARTLY_CLOUDY_NIGHT" -> "多云"
-    "CLOUDY" -> "阴"
-    "LIGHT_HAZE", "MODERATE_HAZE", "HEAVY_HAZE" -> "霾"
-    "LIGHT_RAIN", "MODERATE_RAIN", "HEAVY_RAIN", "STORM_RAIN" -> "雨"
-    "FOG" -> "雾"
-    "LIGHT_SNOW", "MODERATE_SNOW", "HEAVY_SNOW", "STORM_SNOW" -> "雪"
-    "DUST", "SAND" -> "浮尘"
-    "WIND" -> "晴"
-    else -> skycon
 }
 
 /**

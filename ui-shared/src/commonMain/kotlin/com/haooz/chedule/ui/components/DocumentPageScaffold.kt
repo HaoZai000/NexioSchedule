@@ -49,7 +49,10 @@ fun DocumentPageScaffold(
     title: String,
     onBack: () -> Unit,
     recordKey: Any? = null,
-    endAction: (@Composable (backdropAlpha: Float, shadowAlpha: Float) -> Unit)? = null,
+    // 第三个参数是**页面采样层本身**：顶栏玻璃按钮要拿它当 backdrop，才能真的折射内容。
+    // 以前调用方各自 `rememberLayerBackdrop()` 造一个空层，渲染出来是一颗纯色圆 ——
+    // 看着"没有玻璃效果"就是这个原因。
+    endAction: (@Composable (backdropAlpha: Float, shadowAlpha: Float, backdrop: com.kyant.backdrop.Backdrop) -> Unit)? = null,
     overlay: (@Composable BoxScope.(liquidGlassBackdrop: com.kyant.backdrop.Backdrop) -> Unit)? = null,
     content: @Composable (
         scrollBehavior: SharedScrollBehavior,
@@ -121,7 +124,13 @@ fun DocumentPageScaffold(
                                 )
                             }
                         } else null,
-                        endAction = if (showNavigationActions) endAction else null,
+                        endAction = if (showNavigationActions) {
+                            endAction?.let { action ->
+                                { backdropAlpha, shadowAlpha ->
+                                    action(backdropAlpha, shadowAlpha, liquidGlassBackdrop)
+                                }
+                            }
+                        } else null,
                     )
                 }
             }

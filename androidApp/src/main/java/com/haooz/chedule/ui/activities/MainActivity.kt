@@ -51,6 +51,7 @@ import com.haooz.chedule.ui.activities.main.bitmapRecycler
 import com.haooz.chedule.ui.activities.today.TodayAssistantCard
 import com.haooz.chedule.ui.components.SharedFileIntent
 import com.haooz.chedule.ui.navigation.AppNavHost
+import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouteContent
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.navigation.MainLayerTransition
@@ -611,8 +612,10 @@ fun AndroidCourseScheduleApp(privacyConsented: Boolean) {
             AndroidSettingsPane(args)
         },
         todayAssistantCard = { d ->
-            // 天气/定位是 Android 能力（LocationManager + OkHttp），在宿主算好传给共享卡片
+            // 天气/定位是 Android 能力（LocationManager），在宿主算好传给共享卡片；
+            // 抓取与多源融合在 :ui-shared 的 weather/，卡片与详情页共用同一份缓存
             val (weather, hasLocationPermission, requestLocation) = rememberWeather()
+            val router = LocalAppRouter.current
             TodayAssistantCard(
                 weather = weather,
                 hasLocationPermission = hasLocationPermission,
@@ -631,6 +634,7 @@ fun AndroidCourseScheduleApp(privacyConsented: Boolean) {
                 fireworksOverlay = { trigger, modifier ->
                     FireworksOverlay(trigger = trigger, modifier = modifier)
                 },
+                onOpenWeather = { router.navigate(AppRoute.Weather) },
             )
         },
         updateController = remember { AndroidUpdateController(context) },
