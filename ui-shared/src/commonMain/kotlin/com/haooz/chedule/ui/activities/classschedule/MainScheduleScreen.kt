@@ -1941,12 +1941,23 @@ private fun AnimatedDropTargetMask(
             with(density) { cardCornerRadius.dp.toPx() }
         }
         val glassRedraw = LocalGlassRedrawSignal.current
-        val maskSoftModifier = remember(softGlassSurface, maskRadiusPx, density, glassRedraw) {
+        // 遮罩位置/尺寸由 Animatable 每帧驱动，offset/layout 只搬图层、不触发 draw；
+        // 必须把这些值读进绘制失效信号，否则拖拽时玻璃采样跟着卡片平移、不重新采样。
+        val maskRedraw: () -> Unit = remember(left, top, width, height, glassRedraw) {
+            {
+                left.value
+                top.value
+                width.value
+                height.value
+                glassRedraw()
+            }
+        }
+        val maskSoftModifier = remember(softGlassSurface, maskRadiusPx, density, maskRedraw) {
             softGlassSurface?.modifier(
                 density = density,
                 radiusPx = maskRadiusPx,
                 origin = { maskSoftOrigin[0] },
-                redraw = glassRedraw,
+                redraw = maskRedraw,
             )
         }
 
