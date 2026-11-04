@@ -6,6 +6,7 @@ import com.haooz.chedule.data.model.TimeConfig
 import com.haooz.chedule.data.model.TimeRoutine
 import com.haooz.chedule.data.platform.randomUuidV4
 import com.haooz.chedule.data.repo.CourseRepository
+import com.haooz.chedule.data.util.formatSlashDate
 import com.haooz.chedule.data.util.minusDays
 import com.haooz.chedule.data.util.minusWeeks
 import com.haooz.chedule.data.util.todayLocalDate
@@ -150,6 +151,12 @@ fun applyScheduleData(
             // JSON 导出有 startSection；ICS 需按时间映射节次
             val directStartSection = (courseMap["startSection"] as? Number)?.toInt()
             val directEndSection = (courseMap["endSection"] as? Number)?.toInt()
+            // 自定义时间的课（ICS 里靠 X-NEXIO-CUSTOM-* 带回来）：节次只是占位，
+            // 真正的时间来自 customStartTime/customEndTime。跨午夜课如果硬走钟点映射，
+            // findSectionByTime 必然失败、整门课被丢掉，所以这里给个兜底节次。
+            val isCustomTimeCourse = (courseMap["isCustomTime"] as? Boolean) == true &&
+                !(courseMap["customStartTime"] as? String).isNullOrBlank() &&
+                !(courseMap["customEndTime"] as? String).isNullOrBlank()
             val sectionPair = if (directStartSection != null && directEndSection != null) {
                 Pair(directStartSection, directEndSection)
             } else {
@@ -157,6 +164,7 @@ fun applyScheduleData(
                 val endTotalMinutes = (courseMap["endTotalMinutes"] as? Number)?.toInt()
                 if (startTotalMinutes != null && endTotalMinutes != null) {
                     findSectionByTime(startTotalMinutes, endTotalMinutes)
+                        ?: if (isCustomTimeCourse) Pair(1, 1) else null
                 } else null
             }
 
@@ -342,8 +350,26 @@ fun applyScheduleData(
         if (settings != null) {
             scheduleViewModel.switchToSchedule(scheduleName)
 
-            (settings["class_start_time"] as? String)?.let { viewModel.setClassStartTime(it) }
-            (settings["current_week"] as? Number)?.toInt()?.let { viewModel.setCurrentWeek(it) }
+            // ⚠ 顺序与条件都是有意的：setCurrentWeek 在「周数与当前不同」时会重算并写回
+            // 开学日（那是给「手动选周」设计的 rebase）。导入时两者几乎必然不等 —— 源设备
+            // 导出时的周次 ≠ 接收方按今天算出的周次 —— 所以它会把刚写进去的开学日改掉，
+            // 表现为整张课表日期整体偏移。current_week 本来就能由日期推出，故只在备份
+            // 没有带开学日时才拿它兜底。
+            val importedClassStartTime = settings["class_start_time"] as? String
+            // ICS 没有开学日字段（IcsCodec 给的 settings 是空 map），上面反推出的周一原本
+            // 只用于算周次。不落库的话新表会落到「今天」，第 N 周的课全挤到今天附近 ——
+            // 周次编号对、绝对日期全错。这里补写一次（repo 侧对非法日期会直接忽略）。
+            val icsStart = icsClassStartDate
+            if (importedClassStartTime != null) {
+                viewModel.setClassStartTime(importedClassStartTime)
+            } else if (icsStart != null && !nameTaken) {
+                // 只在新建课表时写：覆盖导入到已有课表时，那张表的开学日是用户自己设的，
+                // 不该被 ICS 反推值改掉。
+                CourseRepository.getInstance()
+                    .setClassStartTime(scheduleName, icsStart.formatSlashDate())
+            } else {
+                (settings["current_week"] as? Number)?.toInt()?.let { viewModel.setCurrentWeek(it) }
+            }
             (settings["total_weeks"] as? Number)?.toInt()?.let { viewModel.setTotalWeeks(it) }
             if (reorganizationFieldPresent && !CourseRepository.getInstance()
                     .setTeachingWeekReorganizations(
