@@ -1,6 +1,7 @@
 package com.haooz.chedule.calendar
 
 import android.Manifest
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
@@ -12,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.ui.activities.CalendarSyncResult
 import com.haooz.chedule.ui.activities.ScheduleCalendarEvent
 import com.haooz.chedule.ui.activities.buildScheduleCalendarEvents
@@ -28,7 +30,14 @@ import java.time.ZoneId
  * 不做二次解释弹窗（用户再点一次系统还会问）。
  *
  * 只写进「可写且可见」的日历（优先主日历）；宁可报 [CalendarSyncResult.NoWritableCalendar]
- * 也不自建账户 —— 自建本地日历在多数国产 ROM 上会被日历应用隐藏。
+ * 也不自建账户 —— 自建本地账户在多数国产 ROM 上会被日历应用隐藏。
+ *
+ * 提醒口径跟随「课程提醒 → 课前提醒」：开着的按同一提前量写 `Reminders`，
+ * 关着就写静默事件（`HAS_ALARM = 0`），两边不会一个响一个不响。
+ *
+ * **每次同步是覆盖，不是追加**：先按 `CUSTOM_APP_PACKAGE` 标记清掉本包写过的全部事件，再全量重写。
+ * 课表里删掉的课、改过的时间、改过的课名都不会留残影；代价是用户在日历里给这些事件手加的
+ * 备注/自定义项会一起没掉（这正是「以课表为准」该有的语义）。
  */
 object CalendarScheduleSync {
 
@@ -55,12 +64,34 @@ object CalendarScheduleSync {
         return withContext(Dispatchers.IO) {
             val calendarId = writableCalendarId(context)
                 ?: return@withContext CalendarSyncResult.NoWritableCalendar
-            // 已存在的按「同一日历 + 同一开始时刻 + 同一标题」跳过，重复点不会堆重复日程
+            val reminderMinutes = reminderLeadMinutes()
+            val owner = context.packageName
+            // 整批清掉本包写过的旧事件：课表里删掉的课、改过的时间都不该在日历里留残影。
+            // 这一步失败不拦着 —— 下面按签名删还能兜住目标日历里的重复。
+            runCatching {
+                context.contentResolver.delete(
+                    CalendarContract.Events.CONTENT_URI,
+                    "${CalendarContract.Events.CUSTOM_APP_PACKAGE} = ?",
+                    arrayOf(owner),
+                )
+            }
             val written = runCatching {
-                for (event in events) insertIfAbsent(context, calendarId, event)
+                for (event in events) writeEvent(context, calendarId, owner, event, reminderMinutes)
             }
             if (written.isSuccess) CalendarSyncResult.Success(events.size) else CalendarSyncResult.Failed
         }
+    }
+
+    /**
+     * 日历事件的提醒提前量，与「课程提醒 → 课前提醒」同一口径。
+     *
+     * 课前提醒关着就返回 null（写静默事件）—— 用户关掉的是「提醒」这件事本身，
+     * 不该只因为写进了日历就又开始响。
+     */
+    private fun reminderLeadMinutes(): Int? {
+        val repository = CourseRepository()
+        if (!repository.getPreClassReminder()) return null
+        return repository.getPreClassReminderMinutes().takeIf { it >= 0 }
     }
 
     private fun writableCalendarId(context: Context): Long? {
@@ -102,17 +133,28 @@ object CalendarScheduleSync {
         order,
     )?.use { if (it.moveToFirst()) it.getLong(0) else null }
 
-    private fun insertIfAbsent(context: Context, calendarId: Long, event: ScheduleCalendarEvent) {
+    /**
+     * 写一节课：先删掉「同一日历 + 同一开始时刻 + 同一标题」的旧行，再插新事件。
+     *
+     * 旧行理论上已被整批清理过了，这里的删是兜住**升级前写下的无标记事件**（那时还没有
+     * `CUSTOM_APP_PACKAGE`），否则老用户重同步会看到两份。
+     */
+    private fun writeEvent(
+        context: Context,
+        calendarId: Long,
+        owner: String,
+        event: ScheduleCalendarEvent,
+        reminderMinutes: Int?,
+    ) {
         val startMillis = event.start.toEpochMillis()
-        val exists = context.contentResolver.query(
-            CalendarContract.Events.CONTENT_URI,
-            arrayOf(CalendarContract.Events._ID),
-            "${CalendarContract.Events.CALENDAR_ID}=? AND " +
-                "${CalendarContract.Events.DTSTART}=? AND ${CalendarContract.Events.TITLE}=?",
-            arrayOf(calendarId.toString(), startMillis.toString(), event.title),
-            null,
-        )?.use { it.count > 0 } ?: false
-        if (exists) return
+        runCatching {
+            context.contentResolver.delete(
+                CalendarContract.Events.CONTENT_URI,
+                "${CalendarContract.Events.CALENDAR_ID}=? AND " +
+                    "${CalendarContract.Events.DTSTART}=? AND ${CalendarContract.Events.TITLE}=?",
+                arrayOf(calendarId.toString(), startMillis.toString(), event.title),
+            )
+        }
 
         val values = ContentValues().apply {
             put(CalendarContract.Events.CALENDAR_ID, calendarId)
@@ -124,9 +166,52 @@ object CalendarScheduleSync {
             put(CalendarContract.Events.DTSTART, startMillis)
             put(CalendarContract.Events.DTEND, event.end.toEpochMillis())
             put(CalendarContract.Events.EVENT_TIMEZONE, ZoneId.systemDefault().id)
-            put(CalendarContract.Events.HAS_ALARM, 0)
+            put(CalendarContract.Events.HAS_ALARM, if (reminderMinutes != null) 1 else 0)
+            // 归属标记：下次同步靠它整批清掉，也方便用户在日历里看出这些事件是哪个应用写的
+            put(CalendarContract.Events.CUSTOM_APP_PACKAGE, owner)
+            put(CalendarContract.Events.CUSTOM_APP_URI, "nexio://class/${event.uid}")
         }
-        context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+        val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+        val eventId = uri?.let { runCatching { ContentUris.parseId(it) }.getOrNull() } ?: return
+        ensureReminder(context, eventId, reminderMinutes)
+    }
+
+    /**
+     * 给事件补一条提醒；同一分钟已有就不重复写。
+     *
+     * 正常流程里事件都是新插的、提醒表必然是空的，这层判重是兜底（rowid 复用等边角）。
+     * 单独 try 住：部分日历（只读订阅源、企业日历）拒写 `Reminders`，
+     * 不能因为一条提醒失败就把整次同步判成 [CalendarSyncResult.Failed]。
+     */
+    private fun ensureReminder(context: Context, eventId: Long, minutes: Int?) {
+        if (minutes == null) return
+        runCatching {
+            val exists = context.contentResolver.query(
+                CalendarContract.Reminders.CONTENT_URI,
+                arrayOf(CalendarContract.Reminders._ID),
+                "${CalendarContract.Reminders.EVENT_ID}=? AND ${CalendarContract.Reminders.MINUTES}=?",
+                arrayOf(eventId.toString(), minutes.toString()),
+                null,
+            )?.use { it.count > 0 } ?: false
+            if (exists) return@runCatching
+
+            val inserted = context.contentResolver.insert(
+                CalendarContract.Reminders.CONTENT_URI,
+                ContentValues().apply {
+                    put(CalendarContract.Reminders.EVENT_ID, eventId)
+                    put(CalendarContract.Reminders.MINUTES, minutes)
+                    put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                },
+            ) ?: return@runCatching
+
+            // 事件行上的 HAS_ALARM 不跟着置 1，部分日历应用不显示这条提醒
+            context.contentResolver.update(
+                ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
+                ContentValues().apply { put(CalendarContract.Events.HAS_ALARM, 1) },
+                null,
+                null,
+            )
+        }
     }
 }
 
