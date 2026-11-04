@@ -14,9 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -25,7 +23,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +39,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -57,18 +55,12 @@ import com.haooz.chedule.data.appearance.CardRefractionLevel
 import com.haooz.chedule.data.appearance.CardTextColor
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.i18n.SchedStr
-import com.haooz.chedule.ui.components.LocalGlassCards
+import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
+import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.courseCardTextColor
 import com.haooz.chedule.ui.theme.rememberCourseColors
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.LocalBackdropViewport
-import com.kyant.backdrop.backdrops.SharedBlurBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.abs
@@ -101,11 +93,11 @@ fun CourseCard(
     isCourseCancelled: Boolean = false,
     isWorkSwap: Boolean = false,
     hasMultipleCourses: Boolean = false,
-    wallpaperBackdrop: Backdrop? = null,
+    softGlassSurface: SoftGlassSurface? = null,
     cardBlurRadius: Float = 4f,
     cardAlpha: Float = 0.15f,
     /** 有壁纸时白/黑底不透明度（卡片不透明度） */
-    cardSurfaceAlpha: Float = 0.15f,
+    cardSurfaceAlpha: Float = 0.12f,
     /**
      * 垫在卡片**最底部**的纯色，通常由调用方传页面底色 @0.8f。
      *
@@ -151,30 +143,13 @@ fun CourseCard(
 ) {
     val sectionCount = course.endSection - course.startSection + 1
     val cardHeight = (customCardHeightDp ?: (sectionCount * cardHeightPerSection)).dp
-    val hasBlur = wallpaperBackdrop != null
-    /**
-     * 是否真的需要做 backdrop 采样。
-     *
-     * 模糊半径 0 且无折射时，`drawBackdrop` 采回来的就是卡片正下方那层壁纸的像素 —— 与
-     * 「不采样、直接把半透明表面叠在壁纸层上」逐像素等价，却要为每张卡每帧付一次全屏图层
-     * 重放（`drawLayer` + `localPositionOf` + `clipPath` 序列化）。课表一屏几十张卡、切主 tab
-     * 时两页同时在场，这条在无材质档（模糊 0 + 折射 OFF）下是主线程 draw 阶段的大头。
-     */
-    val needsBackdropSampling = hasBlur &&
-            (cardBlurRadius > 0f || cardRefraction != CardRefractionLevel.OFF)
-    /**
-     * 页级玻璃接管：课表页用**一个**采样节点替所有卡采样（见 components/PageGlass.kt）。
-     * 命中时本卡不再挂 `drawBackdrop`，只登记矩形并自己画表面色与描边。
-     */
-    val externalGlass = LocalGlassCards.current
-    val usesExternalGlass = hasBlur && needsBackdropSampling && externalGlass != null
-    val glassSlot = remember(externalGlass) { externalGlass?.alloc() ?: -1 }
-    DisposableEffect(externalGlass, glassSlot) {
-        onDispose { externalGlass?.free(glassSlot) }
-    }
+    // 柔光只需要壁纸位图（softGlassSurface 内部自采），不再依赖 kyant 的共享层。
+    val hasBlur = softGlassSurface != null
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
     val scope = rememberCoroutineScope()
     val localDensity = LocalDensity.current
+    // 滚动/翻页信号：让玻璃的采样原点按帧跟手（见 LocalGlassRedrawSignal 注释）
+    val glassRedraw = LocalGlassRedrawSignal.current
 
     // 近处几乎立刻、远处按距离铺开；token=0（常态）不挂协程，降低新周页首帧组合成本
     val landRipple = LocalLandRipple.current
@@ -296,79 +271,40 @@ fun CourseCard(
         key(effectiveCornerRadius) {
             val backdropShape =
                 remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
-            val blurPx =
-                with(localDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
-            val lensRadiusPx =
-                with(localDensity) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
-            val lensStrengthPx =
-                with(localDensity) { remember(cardRefraction) { cardRefraction.lensStrengthDp.dp.toPx() } }
             // 白/黑底由「卡片不透明度」控制；课程色由「卡片着色程度」控制
             val overlayColor = remember(isDark, cardSurfaceAlpha) {
                 if (isDark) Color.Black.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
                 else Color.White.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
             }
-            // backdrop 是 SharedBlurBackdrop 时，它的 drawBackdrop 画的是**已烘焙好的
-            // 模糊壁纸层**，卡片不用再 blur —— 那正是「模糊 0 开销」的那一半。
-            val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
-            val backdropEffects: BackdropEffectScope.() -> Unit =
-                remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
-                    {
-                        if (!isSharedBlur) {
-                            blur(blurPx)
-                        }
-                        if (cardRefraction != CardRefractionLevel.OFF) {
-                            lens(lensRadiusPx, lensStrengthPx)
-                        }
-                    }
-                }
+
             // 白/黑底 + 课程色压成一次 drawRect（两次全卡 fill 是每卡每帧的固定成本）
             val surfaceColor = remember(cardColor, overlayColor) {
                 flattenStackedFills(overlayColor, cardColor)
             }
-            // onDrawSurface 每次重组新建会令 drawBackdrop 判不等，每次重录壁纸层并重跑 GPU 模糊
-            val onCardSurface: DrawScope.() -> Unit =
-                remember(surfaceColor) {
-                    { drawRect(surfaceColor) }
-                }
-            val outlineColor = remember(cardColor, isDark) { scheduleOutlineColor(cardColor, isDark) }
-            val outlineWidthPx = remember(localDensity) {
-                with(localDensity) { SCHEDULE_OUTLINE_WIDTH.toPx() }
-            }
-            val outlineCache = remember { OutlineCache() }
             // 静止卡不挂 graphicsLayer：几十张×两页的合成层是周滑 draw 热点
             val needTransformLayer = sinkPressed || sinkActive || isDragging || rippleAnimating
             val glassRadiusPx = with(localDensity) { effectiveCornerRadius.dp.toPx() }
-            // 按压/涟漪是绘制期 graphicsLayer 变换，`onGloballyPositioned` 动画期不会重跑，
-            // 所以矩形得逐帧重取（`boundsInRoot` 含变换，缩放后的位置和尺寸一次给全）。
-            // 稳态下这个 effect 立刻返回，一次都不跑。
-            val glassScaleAnimating = sinkActive || rippleAnimating
-            LaunchedEffect(glassScaleAnimating) {
-                val glass = externalGlass ?: return@LaunchedEffect
-                if (!usesExternalGlass) return@LaunchedEffect
-                if (!glassScaleAnimating) {
-                    glass.setCard(glassSlot, cardCoords[0], glassRadiusPx)
-                    return@LaunchedEffect
-                }
-                snapshotFlow {
-                    // 读缩放量只是为了「每帧唤醒」；矩形取值仍由 setCard 内部现算 boundsInRoot
-                    anims.sinkScale.value * anims.rippleScale.value
-                }.collect {
-                    glass.setCard(glassSlot, cardCoords[0], glassRadiusPx)
-                }
+            // 柔光玻璃：采样原点是「卡片在壁纸位图里的坐标」= 窗口坐标 × 位图缩放。
+            // 位置在绘制期现取（onGloballyPositioned 回填的是普通字段，不能组合期读）。
+            // 必须 remember：每次重组新建 Modifier 会让 drawWithCache 缓存失效、
+            // AGSL 跟着重编译。surface 与圆角不变时复用同一个实例，采样原点仍逐帧现取。
+            val softGlassModifier = remember(softGlassSurface, glassRadiusPx, localDensity, glassRedraw) {
+                softGlassSurface.modifier(
+                    density = localDensity,
+                    radiusPx = glassRadiusPx,
+                    redraw = glassRedraw,
+                    origin = {
+                        val c = cardCoords[0]
+                        if (c != null && c.isAttached) {
+                            val p = c.positionInWindow()
+                            // 位图已与屏幕对齐（同原点同尺寸），采样坐标就是窗口坐标
+                            Offset(p.x, p.y)
+                        } else {
+                            Offset.Zero
+                        }
+                    },
+                )
             }
-            // 拖拽期本卡被 alpha=0 隐藏（改由浮层呈现），玻璃不能跟着留下；
-            // 这个分支不会走 onGloballyPositioned（位置没变），所以必须用 SideEffect 兜住。
-            SideEffect {
-                if (usesExternalGlass) {
-                    if (isDragging) externalGlass.clearCard(glassSlot)
-                    else externalGlass.setCard(glassSlot, cardCoords[0], glassRadiusPx)
-                } else {
-                    // 材质档换成「无模糊/无折射」时布局没变、onGloballyPositioned 不会重跑，
-                    // 旧矩形得在这里撤掉，否则页级玻璃还会照旧画这一块。
-                    externalGlass?.clearCard(glassSlot)
-                }
-            }
-
             Box(
                 modifier = modifier
                     .fillMaxWidth()
@@ -392,16 +328,7 @@ fun CourseCard(
                         }
                     )
                     // 只存坐标：布局期不再逐卡 localToRoot，消费点自己 refreshCardBounds
-                    // 页级玻璃接管时，同一份坐标顺手登记给页级节点（矩形 + 圆角 → 合并路径）
-                    .onGloballyPositioned { coordinates ->
-                        cardCoords[0] = coordinates
-                        if (usesExternalGlass && !isDragging) {
-                            externalGlass.setCard(glassSlot, coordinates, glassRadiusPx)
-                        } else if (usesExternalGlass) {
-                            // 拖拽期本卡被 alpha=0 隐藏（由浮层接管），玻璃不能跟着留下
-                            externalGlass.clearCard(glassSlot)
-                        }
-                    }
+                    .onGloballyPositioned { cardCoords[0] = it }
                     // 垫底纯色画在采样层之前（更靠外=更早画），被玻璃采样盖住属预期
                     .then(
                         if (solidBackingColor != null) {
@@ -411,34 +338,16 @@ fun CourseCard(
                         }
                     )
                     .then(
-                        // 页级玻璃接管：玻璃已在页级节点画好，这里只叠半透明表面色；
-                        // 形状同源（同一 ContinuousRoundedRectangle），描边仍由下面 drawWithContent 画
-                        if (usesExternalGlass) {
-                            Modifier.background(surfaceColor, backdropShape)
-                        } else if (needsBackdropSampling) {
-                            Modifier.drawBackdrop(
-                                backdrop = wallpaperBackdrop,
-                                shape = { backdropShape },
-                                effects = backdropEffects,
-                                highlight = null,
-                                shadow = null,
-                                viewport = LocalBackdropViewport.current,
-                                onDrawSurface = onCardSurface
-                            )
+                        // kyant 的 drawBackdrop 采样已删：柔光玻璃不可用时（无壁纸 / 非 Android）
+                        // 卡片直接铺表面色。柔光自带折射 + 着色 + 描边，表面色仍压在最上面。
+                        if (softGlassModifier != null) {
+                            Modifier
+                                .then(softGlassModifier)
+                                .background(surfaceColor, backdropShape)
                         } else {
                             Modifier.background(surfaceColor, backdropShape)
                         }
                     )
-                    .drawWithContent {
-                        drawContent()
-                        drawScheduleOutline(
-                            cache = outlineCache,
-                            cornerRadius = effectiveCornerRadius.dp,
-                            color = outlineColor,
-                            strokeWidthPx = outlineWidthPx,
-                            layoutDirection = layoutDirection,
-                        )
-                    }
                     .courseCardGesture(
                         course = course,
                         touchState = touchState,

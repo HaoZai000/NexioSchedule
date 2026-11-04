@@ -25,16 +25,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -54,15 +53,10 @@ import com.haooz.chedule.data.util.CourseTimeSpan
 import com.haooz.chedule.data.util.nowLocalTime
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
+import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
+import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.scheduleAccentColor
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.LocalBackdropViewport
-import com.kyant.backdrop.backdrops.SharedBlurBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -106,11 +100,11 @@ fun DayColumn(
     pendingDay: Int = -1,
     pendingSection: Int = -1,
     onPendingChange: (day: Int, section: Int) -> Unit = { _, _ -> },
-    wallpaperBackdrop: Backdrop? = null,
+    softGlassSurface: SoftGlassSurface? = null,
     solidBackingColor: Color? = null,
     cardBlurRadius: Float = 4f,
     cardAlpha: Float = 0.15f,
-    cardSurfaceAlpha: Float = 0.15f,
+    cardSurfaceAlpha: Float = 0.12f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     showBreakDividers: Boolean = true,
@@ -122,7 +116,7 @@ fun DayColumn(
     showTeacher: Boolean = true,
     cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     draggingCourseSlots: Set<Pair<String, Int>> = emptySet(),
-    onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: Backdrop?, currentWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
+    onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, currentWeek: Int) -> Unit = { _, _, _, _, _, _, -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
     onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
@@ -136,7 +130,6 @@ fun DayColumn(
 ) {
     val totalSectionsGrid = morningSections + afternoonSections + eveningSections
     val totalHeight = grid.totalHeight.toInt()
-    val hasBlur = wallpaperBackdrop != null
     val isPendingDay = pendingDay == dayOfWeek
     val hapticFeedback = LocalHapticFeedback.current
 
@@ -280,12 +273,11 @@ fun DayColumn(
                 ) {
                     PendingSectionBox(
                         section = pendingSection,
-                        hasBlur = hasBlur,
                         isDark = isDark,
                         cardCornerRadius = cardCornerRadius,
                         cardBlurRadius = cardBlurRadius,
                         cardRefraction = cardRefraction,
-                        wallpaperBackdrop = wallpaperBackdrop,
+                        softGlassSurface = softGlassSurface,
                         hapticFeedback = hapticFeedback,
                         onEmptyClick = onEmptyClick
                     )
@@ -317,7 +309,7 @@ fun DayColumn(
                 showClassroom = showClassroom,
                 showTeacher = showTeacher,
                 cardRefraction = cardRefraction,
-                wallpaperBackdrop = wallpaperBackdrop,
+                softGlassSurface = softGlassSurface,
                 solidBackingColor = solidBackingColor,
                 cardBlurRadius = cardBlurRadius,
                 draggingCourseSlots = draggingCourseSlots,
@@ -354,7 +346,7 @@ private fun CourseCardsLayer(
     cardHeightPerSection: Float,
     cardCornerRadius: Float,
     cardAlpha: Float,
-    cardSurfaceAlpha: Float = 0.15f,
+    cardSurfaceAlpha: Float = 0.12f,
     isTablet: Boolean,
     cardContentAlignment: CardContentAlignment,
     cardTextColor: CardTextColor,
@@ -362,7 +354,7 @@ private fun CourseCardsLayer(
     showClassroom: Boolean,
     showTeacher: Boolean,
     cardRefraction: CardRefractionLevel,
-    wallpaperBackdrop: Backdrop?,
+    softGlassSurface: SoftGlassSurface? = null,
     solidBackingColor: Color? = null,
     cardBlurRadius: Float,
     draggingCourseSlots: Set<Pair<String, Int>>,
@@ -371,7 +363,7 @@ private fun CourseCardsLayer(
     viewportTopDp: Float = 0f,
     viewportBottomDp: Float = Float.MAX_VALUE,
     onCourseClick: (Course) -> Unit,
-    onCourseLongPress: (Course, Float, Float, Float, Float, Backdrop?, Int) -> Unit,
+    onCourseLongPress: (Course, Float, Float, Float, Float, Int) -> Unit,
     onCourseDragStart: (String) -> Unit,
     onCourseDrag: (String, Float, Float) -> Unit,
     onCourseDragEnd: (String) -> Unit,
@@ -473,7 +465,7 @@ private fun CourseCardsLayer(
                     isCourseCancelled = course.id in holidayCancelledCourseIds,
                     isWorkSwap = isWorkSwap,
                     hasMultipleCourses = renderData.hasHiddenCourses,
-                    wallpaperBackdrop = wallpaperBackdrop,
+                    softGlassSurface = softGlassSurface,
                     cardBlurRadius = cardBlurRadius,
                     cardAlpha = cardAlpha,
                     cardSurfaceAlpha = cardSurfaceAlpha,
@@ -498,7 +490,7 @@ private fun CourseCardsLayer(
                     },
                     onLongPressStart = { left, top, width, height ->
                         if (isCurrentWeekCourse) {
-                            onCourseLongPress(course, left, top, width, height, wallpaperBackdrop, currentWeek)
+                            onCourseLongPress(course, left, top, width, height, currentWeek)
                         }
                     },
                     onMenuDismiss = {
@@ -528,7 +520,7 @@ private fun CourseCardsLayer(
                 isCourseCancelled = course.id in holidayCancelledCourseIds,
                 isWorkSwap = isWorkSwap,
                 hasMultipleCourses = idx == 0 && renderData.hasHiddenCourses,
-                wallpaperBackdrop = wallpaperBackdrop,
+                softGlassSurface = softGlassSurface,
                 cardBlurRadius = cardBlurRadius,
                 cardAlpha = cardAlpha,
                 cardSurfaceAlpha = cardSurfaceAlpha,
@@ -549,7 +541,7 @@ private fun CourseCardsLayer(
                 },
                 onLongPressStart = { left, top, width, height ->
                     if (isCurrentWeekCourse) {
-                        onCourseLongPress(course, left, top, width, height, wallpaperBackdrop, currentWeek)
+                        onCourseLongPress(course, left, top, width, height, currentWeek)
                     }
                 },
                 onDragStart = {
@@ -575,22 +567,20 @@ private fun CourseCardsLayer(
 @Composable
 private fun PendingSectionBox(
     section: Int,
-    hasBlur: Boolean,
     isDark: Boolean,
     cardCornerRadius: Float,
     cardBlurRadius: Float,
     cardRefraction: CardRefractionLevel,
-    wallpaperBackdrop: Backdrop?,
+    softGlassSurface: SoftGlassSurface? = null,
     hapticFeedback: HapticFeedback,
     onEmptyClick: (Int) -> Unit
 ) {
     PendingAddCard(
-        hasBlur = hasBlur,
         isDark = isDark,
         cardCornerRadius = cardCornerRadius,
         cardBlurRadius = cardBlurRadius,
         cardRefraction = cardRefraction,
-        wallpaperBackdrop = wallpaperBackdrop,
+        softGlassSurface = softGlassSurface,
         modifier = Modifier.fillMaxSize(),
     ) {
         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -601,12 +591,11 @@ private fun PendingSectionBox(
 /** 加号卡片：网格空槽与时间轴空白点击共用同一张，外观只在这里改。 */
 @Composable
 internal fun PendingAddCard(
-    hasBlur: Boolean,
     isDark: Boolean,
     cardCornerRadius: Float,
     cardBlurRadius: Float,
     cardRefraction: CardRefractionLevel,
-    wallpaperBackdrop: Backdrop?,
+    softGlassSurface: SoftGlassSurface? = null,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -616,69 +605,41 @@ internal fun PendingAddCard(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        if (hasBlur) {
+        if (softGlassSurface != null) {
             key(cardCornerRadius) {
                 val backdropShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
                 val density = LocalDensity.current
-                // pendingColor 还跟着动态取色 / 主题主色变，只 key isDark 会留下旧描边色
-                val outlineColor = remember(pendingColor, isDark) { scheduleOutlineColor(pendingColor, isDark) }
-                val outlineWidthPx = remember(density) { with(density) { SCHEDULE_OUTLINE_WIDTH.toPx() } }
-                val outlineCache = remember { OutlineCache() }
-                val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
                 val surfaceColor = if (MiuixTheme.isDynamicColor) {
                     MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (isDark) 0.64f else 0.5f)
                 } else if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f)
-                val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
-                // 折射与课程卡同一套档位参数（跟随「卡片折射」设置）
-                val lensRadiusPx = with(density) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
-                val lensStrengthPx = with(density) { remember(cardRefraction) { cardRefraction.lensStrengthDp.dp.toPx() } }
-                val pendingEffects: BackdropEffectScope.() -> Unit =
-                    remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
-                        {
-                            if (!isSharedBlur) {
-                                blur(blurPx)
-                            }
-                            if (cardRefraction != CardRefractionLevel.OFF) {
-                                lens(lensRadiusPx, lensStrengthPx)
-                            }
-                        }
-                    }
-                val pendingOnSurface: DrawScope.() -> Unit = remember(surfaceColor) {
-                    { drawRect(surfaceColor) }
+                // 柔光玻璃：位图与屏幕对齐，采样原点 = 自己的窗口坐标（每卡一份 shader）
+                val pendingSoftOrigin = remember { arrayOf(Offset.Zero) }
+                val pendingRadiusPx = with(density) { cardCornerRadius.dp.toPx() }
+                val glassRedraw = LocalGlassRedrawSignal.current
+                // remember：避免每次重组重建 Modifier → drawWithCache 失效 → AGSL 重编译
+                val pendingSoftModifier = remember(softGlassSurface, pendingRadiusPx, density, glassRedraw) {
+                    softGlassSurface.modifier(
+                        density = density,
+                        radiusPx = pendingRadiusPx,
+                        origin = { pendingSoftOrigin[0] },
+                        redraw = glassRedraw,
+                    )
                 }
-                // 与 CourseCard 同口径：模糊 0 且无折射时采样回来的就是格子正下方的壁纸像素，
-                // 退化成一次圆角填充。空格子数量比有课的格子还多，这里是采样次数的大头。
-                val pendingNeedsSampling =
-                    cardBlurRadius > 0f || cardRefraction != CardRefractionLevel.OFF
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 2.dp, vertical = 2.dp)
+                        .onGloballyPositioned { pendingSoftOrigin[0] = it.positionInWindow() }
                         .then(
-                            if (pendingNeedsSampling) {
-                                Modifier.drawBackdrop(
-                                    backdrop = wallpaperBackdrop!!,
-                                    shape = { backdropShape },
-                                    effects = pendingEffects,
-                                    highlight = null,
-                                    shadow = null,
-                                    viewport = LocalBackdropViewport.current,
-                                    onDrawSurface = pendingOnSurface
-                                )
+                            if (pendingSoftModifier != null) {
+                                Modifier
+                                    .then(pendingSoftModifier)
+                                    .background(surfaceColor, backdropShape)
                             } else {
+                                // 无壁纸 / 非 Android：直接铺表面色（kyant 采样已删）
                                 Modifier.background(surfaceColor, backdropShape)
                             }
                         )
-                        .drawWithContent {
-                            drawContent()
-                            drawScheduleOutline(
-                                cache = outlineCache,
-                                cornerRadius = cardCornerRadius.dp,
-                                color = outlineColor,
-                                strokeWidthPx = outlineWidthPx,
-                                layoutDirection = layoutDirection,
-                            )
-                        }
                 ) {
                     Card(
                         modifier = Modifier.fillMaxSize(),
@@ -858,10 +819,11 @@ fun SpecialBandOverlay(
     cardCornerRadius: Float,
     cardBlurRadius: Float,
     cardAlpha: Float,
-    cardSurfaceAlpha: Float = 0.15f,
+    cardSurfaceAlpha: Float = 0.12f,
     cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     isTablet: Boolean = false,
-    wallpaperBackdrop: Backdrop?,
+    softGlassSurface: SoftGlassSurface? = null,
+
     // 子块为空时退化为整条显示名称
     items: List<SpecialItem> = emptyList(),
     // **每个可见列实际显示的星期**（长度=列数），不是列下标：调休日该列画的是被调星期的课。
@@ -882,73 +844,47 @@ fun SpecialBandOverlay(
         Color.Black.copy(alpha = (0.04f * alphaFactor).coerceIn(0f, 1f))
     }
 
-    if (hasBlur && wallpaperBackdrop != null) {
+    // 柔光只需要壁纸位图（调用方传 hasBlur = wallpaperBitmap != null）；
+    if (hasBlur) {
         key(effectiveCornerRadius) {
             val backdropShape = remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
             val density = LocalDensity.current
-            val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
-            val lensRadiusPx = with(density) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
-            val lensStrengthPx = with(density) { remember(cardRefraction) { cardRefraction.lensStrengthDp.dp.toPx() } }
             val overlayColor = remember(isDark, cardSurfaceAlpha) {
                 if (isDark) Color.Black.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
                 else Color.White.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
             }
-            // SharedBlurBackdrop 的 drawBackdrop 画已烘焙的模糊层，不用再 blur
-            val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
-            val bandEffects: BackdropEffectScope.() -> Unit =
-                remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
-                    {
-                        if (!isSharedBlur) {
-                            blur(blurPx)
-                        }
-                        if (cardRefraction != CardRefractionLevel.OFF) {
-                            lens(lensRadiusPx, lensStrengthPx)
-                        }
-                    }
-                }
+
             // 两层纯色压成一次 drawRect（见 flattenStackedFills）
             val bandSurfaceColor = remember(bgColor, overlayColor) {
                 flattenStackedFills(bgColor, overlayColor)
             }
-            // onDrawSurface 必须固定，否则每次重组都重新录制壁纸层并重跑 GPU 模糊
-            val onBandSurface: DrawScope.() -> Unit = remember(bandSurfaceColor) {
-                { drawRect(bandSurfaceColor) }
+            // 柔光玻璃：同待添加槽，位图与屏幕对齐，采样原点 = 自己的窗口坐标
+            val bandSoftOrigin = remember { arrayOf(Offset.Zero) }
+            val bandRadiusPx = with(density) { effectiveCornerRadius.dp.toPx() }
+            val glassRedraw = LocalGlassRedrawSignal.current
+            val bandSoftModifier = remember(softGlassSurface, bandRadiusPx, density, glassRedraw) {
+                softGlassSurface?.modifier(
+                    density = density,
+                    radiusPx = bandRadiusPx,
+                    origin = { bandSoftOrigin[0] },
+                    redraw = glassRedraw,
+                )
             }
-            val outlineColor = remember(bgColor, isDark) { scheduleOutlineColor(bgColor, isDark) }
-            val outlineWidthPx = remember(density) { with(density) { SCHEDULE_OUTLINE_WIDTH.toPx() } }
-            val outlineCache = remember { OutlineCache() }
-            // 同 pending 格：模糊 0 且无折射时采样是纯冗余，退化成圆角填充
-            val bandNeedsSampling =
-                cardBlurRadius > 0f || cardRefraction != CardRefractionLevel.OFF
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 2.dp, vertical = 2.dp)
+                    .onGloballyPositioned { bandSoftOrigin[0] = it.positionInWindow() }
                     .then(
-                        if (bandNeedsSampling) {
-                            Modifier.drawBackdrop(
-                                backdrop = wallpaperBackdrop,
-                                shape = { backdropShape },
-                                effects = bandEffects,
-                                highlight = null,
-                                shadow = null,
-                                viewport = LocalBackdropViewport.current,
-                                onDrawSurface = onBandSurface
-                            )
+                        if (bandSoftModifier != null) {
+                            Modifier
+                                .then(bandSoftModifier)
+                                .background(bandSurfaceColor, backdropShape)
                         } else {
+                            // 无壁纸 / 非 Android：直接铺表面色（kyant 采样已删）
                             Modifier.background(bandSurfaceColor, backdropShape)
                         }
                     )
-                    .drawWithContent {
-                        drawContent()
-                        drawScheduleOutline(
-                            cache = outlineCache,
-                            cornerRadius = effectiveCornerRadius.dp,
-                            color = outlineColor,
-                            strokeWidthPx = outlineWidthPx,
-                            layoutDirection = layoutDirection,
-                        )
-                    }
             ) {
                 SpecialBandBody(
                     name = shownName,

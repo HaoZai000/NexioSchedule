@@ -261,7 +261,6 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                     isCurrentWeek = if (isPasteFlight) true else course.isActiveInWeek(
                                         draggedWeek
                                     ),
-                                    wallpaperBackdrop = if (wallpaperBitmap != null) liquidGlassBackdrop else null,
                                     cardBlurRadius = displayAppearance.cardBlurRadius,
                                     cardRefraction = displayAppearance.cardRefraction,
                                     cardAlpha = displayAppearance.cardAlpha,
@@ -313,7 +312,6 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 CourseCard(
                                     course = swapCourse,
                                     isCurrentWeek = true,
-                                    wallpaperBackdrop = if (wallpaperBitmap != null) liquidGlassBackdrop else null,
                                     cardBlurRadius = displayAppearance.cardBlurRadius,
                                     cardRefraction = displayAppearance.cardRefraction,
                                     cardAlpha = displayAppearance.cardAlpha,

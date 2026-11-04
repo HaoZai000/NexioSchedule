@@ -1,3 +1,5 @@
+// Copyright (C) 2026 Haooz · AGPL-3.0-only
+
 @file:OptIn(ExperimentalAtomicApi::class)
 
 package top.yukonga.miuix.kmp.layout
@@ -37,8 +39,6 @@ import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
 import top.yukonga.miuix.kmp.material.LocalUseFakeProgressiveBlur
 import com.kyant.backdrop.effects.runtimeShaderEffect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-// java.util.concurrent.atomic.AtomicInteger 是 JVM 专有；
-// kotlin.concurrent.atomics.AtomicInt 是跨平台的等价物（Kotlin 2.1+ 实验 API）。
 import kotlin.concurrent.atomics.AtomicInt
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
@@ -141,8 +141,7 @@ fun ProgressiveBlurTopBar(
     /**
      * 性能档是否用「假渐进模糊」（等值 blur + alpha 淡出，不跑 AGSL 多重采样）。
      *
-     * 原来直接读 App 的 AppMaterialSettings.progressiveBlurUseFake() —— 那是业务偏好，
-     * 让本文件无法进 commonMain。默认改为从 [LocalUseFakeProgressiveBlur] 读
+     * 由 [LocalUseFakeProgressiveBlur] 提供，避免让本文件反向依赖业务层的材质设置
      * （App 在根部 provide，28 个调用点无需逐个改）；也可显式传参覆盖。
      */
     useFakeProgressiveBlur: Boolean = LocalUseFakeProgressiveBlur.current,

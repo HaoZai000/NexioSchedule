@@ -89,7 +89,7 @@ fun AppearanceConfig.Companion.fromCombination(c: ScheduleCombination): Appearan
     AppearanceConfig(
         cardBlurRadius = c.cardBlurRadius,
         cardAlpha = c.cardAlpha.coerceIn(0f, 1f),
-        cardSurfaceAlpha = (c.cardSurfaceAlpha ?: 0.15f).coerceIn(0f, 1f),
+        cardSurfaceAlpha = (c.cardSurfaceAlpha ?: 0.12f).coerceIn(0f, 1f),
         cardHeight = c.cardHeight,
         cardCornerRadius = c.cardCornerRadius,
         wallpaperBrightness = c.wallpaperBrightness,

@@ -22,9 +22,11 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,12 +43,14 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
@@ -80,6 +84,9 @@ import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.main.PagerJumpNeighbor
 import com.haooz.chedule.ui.activities.main.jumpToPageSmoothly
 import com.haooz.chedule.ui.components.CourseDetailSheet
+import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
+import com.haooz.chedule.ui.components.LocalSoftGlassSurface
+import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.text.LocalTextMotionInstant
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.LocalHostNavigation
@@ -118,6 +125,8 @@ import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.LocalOverScrollState
+import top.yukonga.miuix.kmp.utils.OverScrollState
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
@@ -154,12 +163,25 @@ fun BlurCard(
     transitionRecording: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    val hasBackdrop = wallpaperBackdrop != null
+    val softGlass = LocalSoftGlassSurface.current
+    val glassRedraw = LocalGlassRedrawSignal.current
+    val hasBackdrop = wallpaperBackdrop != null || softGlass != null
     val isDark = isAppDarkTheme()
     val refraction = LocalCardRefraction.current
 
     if (hasBackdrop) {
         val shape = remember(cornerRadius) { ContinuousRoundedRectangle(cornerRadius) }
+        val density = LocalDensity.current
+        val glassOrigin = remember { arrayOf(Offset.Zero) }
+        val glassRadiusPx = with(density) { cornerRadius.toPx() }
+        val softGlassModifier = remember(softGlass, glassRadiusPx, density, glassRedraw) {
+            softGlass?.modifier(
+                density = density,
+                origin = { glassOrigin[0] },
+                radiusPx = glassRadiusPx,
+                redraw = glassRedraw,
+            )
+        }
         val defaultEdgeLight = rememberDefaultEdgeLight(baseColor = if (isDark) Color.Black else Color.White)
         // effects/onDrawSurface 必须 remember 稳定：内联 lambda 每次重组换引用，
         // DrawBackdropElement.equals 会判不等并重建 RenderEffect，造成壁纸玻璃无意义重绘
@@ -188,8 +210,11 @@ fun BlurCard(
                 .clip(shape)
                 // Record inside the source clip so its live subtree cannot replace retained rows.
                 .then(transitionRecording)
+                .onGloballyPositioned { glassOrigin[0] = it.positionInWindow() }
                 .then(
-                    if (needsSampling) {
+                    if (softGlassModifier != null) {
+                        Modifier.then(softGlassModifier).background(flatSurfaceColor, shape)
+                    } else if (needsSampling && wallpaperBackdrop != null) {
                         Modifier.drawBackdrop(
                             backdrop = wallpaperBackdrop,
                             shape = { shape },
@@ -202,16 +227,21 @@ fun BlurCard(
                     }
                 )
                 .then(
-                    if (showEdgeLight) {
-                        Modifier.edgeLight(
-                            shape = ContinuousRoundedRectangle(cornerRadius),
-                            edgeLight = defaultEdgeLight,
-                        )
-                    } else
-                        Modifier.edgeLight(
-                            shape = ContinuousRoundedRectangle(cornerRadius),
-                            edgeLight = rememberCardEdgeLight(baseColor = if (isDark) Color.Black else Color.White),
-                        )
+                    // 柔光玻璃自带 rim 高光，不再叠 edgeLight
+                    if (softGlassModifier == null) {
+                        if (showEdgeLight) {
+                            Modifier.edgeLight(
+                                shape = ContinuousRoundedRectangle(cornerRadius),
+                                edgeLight = defaultEdgeLight,
+                            )
+                        } else
+                            Modifier.edgeLight(
+                                shape = ContinuousRoundedRectangle(cornerRadius),
+                                edgeLight = rememberCardEdgeLight(baseColor = if (isDark) Color.Black else Color.White),
+                            )
+                    } else {
+                        Modifier
+                    }
                 )
         ) {
             content()
@@ -398,10 +428,14 @@ fun TodayScreen(
     scrollToTodayTrigger: Int = 0,
     jumpToDateTrigger: Int = 0,
     onJumpToDateProcessed: () -> Unit = {},
-    cardBlurRadius: Float = 0f,
+    cardBlurRadius: Float = 4f,
     cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     /** 有壁纸时白/黑底不透明度（卡片不透明度） */
-    cardSurfaceAlpha: Float = 0.15f,
+    cardSurfaceAlpha: Float = 0.12f,
+    /** 柔光玻璃采样源（主内容层算一次，课表/今日共用；null = 保持原来的 kyant 采样） */
+    softGlassSurface: SoftGlassSurface? = null,
+    /** 主 tab pager 的位置信号：切今日/课表时内容整体平移，必须让玻璃重绘 */
+    tabRedraw: () -> Unit = {},
     // true：壁纸由主 pager 后共享层绘制，本页透明叠上，切 tab 时不随页平移
     useSharedWallpaper: Boolean = false,
     // 共享壁纸层的 backdrop，供卡片玻璃采样（useSharedWallpaper 时必传）
@@ -417,6 +451,24 @@ fun TodayScreen(
     scheduleViewMode: ScheduleViewMode = ScheduleViewMode.WEEK,
 ) {
     val todayIsDark = isAppDarkTheme()
+    val overScrollState = remember { OverScrollState() }
+    val pageOverscrollX = remember { mutableFloatStateOf(0f) }
+    // 当前页的列表状态：draw 期直接读，滚动时同步失效；不要用异步 tick（会晚一帧、看起来在跳）
+    val currentListState = remember { mutableStateOf<LazyListState?>(null) }
+    val baseGlassSignal: () -> Unit = remember(pagerState, overScrollState, pageOverscrollX, tabRedraw, settingsScrollBehavior) {
+        {
+            currentListState.value?.firstVisibleItemIndex
+            currentListState.value?.firstVisibleItemScrollOffset
+            // 标题折叠不走 LazyListState：heightOffset / contentOffset 才是这一段的位移来源
+            settingsScrollBehavior?.state?.heightOffset
+            settingsScrollBehavior?.state?.contentOffset
+            settingsScrollBehavior?.currentHeightPx
+            pagerState.currentPageOffsetFraction
+            overScrollState.offset
+            pageOverscrollX.floatValue
+            tabRedraw()
+        }
+    }
     val courses by viewModel.courses.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
     val totalWeeks by viewModel.totalWeeks.collectAsState()
@@ -528,10 +580,10 @@ fun TodayScreen(
         if (useSharedWallpaper) sharedWallpaperBackdrop else null
     // 默认 15% 锚定当前观感（课程卡 0.45 / 格言卡 0.6），其余按百分比线性映射到 1
     val p = cardSurfaceAlpha.coerceIn(0f, 1f)
-    fun anchorOpacity(anchor: Float): Float = if (p <= 0.15f) {
-        (p / 0.15f) * anchor
+    fun anchorOpacity(anchor: Float): Float = if (p <= 0.12f) {
+        (p / 0.12f) * anchor
     } else {
-        anchor + ((p - 0.15f) / 0.85f) * (1f - anchor)
+        anchor + ((p - 0.12f) / 0.88f) * (1f - anchor)
     }
     val courseCardOpacity = anchorOpacity(0.45f)
     val highlightCardOpacity = anchorOpacity(0.6f)
@@ -551,7 +603,12 @@ fun TodayScreen(
             detailSheetWeek = targetWeek
             showDetailSheet = true
         }
-    CompositionLocalProvider(LocalCardRefraction provides todayRefraction) {
+    CompositionLocalProvider(
+        LocalCardRefraction provides todayRefraction,
+        LocalSoftGlassSurface provides softGlassSurface,
+        LocalOverScrollState provides overScrollState,
+        LocalGlassRedrawSignal provides baseGlassSignal,
+    ) {
     Scaffold(
         topBar = {},
         // 共享壁纸时本页必须透明，否则会盖住主 pager 后面的壁纸层
@@ -573,7 +630,7 @@ fun TodayScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     // 与课表周 pager 共用的横竖主导翻页手势；纵向仍归页内 LazyColumn
-                    .pagerAxisTakeoverGesture(pagerState = pagerState, gestureState = takeoverGestureState),
+                    .pagerAxisTakeoverGesture(pagerState = pagerState, gestureState = takeoverGestureState, overscrollXState = pageOverscrollX),
                 userScrollEnabled = false,
             ) { physicalPage ->
                 // 借位页：长距跳日期间这一页按目标日期出内容，于是跨 N 天也只是一页连续位移
@@ -583,6 +640,7 @@ fun TodayScreen(
                     LocalTextMotionInstant provides (jumpNeighbor?.isBorrowed(physicalPage) == true)
                 ) {
                 val pageListState = remember(page) { LazyListState() }
+                SideEffect { currentListState.value = pageListState }
                 // 只把当前页的滚动状态报给 Activity（顶栏折叠 / 液态玻璃重录）
                 LaunchedEffect(pageListState, page) {
                     snapshotFlow {
@@ -844,6 +902,7 @@ fun TodayScreen(
                             }
                         }
                         LazyColumn(
+                            state = pageListState,
                             modifier = Modifier
                                 .weight(1f)
                                 .collapsibleTopInset(settingsScrollBehavior)
@@ -1332,14 +1391,28 @@ private fun CourseSectionTitle(
 ) {
     val isDark = isAppDarkTheme()
     val refraction = LocalCardRefraction.current
+    val softGlass = LocalSoftGlassSurface.current
+    val glassRedraw = LocalGlassRedrawSignal.current
+    val hasGlass = wallpaperBackdrop != null || softGlass != null
     // 有壁纸时用纯黑/纯白，压在毛玻璃上更干净
     val textColor = when {
-        wallpaperBackdrop != null -> if (isDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.5f)
+        hasGlass -> if (isDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.5f)
         else -> Color(0xFF8F9CAE)
     }
 
-    if (wallpaperBackdrop != null) {
+    if (hasGlass) {
         val shape = ContinuousCapsule()
+        val density = LocalDensity.current
+        val glassOrigin = remember { arrayOf(Offset.Zero) }
+        val softGlassModifier = remember(softGlass, density, glassRedraw) {
+            softGlass?.modifier(
+                density = density,
+                origin = { glassOrigin[0] },
+                // 胶囊由 softGlass 的半径钳制自动得到：style.cornerRadius 会被钳到高度一半
+                radiusPx = null,
+                redraw = glassRedraw,
+            )
+        }
         val blurPx = with(LocalDensity.current) { remember(blurRadius) { blurRadius.dp.toPx() } }
         val titleEffects: BackdropEffectScope.() -> Unit =
             remember(refraction, blurPx) {
@@ -1363,10 +1436,13 @@ private fun CourseSectionTitle(
             modifier = modifier
                 .padding(vertical = 6.dp)
                 .clip(shape)
+                .onGloballyPositioned { glassOrigin[0] = it.positionInWindow() }
                 .then(
-                    if (titleNeedsSampling) {
+                    if (softGlassModifier != null) {
+                        Modifier.then(softGlassModifier).background(flatTitleColor, shape)
+                    } else if (titleNeedsSampling) {
                         Modifier.drawBackdrop(
-                            backdrop = wallpaperBackdrop,
+                            backdrop = wallpaperBackdrop!!,
                             shape = { shape },
                             effects = titleEffects,
                             highlight = null,
@@ -1376,8 +1452,17 @@ private fun CourseSectionTitle(
                         Modifier.background(flatTitleColor, shape)
                     }
                 )
-                // 标题与课程卡一致用淡描边；亮版只留给今日助手/格言
-                .edgeLight(shape = shape, edgeLight = rememberCardEdgeLight(baseColor = if (isDark) Color.Black else Color.White))
+                .then(
+                    // 柔光自带 rim，跳过 edgeLight
+                    if (softGlassModifier == null) {
+                        Modifier.edgeLight(
+                            shape = shape,
+                            edgeLight = rememberCardEdgeLight(baseColor = if (isDark) Color.Black else Color.White),
+                        )
+                    } else {
+                        Modifier
+                    }
+                )
         ) {
             Text(
                 text = text,

@@ -93,9 +93,9 @@ import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.activities.main.PagerJumpNeighbor
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.CourseDetailSheet
-import com.haooz.chedule.ui.components.GlassCardRegistry
-import com.haooz.chedule.ui.components.LocalGlassCards
-import com.haooz.chedule.ui.components.PageGlass
+import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
+import com.haooz.chedule.ui.components.LocalSoftGlassSurface
+import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.text.LocalTextMotionInstant
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.utils.LocalHostNavigation
@@ -109,19 +109,9 @@ import com.haooz.chedule.ui.utils.rememberPagerTakeoverGestureState
 import com.haooz.chedule.ui.utils.schedulePageBackgroundColor
 import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
+import com.kyant.backdrop.Backdrop
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.BackdropViewport
-import com.kyant.backdrop.LocalBackdropViewport
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.SharedBlurBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.isRenderEffectSupported
-import com.kyant.backdrop.isRuntimeShaderSupported
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
@@ -137,6 +127,8 @@ import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.LocalOverScrollState
+import top.yukonga.miuix.kmp.utils.OverScrollState
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
@@ -193,7 +185,7 @@ fun MainScheduleScreen(
         addDay: Int,
         addWeek: Int,
     ) -> Unit = { _, _, _, _, _, _, _, _ -> },
-    onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: Backdrop?, currentWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
+    onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, currentWeek: Int) -> Unit = { _, _, _, _, _, _ -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
     onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
@@ -204,8 +196,6 @@ fun MainScheduleScreen(
     wallpaperScale: Float = 1f,
     // true：壁纸由主 pager 后共享层绘制，本页透明叠上，切 tab 时不随页平移
     useSharedWallpaper: Boolean = false,
-    // 共享壁纸层 backdrop，供卡片玻璃采样（useSharedWallpaper 时必传 LayerBackdrop）
-    sharedWallpaperBackdrop: LayerBackdrop? = null,
     isWallpaperEditing: Boolean = false,
     onWallpaperOffsetChange: (Offset) -> Unit = {},
     onWallpaperScaleChange: (Float) -> Unit = {},
@@ -213,14 +203,10 @@ fun MainScheduleScreen(
     /** 周页呈现方式：网格（可编辑）或时间轴（按真实时间比例、只读） */
     scheduleViewMode: ScheduleViewMode = ScheduleViewMode.WEEK,
     liquidGlassBackdrop: Backdrop? = null,
-    /**
-     * 主内容正被外层 `graphicsLayer` 缩放/位移（进课表外观页、窗口开洞、退场、导航切页）。
-     *
-     * 页级玻璃把卡片的**布局**矩形喂给 shader，而这段期间卡片实际是被绘制期变换缩小过的；
-     * 两者一旦错开就是「材质跟卡片不在一个位置」。这期间退回每张卡各自 `drawBackdrop`
-     * （改动前的旧路径，缩放态下已验证），稳定态再交回页级玻璃。
-     */
-    pageGlassSuppressed: Boolean = false,
+    /** 柔光玻璃采样源（主内容层算一次；null = 无玻璃） */
+    softGlassSurface: SoftGlassSurface? = null,
+    /** 主 tab pager 的位置信号：切今日/课表时内容整体平移，必须让玻璃重绘 */
+    tabRedraw: () -> Unit = {},
     // 拖拽落点高亮：Pair(dayOfWeek, sectionRange)，sectionRange 为落点覆盖的节次区间。
     // 传 lambda 而不是值：求值推迟到落点遮罩自己的组合作用域里，跨格只重组遮罩那一小块
     // （传值等于在调用方组合期读落点状态，每跨一格整页重组一次）。
@@ -246,7 +232,6 @@ fun MainScheduleScreen(
     val cardSurfaceAlpha = appearance.cardSurfaceAlpha
     val cardHeightPerSection = appearance.cardHeight
     val cardCornerRadius = appearance.cardCornerRadius
-    val wallpaperBrightness = appearance.wallpaperBrightness
     val showBreakDividers = appearance.showBreakDividers
     val cardContentAlignment = appearance.cardContentAlignment
     val cardTextColor = appearance.cardTextColor
@@ -254,7 +239,6 @@ fun MainScheduleScreen(
     val showClassroom = appearance.showClassroom
     val showTeacher = appearance.showTeacher
     val cardRefraction = appearance.cardRefraction
-    val wallpaperBlur = appearance.wallpaperBlur
 
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -288,6 +272,20 @@ fun MainScheduleScreen(
     val scheduleEndSpacer = nativeChromeInset?.plus(80.dp) ?: 175.dp
     val screenWidthPx = with(density) { screenWidthDp().dp.toPx() }
     val screenHeightPx = with(density) { screenHeightDp().dp.toPx() }
+    // 位置信号：卡片的玻璃在各自 draw 里画，而滚动/翻页/超出回弹只平移祖先图层。
+    // 必须把 overScroll 的 offset 也读进来：回弹时 scrollState.value 卡在边界不变，
+    // 少了它玻璃采样会冻在开始回弹那一帧。
+    val overScrollState = remember { OverScrollState() }
+    val weekOverscrollX = remember { mutableFloatStateOf(0f) }
+    val glassRedrawSignal: () -> Unit = remember(pagerState, externalScrollState, overScrollState, weekOverscrollX, tabRedraw) {
+        {
+            externalScrollState.value
+            pagerState.currentPageOffsetFraction
+            overScrollState.offset
+            weekOverscrollX.floatValue
+            tabRedraw()
+        }
+    }
     // 非 state 版本：卡片 onGloballyPositioned 读取不触发重组
     val touchState = remember { ScheduleTouchState() }
     // 跨周调课 tracker 的坐标（挂在 pager 上，跨周不重建）
@@ -762,109 +760,26 @@ fun MainScheduleScreen(
 
     // 顶层读一次主题，避免每列/分界带各自挂 prefs 监听
     val scheduleIsDark = isAppDarkTheme()
-    val wallpaperBackdropColor = schedulePageBackgroundColor(scheduleIsDark)
     // 无壁纸：网格里的课程卡与长按浮层垫同一份页底色；有壁纸为 null（玻璃层自己盖住）
     val cardSolidBacking = courseCardSolidBacking(
         isDark = scheduleIsDark,
         hasWallpaper = wallpaperBitmap != null
     )
 
-    // 壁纸像素一律来自主 pager 后的共享层：本页不自挂录制层（非共享壁纸路径已不存在）。
-    // 共享层没挂（无壁纸 / 非共享模式）时这里为 null，卡片与分界带退回纯色底。
-    val courseCardBackdrop: LayerBackdrop? =
-        if (useSharedWallpaper) sharedWallpaperBackdrop else null
+    // 壁纸像素由主 pager 后的共享层绘制（[useSharedWallpaper]）；本页只负责透明叠上。
+    // 没有共享层（无壁纸 / 非共享模式）时本页自己垫页底色。
 
-    // 仅壁纸路径需要共享模糊层。
-    // 无材质档模糊/折射由 displayAppearance 钳 0，但卡片仍采壁纸（着色/不透明度照常生效）
-    val sharedBlurManager = if (courseCardBackdrop != null) {
-        remember(courseCardBackdrop) { SharedBlurBackdrop(courseCardBackdrop) }
-    } else null
-    // blur=0 也走共享层：省掉每卡独立重录；滚动 LOD 时可直接 blit 共享采样
-    val hasSharedBlur = sharedBlurManager != null && isRenderEffectSupported()
-    val activeCardBackdrop: Backdrop? = when {
-        wallpaperBitmap == null -> null
-        hasSharedBlur -> sharedBlurManager
-        else -> courseCardBackdrop
-    }
-
-    DisposableEffect(sharedBlurManager) {
-        onDispose { sharedBlurManager?.release() }
-    }
-
-    /**
-     * 页级玻璃是否接管采样。
-     *
-     * 条件必须满足「有共享烘焙层」+「AGSL 可用」：前者是玻璃层的纹理来源，后者是折射位移的唯一实现。
-     * 任一不满足就整页退回旧路径（每张卡各自 drawBackdrop），行为与本次改动前完全一致。
-     *
-     * [pageGlassSuppressed] 是第三种退回原因：主内容正被外层缩放（见参数注释）。
-     */
-    val pageGlassActive = hasSharedBlur && isRuntimeShaderSupported() && !pageGlassSuppressed
-    // OFF 档两个值都是 0，传下去等于不折射
-    val pageGlassRefractionHeightPx =
-        with(density) { cardRefraction.lensRadiusDp.dp.toPx() }
-    val pageGlassRefractionAmountPx =
-        with(density) { cardRefraction.lensStrengthDp.dp.toPx() }
-
-    // 非 state：滚动不触发重组
-    val scheduleViewport = remember { BackdropViewport() }
-
-    // 这些量不变时跳过壁纸录制与共享模糊；必须覆盖所有影响壁纸层内容的因素
-    val wallpaperRecordKey = listOf(
-        wallpaperBitmap,
-        maxOf(wallpaperScale, minWallpaperScale),
-        wallpaperOffset.x,
-        wallpaperOffset.y,
-        wallpaperBrightness,
-        wallpaperBlur,
-        wallpaperBackdropColor
-    )
-
-    // 采样视口的写入方。挂在这个 fillMaxSize 根 Box 上而不是滚动容器上：
-    // 根 Box 滚动时**不移动**，所以 onGloballyPositioned 只在旋转/分屏/边距变化等
-    // 布局改动时触发，边界天然不会在滚动中过期；挂滚动容器则要靠 touchState 去
-    // 猜「Y 没变」，边界一旦算错就会误剔可见卡片（出空洞）。
-    CompositionLocalProvider(
-        LocalBackdropViewport provides scheduleViewport
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .onGloballyPositioned { coordinates ->
-                    val pos = coordinates.positionInWindow()
-                    scheduleViewport.update(
-                        left = pos.x,
-                        top = pos.y,
-                        right = pos.x + coordinates.size.width,
-                        bottom = pos.y + coordinates.size.height
-                    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(
+                if (!useSharedWallpaper) {
+                    Modifier.background(schedulePageBackgroundColor(scheduleIsDark))
+                } else {
+                    Modifier
                 }
-        ) {
-            if (courseCardBackdrop == null) {
-                // 没有共享壁纸层（无壁纸 / 非共享模式）：本页垫页底色。
-                // 有共享层时壁纸由主 pager 后那层绘制，本页必须保持透明。
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(wallpaperBackdropColor)
-                )
-            }
-
-            // 不可见预渲染：壁纸录制到降采样+模糊层，供所有课卡共享采样
-            if (hasSharedBlur) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = 0f }
-                        .then(
-                            sharedBlurManager.preRenderModifier(
-                                blurRadiusPx = with(density) { cardBlurRadius.dp.toPx() },
-                                sourceKey = wallpaperRecordKey
-                            )
-                        )
-                )
-            }
-
+            )
+    ) {
             // rememberUpdatedState：pointerInput(Unit) 读到最新值，避免捕获陈旧状态
             val latestWallpaperScale by rememberUpdatedState(wallpaperScale)
             val latestWallpaperOffset by rememberUpdatedState(wallpaperOffset)
@@ -926,6 +841,7 @@ fun MainScheduleScreen(
                         gestureState = pagerGestureState,
                         // 拖课卡那根手指由 blockedPointer 屏蔽；整页禁用会连「另一只手翻周」一起挡掉
                         blockGesture = { latestIsWallpaperEditing },
+                        overscrollXState = weekOverscrollX,
                         blockedPointer = { touchState.draggingPointerId },
                         // 第二只手纵向滑动直接滚屏（verticalScroll 在跟被屏蔽那根手指）
                         onVerticalScroll = { dy -> externalScrollState.dispatchRawDelta(-dy) },
@@ -953,25 +869,12 @@ fun MainScheduleScreen(
                         (1..5).toList() + (weekendDaysByWeek[week] ?: emptySet())
                             .filter { it in 6..7 }
                     }
-                    // 页级玻璃：一页挂一个采样节点，替掉页内 N 张卡各自的 drawBackdrop。
-                    // 每页一个（而不是整块 pager 一个）是有意的：pager 平移会把整页连同玻璃层一起移。
-                    // 时间轴的玻璃要压在小时横线之上，由内层自己插；这里只给网格用。
-                    val pageGlassRegistry = remember { GlassCardRegistry() }
-                    val usePageGlass = pageGlassActive
                     Box(modifier = Modifier.fillMaxSize()) {
-                        if (usePageGlass && scheduleViewMode == ScheduleViewMode.WEEK) {
-                            PageGlass(
-                                registry = pageGlassRegistry,
-                                backdrop = sharedBlurManager,
-                                bakedLayer = sharedBlurManager.blurredLayer,
-                                bakeScale = sharedBlurManager.blurredScale,
-                                refractionHeight = pageGlassRefractionHeightPx,
-                                refractionAmount = pageGlassRefractionAmountPx,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
+                        // 柔光采样源整页只算一份；页内所有卡片/分界带/落点遮罩共用
                         CompositionLocalProvider(
-                            LocalGlassCards provides if (usePageGlass) pageGlassRegistry else null
+                            LocalSoftGlassSurface provides softGlassSurface,
+                            LocalGlassRedrawSignal provides glassRedrawSignal,
+                            LocalOverScrollState provides overScrollState,
                         ) {
                             // 时间轴视图：同一个 pager 页，把「节次」纵轴换成真实时间纵轴。
                             // 早退而不是 if/else 包住下面整段网格：条件分支的 group 处理与 if/else 等价。
@@ -1003,7 +906,7 @@ fun MainScheduleScreen(
                                     isCurrentWeekView = week == currentWeek,
                                     style = TimelineCardStyle(
                                         isDark = scheduleIsDark,
-                                        backdrop = activeCardBackdrop,
+                                        softGlassSurface = softGlassSurface,
                                         cardBlurRadius = cardBlurRadius,
                                         cardAlpha = cardAlpha,
                                         cardSurfaceAlpha = cardSurfaceAlpha,
@@ -1054,11 +957,7 @@ fun MainScheduleScreen(
                                     },
                                     // 长按：起浮层 + 菜单（拖不动、不给复制），与网格自定义时间课同一套
                                     onCourseLongPress = { course, cx, cy, w, h, displayWeek ->
-                                        onCourseLongPress(
-                                            course, cx, cy, w, h,
-                                            activeCardBackdrop ?: courseCardBackdrop,
-                                            displayWeek
-                                        )
+                                        onCourseLongPress(course, cx, cy, w, h, displayWeek)
                                     },
                                     // 浮层期间隐藏原卡
                                     hiddenSlots = draggingCourseSlots,
@@ -1077,18 +976,8 @@ fun MainScheduleScreen(
                                         onPopupStateChange(true)
                                     },
                                     modifier = Modifier.fillMaxSize(),
-                                    glassBehindCards = { glassModifier ->
-                                        if (usePageGlass) {
-                                            PageGlass(
-                                                registry = pageGlassRegistry,
-                                                backdrop = sharedBlurManager,
-                                                bakedLayer = sharedBlurManager.blurredLayer,
-                                                bakeScale = sharedBlurManager.blurredScale,
-                                                refractionHeight = pageGlassRefractionHeightPx,
-                                                refractionAmount = pageGlassRefractionAmountPx,
-                                                modifier = glassModifier
-                                            )
-                                        }
+                                    glassBehindCards = { _ ->
+                                        // 页级玻璃已下线：柔光玻璃由每张卡自己画（见上面说明）
                                     },
                                 )
                                 return@CompositionLocalProvider
@@ -1216,7 +1105,8 @@ fun MainScheduleScreen(
                                                 cardSurfaceAlpha = cardSurfaceAlpha,
                                                 cardRefraction = cardRefraction,
                                                 isTablet = isTablet,
-                                                wallpaperBackdrop = activeCardBackdrop,
+                                                softGlassSurface = softGlassSurface,
+
                                                 items = bandItems,
                                                 dayRange = pageColumnDays
                                             )
@@ -1231,10 +1121,10 @@ fun MainScheduleScreen(
                                         grid = specialGrid,
                                         cardHeightPerSection = cardHeightPerSection,
                                         cardCornerRadius = cardCornerRadius,
+                                        softGlassSurface = softGlassSurface,
                                         isTablet = isTablet,
                                         isDark = scheduleIsDark,
                                         hasWallpaper = wallpaperBitmap != null,
-                                        wallpaperBackdrop = activeCardBackdrop,
                                         cardBlurRadius = cardBlurRadius,
                                     )
 
@@ -1354,20 +1244,17 @@ fun MainScheduleScreen(
                                                         }
                                                     }
                                                 }
-                                            val stableOnCourseLongPress: (Course, Float, Float, Float, Float, Backdrop?, Int) -> Unit =
+                                            val stableOnCourseLongPress: (Course, Float, Float, Float, Float, Int) -> Unit =
                                                 remember(page, dayOfWeek) {
-                                                    { course, left, top, width, height, _, cWeek ->
+                                                    { course, left, top, width, height, cWeek ->
                                                         // 同步补一次最新几何，保证上层锚点用当前页 dayBounds
                                                         pushFreshGeometry()
-                                                        val backdrop =
-                                                            activeCardBackdrop ?: courseCardBackdrop
                                                         onCourseLongPress(
                                                             course,
                                                             left,
                                                             top,
                                                             width,
                                                             height,
-                                                            backdrop,
                                                             cWeek
                                                         )
                                                     }
@@ -1377,6 +1264,7 @@ fun MainScheduleScreen(
                                                 touchState = touchState,
                                                 courses = filteredDayCourses,
                                                 onCourseClick = stableOnCourseClick,
+                                                onCourseLongPress = stableOnCourseLongPress,
                                                 onEmptyClick = stableOnEmptyClick,
                                                 onEmptyLongPress = stableOnEmptyLongPress,
                                                 morningSections = morningSections,
@@ -1393,7 +1281,8 @@ fun MainScheduleScreen(
                                                 pendingDay = pendingDay,
                                                 pendingSection = pendingSection,
                                                 onPendingChange = onPendingChange,
-                                                wallpaperBackdrop = activeCardBackdrop,
+                                                softGlassSurface = softGlassSurface,
+
                                                 solidBackingColor = cardSolidBacking,
                                                 cardBlurRadius = cardBlurRadius,
                                                 cardAlpha = cardAlpha,
@@ -1409,7 +1298,6 @@ fun MainScheduleScreen(
                                                 showTeacher = showTeacher,
                                                 cardRefraction = cardRefraction,
                                                 draggingCourseSlots = draggingCourseSlots,
-                                                onCourseLongPress = stableOnCourseLongPress,
                                                 onCourseDragStart = onCourseDragStart,
                                                 onCourseDrag = onCourseDrag,
                                                 onCourseDragEnd = onCourseDragEnd,
@@ -1543,17 +1431,12 @@ fun MainScheduleScreen(
                                         ?: (morningHeight + dividerOffset + afternoonHeight)
 
                                     if (showBreakDividers) {
-                                        val dividerShape = ContinuousRoundedRectangle(12.dp)
+                                        // 分界带净高 20dp（24dp − 上下各 2dp padding）：圆角必须 ≤ 10dp，
+                                        // 否则 ContinuousRoundedRectangle 在短边超限后会解出尖角。
+                                        val dividerCornerRadius = 10.dp
+                                        val dividerShape = ContinuousRoundedRectangle(dividerCornerRadius)
                                         val dividerHorizontalPadding = if (isTablet) 24.dp else 4.dp
                                         val dividerDensity = LocalDensity.current
-                                        // ⚠ remember 放外层、with 放内层：with(density){remember{...}} 的双层接收者
-                                        // lambda 在 commonMain 目标下类型推断失败（Cannot infer R/T），交换嵌套语义等价
-                                        val dividerBlurPx =
-                                            remember(cardBlurRadius) { with(dividerDensity) { cardBlurRadius.dp.toPx() } }
-                                        val dividerLensRadiusPx =
-                                            remember(cardRefraction) { with(dividerDensity) { (cardRefraction.lensRadiusDp * 0.67f).dp.toPx() } }
-                                        val dividerLensStrengthPx =
-                                            remember(cardRefraction) { with(dividerDensity) { (cardRefraction.lensStrengthDp * 1f).dp.toPx() } }
                                         val hasWallpaperDivider = wallpaperBitmap != null
                                         val dividerBaseColor = when {
                                             hasWallpaperDivider -> Color.Transparent
@@ -1561,21 +1444,21 @@ fun MainScheduleScreen(
                                             scheduleIsDark -> Color(0xFF121212)
                                             else -> Color(0xFFF0F0F0)
                                         }
-                                        // 15% 锚定当前视觉；百分比映射到 0..1（仅作用于有壁纸玻璃表面）
-                                        val dividerSurfaceAlphaAt15 =
+                                        // 12% 锚定当前视觉；百分比映射到 0..1（仅作用于有壁纸玻璃表面）
+                                        val dividerSurfaceAlphaAt12 =
                                             if (scheduleIsDark) 0.64f else 0.50f
                                         val dividerBlurShape =
-                                            remember { ContinuousRoundedRectangle(12.dp) }
+                                            remember { ContinuousRoundedRectangle(dividerCornerRadius) }
 
                                         @Composable
                                         fun BreakDivider(offsetY: Int, text: String) {
-                                            // 0%→0，15%→当前，100%→1；两段线性映射（仅作用于有壁纸玻璃表面）
+                                            // 0%→0，12%→当前，100%→1；两段线性映射（仅作用于有壁纸玻璃表面）
                                             val p = cardSurfaceAlpha.coerceIn(0f, 1f)
-                                            val surfaceAlpha = if (p <= 0.15f) {
-                                                (p / 0.15f) * dividerSurfaceAlphaAt15
+                                            val surfaceAlpha = if (p <= 0.12f) {
+                                                (p / 0.12f) * dividerSurfaceAlphaAt12
                                             } else {
-                                                dividerSurfaceAlphaAt15 +
-                                                        ((p - 0.15f) / 0.85f) * (1f - dividerSurfaceAlphaAt15)
+                                                dividerSurfaceAlphaAt12 +
+                                                        ((p - 0.12f) / 0.88f) * (1f - dividerSurfaceAlphaAt12)
                                             }
                                             // 无壁纸底色保持实色，不随「卡片不透明度」变化
                                             val dividerFgBase = dividerBaseColor
@@ -1588,89 +1471,52 @@ fun MainScheduleScreen(
                                             } else {
                                                 Color.White.copy(alpha = surfaceAlpha)
                                             }
-                                            // 描边只在有壁纸（玻璃）时画：纯色模式下分界线本身就是实色，加轮廓只会显脏
-                                            val dividerOutlineColor =
-                                                remember(dividerFgSurface, scheduleIsDark) {
-                                                    scheduleOutlineColor(
-                                                        dividerFgSurface,
-                                                        scheduleIsDark
-                                                    )
-                                                }
-                                            val dividerOutlineWidthPx = remember(dividerDensity) {
-                                                with(dividerDensity) { SCHEDULE_OUTLINE_WIDTH.toPx() }
+                                            // 柔光玻璃：分界带也是整页材质的一部分，采样原点 = 窗口坐标。
+                                            // 宽度很大、高度只有 20dp，shader 的倒角带会吃掉上下两条边，
+                                            // 但正好落在 2dp 内边距里，肉眼看到的是中间的柔光条。
+                                            val dividerSoftOrigin = remember { arrayOf(Offset.Zero) }
+                                            val dividerRadiusPx = remember(dividerDensity) {
+                                                with(dividerDensity) { dividerCornerRadius.toPx() }
                                             }
-                                            val dividerOutlineCache = remember { OutlineCache() }
+                                            // remember：重组时不重建 Modifier（否则 AGSL 重编译）
+                                            val glassRedraw = LocalGlassRedrawSignal.current
+                                            val dividerSoftModifier = remember(
+                                                softGlassSurface,
+                                                dividerRadiusPx,
+                                                dividerDensity,
+                                                glassRedraw
+                                            ) {
+                                                softGlassSurface?.modifier(
+                                                    density = dividerDensity,
+                                                    radiusPx = dividerRadiusPx,
+                                                    origin = { dividerSoftOrigin[0] },
+                                                    redraw = glassRedraw,
+                                                )
+                                            }
                                             Box(
                                                 modifier = Modifier.fillMaxWidth()
                                                     .offset(y = offsetY.dp)
                                                     .height(24.dp)
                                                     .padding(vertical = 2.dp)
                                                     .padding(horizontal = dividerHorizontalPadding)
+                                                    .onGloballyPositioned {
+                                                        dividerSoftOrigin[0] = it.positionInWindow()
+                                                    }
                                                     .background(dividerFgBase, dividerShape)
                                                     .then(
-                                                        if (hasWallpaperDivider) {
-                                                            val dividerBackdrop = activeCardBackdrop
-                                                                ?: courseCardBackdrop
-                                                            // 同课程卡：模糊 0 且无折射时，采样回来的就是分界带正下方的
-                                                            // 壁纸像素，退化成一次圆角填充（每个周页 2 条，3 个周页常驻）
-                                                            val dividerNeedsSampling =
-                                                                cardBlurRadius > 0f || cardRefraction != CardRefractionLevel.OFF
-                                                            if (dividerNeedsSampling && dividerBackdrop != null) {
-                                                                val dividerEffects: BackdropEffectScope.() -> Unit =
-                                                                    remember(
-                                                                        dividerBackdrop,
-                                                                        dividerBlurPx,
-                                                                        dividerLensRadiusPx,
-                                                                        dividerLensStrengthPx
-                                                                    ) {
-                                                                        {
-                                                                            if (dividerBackdrop !is SharedBlurBackdrop) {
-                                                                                blur(dividerBlurPx)
-                                                                            }
-                                                                            lens(
-                                                                                dividerLensRadiusPx,
-                                                                                dividerLensStrengthPx
-                                                                            )
-                                                                        }
-                                                                    }
-                                                                Modifier.drawBackdrop(
-                                                                    backdrop = dividerBackdrop,
-                                                                    shape = { dividerBlurShape },
-                                                                    effects = dividerEffects,
-                                                                    highlight = null,
-                                                                    shadow = null,
-                                                                    viewport = LocalBackdropViewport.current,
-                                                                    onDrawSurface = remember(
-                                                                        dividerFgSurface
-                                                                    ) {
-                                                                        {
-                                                                            drawRect(
-                                                                                dividerFgSurface
-                                                                            )
-                                                                        }
-                                                                    }
-                                                                )
-                                                            } else {
-                                                                Modifier.background(
-                                                                    dividerFgSurface,
-                                                                    dividerBlurShape
-                                                                )
-                                                            }
-                                                        } else Modifier
-                                                    )
-                                                    .then(
-                                                        if (hasWallpaperDivider) {
-                                                            Modifier.drawWithContent {
-                                                                drawContent()
-                                                                drawScheduleOutline(
-                                                                    cache = dividerOutlineCache,
-                                                                    cornerRadius = 12.dp,
-                                                                    color = dividerOutlineColor,
-                                                                    strokeWidthPx = dividerOutlineWidthPx,
-                                                                    layoutDirection = layoutDirection,
-                                                                )
-                                                            }
-                                                        } else Modifier
+                                                        if (hasWallpaperDivider && dividerSoftModifier != null) {
+                                                            Modifier
+                                                                .then(dividerSoftModifier)
+                                                                .background(dividerFgSurface, dividerBlurShape)
+                                                        } else if (hasWallpaperDivider) {
+                                                            // 非 Android / 无柔光实现：半透明表面
+                                                            Modifier.background(
+                                                                dividerFgSurface,
+                                                                dividerBlurShape
+                                                            )
+                                                        } else {
+                                                            Modifier
+                                                        }
                                                     ),
                                                 contentAlignment = Alignment.Center
                                             ) {
@@ -1899,7 +1745,6 @@ fun MainScheduleScreen(
                 }
             )
         }
-    } // CompositionLocalProvider
 }
 
 private data class DropMaskBox(
@@ -1955,6 +1800,7 @@ private fun WeekPagerHost(
 
 @Composable
 private fun AnimatedDropTargetMask(
+    softGlassSurface: SoftGlassSurface? = null,
     dropHighlight: () -> Pair<Int, IntRange>?,
     dropHighlightOrigin: () -> Pair<Int, IntRange>?,
     pageDayRange: List<Int>,
@@ -1964,7 +1810,6 @@ private fun AnimatedDropTargetMask(
     isTablet: Boolean,
     isDark: Boolean,
     hasWallpaper: Boolean,
-    wallpaperBackdrop: Backdrop?,
     cardBlurRadius: Float,
 ) {
     val density = LocalDensity.current
@@ -2083,28 +1928,30 @@ private fun AnimatedDropTargetMask(
             }
         }
 
-        val hasWallpaperMask = hasWallpaper && wallpaperBackdrop != null
         val solidColor =
             (if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.primary else Color(0xFF9E9E9E))
                 .copy(alpha = if (isDark) 0.13f else 0.15f)
         val glassSurface = if (MiuixTheme.isDynamicColor) {
             MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (isDark) 0.64f else 0.5f)
         } else if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f)
-        val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
         val maskShape =
             remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
-        // 稳定引用：内联 lambda 会让 drawBackdrop 每次重组重建 RenderEffect
-        val maskEffects: BackdropEffectScope.() -> Unit =
-            remember(wallpaperBackdrop, blurPx) {
-                {
-                    if (wallpaperBackdrop !is SharedBlurBackdrop) blur(blurPx)
-                }
-            }
-        val maskSurface: DrawScope.() -> Unit =
-            remember(glassSurface) { { drawRect(glassSurface) } }
+        val maskSoftOrigin = remember { arrayOf(Offset.Zero) }
+        val maskRadiusPx = remember(cardCornerRadius, density) {
+            with(density) { cardCornerRadius.dp.toPx() }
+        }
+        val glassRedraw = LocalGlassRedrawSignal.current
+        val maskSoftModifier = remember(softGlassSurface, maskRadiusPx, density, glassRedraw) {
+            softGlassSurface?.modifier(
+                density = density,
+                radiusPx = maskRadiusPx,
+                origin = { maskSoftOrigin[0] },
+                redraw = glassRedraw,
+            )
+        }
 
-        if (hasWallpaperMask) {
-            // 壁纸玻璃表面：offset+layout 跟动画几何，alpha 走 graphicsLayer
+        if (hasWallpaper && maskSoftModifier != null) {
+            // 柔光玻璃表面：offset+layout 跟动画几何，alpha 走 graphicsLayer
             Box(
                 modifier = Modifier
                     .offset {
@@ -2121,15 +1968,10 @@ private fun AnimatedDropTargetMask(
                             placeable.place(0, 0)
                         }
                     }
+                    .onGloballyPositioned { maskSoftOrigin[0] = it.positionInWindow() }
                     .graphicsLayer { this.alpha = alpha.value }
-                    .drawBackdrop(
-                        backdrop = wallpaperBackdrop,
-                        shape = { maskShape },
-                        effects = maskEffects,
-                        highlight = null,
-                        shadow = null,
-                        onDrawSurface = maskSurface
-                    )
+                    .then(maskSoftModifier)
+                    .background(glassSurface, maskShape)
             )
         } else {
             // 纯色路径：drawBehind 读 Animatable，位移/尺寸/透明度均不触发重组

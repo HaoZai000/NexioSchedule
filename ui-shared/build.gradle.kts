@@ -40,6 +40,18 @@ kotlin {
         commonMain {
             kotlin.srcDir("src/portable/kotlin")
         }
+        // 桌面 / iOS / 鸿蒙共用的 Skiko shader 后端。Android 不用 Skia，单独吃 androidMain。
+        val skikoMain by creating {
+            dependsOn(commonMain.get())
+        }
+        getByName("jvmMain").dependsOn(skikoMain)
+        if (enableIos) {
+            // iosMain 在默认层级里是 lazy 的；显式建出来并把 src/iosMain 的 actual 挂上
+            val iosMain = maybeCreate("iosMain").apply { dependsOn(commonMain.get()) }
+            iosMain.dependsOn(skikoMain)
+            getByName("iosArm64Main").dependsOn(iosMain)
+            getByName("iosSimulatorArm64Main").dependsOn(iosMain)
+        }
         commonTest.dependencies {
             implementation(kotlin("test"))
         }

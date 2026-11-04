@@ -1412,7 +1412,7 @@ fun CustomizeScheduleScreen(
                                 label = SchedStr.cardOpacity(),
                                 value = cardSurfaceAlphaValue,
                                 valueRange = 0f..1f,
-                                keyPoints = listOf(0.15f),
+                                keyPoints = listOf(0.12f),
                                 enabled = hasWallpaper,
                                 onValueChange = { if (hasWallpaper) cardSurfaceAlphaValue = it },
                                 quantize = { (it * 100f).roundToInt() / 100f },

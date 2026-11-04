@@ -32,6 +32,7 @@ import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.i18n.SwitchStr
+import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.EduImportUpdater
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouter
@@ -692,4 +693,5 @@ internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     // 走 Compose 栈会被上面压着的原生文档挡住（表现为「点了没反应」）
     AppRoute.EducationalImport -> ChromeStr.educationalImport()
     AppRoute.CourseManage -> SwitchStr.courseManage()
+    AppRoute.Weather -> WeatherStr.title()
 }

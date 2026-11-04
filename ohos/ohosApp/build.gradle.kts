@@ -87,6 +87,8 @@ kotlin {
             getByName("commonMain").kotlin.srcDir(rootProject.file("../ui-shared/src/portable/kotlin"))
             getByName("commonMain").kotlin.srcDir(rootProject.file("../ui-shared/src/commonMain/kotlin"))
             getByName("commonMain").kotlin.srcDir(rootProject.file("../core/src/commonMain/kotlin"))
+            // 柔光玻璃的 Skiko 后端（与桌面 / iOS 同一份 actual），鸿蒙也走 Skia
+            ohosMain.kotlin.srcDir(rootProject.file("../ui-shared/src/skikoMain/kotlin"))
             // 需要被共享代码看见的平台实现只能进 commonMain 源根
             getByName("commonMain").kotlin.srcDir("src/ohosSharedCommon/kotlin")
             ohosMain.kotlin.srcDir("src/ohosSharedCore/kotlin")

@@ -10,7 +10,7 @@ data class AppearanceConfig(
     /** 课程色着色程度（有无壁纸都可调） */
     val cardAlpha: Float = 0.15f,
     /** 有壁纸时卡片白/黑底不透明度 */
-    val cardSurfaceAlpha: Float = 0.15f,
+    val cardSurfaceAlpha: Float = 0.12f,
     val cardHeight: Float = 54f,
     val cardCornerRadius: Float = 10f,
     val wallpaperBrightness: Float = 0f,
@@ -117,7 +117,7 @@ data class AppearanceStyle(
 /** 外观默认值 —— 与滑杆默认值、JSON 缺省值保持一致。 */
 object CombinationDefaults {
     const val CARD_HEIGHT_DEFAULT = 54f
-    const val CARD_SURFACE_ALPHA_DEFAULT = 0.15f
+    const val CARD_SURFACE_ALPHA_DEFAULT = 0.12f
 }
 
 // `ThemeMode` 独立成文件：只含纯数据，供 `:ui-shared` 页面引用

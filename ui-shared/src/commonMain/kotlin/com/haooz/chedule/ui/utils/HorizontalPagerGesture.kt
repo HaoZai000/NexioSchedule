@@ -243,6 +243,8 @@ fun Modifier.pagerAxisTakeoverGesture(
     blockGesture: () -> Boolean = { false },
     blockedPointer: () -> PointerId? = { null },
     onVerticalScroll: ((dy: Float) -> Unit)? = null,
+    /** 超出回弹的横向位移（scrollBy 坐标）；外部玻璃采样需要读它来按帧失效 */
+    overscrollXState: androidx.compose.runtime.MutableFloatState = remember { mutableFloatStateOf(0f) },
 ): Modifier {
     val latestBlock = rememberUpdatedState(blockGesture)
     val latestBlockedPointer = rememberUpdatedState(blockedPointer)
@@ -250,7 +252,7 @@ fun Modifier.pagerAxisTakeoverGesture(
     val scope = gestureState.scope
     val settleJob = remember { mutableStateOf<Job?>(null) }
     val overscrollJob = remember { mutableStateOf<Job?>(null) }
-    val overscrollX = remember { mutableFloatStateOf(0f) }
+    val overscrollX = overscrollXState
     return this
         .clipToBounds()
         .then(PagerOverscrollOffsetElement(overscrollX))

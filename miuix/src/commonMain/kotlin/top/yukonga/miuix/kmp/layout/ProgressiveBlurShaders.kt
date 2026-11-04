@@ -1,3 +1,5 @@
+// Copyright (C) 2026 Haooz · AGPL-3.0-only
+
 package top.yukonga.miuix.kmp.layout
 
 /**

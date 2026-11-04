@@ -92,6 +92,10 @@ import com.haooz.chedule.ui.activities.classschedule.MainScheduleScreen
 import com.haooz.chedule.ui.activities.classschedule.ScheduleTopBar
 import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.today.TodayScreen
+import com.haooz.chedule.ui.components.rememberSoftGlassSurface
+import com.haooz.chedule.data.appearance.CardRefractionLevel
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.TodaySoftGlassStyle
 import com.haooz.chedule.ui.components.BackToNowFloatingButton
 import com.haooz.chedule.ui.components.LiquidNavigationRail
 import com.haooz.chedule.ui.components.PublishNativeBottomBar
@@ -176,6 +180,53 @@ internal fun CourseScheduleAppMainContent(
 ) {
     with(state) {
         val density = densityProvider
+        // 两页各自一份柔光样式（edgeWidth/折射/模糊互不影响）；壁纸采样源相同但分别烘焙
+        val glassWallpaper =
+            if (showCustomizePage && !isWindowCutoutActive) originalWallpaperImage else wallpaperImage
+        val glassScale =
+            if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale
+        val glassOffset =
+            if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset
+        // 直接复用外观里已有的「卡片折射 / 卡片模糊」，两页同一套值；只有 edgeWidth 按页不同
+        val glassRefractionScale = when (displayAppearance.cardRefraction) {
+            CardRefractionLevel.OFF -> 0f
+            CardRefractionLevel.WEAK -> 0.8f
+            CardRefractionLevel.DEFAULT -> 1f
+            CardRefractionLevel.STRONG -> 1.2f
+        }
+        val glassBlur = displayAppearance.cardBlurRadius.dp
+        val scheduleGlassStyle = remember(glassRefractionScale, glassBlur) {
+            ScheduleSoftGlassStyle.copy(
+                refractionScale = glassRefractionScale,
+                smallBlurRadius = glassBlur,
+            )
+        }
+        val todayGlassStyle = remember(glassRefractionScale, glassBlur) {
+            TodaySoftGlassStyle.copy(
+                refractionScale = glassRefractionScale,
+                smallBlurRadius = glassBlur,
+            )
+        }
+        val scheduleSoftGlassSurface = rememberSoftGlassSurface(
+            wallpaperBitmap = glassWallpaper,
+            wallpaperScale = glassScale,
+            wallpaperOffset = glassOffset,
+            screenWidthPx = screenWPx,
+            screenHeightPx = screenHPx,
+            style = scheduleGlassStyle,
+        )
+        val todaySoftGlassSurface = rememberSoftGlassSurface(
+            wallpaperBitmap = glassWallpaper,
+            wallpaperScale = glassScale,
+            wallpaperOffset = glassOffset,
+            screenWidthPx = screenWPx,
+            screenHeightPx = screenHPx,
+            style = todayGlassStyle,
+        )
+        // 主 tab 切换时 pager 整体平移，两页的玻璃采样都要按帧刷新
+        val tabGlassRedraw: () -> Unit = remember(mainPagerState) {
+            { mainPagerState.currentPageOffsetFraction }
+        }
 
         // 连贯动画期间下层的实时模糊半径（dp）：长按菜单优先，其次详情 morph；与宿主侧口径一致
         fun currentDetailBlurDp(): Float =
@@ -980,6 +1031,8 @@ internal fun CourseScheduleAppMainContent(
                                                             },
                                                             useSharedWallpaper = !isShiftMode && wallpaperBitmap != null,
                                                             sharedWallpaperBackdrop = sharedWallpaperBackdrop,
+                                                            softGlassSurface = todaySoftGlassSurface,
+                                                            tabRedraw = tabGlassRedraw,
                                                             cardBlurRadius = displayAppearance.cardBlurRadius,
                                                             cardRefraction = displayAppearance.cardRefraction,
                                                             cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
@@ -1060,7 +1113,7 @@ internal fun CourseScheduleAppMainContent(
                                                                     )
                                                                     shortcutMenuAnchorWidth = width
                                                                 },
-                                                                onCourseLongPress = longPress@{ course, left, top, width, height, backdrop, currentWeek ->
+                                                                onCourseLongPress = longPress@{ course, left, top, width, height, currentWeek ->
                                                                     // 非本周的课（灰卡）两种视图都不给长按菜单：它只是「这格以后会上什么」的占位
                                                                     if (!course.isActiveInWeek(currentWeek)) return@longPress
                                                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -1136,7 +1189,6 @@ internal fun CourseScheduleAppMainContent(
                                                                     floatingOffsetX.floatValue = 0f
                                                                     floatingOffsetY.floatValue = 0f
                                                                     draggedCardSize = anchorSize
-                                                                    draggedCardBackdrop = backdrop
                                                                     shortcutMenuCourse = course
                                                                     emptyCellMenuTarget = null
                                                                     shortcutMenuVisible = true
@@ -1147,14 +1199,11 @@ internal fun CourseScheduleAppMainContent(
                                                                         )
                                                                     shortcutMenuAnchorWidth =
                                                                         anchorSize.x
-                                                                    shortcutMenuBackdrop = backdrop
                                                                     shortcutMenuAllowCopy = scheduleViewMode != ScheduleViewMode.TIMELINE
                                                                 },
                                                                 onCourseDragStart = { _ ->
                                                                     // 拖过位移阈值才到这里（卡片侧 moved > slop 才回调），
-                                                                    // 跟手高光从这一刻才亮，紧接着 onCourseMenuDismiss 收菜单。
-                                                                    // 落点也在这里先算一次（此刻就是源格），让遮罩和高光同一帧出现，
-                                                                    // 否则要等下一帧 onCourseDrag 才补上，看着比高光慢半拍
+                                                                    // 跟手高光从这一刻才亮，紧接着 onCourseMenuDismiss 收菜单
                                                                     isFloatingCardDragging = true
                                                                     refreshPendingDropTarget()
                                                                 },
@@ -1446,7 +1495,6 @@ internal fun CourseScheduleAppMainContent(
                                                                 wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
                                                                 wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
                                                                 useSharedWallpaper = !isShiftMode && wallpaperBitmap != null,
-                                                                sharedWallpaperBackdrop = sharedWallpaperBackdrop,
                                                                 isWallpaperEditing = isWindowCutoutActive,
                                                                 onWallpaperOffsetChange = {
                                                                     wallpaperOffset = it
@@ -1456,7 +1504,8 @@ internal fun CourseScheduleAppMainContent(
                                                                 },
                                                                 appearance = displayAppearance,
                                                                 liquidGlassBackdrop = liquidGlassBackdrop,
-                                                                pageGlassSuppressed = mainContentTransformed,
+                                                                softGlassSurface = scheduleSoftGlassSurface,
+                                                                tabRedraw = tabGlassRedraw,
                                                                 onGridGeometryChange = { geom ->
                                                                     gridGeometry = geom
                                                                     // 翻周停下 / 页内滚停后几何换页

@@ -46,9 +46,9 @@ import com.haooz.chedule.data.holiday.HolidayCourseExclusion
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.model.pickNonCurrentWeekCourse
 import com.haooz.chedule.data.util.nowLocalTime
+import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.theme.scheduleAccentColor
-import com.kyant.backdrop.Backdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
@@ -264,7 +264,8 @@ internal fun buildTimelineWeek(days: List<TimelineDay>, sectionTimes: Map<Int, S
 /** 时间轴卡片沿用网格卡片的外观量（同一张 `CourseCard`，参数一一对应）。 */
 internal data class TimelineCardStyle(
     val isDark: Boolean,
-    val backdrop: Backdrop?,
+    /** 柔光玻璃采样源（Android 才有实现；null = 纯色表面）。 */
+    val softGlassSurface: SoftGlassSurface?,
     val cardBlurRadius: Float,
     val cardAlpha: Float,
     val cardSurfaceAlpha: Float,
@@ -578,12 +579,11 @@ private fun TimelineDayLane(
                     .height(height.dp)
             ) {
                 PendingAddCard(
-                    hasBlur = style.backdrop != null,
                     isDark = style.isDark,
                     cardCornerRadius = style.cardCornerRadius,
                     cardBlurRadius = style.cardBlurRadius,
                     cardRefraction = style.cardRefraction,
-                    wallpaperBackdrop = style.backdrop,
+                    softGlassSurface = style.softGlassSurface,
                     modifier = Modifier.fillMaxSize(),
                     onClick = {
                         onPendingAddClick(day, startMinute, pendingAdd.durationMinutes)
@@ -636,7 +636,7 @@ internal fun TimelineCardsLayer(
             isCourseCancelled = isCourseCancelled(slot.course),
             isWorkSwap = isWorkSwap,
             hasMultipleCourses = slot.hasMultiple,
-            wallpaperBackdrop = style.backdrop,
+            softGlassSurface = style.softGlassSurface,
             cardBlurRadius = style.cardBlurRadius,
             cardAlpha = style.cardAlpha,
             cardSurfaceAlpha = style.cardSurfaceAlpha,
