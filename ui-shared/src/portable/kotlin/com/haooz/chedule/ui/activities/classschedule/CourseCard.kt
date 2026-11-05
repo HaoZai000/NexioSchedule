@@ -94,10 +94,11 @@ fun CourseCard(
     isWorkSwap: Boolean = false,
     hasMultipleCourses: Boolean = false,
     softGlassSurface: SoftGlassSurface? = null,
-    cardBlurRadius: Float = 4f,
+    /** 玻璃采样源模糊（**px**，直接喂 smallBlurRadius）；这里只做透传，卡片自身不用 */
+    cardBlurRadius: Float = 32f,
     cardAlpha: Float = 0.15f,
     /** 有壁纸时白/黑底不透明度（卡片不透明度） */
-    cardSurfaceAlpha: Float = 0.12f,
+    cardSurfaceAlpha: Float = 0.40f,
     /**
      * 垫在卡片**最底部**的纯色，通常由调用方传页面底色 @0.8f。
      *
@@ -143,7 +144,7 @@ fun CourseCard(
 ) {
     val sectionCount = course.endSection - course.startSection + 1
     val cardHeight = (customCardHeightDp ?: (sectionCount * cardHeightPerSection)).dp
-    // 柔光只需要壁纸位图（softGlassSurface 内部自采），不再依赖 kyant 的共享层。
+    // 柔光只需要壁纸位图（softGlassSurface 内部自采），不需要 kyant 的共享层。
     val hasBlur = softGlassSurface != null
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
     val scope = rememberCoroutineScope()
@@ -277,7 +278,10 @@ fun CourseCard(
                 else Color.White.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
             }
 
-            // 白/黑底 + 课程色压成一次 drawRect（两次全卡 fill 是每卡每帧的固定成本）
+            // 白/黑底 + 课程色压成一次 drawRect（两次全卡 fill 是每卡每帧的固定成本）。
+            // ⚠ 顺序固定为「白/黑垫底、课程色在上」，别对调：课程色压在上面是既有观感，
+            // 换了整卡会亮一档。代价是不透明度对最终像素的贡献被课程色稀释（×0.85），
+            // 所以设置里的百分比指的是这一层自身的 alpha，不是最终像素里的占比。
             val surfaceColor = remember(cardColor, overlayColor) {
                 flattenStackedFills(overlayColor, cardColor)
             }
@@ -338,8 +342,8 @@ fun CourseCard(
                         }
                     )
                     .then(
-                        // kyant 的 drawBackdrop 采样已删：柔光玻璃不可用时（无壁纸 / 非 Android）
-                        // 卡片直接铺表面色。柔光自带折射 + 着色 + 描边，表面色仍压在最上面。
+                        // 柔光玻璃不可用（无壁纸 / 非 Android）时直接铺表面色。
+                        // 柔光自带折射 + 着色 + 描边，表面色仍压在最上面。
                         if (softGlassModifier != null) {
                             Modifier
                                 .then(softGlassModifier)
@@ -771,7 +775,7 @@ private fun BoxScope.CardContent(
         }
     }
 
-    // 正文直接挂在课卡 Box 上（原来的 Box + Column 两层只干居中+内边距），每卡省 2 个节点
+    // 正文直接挂在课卡 Box 上（居中 + 内边距由 align/padding 完成），每卡少 2 个节点
     Text(
         text = bodyText,
         modifier = Modifier

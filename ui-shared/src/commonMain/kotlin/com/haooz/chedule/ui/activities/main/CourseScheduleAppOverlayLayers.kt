@@ -45,6 +45,8 @@ import com.haooz.chedule.data.SwitchCardSnapshotStore
 import com.haooz.chedule.data.WallpaperStore
 import com.haooz.chedule.data.appearance.AppearanceConfig
 import com.haooz.chedule.data.appearance.AppearanceStore
+import com.haooz.chedule.data.appearance.scheduleSurfaceAlpha
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
@@ -90,9 +92,9 @@ import top.yukonga.miuix.kmp.icon.extended.Paste
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 课表主界面「浮层组」：浮动卡片/交换飞行、快捷菜单、课表外观页、详情页、切换课表、排班 loading。
+ * 课表主界面「浮层组」：浮动卡片 / 交换飞行、快捷菜单、课表外观页、详情页、切换课表、排班 loading。
  *
- * 从 `CourseScheduleApp.kt` 拆出。层级顺序与原来完全一致（详情页要盖在弹窗之上）。
+ * 层级顺序固定：详情页必须盖在弹窗层之上。
  */
 @Composable
 internal fun BoxScope.CourseScheduleAppOverlayLayers(
@@ -264,7 +266,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                     cardBlurRadius = displayAppearance.cardBlurRadius,
                                     cardRefraction = displayAppearance.cardRefraction,
                                     cardAlpha = displayAppearance.cardAlpha,
-                                    cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
+                                    cardSurfaceAlpha = displayAppearance.scheduleSurfaceAlpha(isAppDarkTheme()),
                                     // 无壁纸时垫页底色，取值见 floatSolidBacking
                                     solidBackingColor = floatSolidBacking,
                                     cardHeightPerSection = displayAppearance.cardHeight,
@@ -315,7 +317,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                     cardBlurRadius = displayAppearance.cardBlurRadius,
                                     cardRefraction = displayAppearance.cardRefraction,
                                     cardAlpha = displayAppearance.cardAlpha,
-                                    cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
+                                    cardSurfaceAlpha = displayAppearance.scheduleSurfaceAlpha(isAppDarkTheme()),
                                     // 无壁纸时垫页底色，取值见 floatSolidBacking
                                     solidBackingColor = floatSolidBacking,
                                     cardHeightPerSection = displayAppearance.cardHeight,
@@ -601,6 +603,9 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 )
                                 AppearanceStore.saveCardRefraction(
                                     appearanceToSave.cardRefraction
+                                )
+                                AppearanceStore.saveCardEdgeThickness(
+                                    appearanceToSave.cardEdgeThickness
                                 )
                                 AppearanceStore.saveWallpaperBlur(
                                     appearanceToSave.wallpaperBlur
@@ -957,14 +962,14 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                 )
             }
         }
-        // Retain the card morph below native navigation chrome, not in the modal layer.
+        // 卡片形变层要压在原生导航栏之下，不能放进弹窗层
         CompositionLocalProvider(
             LocalHostOverlays provides
                     (hostNavigation?.scheduleLibraryOverlays
                         ?: LocalHostOverlays.current),
         ) {
             HostedOverlay(active = showSwitchSchedule || switchAnimRunning || switchOverlayActive) {
-                // Entry shading belongs below native controls, never in the modal layer.
+                // 进入遮罩归原生控件之下管，永不进弹窗层
                 if (isEntryAnimating) {
                     Box(Modifier.fillMaxSize().background(Color.Black).graphicsLayer {
                         alpha = switchReturnBgScrim.value * if (isDark) 1f else 0.6f
@@ -977,7 +982,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
-                                // A zero-alpha layer may skip recording its target snapshot on iOS.
+                                // iOS 上 alpha=0 的图层会跳过目标快照录制，所以留 0.001
                                 alpha = if (switchPreparingLayer) 0.001f else 1f
                             }
                     ) {
@@ -1179,7 +1184,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                             )
                         }
                     }
-                    // Morph between the retained main layer and the destination card.
+                    // 在「保留的主内容层」与目标卡片之间做形变
                     SwitchMorphOverlay(
                         active = switchOverlayActive,
                         progress = switchAnimProgress,

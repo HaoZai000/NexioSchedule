@@ -104,7 +104,7 @@ fun DayColumn(
     solidBackingColor: Color? = null,
     cardBlurRadius: Float = 4f,
     cardAlpha: Float = 0.15f,
-    cardSurfaceAlpha: Float = 0.12f,
+    cardSurfaceAlpha: Float = 0.40f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     showBreakDividers: Boolean = true,
@@ -346,7 +346,7 @@ private fun CourseCardsLayer(
     cardHeightPerSection: Float,
     cardCornerRadius: Float,
     cardAlpha: Float,
-    cardSurfaceAlpha: Float = 0.12f,
+    cardSurfaceAlpha: Float = 0.40f,
     isTablet: Boolean,
     cardContentAlignment: CardContentAlignment,
     cardTextColor: CardTextColor,
@@ -636,7 +636,7 @@ internal fun PendingAddCard(
                                     .then(pendingSoftModifier)
                                     .background(surfaceColor, backdropShape)
                             } else {
-                                // 无壁纸 / 非 Android：直接铺表面色（kyant 采样已删）
+                                // 无壁纸 / 非 Android：直接铺表面色
                                 Modifier.background(surfaceColor, backdropShape)
                             }
                         )
@@ -819,7 +819,7 @@ fun SpecialBandOverlay(
     cardCornerRadius: Float,
     cardBlurRadius: Float,
     cardAlpha: Float,
-    cardSurfaceAlpha: Float = 0.12f,
+    cardSurfaceAlpha: Float = 0.40f,
     cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     isTablet: Boolean = false,
     softGlassSurface: SoftGlassSurface? = null,
@@ -849,9 +849,11 @@ fun SpecialBandOverlay(
         key(effectiveCornerRadius) {
             val backdropShape = remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
             val density = LocalDensity.current
-            val overlayColor = remember(isDark, cardSurfaceAlpha) {
-                if (isDark) Color.Black.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
-                else Color.White.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
+            // 分界带与课程卡同值（调用方已经把课表页的 −15pp 偏移算进 cardSurfaceAlpha 了）
+            val bandAlpha = cardSurfaceAlpha.coerceIn(0f, 1f)
+            val overlayColor = remember(isDark, bandAlpha) {
+                if (isDark) Color.Black.copy(alpha = bandAlpha)
+                else Color.White.copy(alpha = bandAlpha)
             }
 
             // 两层纯色压成一次 drawRect（见 flattenStackedFills）
@@ -881,7 +883,7 @@ fun SpecialBandOverlay(
                                 .then(bandSoftModifier)
                                 .background(bandSurfaceColor, backdropShape)
                         } else {
-                            // 无壁纸 / 非 Android：直接铺表面色（kyant 采样已删）
+                            // 无壁纸 / 非 Android：直接铺表面色
                             Modifier.background(bandSurfaceColor, backdropShape)
                         }
                     )
@@ -953,8 +955,8 @@ private fun SpecialBandBody(
     }
 
     val segments = remember(items, dayRange) { buildSpecialBandSegments(items, dayRange) }
-    // 只画有安排的段：没排安排的星期不画任何东西（曾试过常驻 "+" 提示，太吵）。
-    // 横带自身的底色是整条连续的，空格子读作「这段还没排」而不是「条带子断了」；
+    // 只画有安排的段：没排安排的星期不画任何东西（常驻 "+" 提示太吵）。
+    // 横带底色整条连续，空格子读作「这段还没排」而不是「条带断了」；
     // 点击层仍铺满空格子，点一下就是新增安排，弹窗会预选该星期。
     val drawn = remember(segments) { segments.filter { it.item != null } }
     val dayCount = dayRange.size
@@ -1091,7 +1093,7 @@ internal data class SpecialBandSegment(
  *
  * [columnDays] 是**列位置对应的显示星期**，不是列下标：调休日的列显示的是被调星期
  * （周一补班 → 该列画周日的课），子块必须跟着显示星期走，否则「周日早读」会留在周位列上。
- * 早先直接拿 1..7 当列下标查 indexOf，调休周整排错位。
+ * ⚠ 别拿 1..7 当列下标查 indexOf，调休周会整排错位。
  *
  * 相邻同 id 的列合成一段，避免一个「周一~周五」的子块被逐列拆成一排小格；
  * 两段不相邻的同日子块（如调休后周一与周日都显示周日）会各画各的，不连成一条。

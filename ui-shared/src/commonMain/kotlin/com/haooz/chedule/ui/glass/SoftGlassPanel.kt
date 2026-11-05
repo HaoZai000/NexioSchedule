@@ -17,38 +17,17 @@ import androidx.compose.ui.unit.IntSize
 import kotlin.math.roundToInt
 import androidx.compose.ui.unit.dp
 
-/**
- * 柔光玻璃（HyperOS `mi_glass_sdf`）的绘制入口。
- *
- * 链路：
+/*
+ * 柔光玻璃（HyperOS `mi_glass_sdf`）的绘制入口。链路：
  * 1. `rememberSoftGlassSurface` 按页烘焙轻 / 重两张低分辨率模糊图（[SoftGlassBackdrop]）；
- * 2. 面板在 `drawWithCache` 里按「尺寸 + 圆角 + 样式」取共享的 [SoftGlassProgram]（见 `SoftGlassProgramCache`）；
+ * 2. 面板在 `drawWithCache` 里按「尺寸 + 圆角 + 样式」取共享的 [SoftGlassProgram]（`SoftGlassProgramCache`）；
  * 3. 每帧只更新 `uOrigin`，主体 NORMAL、描边 LIGHTEN。
  *
  * 坐标：位图与屏幕同原点，`uOrigin` = 窗口坐标 × `bakeScale`；
- * `uSize` / `uCornerRadii` / `fragCoord` 是面板本地 px；形状由解析式 G2 SDF 计算。
+ * `uSize` / `uCornerRadii` / `fragCoord` 是面板本地 px，形状由解析式 G2 SDF 计算。
  */
-/**
- * 单面板柔光玻璃的绘制核心。
- *
- * 做成 Modifier 是因为要能塞进课程卡现有的 modifier 链（不能为了玻璃把卡片改成 Composable 容器）。
- * 一次构造：建主体 + 描边两个 [SoftGlassProgram]，把样式 / 采样尺寸灌成 uniform；
- * 逐帧只更新 `uOrigin` 一个 uniform —— 滚动 / 翻周时采样原点跟手，不重建 shader。
- *
- * @param origin 面板左上角在背景位图里的坐标，**绘制期**求值。位图已与屏幕对齐，
- *   所以直接传窗口坐标即可。
- * @param radiusPx 圆角（px）。null = 用 `style.cornerRadius`；[circle] 为 true 时忽略，
- *   取短边一半（依赖实际尺寸，只能在绘制期算）。
- * @param redraw 绘制期读一次的「位置信号」：祖先图层只平移不重绘子树，
- *   在这里读滚动 / 翻页状态，快照观察才会按帧失效。
- */
-/**
- * 同尺寸 / 同圆角 / 同一份 backdrop 的卡片共用一份 shader。
- *
- * 不共享时一屏 40 张卡要建 80 个 RuntimeShader（AGSL 编译是首帧大头）；
- * 共享后只按「尺寸 + 圆角」建，通常个位数。绘制仍是逐卡进行，只在 draw 前改 uOrigin，
- * 视觉/行为与每卡独立完全一致。
- */
+
+/** program 缓存键：尺寸 + 圆角 + 样式 + backdrop + 密度全同才复用。 */
 private data class SoftGlassProgramKey(
     val rim: Boolean,
     val width: Int,
@@ -59,6 +38,10 @@ private data class SoftGlassProgramKey(
     val densityHundredths: Int,
 )
 
+/**
+ * 同键卡片共用一份 shader：不共享时一屏 40 张卡要建 80 个 RuntimeShader（AGSL 编译是首帧大头），
+ * 共享后只按「尺寸 + 圆角」建，通常个位数。绘制仍逐卡进行，只在 draw 前改 `uOrigin`。
+ */
 private object SoftGlassProgramCache {
     private const val MAX_ENTRIES = 32
     private val cache = LinkedHashMap<SoftGlassProgramKey, SoftGlassProgram>()
@@ -75,6 +58,17 @@ private object SoftGlassProgramCache {
     }
 }
 
+/**
+ * 单面板柔光玻璃。做成 Modifier 是为了塞进课程卡现有的 modifier 链（不为玻璃改卡片容器）。
+ *
+ * 一次构造建主体 + 描边两个 [SoftGlassProgram]，把样式 / 采样尺寸灌成 uniform；
+ * 逐帧只更新 `uOrigin` 一个 uniform —— 滚动 / 翻周时采样原点跟手，不重建 shader。
+ *
+ * @param origin 面板左上角在背景位图里的坐标，**绘制期**求值；位图已与屏幕对齐，直接传窗口坐标。
+ * @param radiusPx 圆角（px）。null = 用 `style.cornerRadius`；[circle] 为 true 时忽略，取短边一半。
+ * @param redraw 绘制期读一次的「位置信号」：祖先图层只平移不重绘子树，
+ *   在这里读滚动 / 翻页状态，快照观察才会按帧失效。
+ */
 fun Modifier.softGlass(
     backdrop: SoftGlassBackdrop?,
     style: SoftGlassStyle,
@@ -85,8 +79,8 @@ fun Modifier.softGlass(
     redraw: () -> Unit = {},
 ): Modifier = drawWithCache {
     val sizePx = IntSize(size.width.roundToInt(), size.height.roundToInt())
-    // SDF 要求 r ≤ min(w,h)/2：分界带只有 20dp 高、圆角却给 12dp 时，角部会解出负距离、
-    // 被切成尖角。统一钳住；具体形状交给 shader 里的 G2 近似（见 SoftGlassShader 顶部）。
+    // SDF 要求 r ≤ min(w,h)/2：20dp 高的分界带配 12dp 圆角会解出负距离、被切成尖角。
+    // 这里统一钳住，具体形状交给 shader 的 G2 近似。
     val rawRadius = when {
         circle -> minOf(size.width, size.height) * 0.5f
         radiusPx != null -> radiusPx
@@ -99,7 +93,6 @@ fun Modifier.softGlass(
     val glassRadius = (radius - glassInsetDp * density.density).coerceAtLeast(0f)
     val originAtBuild = origin()
 
-    // shader 编译失败不该让课表崩：整段兜住，退回半透明白面。
     val keyBase = if (backdrop != null && sizePx.width > 0) {
         SoftGlassProgramKey(
             rim = false,
@@ -111,6 +104,7 @@ fun Modifier.softGlass(
             densityHundredths = (density.density * 100f).roundToInt(),
         )
     } else null
+    // shader 编译失败不该让课表崩：整段兜住，退回半透明白面（onDrawBehind 里的兜底分支）。
     val bodyProgram = if (keyBase != null) {
         runCatching {
             SoftGlassProgramCache.get(keyBase) {
@@ -127,7 +121,7 @@ fun Modifier.softGlass(
             }
         }.getOrNull()
     } else null
-    val rimProgram = if (keyBase != null) {
+    val rimProgram = if (keyBase != null && style.rimEnabled) {
         runCatching {
             SoftGlassProgramCache.get(keyBase.copy(rim = true)) {
                 SoftGlassProgram(SOFT_GLASS_RIM_SHADER).apply {
@@ -159,8 +153,8 @@ fun Modifier.softGlass(
         rimProgram?.setFloat2("uOrigin", o.x * bake, o.y * bake)
         drawIntoCanvas { canvas ->
             bodyProgram.draw(canvas, size.width, size.height, SoftGlassBlend.NORMAL)
-            // 描边用 LIGHTEN（逐通道取较大值），只提亮、保留左上 / 右下方向差。
-            // 用 SCREEN 会把暗部也抬起来，四周变均匀；LIGHTEN 只提亮。
+            // 描边用 LIGHTEN（逐通道取最大），只提亮、保留左上 / 右下方向差；
+            // 换 SCREEN 会把暗部一起抬起来，四周变均匀。
             rimProgram?.draw(canvas, size.width, size.height, SoftGlassBlend.LIGHTEN)
         }
     }
@@ -197,6 +191,21 @@ fun SoftGlassPanel(
 
 // ── uniform 灌装 ────────────────────────────────────────────────────
 
+/**
+ * 系统 `smooth5Map`（libhwui.so 原文）：把 `t` 先压到 0.5..1 再走五次平滑，最后拉回 0..1。
+ * AGSL 里有一份同名的实现（`SOFT_GLASS_SHADER`），两边必须逐位一致。
+ */
+private fun smooth5Map(t0: Float): Float {
+    var t = 0.5f + 0.5f * t0
+    t = t.coerceIn(0f, 1f)
+    t = t * t * t * (t * (t * 6f - 15f) + 10f)
+    return (t - 0.5f) * 2f
+}
+
+/** 系统 `smooth5_vertical(x, 0.5)`：**先开方再五次平滑**，不是一次 plain quintic。 */
+private fun smooth5Vertical(x: Float): Float =
+    smooth5Map(kotlin.math.sqrt(x.coerceIn(0f, 1f)))
+
 private fun SoftGlassProgram.applyCommonUniforms(
     panelSize: IntSize,
     radiusPx: Float,
@@ -218,7 +227,7 @@ private fun SoftGlassProgram.applyCommonUniforms(
     setFloat("uCornerExt", 1f + 0.40f * ratio)
     setFloat("uCornerPow", 2f + 0.60f * ratio)
 
-    val edgePx = style.edgeWidth.value * density
+    val edgePx = style.edgeWidth  // px，不乘 density
     setFloat("uEdgePx", edgePx)
     setFloat("uInvEdgePow", 1f / style.edgePow.coerceAtLeast(0.05f))
 
@@ -243,7 +252,6 @@ private fun SoftGlassProgram.applyBodyUniforms(
     origin: Offset,
 ) {
     setSampler("uRefractTex", backdrop.refract)
-    setSampler("uBgColorTex", backdrop.big)
     applyCommonUniforms(
         panelSize = panelSize,
         radiusPx = radiusPx,
@@ -254,39 +262,26 @@ private fun SoftGlassProgram.applyBodyUniforms(
         bakeScale = backdrop.bakeScale,
     )
 
-    // processGlassColor 的入参
-    setFloat("uBgColorSat", style.bgColorSaturation)
-    setFloat("uBgColorBri", style.bgColorBrightness)
-    val lc = style.luminanceValues
-    setFloat4(
-        "uLuminanceCoeffs",
-        lc.getOrElse(0) { 0f },
-        lc.getOrElse(1) { 0f },
-        lc.getOrElse(2) { 0f },
-        lc.getOrElse(3) { 1f },
-    )
-    setFloat("uLuminanceAmount", style.luminanceAmount)
-    setFloat("uLuminanceCurveMode", style.luminanceCurveMode.toFloat())
-    setFloat("uSaturation", style.saturation)
-    setFloat("uBrightness", style.brightness)
-    setFloat("uInnerColorWhite", style.innerColorWhite)
-    setFloat("uInnerColorMix", style.innerColorMix)
-    setFloat("uBurn", style.burn)
+    // 调色（darker / luminanceCurve / adjustColor / gcr）已在烘焙阶段做完，
+    // 见 SoftGlassBackdrop.applyGlassColorProcess —— 这里没有对应 uniform。
     val refractionScale = style.refractionScale.coerceAtLeast(0f)
-    setFloat("uThicknessPx", style.thickness.value * density * refractionScale)
-    setFloat("uReflectOffsetPx", style.reflectOffset.value * density * refractionScale)
+    setFloat("uEdgePow", style.edgePow.coerceAtLeast(0.05f))
+    setFloat("uThicknessPx", style.thickness * refractionScale)
+    setFloat("uReflectOffsetPx", style.reflectOffset * refractionScale)
     setFloat("uIOR", style.refractIOR)
     setFloat("uReflStrength", style.reflectionStrength)
     setFloat("uReflLighten", style.reflectionLighten)
     setFloat("uInnerBottom", style.innerBottom)
     setFloat("uUnshade", style.unshade)
     setFloat("uUsePowGate", if (style.usePowGate) 1f else 0f)
+    // AA 阈值：系统 = smooth5_vertical(3/edge, 0.5) = smooth5Map(√(3/edge))。
+    // 直接传裸的 3/edge 会让 alpha 在 0.2px 内冲到 1，边缘重新变硬。
+    val edgePx = style.edgeWidth.coerceAtLeast(1f)
+    setFloat("uNmlZAAThreshold", smooth5Vertical(3f / edgePx))
     setFloat("uHit", if (style.hit) 1f else 0f)
     val gc = style.glassColor
     setFloat4("uGlassColor", gc.red, gc.green, gc.blue, style.glassColorMix)
     setFloat("uDebug", style.debugView.toFloat())
-    // 只有主体有 uSlopeMode；描边固定走原式剖面（见 SOFT_GLASS_RIM_SHADER 的说明）
-    setFloat("uSlopeMode", if (style.slopeMode == 1) 1f else 0f)
 }
 
 private fun SoftGlassProgram.applyRimUniforms(
@@ -307,7 +302,7 @@ private fun SoftGlassProgram.applyRimUniforms(
         density = density,
         bakeScale = backdrop.bakeScale,
     )
-    setFloat("uRimWidthPx", style.rimWidth.value * density)
+    setFloat("uRimWidthPx", style.rimWidth)
     setFloat("uRimSaturation", style.rimSaturation)
     setFloat("uRimBrightness", style.rimBrightness)
 }

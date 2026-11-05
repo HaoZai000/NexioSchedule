@@ -153,8 +153,7 @@ import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.MiuixPopupHost
 
 /**
  * 「更多」菜单收起动画播到这个 fraction 就摘掉「比底栏更高一层」的采样层。
- * 0.5 = 面板缩到一半、还在动的时候换层；等动画播完再换，按钮已经静止在右上角，
- * 玻璃里少掉顶栏/底栏那一层会当场跳一下。
+ * 取 0.5：面板还在缩的时候换层看不出来；等播完再换，按钮已静止在右上角，玻璃少一层会当场跳一下。
  */
 private const val MENU_GLASS_RELEASE_FRACTION = 0.5f
 
@@ -162,10 +161,9 @@ private const val MENU_GLASS_RELEASE_FRACTION = 0.5f
 private const val OVERLAY_GLASS_RELEASE_DELAY_MS = 420L
 
 /**
- * 课表主界面「主内容层」：整屏 Box + graphicsLayer 模糊/裁切 + Scaffold 内容。
+ * 课表主界面「主内容层」：整屏 Box + graphicsLayer 模糊 / 裁切 + Scaffold 内容。
  *
- * 从 `CourseScheduleApp.kt` 拆出。参数只放外壳算好的局部值，
- * 其余状态一律走 [CourseScheduleAppState]（函数体内 `with(state)`）。
+ * 参数只放外壳算好的局部值，其余状态一律走 [CourseScheduleAppState]（函数体内 `with(state)`）。
  */
 @Composable
 internal fun CourseScheduleAppMainContent(
@@ -187,24 +185,30 @@ internal fun CourseScheduleAppMainContent(
             if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale
         val glassOffset =
             if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset
-        // 直接复用外观里已有的「卡片折射 / 卡片模糊」，两页同一套值；只有 edgeWidth 按页不同
+        // 外观里的「卡片折射 / 卡片模糊 / 边缘厚度」两页共用同一套值
         val glassRefractionScale = when (displayAppearance.cardRefraction) {
             CardRefractionLevel.OFF -> 0f
-            CardRefractionLevel.WEAK -> 0.8f
+            CardRefractionLevel.WEAK -> 0.75f
             CardRefractionLevel.DEFAULT -> 1f
-            CardRefractionLevel.STRONG -> 1.2f
+            CardRefractionLevel.STRONG -> 1.25f
         }
-        val glassBlur = displayAppearance.cardBlurRadius.dp
-        val scheduleGlassStyle = remember(glassRefractionScale, glassBlur) {
+        // 柔光样式统一吃 px：外观里的模糊本身就是 px，直接透传
+        val glassBlurPx = displayAppearance.cardBlurRadius
+        // 边缘厚度档位只是倍率，乘在文件默认的 edgeWidth 上
+        val glassEdgePx = ScheduleSoftGlassStyle.edgeWidth *
+            displayAppearance.cardEdgeThickness.scale
+        val scheduleGlassStyle = remember(glassRefractionScale, glassBlurPx, glassEdgePx) {
             ScheduleSoftGlassStyle.copy(
                 refractionScale = glassRefractionScale,
-                smallBlurRadius = glassBlur,
+                smallBlurRadius = glassBlurPx,
+                edgeWidth = glassEdgePx,
             )
         }
-        val todayGlassStyle = remember(glassRefractionScale, glassBlur) {
+        val todayGlassStyle = remember(glassRefractionScale, glassBlurPx, glassEdgePx) {
             TodaySoftGlassStyle.copy(
                 refractionScale = glassRefractionScale,
-                smallBlurRadius = glassBlur,
+                smallBlurRadius = glassBlurPx,
+                edgeWidth = glassEdgePx,
             )
         }
         val scheduleSoftGlassSurface = rememberSoftGlassSurface(
@@ -440,9 +444,7 @@ internal fun CourseScheduleAppMainContent(
             if (menuGlassWanted && !menuGlassActive) menuGlassActive = true
             LaunchedEffect(menuGlassWanted) {
                 if (menuGlassWanted) return@LaunchedEffect
-                // 摘掉的时机在**收起动画播到一半**时：面板还在缩，眼睛在看运动，
-                // 采样层换一层看不出来。等动画播完再摘就晚了 —— 那时按钮已经静止在
-                // 右上角，玻璃里少掉顶栏那一层会当场跳一下。
+                // 在收起动画播到一半时摘层：面板还在缩、眼睛跟着运动，换一层看不出来（理由见上方常量）
                 snapshotFlow {
                     maxOf(morePopupFraction.value, todayMorePopupFraction.value)
                 }.first { it <= MENU_GLASS_RELEASE_FRACTION }
@@ -505,7 +507,7 @@ internal fun CourseScheduleAppMainContent(
                                         isShiftMode = isShiftMode,
                                         selectedTab = selectedTab,
                                         onTabSelected = onMainTabSelected,
-                                        // 「我的 / 设置」已改成二级页：只压栈，不切 pager
+                                        // 设置是二级页：只压栈，不切 pager
                                         onOpenSettings = { router.navigate(AppRoute.Settings) },
                                         liquidGlassBackdrop = chromeBackdrop,
                                     )
@@ -648,9 +650,9 @@ internal fun CourseScheduleAppMainContent(
                                     }
                                 }
                             }
-                            // 手机/排班的设置页已改成二级页（`AppRoute.Settings`），pager 里没有它。
-                            // 只有平板 rail 仍把设置内嵌成第 3 页，这条顶栏只服务它。
-                            // ⚠ 先判 rail 再读 showSettingsTitle：手机上直接短路，省掉一次 derivedState 求值。
+                            // 设置页是二级页（`AppRoute.Settings`），pager 里没有它。
+                            // 只有平板 rail 把设置内嵌成第 3 页，这条顶栏只服务它。
+                            // ⚠ 先判 rail 再读 showSettingsTitle：手机上短路，省一次 derivedState 求值。
                             if (navBarStyle == "rail" && showSettingsTitle) {
                                 val settingsTitleIndex = if (isShiftMode) 1 else 2
                                 val settingsTitleIdle by remember(settingsTitleIndex, navBarStyle) {
@@ -818,7 +820,7 @@ internal fun CourseScheduleAppMainContent(
                         MiuixPopupHost()
                     }
                 ) {
-                    // Keep the real source rendered underneath the detail morph.
+                    // 详情 morph 期间底下的真实源卡片必须继续画
                     // 不门控 combinations.isEmpty()：网格只依赖 viewModel，与壁纸加载解耦
                     // backdrop 挂在未 padding 的全屏层：录制原点固定在屏幕
                     Box(
@@ -964,9 +966,8 @@ internal fun CourseScheduleAppMainContent(
                                     }
                                 )
                         ) {
-                            // 主 tab 仅由底栏/侧栏点击切换；关闭用户手势翻页。
-                            // Follow the navigation axis reported by the native host or tablet rail.
-                            // ⚠ pager 不再整体内缩（折叠屏 iPhone 折叠态右下角竖排原生 tab bar）
+                            // 主 tab 仅由底栏 / 侧栏点击切换，关闭用户手势翻页；方向跟原生宿主 / 平板 rail 一致。
+                            // pager 不做整体内缩（折叠屏 iPhone 折叠态右下角是竖排原生 tab bar）
                             val pageRightInset = (hostNav?.rightSafeAreaInset ?: 0.0).toFloat().dp
                             val pageInsetModifier = if (pageRightInset > 0.dp) {
                                 Modifier.padding(end = pageRightInset)
@@ -996,7 +997,7 @@ internal fun CourseScheduleAppMainContent(
                                                         TodayScreen(
                                                             viewModel = viewModel,
                                                             settingsViewModel = settingsViewModel,
-                                                            // 今日页的课程列表不再直接进详情，这个只传给详情弹窗：
+                                                            // 今日页课程列表不直接进详情；这个只传给详情弹窗：
                                                             // 点弹窗卡片进全屏时要藏掉源卡片，morph 才干净。
                                                             hiddenCourseIds = hiddenCourseIds,
                                                             holidayDataTick = resumeCount,

@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.appearance.CardRefractionLevel
+import com.haooz.chedule.data.appearance.CombinationDefaults
 import com.haooz.chedule.data.holiday.HolidayCountdown
 import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.model.Course
@@ -324,7 +325,7 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
             if (courseStatus != "未知") courseStatus = "未知"
             return@LaunchedEffect
         }
-        // 睡到下一个状态边界再醒：原来每秒轮询，每行常驻一个 1Hz 协程，一页下来白烧电
+        // 睡到下一个状态边界再醒：不要退化成每秒轮询 —— 每行常驻一个 1Hz 协程，一页下来白烧电
         while (true) {
             val now = nowLocalTime()
             val next = when {
@@ -412,8 +413,8 @@ fun TodayScreen(
      * 只在课程详情弹窗里用：点弹窗卡片进全屏详情时，要把那张源卡片藏掉，
      * 否则放大层和原卡片会叠在一起动（morph 看起来发糊）。
      *
-     * 今日页的课程列表**不读**这个值 —— 它不再直接进详情，藏起来只会在返回时闪一帧空白。
-     */
+ * 今日页的课程列表**不读**这个值 —— 它不直接进详情，藏起来只会在返回时闪一帧空白。
+ */
     hiddenCourseIds: Set<String> = emptySet(),
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: TransitionLayerSnapshot?, courseIdToHide: String, targetWeek: Int) -> Unit = { _, _, _, _, _, _, _, _ -> },
     pagerState: PagerState,
@@ -431,8 +432,8 @@ fun TodayScreen(
     cardBlurRadius: Float = 4f,
     cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     /** 有壁纸时白/黑底不透明度（卡片不透明度） */
-    cardSurfaceAlpha: Float = 0.12f,
-    /** 柔光玻璃采样源（主内容层算一次，课表/今日共用；null = 保持原来的 kyant 采样） */
+    cardSurfaceAlpha: Float = 0.40f,
+    /** 柔光玻璃采样源（主内容层算一次，课表 / 今日共用；null = 用 kyant 采样） */
     softGlassSurface: SoftGlassSurface? = null,
     /** 主 tab pager 的位置信号：切今日/课表时内容整体平移，必须让玻璃重绘 */
     tabRedraw: () -> Unit = {},
@@ -578,15 +579,15 @@ fun TodayScreen(
     // 无材质档模糊/折射由 displayAppearance 钳 0，但卡片仍采壁纸（着色/不透明度照常生效）。
     val cardBackdrop: Backdrop? =
         if (useSharedWallpaper) sharedWallpaperBackdrop else null
-    // 默认 15% 锚定当前观感（课程卡 0.45 / 格言卡 0.6），其余按百分比线性映射到 1
-    val p = cardSurfaceAlpha.coerceIn(0f, 1f)
-    fun anchorOpacity(anchor: Float): Float = if (p <= 0.12f) {
-        (p / 0.12f) * anchor
-    } else {
-        anchor + ((p - 0.12f) / 0.88f) * (1f - anchor)
-    }
-    val courseCardOpacity = anchorOpacity(0.45f)
-    val highlightCardOpacity = anchorOpacity(0.6f)
+    // 不透明度：设置值先按深色模式 ×0.8，再分发（默认亮色 40% / 深色 32%）。
+    // 今日页课程卡 = 基准值；高亮卡（摘要 / 格言）比它再亮 15pp。
+    // 课表页相反，用基准值 −15pp，见 AppearanceConfig.scheduleSurfaceAlpha。
+    val surfaceDark = isAppDarkTheme()
+    val p = (cardSurfaceAlpha * if (surfaceDark) CombinationDefaults.DARK_SURFACE_ALPHA_FACTOR else 1f)
+        .coerceIn(0f, 1f)
+    val courseCardOpacity = p
+    val highlightCardOpacity = (p + CombinationDefaults.HIGHLIGHT_SURFACE_ALPHA_BONUS)
+        .coerceIn(0f, 1f)
 
 
     val isTablet = navBarStyle == "rail"
@@ -705,7 +706,7 @@ fun TodayScreen(
                     }
                 }
                 val pageWeek = displayWeek
-                // 分组结果按课程/节次表缓存：原来每次重组都重建 map + 三次过滤
+                // 分组结果按课程 / 节次表缓存：别退化成每次重组重建 map + 三次过滤
                 val coursePeriods = remember(pageCourses, sectionTimes, morningSections, afternoonSections) {
                     pageCourses.associateWith {
                         it.periodIndex(sectionTimes, morningSections, afternoonSections)
@@ -1316,8 +1317,7 @@ private fun quotePoolFor(scene: QuoteScene, hour: Int): List<L10n> {
     return (base + extras).distinctBy { it() }
 }
 
-// 原来取的是平台的进程 id；top-level val 每进程只初始化一次，
-// 语义等价于「进程 id」，且 Android / Desktop / iOS 通用
+// 相当于「进程内 id」：top-level val 每进程只初始化一次，且 Android / Desktop / iOS 通用
 private val quoteProcessId: Long = Random.nextLong()
 
 @Composable

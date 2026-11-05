@@ -15,6 +15,7 @@ import com.haooz.chedule.data.WallpaperStore
 import com.haooz.chedule.data.WallpaperTransform
 import com.haooz.chedule.data.appearance.AppearanceConfig
 import com.haooz.chedule.data.appearance.CardContentAlignment
+import com.haooz.chedule.data.appearance.CardEdgeThickness
 import com.haooz.chedule.data.appearance.CardRefractionLevel
 import com.haooz.chedule.data.appearance.CardTextColor
 import com.haooz.chedule.ui.screens.SettingsScreen
@@ -31,10 +32,9 @@ import kotlinx.coroutines.CancellationException
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 
 /**
- * 课表主界面用到的运行期数据模型、位图工具与几何小工具。
+ * 课表主界面用到的运行期数据模型、位图工具与小几何工具。
  *
- * 从 `CourseScheduleApp.kt` 拆出，避免主文件继续膨胀；
- * 这里只放与界面组合无关（或仅依赖少量状态）的声明。
+ * 只放与界面组合无关（或仅依赖少量状态）的声明；页面级组合留在 `CourseScheduleApp.kt`。
  */
 
 /** 释放独立快照位图；与进程级壁纸缓存或 keep 引用共用时不回收。 */
@@ -67,7 +67,7 @@ data class ScheduleCombination(
     val offset: Offset,
     val scale: Float,
     var snapshot: ImageBitmap? = null,
-    var cardBlurRadius: Float = 4f,
+    var cardBlurRadius: Float = 32f,
     var cardAlpha: Float = 0.15f,
     var cardSurfaceAlpha: Float? = null,
     var cardHeight: Float = 54f,
@@ -80,6 +80,7 @@ data class ScheduleCombination(
     var showClassroom: Boolean = true,
     var showTeacher: Boolean = true,
     var cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
+    var cardEdgeThickness: CardEdgeThickness = CardEdgeThickness.DEFAULT,
     var wallpaperIsLight: Boolean? = null,
     var wallpaperBlur: Boolean = false,
 )
@@ -89,7 +90,7 @@ fun AppearanceConfig.Companion.fromCombination(c: ScheduleCombination): Appearan
     AppearanceConfig(
         cardBlurRadius = c.cardBlurRadius,
         cardAlpha = c.cardAlpha.coerceIn(0f, 1f),
-        cardSurfaceAlpha = (c.cardSurfaceAlpha ?: 0.12f).coerceIn(0f, 1f),
+        cardSurfaceAlpha = (c.cardSurfaceAlpha ?: 0.40f).coerceIn(0f, 1f),
         cardHeight = c.cardHeight,
         cardCornerRadius = c.cardCornerRadius,
         wallpaperBrightness = c.wallpaperBrightness,
@@ -100,6 +101,7 @@ fun AppearanceConfig.Companion.fromCombination(c: ScheduleCombination): Appearan
         showClassroom = c.showClassroom,
         showTeacher = c.showTeacher,
         cardRefraction = c.cardRefraction,
+        cardEdgeThickness = c.cardEdgeThickness,
         wallpaperBlur = c.wallpaperBlur,
     )
 
@@ -266,16 +268,14 @@ internal suspend fun PagerState.jumpToPageSmoothly(
         // 这步不抢落点，手势永远优先
         runCatching { scrollToPage(dest) }
     } catch (c: CancellationException) {
-        // 被更高优先级打断（用户手势 / cancelScroll）：手势优先。但借位让物理位置
-        // 停在跳转前的邻页（例：回本周时停在原周旁边），直接放任手势会被甩回原周。
-        // 这里把位置平移回逻辑页：借位页与目标页像素相同 → 屏上这一侧不跳；
-        // 另一侧从「跳转前的周」直接替换成真实邻周；手势从逻辑位置继续接管。
-        // 松手落页基准（startScrollOffset）同步平移，见 PagerTakeoverGestureState
+        // 被打断（用户手势 / cancelScroll）时手势优先，但借位把物理位置留在了邻页
+        // （例：回本周时停在原周旁边），放任不管会被甩回原周。这里把位置平移回逻辑页：
+        // 借位页与目标页像素相同 ⇒ 屏上这一侧不跳；松手落页基准同步平移（见 PagerTakeoverGestureState）。
         runCatching {
             val viewportPx = layoutInfo.viewportSize.width.toFloat()
             if (viewportPx > 0f) {
                 // dispatchRawDelta 不走 mutateMutex：手势持锁期间也能即时平移；
-                // 返回实际消费的像素（边界处会截断），按实际值平移落页基准
+                // 返回实际消费的像素（边界会截断），按实际值平移落页基准
                 val appliedPages = dispatchRawDelta((dest - virtualPage) * viewportPx) / viewportPx
                 gestureState?.requestStartOffsetShift(appliedPages)
             }

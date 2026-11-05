@@ -83,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.appearance.AppearanceConfig
 import com.haooz.chedule.data.appearance.AppearanceStore
 import com.haooz.chedule.data.appearance.CardContentAlignment
+import com.haooz.chedule.data.appearance.CardEdgeThickness
 import com.haooz.chedule.data.appearance.CardRefractionLevel
 import com.haooz.chedule.data.appearance.CardTextColor
 import com.haooz.chedule.data.appearance.ThemeMode
@@ -342,6 +343,11 @@ fun CustomizeScheduleScreen(
         sheetResetKey
     ) { mutableStateOf(appearance.cardRefraction) }
     LaunchedEffect(appearance.cardRefraction) { cardRefractionValue = appearance.cardRefraction }
+    var cardEdgeValue by remember(
+        currentCombinationIndex,
+        sheetResetKey
+    ) { mutableStateOf(appearance.cardEdgeThickness) }
+    LaunchedEffect(appearance.cardEdgeThickness) { cardEdgeValue = appearance.cardEdgeThickness }
     var wallpaperBlurValue by remember(
         currentCombinationIndex,
         sheetResetKey
@@ -378,6 +384,7 @@ fun CustomizeScheduleScreen(
         showClassroom = showClassroomValue,
         showTeacher = showTeacherValue,
         cardRefraction = if (materialNone) AppearanceStore.getCardRefraction() else cardRefractionValue,
+        cardEdgeThickness = cardEdgeValue,
         wallpaperBlur = wallpaperBlurValue
     )
     LaunchedEffect(effectValue, cardAlphaValue, cardSurfaceAlphaValue) { onAppearanceChange(buildAppearance()) }
@@ -397,6 +404,7 @@ fun CustomizeScheduleScreen(
     LaunchedEffect(showClassroomValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(showTeacherValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(cardRefractionValue) { onAppearanceChange(buildAppearance()) }
+    LaunchedEffect(cardEdgeValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(wallpaperBlurValue) { onAppearanceChange(buildAppearance()) }
 
     val customizeButtonAlpha = remember { Animatable(1f) }
@@ -1412,7 +1420,7 @@ fun CustomizeScheduleScreen(
                                 label = SchedStr.cardOpacity(),
                                 value = cardSurfaceAlphaValue,
                                 valueRange = 0f..1f,
-                                keyPoints = listOf(0.12f),
+                                keyPoints = listOf(0.40f),
                                 enabled = hasWallpaper,
                                 onValueChange = { if (hasWallpaper) cardSurfaceAlphaValue = it },
                                 quantize = { (it * 100f).roundToInt() / 100f },
@@ -1423,17 +1431,19 @@ fun CustomizeScheduleScreen(
                             SliderItem(
                                 label = SchedStr.cardBlur(),
                                 value = effectValue,
-                                valueRange = 0f..20f,
-                                keyPoints = listOf(4f),
+                                // **px 单位**：直接就是 shader 的 smallBlurRadius，不做 density 换算。
+                                // 0..80px，默认 32px。
+                                valueRange = 0f..80f,
+                                keyPoints = listOf(32f),
                                 // 无材质档锁死：卡片模糊/折射整体关（渲染侧同步强制 0）
                                 enabled = hasWallpaper &&
                                     !com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier(),
                                 // 整数吸附，避免留下显示为 0 却仍有一丝模糊的小数
                                 onValueChange = { if (hasWallpaper) effectValue = it },
-                                quantize = { it.roundToInt().coerceIn(0, 20).toFloat() },
-                                suffix = "dp",
+                                quantize = { it.roundToInt().coerceIn(0, 80).toFloat() },
+                                suffix = "px",
                                 displayValue = { it.roundToInt().toString() },
-                                parseInput = { it.toFloatOrNull()?.coerceIn(0f, 20f) },
+                                parseInput = { it.toFloatOrNull()?.coerceIn(0f, 80f) },
                                 disabledText = if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) {
                                     SchedStr.noMaterial()
                                 } else {
@@ -1453,6 +1463,18 @@ fun CustomizeScheduleScreen(
                                     com.haooz.chedule.ui.utils.AppMaterialSettings.isPerformanceTier() ->
                                         SchedStr.performanceMode()
                                     else -> SchedStr.wallpaperRequired()
+                                }
+                            )
+                            EdgeThicknessItem(
+                                value = cardEdgeValue,
+                                // 只乘在文件默认的 edgeWidth 上（×0.8 / ×1 / ×1.2），不改默认值
+                                enabled = hasWallpaper &&
+                                    !com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier(),
+                                onValueChange = { if (hasWallpaper) cardEdgeValue = it },
+                                disabledText = if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) {
+                                    SchedStr.noMaterial()
+                                } else {
+                                    SchedStr.wallpaperRequired()
                                 }
                             )
                         }
@@ -1950,6 +1972,84 @@ private fun RefractionItem(
 }
 
 /**
+ * 边缘厚度（较小 ×0.8 / 默认 ×1.0 / 较大 ×1.2）。
+ *
+ * 与 [RefractionItem] 同一个交互形态：位置连续跟手，取整只作用于对外提交。
+ * 档位是**倍率**，乘在 `SoftGlassStyle.edgeWidth` 的文件默认值上。
+ */
+@Composable
+private fun EdgeThicknessItem(
+    value: CardEdgeThickness,
+    enabled: Boolean,
+    onValueChange: (CardEdgeThickness) -> Unit,
+    disabledText: String = SchedStr.wallpaperRequired(),
+) {
+    val levels = CardEdgeThickness.entries
+    val lastIndex = levels.lastIndex
+    val textColor = if (enabled) MiuixTheme.colorScheme.onSurface
+    else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    var rawValue by remember { mutableFloatStateOf(value.ordinal.toFloat()) }
+    var isDragging by remember { mutableStateOf(false) }
+    LaunchedEffect(value) {
+        if (!isDragging) rawValue = value.ordinal.toFloat()
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 15.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 2.dp, end = 2.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = SchedStr.cardEdgeThickness(),
+                fontWeight = FontWeight.Medium,
+                fontSize = 17.sp,
+                color = textColor,
+                modifier = Modifier.weight(1f)
+            )
+            if (enabled) {
+                Text(
+                    text = value.label,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = textColor,
+                    textAlign = TextAlign.End,
+                )
+            } else {
+                Text(
+                    text = disabledText,
+                    fontSize = 14.sp,
+                    color = textColor
+                )
+            }
+        }
+        Slider(
+            value = rawValue,
+            onValueChange = { v ->
+                isDragging = true
+                rawValue = v
+                onValueChange(levels[v.roundToInt().coerceIn(0, lastIndex)])
+            },
+            onValueChangeFinished = {
+                isDragging = false
+                rawValue = rawValue.roundToInt().coerceIn(0, lastIndex).toFloat()
+            },
+            valueRange = 0f..lastIndex.toFloat(),
+            showKeyPoints = true,
+            keyPoints = levels.indices.map { it.toFloat() },
+            magnetThreshold = 0.01f,
+            modifier = Modifier.fillMaxWidth(),
+            hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+            enabled = enabled
+        )
+    }
+}
+
+/**
  * 缩略图条需要的「搭配视图」——宿主从自己的 `Combination` 映射过来。宿主 `Combination` 是运行期
  * 结构、字段是 `android.graphics.Bitmap`（还要 remap / recycle / 像素测光），跨平台侧不存在；
  * 本页只用到「有没有图、图是什么」，故按最小面暴露两张 `ImageBitmap?`。
@@ -1961,10 +2061,7 @@ data class CombinationThumbnail(
     val wallpaper: ImageBitmap?,
 )
 
-// ──────────────────────────────────────────────────────────────────────────
-// 外观页入场时间轴：
-// 入场快照缩放 380 / 顶栏按钮 380 / 底部工具栏 380；
-// ──────────────────────────────────────────────────────────────────────────
+// ── 外观页入场时间轴：快照 / 顶栏按钮 / 底部工具栏三条同起同落（380ms）────────────────
 
 /** 入场快照（整屏截图）从满屏缩到卡片轮廓的时长；落地后改由真实内容接管 */
 private const val ENTER_SNAPSHOT_SCALE_MILLIS = 380

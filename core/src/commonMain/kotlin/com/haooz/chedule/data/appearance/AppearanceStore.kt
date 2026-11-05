@@ -5,8 +5,9 @@ import com.haooz.chedule.data.storage.KeyValueStore
 import com.haooz.chedule.data.storage.getStringOrNull
 
 /**
- * 外观存储（跨平台）：键名、快照编解码与缓存。getter/setter 与 Android 同名，切换零改动。
- * ⚠ 键名与文件位置是数据兼容契约（[AppearancePrefs.FILE]/[AppearancePrefs.FILE_STYLE_KEY]），改了等于老用户外观读不出来。
+ * 外观存储（跨平台）：键名、快照编解码与缓存。getter/setter 与宿主同名，调用点不用改。
+ * ⚠ 键名与文件位置是数据兼容契约（[AppearancePrefs.FILE] / [AppearancePrefs.FILE_STYLE_KEY]），
+ * 改了等于老用户外观读不出来。
  */
 object AppearanceStore {
 
@@ -22,8 +23,8 @@ object AppearanceStore {
     /**
      * 首帧兜底配置：搭配（壁纸位图 + 参数）还没加载完时由界面侧读它。
      *
-     * 直接从盘上快照同步派生，和搭配加载走同一份数据，所以兜底值与加载结果恒等，不会跳变。
-     * 不要做成「等外部写入的 var」—— 一旦没人写，首帧就画默认卡片高度/模糊，加载完再跳一次。
+     * 从盘上快照同步派生，与搭配加载同源，所以兜底值恒等于加载结果、不会跳变。
+     * 不要改成「等外部写入的 var」：没人写就会先画默认卡片高度 / 模糊，加载完再跳一次。
      */
     val cachedConfig: AppearanceConfig
         get() = AppearanceConfig.fromStyle(currentStyle())
@@ -91,7 +92,7 @@ object AppearanceStore {
         cached = null
     }
 
-    // ── 便捷读写（同名 getter/setter，调用点零改动切换） ──
+    // ── 便捷读写（与宿主同名，调用点不用改） ──
 
     fun getOffsetX(): Float = currentStyle().offsetX
     fun getOffsetY(): Float = currentStyle().offsetY
@@ -144,6 +145,9 @@ object AppearanceStore {
 
     fun getCardRefraction(): CardRefractionLevel = currentStyle().safeRefraction
     fun saveCardRefraction(level: CardRefractionLevel) = updateStyle { it.copy(cardRefraction = level) }
+
+    fun getCardEdgeThickness(): CardEdgeThickness = currentStyle().safeEdgeThickness
+    fun saveCardEdgeThickness(level: CardEdgeThickness) = updateStyle { it.copy(cardEdgeThickness = level) }
 
     fun getWallpaperBlur(): Boolean = currentStyle().wallpaperBlur
     fun saveWallpaperBlur(blur: Boolean) = updateStyle { it.copy(wallpaperBlur = blur) }

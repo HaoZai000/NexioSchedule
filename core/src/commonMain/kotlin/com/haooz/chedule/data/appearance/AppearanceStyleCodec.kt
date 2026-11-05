@@ -8,7 +8,11 @@ import kotlinx.serialization.json.floatOrNull
 
 /**
  * [AppearanceStyle] 的 JSON 编解码，与 Gson 输出逐字段对齐。
- * ⚠ 存量数据是 `Gson().toJson(CombinationStyle)` 写入，键名=字段名逐字不能改；也不能换 `@Serializable`——Gson 的 UnsafeAllocator 让 Kotlin 默认值失效，会让「老数据没的字段」两端落到不同默认值。枚举按 ordinal 存取、缺键用 Kotlin 默认值、反序列化失败给 null（交 safe getter 兜底）。
+ *
+ * ⚠ 存量数据由 `Gson().toJson(CombinationStyle)` 写入：键名 = 字段名，逐字不能改。
+ * 也不能换成 `@Serializable` —— Gson 的 UnsafeAllocator 让 Kotlin 默认值失效，换实现会让
+ * 「老数据里缺的字段」在两端落到不同默认值。枚举按 ordinal 存取，缺键用 Kotlin 默认值，
+ * 解析失败返回 null（交给 safe getter 兜底）。
  */
 object AppearanceStyleCodec {
 
@@ -20,7 +24,7 @@ object AppearanceStyleCodec {
         "cardCornerRadius", "wallpaperBrightness", "wallpaperIsLight",
         "showBreakDividers", "cardContentAlignment", "cardTextColor",
         "cardTextScale", "showClassroom", "showTeacher", "cardRefraction",
-        "wallpaperBlur"
+        "cardEdgeThickness", "wallpaperBlur"
     )
 
     fun encode(style: AppearanceStyle): String {
@@ -45,6 +49,7 @@ object AppearanceStyleCodec {
                 put("showClassroom", JsonPrimitive(style.showClassroom))
                 put("showTeacher", JsonPrimitive(style.showTeacher))
                 style.cardRefraction?.let { put("cardRefraction", JsonPrimitive(it.ordinal)) }
+                style.cardEdgeThickness?.let { put("cardEdgeThickness", JsonPrimitive(it.ordinal)) }
                 put("wallpaperBlur", JsonPrimitive(style.wallpaperBlur))
             }
         )
@@ -53,7 +58,9 @@ object AppearanceStyleCodec {
 
     /**
      * 解析 JSON 快照；格式非法或键名一个都对不上时返回 null。
-     * ⚠ 「键名对不上即判不可用」是刻意的：字段名写错曾让 Gson 把值停在 Java 默认值 0，导致网格整页静默空白（不崩无日志）；宁可回落默认也不要静默显示坏状态。
+     *
+     * ⚠ 「键名对不上即判不可用」是刻意的：字段名写错时值会停在 Java 默认值 0，
+     * 网格整页静默空白（不崩、无日志）。宁可回落默认，也不要静默显示坏状态。
      */
     fun decodeOrNull(json: String): AppearanceStyle? {
         val obj = runCatching { parseJsonObject(json) }.getOrNull() ?: return null
@@ -65,7 +72,7 @@ object AppearanceStyleCodec {
                 scale = obj.floatOr("scale", 1f),
                 offsetRefW = obj.floatOr("offsetRefW", 0f),
                 offsetRefH = obj.floatOr("offsetRefH", 0f),
-                cardBlur = obj.floatOr("cardBlur", 4f),
+                cardBlur = obj.floatOr("cardBlur", 32f),
                 cardAlpha = obj.floatOr("cardAlpha", 0.15f),
                 cardSurfaceAlpha = obj.floatOrNull("cardSurfaceAlpha"),
                 cardHeight = obj.floatOr("cardHeight", 54f),
@@ -79,6 +86,7 @@ object AppearanceStyleCodec {
                 showClassroom = obj.boolOr("showClassroom", true),
                 showTeacher = obj.boolOr("showTeacher", true),
                 cardRefraction = obj.enumOr("cardRefraction") { CardRefractionLevel.fromOrdinal(it) },
+                cardEdgeThickness = obj.enumOr("cardEdgeThickness") { CardEdgeThickness.fromOrdinal(it) },
                 wallpaperBlur = obj.boolOr("wallpaperBlur", false),
             )
         }.getOrNull()
@@ -94,8 +102,8 @@ object AppearanceStyleCodec {
         (this[key] as? JsonPrimitive)?.booleanOrNull ?: default
 
     /**
-     * 枚举按 ordinal（数字）存取，与 Gson 对这三个枚举的实际行为一致。
-     * ⚠ 别改成按 name：落盘格式=ordinal，枚举顺序不能改；旧数据编写路径存的是 ordinal，以存量数据为准。
+     * 枚举按 ordinal（数字）存取，与 Gson 对这几个枚举的实际行为一致。
+     * ⚠ 落盘格式就是 ordinal：枚举顺序不能改，也别改成按 name 解析。
      */
     private fun <T> JsonObject.enumOr(key: String, fromOrdinal: (Int) -> T): T? {
         val primitive = this[key] as? JsonPrimitive ?: return null

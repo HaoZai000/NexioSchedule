@@ -84,15 +84,13 @@ import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 /**
  * 课表主界面的全部可变状态与交互逻辑。
  *
- * 从 `CourseScheduleApp.kt` 拆出：主函数只负责「注入上下文 + 跑组合副作用 + 画 UI」，
- * 具体状态都挂在这里。实例由 `remember { }` 持有，生命周期与原局部 `remember` 一致。
+ * `CourseScheduleApp.kt` 只负责「注入上下文 + 跑组合副作用 + 画 UI」，具体状态都挂在这里；
+ * 实例由 `remember { }` 持有，生命周期与局部 `remember` 一致。
  *
- * ⚠ 这里的字段分三类，别混：
- * 1. `by mutableStateOf(...)` —— 真正的界面状态（原来是 `remember { mutableStateOf }`）。
- * 2. `var xxx: T = 默认` —— 每次重组由 Composable 侧同步的「当前值快照」
- *    （原来是 Composable 里的 `val xxx = ...` 或 `collectAsState()`）；不要在这边改。
- * 3. `lateinit var xxx` —— 组合期创建的实例（PagerState / GraphicsLayer / Density…），
- *    注入一次后不变。
+ * ⚠ 字段分三类，别混：
+ * 1. `by mutableStateOf(...)` —— 真正的界面状态。
+ * 2. `var xxx: T = 默认` —— 每次重组由 Composable 侧同步的「当前值快照」，不要在这边改。
+ * 3. `lateinit var xxx` —— 组合期创建的实例（PagerState / GraphicsLayer / Density…），注入一次后不变。
  */
 
 /** 拖到边缘后每一页之间的驻留时间：卡片停在热区里，每满 500ms 翻一页 */
@@ -509,6 +507,7 @@ class CourseScheduleAppState {
                     showClassroom = value.showClassroom,
                     showTeacher = value.showTeacher,
                     cardRefraction = value.cardRefraction,
+                    cardEdgeThickness = value.cardEdgeThickness,
                     wallpaperBlur = value.wallpaperBlur
                 )
             }
@@ -516,8 +515,8 @@ class CourseScheduleAppState {
     }
 
     /**
-     * 搭配读取唯一入口：冷启动 IO 路径与伴生缓存路径都走这里。
-     * 两份逐字段复制的构造曾是 bug 温床，新增外观字段只需改此处。
+     * 搭配读取唯一入口：冷启动 IO 路径与伴生缓存路径都走这里。新增外观字段只改这一处
+     * （两份逐字段复制的构造漏一处就静默丢字段）。
      */
     fun buildCombination(bitmap: ImageBitmap?) =
         ScheduleCombination(
@@ -541,6 +540,7 @@ class CourseScheduleAppState {
             showClassroom = AppearanceStore.getShowClassroom(),
             showTeacher = AppearanceStore.getShowTeacher(),
             cardRefraction = AppearanceStore.getCardRefraction(),
+            cardEdgeThickness = AppearanceStore.getCardEdgeThickness(),
             wallpaperIsLight = AppearanceStore.getWallpaperIsLight(),
             wallpaperBlur = AppearanceStore.getWallpaperBlur()
         )
@@ -616,8 +616,8 @@ class CourseScheduleAppState {
     // 页面坐标系 → 窗口坐标系的换算偏移
     var switchContentRootX by mutableFloatStateOf(0f)
 
-    // 保留在 Activity 层不是为了防止销毁（详情页期间主内容已不再移出组合），
-    // 而是液态玻璃重录要读它们的「滚动中 / 弹窗开合」（liquidGlassMustRecord、liquidGlassRecordKey）
+    // 提到 Activity 层是为了让液态玻璃重录能在外层读到「滚动中 / 弹窗开合」
+    // （liquidGlassMustRecord、liquidGlassRecordKey），不是为了防销毁。
     val scheduleSelectedCourse = mutableStateOf<Course?>(null)
     val scheduleSelectedCourses = mutableStateOf<List<Course>>(emptyList())
     val scheduleShowCourseDetail = mutableStateOf(false)
@@ -629,7 +629,7 @@ class CourseScheduleAppState {
     var switchAnimForward by mutableStateOf(false)
     var switchAnimRunning by mutableStateOf(false)
 
-    // Await a schedule reload before recording the return layer.
+    // 返回前先等课表重载完，再录返回图层
     var switchReloadJob by mutableStateOf<Job?>(null)
     val switchAnimProgress = Animatable(0f)
     val managePageBlurRadius = Animatable(0f)
@@ -638,18 +638,16 @@ class CourseScheduleAppState {
     val shortcutMenuBlurRadius = Animatable(0f)
     val switchReturnBgScrim = Animatable(0f)
 
-    // 切换课表：进入方向要复用「上次退出录到的卡片」，但**图层跨不过组合销毁** ——
-    // `GraphicsLayer.record{}` 里 `drawLayer(x)` 存的是对 x 的引用，切换页一销毁那层就废。
-    // 所以只能在退出那一帧把卡片区域**固化成位图**（位图不依赖任何组合），
-    // 下次进入直接画它。进入方向因此零录制。
+    // 切换课表：进入方向复用「上次退出录到的卡片」，但**图层跨不过组合销毁** ——
+    // `drawLayer(x)` 存的是对 x 的引用，切换页一销毁就废。所以退出那一帧把卡片区域固化成位图
+    //（位图不依赖组合），下次进入直接画它 ⇒ 进入方向零录制。
     var retainedSwitchCardBitmap by mutableStateOf<ImageBitmap?>(null)
     /**
      * **课程表页面（主界面）这一屏的整屏原生快照**，含 UITabBar / 导航栏（iOS 专有）。
      *
-     * 切换课表的进入 morph 需要「主界面整屏图」当主内容层，而 Compose 的 `screenGraphicsLayer`
-     * 录不到原生 chrome（底栏会缺一条）。所以在点「切换课表」、切换页还没上屏之前截这一张，
-     * 由 `SwitchMorphOverlay` 直接当主内容画。Android/桌面该函数恒为 null，走原来的图层。
-     * 用完（动画结束）立刻释放 —— 整屏图 ~12MB。
+     * 切换课表的进入 morph 需要整屏图当主内容层，而 Compose 的 `screenGraphicsLayer` 录不到
+     * 原生 chrome（底栏会缺一条）。所以在点「切换课表」、切换页上屏之前截这一张。
+     * Android / 桌面恒为 null。用完立刻释放 —— 整屏图 ~12MB。
      */
     var mainScreenShot by mutableStateOf<ImageBitmap?>(null)
 
@@ -657,9 +655,7 @@ class CourseScheduleAppState {
     // 本次形变要画的卡片位图（只有进入方向用；退出方向仍用实时卡片图层）。
     var switchCardBitmap by mutableStateOf<ImageBitmap?>(null)
 
-    // 读回上次会话退出时固化的卡片快照：位图活不过进程，只有文件能留到下次启动。
-    // 桌面上 Store 未初始化/无实现，返回 null，退化成会话内复用。
-    // Retain drawing commands on demand for snapshots and schedule-library morphs.
+    // 按需保留绘制指令，供整屏快照与切换课表的形变使用（位图/文件那层见 SwitchCardSnapshotStore）
     class MainSnapshotRequester {
         var lastRecordedToken: Int = 0
     }
@@ -668,7 +664,7 @@ class CourseScheduleAppState {
     var mainSnapshotToken by mutableIntStateOf(0)
     suspend fun prepareMainContentLayer() {
         val token = ++mainSnapshotToken
-        // Recording retains drawing commands; no bitmap allocation or CPU rasterization.
+        // record 只保留绘制指令，不分配位图、不做 CPU 光栅化
         while (mainSnapshotRequester.lastRecordedToken < token) {
             withFrameNanos { }
         }
@@ -701,10 +697,8 @@ class CourseScheduleAppState {
     val basePage get() = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
     val todayMaxDateOffset get() = 1000
 
-    // 主 tab 平移容器：仅点底栏/侧栏 tab 驱动。
-    // 手机端只剩 2 页（今日 / 课表）—— 设置已改成二级页（`AppRoute.Settings`），不再是 tab；
-    // 排班模式只剩 1 页（排班课表），它的设置入口也从底栏推二级页。
-    // 平板 rail 保持原样：设置 / 课程管理 / 切换课表仍是内嵌页（后两页只有 rail 到得了）。
+    // 主 tab 平移容器：仅点底栏 / 侧栏 tab 驱动。
+    // 手机 2 页（今日 / 课表，设置已是二级页）；排班模式 1 页；平板 rail 5 页（含设置 / 课程管理 / 切换课表）。
     val mainPagerPageCount get() = when {
         navBarStyle == "rail" -> if (isShiftMode) 2 else 5
         isShiftMode -> 1
@@ -745,8 +739,8 @@ class CourseScheduleAppState {
     // dataVersion + courses 引用都进 key：调课 size 可能不变，只靠 size 会让智能周末星期行停在旧值
     val viewingIsHoliday get() = viewModel.isWeekHoliday(currentViewingWeek)
 
-    // 主界面切页不做圆角裁切：三个 tab 页都方角铺满，设置页不再是从壁纸上滑过来的圆角卡片。
-    // 平板（rail）切页是瞬时的（scrollToPage，无动画），尺寸沿用原逻辑（不额外撑满）。
+    // 主界面切页不做圆角裁切：各 tab 页都方角铺满。
+    // 平板（rail）切页是瞬时的（scrollToPage，无动画），尺寸照旧不额外撑满。
     val mainTabTransitionAnimated get() = navBarStyle != "rail"
     val settingsPageClipModifier
         get() = if (mainTabTransitionAnimated) Modifier.fillMaxSize() else Modifier
@@ -1553,7 +1547,7 @@ class CourseScheduleAppState {
         detailSnapshot = cardLayer?.takeIf {
             it.layer.size.width > 0 && it.layer.size.height > 0
         }?.let { source ->
-            // Retain child layer dependencies above lazy and responsive source branches.
+            // 子图层依赖要保留在上面的 lazy / 响应式分支之外
             retainedDetailLayer.record(
                 densityProvider,
                 detailLayerLayoutDirection,
@@ -1562,10 +1556,9 @@ class CourseScheduleAppState {
                 drawLayer(source.layer)
             }
             val snapshot = TransitionLayerSnapshot(retainedDetailLayer, source.bounds)
-            // 再异步冻结一份位图：`drawLayer` 只是**活引用** —— 源行随后就被
-            // hiddenCourseIds 藏掉，退出 morph 重放出来就只剩玻璃背景、没有文字
-            //（进入时源还活着，所以只有退出缺内容）。光栅化后与源图层彻底脱钩。
-            // 进入 morph 先用活引用（和以前一致），位图就绪后原地替换；退出时用的就是它。
+            // 再异步冻结一份位图：`drawLayer` 只是**活引用**，源行随后会被 hiddenCourseIds 藏掉，
+            // 退出 morph 重放时就只剩玻璃背景、没有文字（进入时源还活着，只有退出缺内容）。
+            // 光栅化后与源图层彻底脱钩：进入先用活引用，位图就绪后原地替换。
             coroutineScope.launch {
                 val frozen = runCatching { source.layer.toImageBitmap() }.getOrNull()
                     ?: return@launch
@@ -1695,10 +1688,10 @@ class CourseScheduleAppState {
     var switchExiting by mutableStateOf(false)
     var switchMainLayerJob by mutableStateOf<Job?>(null)
 
-    // Keep the destination hidden until its anchor and the source layer are ready.
+    // 锚点与源图层都就绪之前，先让目标页保持隐藏
     var switchPreparingLayer by mutableStateOf(false)
 
-    // Re-record the source layer before returning to a different schedule.
+    // 回到另一张课表前要重新录源图层
     var scheduleChanged by mutableStateOf(false)
     var showMorePopup by mutableStateOf(false)
     var showTodayMorePopup by mutableStateOf(false)
@@ -1723,8 +1716,8 @@ class CourseScheduleAppState {
     // 「更多」占位槽实测顶部位置（px，root 坐标）：布局期上报，菜单据此定位，避免首帧 inset 未到而偏位
     val moreSlotTopPx = mutableFloatStateOf(0f)
 
-    // 占位槽在开洞/切页期间仍在顶层顶栏里，照常采样：关掉采样会让 moreSlotTopPx
-    // 冻结在进页前旧高度，菜单错位且仍可点。
+    // 占位槽在开洞 / 切页期间仍在顶层顶栏里。⚠ 关掉采样会让 moreSlotTopPx 冻结在进页前旧高度，
+    // 菜单错位且仍可点 —— 下面按 isWindowCutoutActive 关采样与这条结论相反，改动前先复核。
     val canSampleMoreSlot get() = !isWindowCutoutActive
 
     // 顶栏滚动材质透明度；两个顶栏各自一份，避免切页时互相覆盖。
@@ -1739,7 +1732,7 @@ class CourseScheduleAppState {
         switchExiting = false
         switchAnimForward = true
         if (showSwitchSchedule) {
-            // Interrupt the exit at its current progress; keep the live page and snapshots.
+            // 从当前进度打断退场，保留活页与快照
             switchAnimJob?.cancel()
             switchPendingReverse = false
             switchPreparingLayer = false

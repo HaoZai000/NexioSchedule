@@ -6,11 +6,22 @@ import com.haooz.chedule.data.platform.DisplayLang
  * 课表外观配置：全部可调参数收敛为不可变值对象
  */
 data class AppearanceConfig(
-    val cardBlurRadius: Float = 4f,
+    /**
+     * 卡片模糊半径，**单位 px**（不是 dp）。
+     *
+     * 直接就是柔光玻璃的 `smallBlurRadius`（折射采样源的模糊量）。
+     * 默认 32px（系统 `Glass_Common_Large_Regular` 原值 80，这里取更适合课程卡的档）。
+     */
+    val cardBlurRadius: Float = 32f,
     /** 课程色着色程度（有无壁纸都可调） */
     val cardAlpha: Float = 0.15f,
-    /** 有壁纸时卡片白/黑底不透明度 */
-    val cardSurfaceAlpha: Float = 0.12f,
+    /**
+     * 有壁纸时卡片白/黑底不透明度，即**基准值**。
+     *
+     * 分发时深色模式先 ×0.8（默认 40% ⇒ 32%），再按页面加减：
+     * 今日页高亮卡 +0.15、课表页 −0.15。
+     */
+    val cardSurfaceAlpha: Float = 0.40f,
     val cardHeight: Float = 54f,
     val cardCornerRadius: Float = 10f,
     val wallpaperBrightness: Float = 0f,
@@ -22,10 +33,35 @@ data class AppearanceConfig(
     val showClassroom: Boolean = true,
     val showTeacher: Boolean = true,
     val cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
+    /** 玻璃边缘厚度档位（乘在 `SoftGlassStyle.edgeWidth` 上，不改文件里的默认值） */
+    val cardEdgeThickness: CardEdgeThickness = CardEdgeThickness.DEFAULT,
     val wallpaperBlur: Boolean = false
 ) {
     companion object
 }
+
+/**
+ * 设置值 → 基准不透明度。**深色模式先 ×0.8**，之后才套各页面的 ±15pp。
+ *
+ * 顺序不能反：先加偏移再乘系数，深色下课表页会掉到 0.30×0.8 = 24%，
+ * 而正确值是 (0.40×0.8) − 0.15 = 17%。
+ */
+fun AppearanceConfig.baseSurfaceAlpha(isDark: Boolean): Float =
+    (cardSurfaceAlpha * if (isDark) CombinationDefaults.DARK_SURFACE_ALPHA_FACTOR else 1f)
+        .coerceIn(0f, 1f)
+
+/**
+ * 课表页专用不透明度：基准 −15pp（默认亮色 40% ⇒ 25%，深色 32% ⇒ 17%）。
+ *
+ * 课程卡、分界带、时间轴卡、拖拽/交换浮层**全部**走这一个入口，
+ * 少一处就会出现「拖起来的一瞬间卡片变亮」。
+ */
+fun AppearanceConfig.scheduleSurfaceAlpha(isDark: Boolean): Float =
+    (baseSurfaceAlpha(isDark) + CombinationDefaults.SCHEDULE_SURFACE_ALPHA_OFFSET).coerceIn(0f, 1f)
+
+/** 今日页高亮卡：基准 +15pp（默认亮色 40% ⇒ 55%，深色 32% ⇒ 47%）。 */
+fun AppearanceConfig.highlightSurfaceAlpha(isDark: Boolean): Float =
+    (baseSurfaceAlpha(isDark) + CombinationDefaults.HIGHLIGHT_SURFACE_ALPHA_BONUS).coerceIn(0f, 1f)
 
 /**
  * [AppearanceStyle]（落盘快照）→ 外观配置。
@@ -47,13 +83,15 @@ fun AppearanceConfig.Companion.fromStyle(style: AppearanceStyle): AppearanceConf
     showClassroom = style.showClassroom,
     showTeacher = style.showTeacher,
     cardRefraction = style.safeRefraction,
+    cardEdgeThickness = style.safeEdgeThickness,
     wallpaperBlur = style.wallpaperBlur,
 )
 
 /**
- * 外观存储的偏好文件名与键名（数据兼容契约的一部分）。
- * `:core` 原本反向依赖 `:app` 的 `ScheduleAppearance` 类型来判断外观键，这里只把两个字符串常量下沉到 `:core`，由 `:app` 用 `const val` 转发，两边取值同源。
- * ⚠ 值**逐字未变**：改了等于老用户的外观设置读不出来。
+ * 外观存储的偏好文件名与键名（数据兼容契约）。
+ *
+ * `:core` 不能依赖 `:app`，所以两个字符串常量下沉到这里，`:app` 用 `const val` 转发，取值同源。
+ * ⚠ 值**逐字未变**：改了等于老用户的外观设置全部读不出来。
  */
 object AppearancePrefs {
     /** 外观独立 prefs 文件名（`ScheduleAppearance.FILE`） */
@@ -64,9 +102,10 @@ object AppearancePrefs {
 }
 
 /**
- * 外观参数快照（跨平台）
- * 存量用户 JSON 快照键名=字段名，一个字符都不能改（改名/删除=老用户外观全部读不出来）；
- * 可新增字段（解析器忽略未知键），落盘格式须保持原样。
+ * 外观参数快照（跨平台落盘）。
+ *
+ * ⚠ JSON 键名 = 字段名，一个字符都不能改（改名/删除 = 老用户外观全部读不出来）；
+ * 可新增字段（解析器忽略未知键），落盘格式保持原样。
  */
 data class AppearanceStyle(
     val offsetX: Float = 0f,
@@ -75,8 +114,8 @@ data class AppearanceStyle(
     /** offset/scale 保存时的屏幕宽高（px）；0=未记录，加载时不重映射 */
     val offsetRefW: Float = 0f,
     val offsetRefH: Float = 0f,
-    /** 课程卡片模糊半径（dp） */
-    val cardBlur: Float = 4f,
+    /** 课程卡片模糊半径（**px**，直接喂 `smallBlurRadius`，不乘 density） */
+    val cardBlur: Float = 32f,
     val cardAlpha: Float = 0.15f,
     /** 有壁纸时白/黑底不透明度；null=未设置，用默认 */
     val cardSurfaceAlpha: Float? = null,
@@ -92,13 +131,16 @@ data class AppearanceStyle(
     val showClassroom: Boolean = true,
     val showTeacher: Boolean = true,
     val cardRefraction: CardRefractionLevel? = null,
+    /** 边缘厚度档位；null = 未设置，用默认 */
+    val cardEdgeThickness: CardEdgeThickness? = null,
     val wallpaperBlur: Boolean = false
 ) {
     val safeAlignment: CardContentAlignment get() = cardContentAlignment ?: CardContentAlignment.CENTER_CENTER
     val safeTextColor: CardTextColor get() = cardTextColor ?: CardTextColor.COLORFUL
     val safeRefraction: CardRefractionLevel get() = cardRefraction ?: CardRefractionLevel.DEFAULT
+    val safeEdgeThickness: CardEdgeThickness get() = cardEdgeThickness ?: CardEdgeThickness.DEFAULT
 
-    /** 0 一律视为损坏恢复默认（滑杆合法区间 34~92，0 会让网格整页静默空白） */
+    /** 0 一律视为损坏并恢复默认（滑杆合法区间见上方的 0.5~2.0；0 会让网格整页静默空白） */
     val safeCardTextScale: Float get() = if (cardTextScale > 0f) cardTextScale else 1f
 
     val safeCardSurfaceAlpha: Float
@@ -117,20 +159,37 @@ data class AppearanceStyle(
 /** 外观默认值 —— 与滑杆默认值、JSON 缺省值保持一致。 */
 object CombinationDefaults {
     const val CARD_HEIGHT_DEFAULT = 54f
-    const val CARD_SURFACE_ALPHA_DEFAULT = 0.12f
+    const val CARD_SURFACE_ALPHA_DEFAULT = 0.40f
+
+    /**
+     * 深色模式下白/黑底压得太实，设置值先乘这个系数再分发到各页面。
+     * 默认 40% ⇒ 深色 32%。
+     */
+    const val DARK_SURFACE_ALPHA_FACTOR = 0.8f
+
+    /**
+     * 今日页高亮卡（摘要 / 格言）相对基准值的增量：默认 40% ⇒ 55%。
+     */
+    const val HIGHLIGHT_SURFACE_ALPHA_BONUS = 0.15f
+
+    /**
+     * 课表页（课程卡 + 分界带）相对基准值的偏移：亮色 40% ⇒ 25%，深色 32% ⇒ 17%。
+     *
+     * 三档因此是一条对称的梯子：课表 −15pp / 今日课程卡 0 / 今日高亮卡 +15pp。
+     */
+    const val SCHEDULE_SURFACE_ALPHA_OFFSET = -0.15f
 }
 
-// `ThemeMode` 独立成文件：只含纯数据，供 `:ui-shared` 页面引用
-// （`ScheduleAppearance` 的读写函数要碰 SharedPreferences，仍留在宿主）。
+// ── 课表页主题与卡片外观枚举：纯数据，供 `:ui-shared` 直接引用，不碰存储 ──
 
 /**
  * 课表外观自定义页「默认主题」下拉的取值。
  *
- * ⚠️ 与全局应用主题（`app_theme_prefs` 的 `theme_mode`，值域 system/light/dark）
- * **刻意隔离**：这里只决定今日页/课程表页跟随谁，全局主题开关不受影响。
- * 故 [FOLLOW_APP] 的 prefsValue 复用 "system" 字面量但落在不同的键上。
+ * ⚠ 与全局应用主题（`app_theme_prefs` 的 `theme_mode`，system/light/dark）**刻意隔离**：
+ * 这里只决定今日页 / 课程表页跟随谁，全局开关不受影响 —— 所以 [FOLLOW_APP] 的 prefsValue
+ * 复用了 "system" 字面量，但落在 [SCHEDULE_THEME_MODE_KEY] 这个不同的键上。
  *
- * ⚠ 落盘走 [prefsValue]（数据键，勿本地化）；[label] 是纯展示名，随应用语言（见 [DisplayLang]）。
+ * ⚠ 落盘只走 [prefsValue]（数据键，勿本地化）；[label] 是展示名，随应用语言（见 [DisplayLang]）。
  */
 enum class ThemeMode(val prefsValue: String) {
     FOLLOW_WALLPAPER("follow_wallpaper"),
@@ -147,7 +206,7 @@ enum class ThemeMode(val prefsValue: String) {
         }
 
     companion object {
-        /** 课表外观"默认主题"下拉专用的偏好 key，仅决定今日页/课程表页主题，与全局主题开关隔离 */
+        /** 课表页主题专用 key，与全局主题开关隔离（见 [ThemeMode]） */
         const val SCHEDULE_THEME_MODE_KEY = "schedule_theme_mode"
 
         fun fromPrefsValue(value: String?): ThemeMode =
@@ -155,11 +214,11 @@ enum class ThemeMode(val prefsValue: String) {
     }
 }
 
-/**
- * 卡片外观的三个纯枚举：CourseCard（`:ui-shared`）用它们做布局/配色分流，零依赖。
+/*
+ * 卡片外观枚举：`CourseCard`（`:ui-shared`）用它们做布局 / 配色分流，零依赖。
  *
- * ⚠ 落盘格式 = ordinal（fromOrdinal 是旧数据的恢复入口），**枚举顺序不能改**。
- * [label] 是纯展示名（随应用语言，见 [DisplayLang]），不参与落盘与比较。
+ * ⚠ 全部按 ordinal 落盘（`fromOrdinal` 是旧数据恢复入口），**枚举顺序不能改**。
+ * `label` 是纯展示名（随应用语言），不参与落盘与比较。
  */
 
 /** 卡片内容对齐方式 */
@@ -217,6 +276,29 @@ enum class CardRefractionLevel(val lensRadiusDp: Float, val lensStrengthDp: Floa
 
     companion object {
         fun fromOrdinal(ordinal: Int): CardRefractionLevel =
+            entries.getOrElse(ordinal) { DEFAULT }
+    }
+}
+
+/**
+ * 玻璃边缘厚度档位：**乘在** `SoftGlassStyle.edgeWidth`（文件内默认 60px）上的倍率。
+ *
+ * 只改倍率、不改默认值 —— 换档不会让别处跟着变。⚠ 按 ordinal 落盘，顺序不能改。
+ */
+enum class CardEdgeThickness(val scale: Float) {
+    SMALLER(0.8f),
+    DEFAULT(1.0f),
+    LARGER(1.2f);
+
+    val label: String
+        get() = when (this) {
+            SMALLER -> if (DisplayLang.isZh) "较小" else "Smaller"
+            DEFAULT -> if (DisplayLang.isZh) "默认" else "Default"
+            LARGER -> if (DisplayLang.isZh) "较大" else "Larger"
+        }
+
+    companion object {
+        fun fromOrdinal(ordinal: Int): CardEdgeThickness =
             entries.getOrElse(ordinal) { DEFAULT }
     }
 }

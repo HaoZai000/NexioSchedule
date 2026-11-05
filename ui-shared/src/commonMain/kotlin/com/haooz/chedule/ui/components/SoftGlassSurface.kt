@@ -19,11 +19,8 @@ import com.haooz.chedule.ui.glass.softGlass
 /**
  * 柔光玻璃的绘制能力，供 `commonMain` 的卡片调用。
  *
- * 为什么要有这层抽象：卡片背景要交给平台画（AGSL / SkSL + 位图采样），
- * `commonMain` 不能直接引用 `RuntimeShader`，所以这里只暴露「给我一个 Modifier」。
- *
- * 具体 shader 由 `SoftGlassProgramCache` 按尺寸 / 圆角 / 样式共享，
- * 这一层只负责把「怎么画」抽象成通用 Modifier。
+ * 需要这层抽象：卡片背景由平台画（AGSL / SkSL + 位图采样），`commonMain` 引不到 `RuntimeShader`，
+ * 所以这里只暴露「给我一个 Modifier」。shader 实例由 `SoftGlassProgramCache` 按尺寸 / 圆角 / 样式共享。
  */
 interface SoftGlassSurface {
     /**
@@ -41,7 +38,7 @@ interface SoftGlassSurface {
 }
 
 /**
- * 柔光玻璃采样源，按页共享（课表、今日各一份，页面级样式互不影响）。
+ * 页面级柔光玻璃能力，按页共享（课表、今日各一份，页面样式互不影响）。
  *
  * 对齐 + 模糊是同步烘焙，同一页只算一次；由 `CourseScheduleAppMainContent` 计算并下发。
  * 无壁纸 / 平台没有 shader 时为 null，所有面板退回纯色表面。
@@ -64,8 +61,8 @@ val LocalGlassRedrawSignal = staticCompositionLocalOf<() -> Unit> { {} }
  * 把壁纸按它**实际显示**的变换（ContentScale.Fit 居中 × 手势缩放 × 用户偏移）
  * 对齐成半分辨率基准位图，再出轻 / 重两级模糊。
  *
- * 对齐在 surface 内部消化，调用方不用管壁纸缩放；shader 用 `bakeScale` 把面板坐标折算到纹理。
- * 同步烘焙：优化后（半分辨率 + 低分辨率模糊）单次约几十毫秒，第一帧就能带着玻璃出。
+ * 对齐在内部消化，调用方不用管壁纸缩放；shader 用 `bakeScale` 把面板坐标折算到纹理。
+ * 同步烘焙，第一帧就能带着玻璃出。
  */
 @Composable
 fun rememberSoftGlassSurface(
@@ -77,8 +74,8 @@ fun rememberSoftGlassSurface(
     style: SoftGlassStyle = SoftGlassStyle(),
 ): SoftGlassSurface? {
     val density = LocalDensity.current
-    // 同步烘焙：优化后（半分辨率 + 低分辨率模糊）单次约几十毫秒，第一帧就能带着玻璃出。
-    // 只有模糊半径影响烘焙结果；折射/edgeWidth 变化只换样式，不重算位图。
+    // 同步烘焙（半分辨率 + 低分辨率模糊）单次约几十毫秒，第一帧就能带着玻璃出。
+    // key 必须是整个 style：调色已跑在烘焙里，任一颜色参数变化都得重烘，不能只盯两个模糊半径。
     val backdrop = remember(
         wallpaperBitmap,
         wallpaperScale,
@@ -86,8 +83,7 @@ fun rememberSoftGlassSurface(
         screenWidthPx,
         screenHeightPx,
         density.density,
-        style.smallBlurRadius,
-        style.bigBlurRadius,
+        style,
     ) {
         val bmp = wallpaperBitmap
         if (bmp == null || bmp.width <= 0 || bmp.height <= 0 || !isSoftGlassShaderAvailable()) {

@@ -75,6 +75,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.appearance.AppearanceConfig
 import com.haooz.chedule.data.appearance.CardRefractionLevel
+import com.haooz.chedule.data.appearance.scheduleSurfaceAlpha
 import com.haooz.chedule.data.holiday.HolidayCourseExclusion
 import com.haooz.chedule.data.holiday.HolidayEntry
 import com.haooz.chedule.data.holiday.HolidayManager
@@ -229,7 +230,9 @@ fun MainScheduleScreen(
 ) {
     val cardBlurRadius = appearance.cardBlurRadius
     val cardAlpha = appearance.cardAlpha
-    val cardSurfaceAlpha = appearance.cardSurfaceAlpha
+    // 基准值（深色已 ×0.8）再低 15pp：亮色 40% ⇒ 25%，深色 32% ⇒ 17%。
+    // 分界带 / 时间轴 / 浮层都从这里取，同页同值。
+    val cardSurfaceAlpha = appearance.scheduleSurfaceAlpha(isAppDarkTheme())
     val cardHeightPerSection = appearance.cardHeight
     val cardCornerRadius = appearance.cardCornerRadius
     val showBreakDividers = appearance.showBreakDividers
@@ -809,9 +812,8 @@ fun MainScheduleScreen(
             }
 
 
-            // 翻页预组合策略收在 WeekPagerHost（见其注释）：滚动中收拢到 1、
-            // 停稳 250ms 后扩到 2、边缘驻留扩到 3。beyond 翻转只重组 Host，
-            // 不重建页内容 lambda，已组合的周页不会被连带重组。
+            // 预组合策略全在 WeekPagerHost 内（滚动收拢到 1 / 停稳 2 / 边缘驻留 3），
+            // beyond 翻转只重组 Host，不重建页内容 lambda。
             WeekPagerHost(
                 state = pagerState,
                 dwellHint = edgeDwellHint,
@@ -1755,10 +1757,6 @@ private data class DropMaskBox(
 )
 
 /**
- * 调课落点示意遮罩：拖动换格时弹簧连续位移；出现从上方轻微落入，消失淡出。
- * 放在 DayColumn 之前，保证卡片画在遮罩之上。
- */
-/**
  * 周 pager 宿主：beyond 预组合策略全部收在本函数作用域内。
  *
  * - 滚动中**组合期直读** isScrollInProgress 立即收拢到 1：与首个滚动位移帧同一次
@@ -1767,10 +1765,9 @@ private data class DropMaskBox(
  * - 停稳 250ms 后扩到 [idleBeyond]（默认 2，边缘驻留连续翻周 3）：把下一次翻页
  *   要用的邻页组合挪进空闲帧，防抖让它落在落页弹簧收尾之后、不挤进落地帧
  *
- * ⚠ 这些状态的读写不得泄漏到调用方：beyond 翻转只重组本函数（体积极小），
- *   调用方传入的页内容 lambda 实例保持不变，已组合的周页不会被连带重组
- *   （曾把状态写在 MainScheduleScreen 主体里，每次翻转重建页 lambda，整批页
- *   跟着重跑组合，实测反而更卡）。
+ * ⚠ 这些状态不得泄漏到调用方：beyond 翻转只重组本函数（体积极小），调用方传入的页内容
+ *   lambda 实例保持不变，已组合的周页不会被连带重组。实测把状态写在 `MainScheduleScreen`
+ *   主体里，每次翻转都重建页 lambda、整批页跟着重跑组合，反而更卡。
  */
 @Composable
 private fun WeekPagerHost(
