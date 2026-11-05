@@ -96,8 +96,10 @@ object BackupStr {
     val confirmShare = L("确认分享", "Share")
     val exportToWearable = L("导出到手环", "Export to Wearable")
     val exportToWearableSummary = L("打包JSON并推送到手表/手环", "Package as JSON and push to a watch or band")
-    val wearableExportSuccessN = L("已导出并推送手环\n%s", "Exported and pushed to wearable\n%s")
-    val wearableExportFailed = L("导出失败，请确认手环已连接", "Export failed. Make sure the wearable is connected")
+    // 这里只说「文件生成好了」：推送是异步的，真实结果由 WearableScheduleSync 自己 Toast，
+    // 以前写「已推送」是谎话（推送失败时 UI 照样显示成功）。
+    val wearableExportSuccessN = L("已生成课表文件，正在推送到手环\n%s", "Schedule file created; pushing to the wearable\n%s")
+    val wearableExportFailed = L("生成课表文件失败，请重试", "Failed to build the schedule file. Please try again")
     val exportEmptyScheduleN = L("「%s」课表为空，无法导出", "Schedule \"%s\" is empty and cannot be exported")
 
     // ---- 同步到日历 ----

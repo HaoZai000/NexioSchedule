@@ -2,6 +2,7 @@ package com.haooz.chedule.wearable
 
 import android.content.Context
 import com.haooz.chedule.data.platform.NexioLog
+import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.xiaomi.xms.wearable.Wearable
 import com.xiaomi.xms.wearable.auth.AuthApi
@@ -99,7 +100,10 @@ object WearableScheduleSync {
 
     /**
      * 界面「导出到手环」：打包 JSON 落盘 + 推送到手表。
-     * @return JSON 文件路径（失败返回 null）
+     *
+     * @return JSON 文件路径（打包失败返回 null）。⚠ 这只表示**文件写好了**，
+     *   不代表手环收到了 —— 推送是异步的，真实结果走 [onDone]，并同时 Toast 出来。
+     *   以前这里写文件就回调成功，四个推送失败出口全无反馈，用户看到的就是「点了没反应」。
      */
     fun exportToWearable(
         context: Context,
@@ -116,13 +120,20 @@ object WearableScheduleSync {
             if (!dir.exists()) dir.mkdirs()
             val file = java.io.File(dir, "nexio-watch-schedule.json")
             file.writeText(json, Charsets.UTF_8)
-            NexioLog.i(TAG, "export json -> ${file.absolutePath}")
-            ensurePermissionThenPush("manual-export", scheduleName)
-            onDone?.invoke(true, file.absolutePath)
+            val bytes = json.toByteArray(Charsets.UTF_8).size
+            NexioLog.i(TAG, "export json -> ${file.absolutePath} (${bytes}B)")
+            val report: (Boolean, String) -> Unit = { ok, message ->
+                onDone?.invoke(ok, message)
+                showToast(message, longDuration = !ok)
+            }
+            report(false, "已生成课表，正在推送到手环…")
+            ensurePermissionThenPush("manual-export", scheduleName, report)
             file.absolutePath
         } catch (e: Exception) {
-            NexioLog.w(TAG, "export fail: ${e.message}")
-            onDone?.invoke(false, e.message ?: "export fail")
+            NexioLog.w(TAG, "export build fail: ${e.message}")
+            val message = "导出失败：${e.message ?: "未知错误"}"
+            onDone?.invoke(false, message)
+            showToast(message, longDuration = true)
             null
         }
     }
@@ -134,7 +145,11 @@ object WearableScheduleSync {
     }
 
     /** 先确认 DEVICE_MANAGER 授权，再发消息（permission denied 的根因） */
-    private fun ensurePermissionThenPush(reason: String, scheduleName: String = "") {
+    private fun ensurePermissionThenPush(
+        reason: String,
+        scheduleName: String = "",
+        onResult: ((ok: Boolean, message: String) -> Unit)? = null,
+    ) {
         val exec = scheduler ?: Executors.newSingleThreadScheduledExecutor().also { scheduler = it }
         exec.execute {
             var id = resolveNodeId()
@@ -148,14 +163,16 @@ object WearableScheduleSync {
                 NexioLog.w(TAG, "push skip ($reason): no node, queued")
                 pendingPush.set(true)
                 pendingScheduleName = scheduleName
+                onResult?.invoke(false, "手环未连接，已排队等待重连后补推")
                 return@execute
             }
             if (permissionGranted.get()) {
-                doPush(reason, scheduleName, id)
+                doPush(reason, scheduleName, id, onResult)
                 return@execute
             }
             val auth = authApi ?: run {
                 NexioLog.w(TAG, "authApi null")
+                onResult?.invoke(false, "手环服务不可用，请确认已安装小米运动健康")
                 return@execute
             }
             auth.checkPermissions(id, arrayOf(Permission.DEVICE_MANAGER))
@@ -164,7 +181,7 @@ object WearableScheduleSync {
                     NexioLog.i(TAG, "checkPermission($id)=$granted")
                     if (granted) {
                         permissionGranted.set(true)
-                        doPush(reason, scheduleName, id)
+                        doPush(reason, scheduleName, id, onResult)
                     } else {
                         auth.requestPermission(id, Permission.DEVICE_MANAGER)
                             .addOnSuccessListener { perms ->
@@ -172,22 +189,27 @@ object WearableScheduleSync {
                                 // requestPermission 回传的是 AIDL 反序列化出的新实例
                                 // （Permission(Parcel)），`it == Permission.DEVICE_MANAGER`
                                 // 是引用比较、恒为 false —— 用户明明点了允许，这次推送也发不出去。
-                                val ok = perms.any { it.name == Permission.DEVICE_MANAGER.name }
+                                val ok = perms.any {
+                                    it.name.equals(Permission.DEVICE_MANAGER.name, ignoreCase = true)
+                                }
                                 NexioLog.i(TAG, "requestPermission result ok=$ok names=${perms.map { it.name }}")
                                 permissionGranted.set(ok)
                                 if (ok) {
-                                    doPush(reason, scheduleName, id)
+                                    doPush(reason, scheduleName, id, onResult)
                                 } else {
                                     NexioLog.w(TAG, "push fail ($reason): permission not granted")
+                                    onResult?.invoke(false, "未获得手环授权，无法推送")
                                 }
                             }
                             .addOnFailureListener { e ->
                                 NexioLog.w(TAG, "requestPermission fail: ${e.message}")
+                                onResult?.invoke(false, "申请手环授权失败：${e.message}")
                             }
                     }
                 }
                 .addOnFailureListener { e ->
                     NexioLog.w(TAG, "checkPermission fail: ${e.message}")
+                    onResult?.invoke(false, "查询手环授权失败：${e.message}")
                 }
         }
     }
@@ -203,11 +225,17 @@ object WearableScheduleSync {
         }, delayMs, TimeUnit.MILLISECONDS)
     }
 
-    private fun doPush(reason: String, scheduleName: String, id: String) {
+    private fun doPush(
+        reason: String,
+        scheduleName: String,
+        id: String,
+        onResult: ((ok: Boolean, message: String) -> Unit)? = null,
+    ) {
         if (!pushing.compareAndSet(false, true)) {
             // 上一次还没发完就记账重排，等它落地再补一次，避免连点「推送到手环」连发多包
             pendingPush.set(true)
             pendingScheduleName = scheduleName
+            onResult?.invoke(false, "上一次推送还在进行，已排队，稍后自动补推")
             return
         }
         try {
@@ -215,25 +243,31 @@ object WearableScheduleSync {
             // v4 整表推送：一次下发完整学期（课程+周次规则+设置+节次时间+假期），
             // 手表自行推算任意日期。
             val payload = WatchPayload.buildFullJson(repo, appContext, scheduleName)
+            // 真实字节数：中文载荷按字符数算会低估 1.5–2 倍，排查「到底超没超限」时这个数字很关键
+            val payloadBytes = payload.toByteArray(Charsets.UTF_8).size
             val api = messageApi ?: run {
                 releasePushSlot()
+                onResult?.invoke(false, "手环消息通道不可用")
                 return
             }
             api.sendMessage(id, payload.toByteArray(Charsets.UTF_8))
                 .addOnSuccessListener {
-                    NexioLog.i(TAG, "push ok ($reason), node=$id, bytes=${payload.length}")
+                    NexioLog.i(TAG, "push ok ($reason), node=$id, bytes=$payloadBytes")
                     // ⚠ 推送槽必须在这里、也就是 sendMessage 真正落地后才释放。
                     //   放进 finally 的话会在 sendMessage 还没回调时就把标记清掉，
                     //   合帧形同虚设，连点「推送到手环」会连发多包。
                     releasePushSlot()
+                    onResult?.invoke(true, "已推送到手环（${payloadBytes / 1024} KB）")
                 }
                 .addOnFailureListener { e ->
                     NexioLog.w(TAG, "push fail ($reason): ${e.message}")
                     releasePushSlot()
+                    onResult?.invoke(false, "推送失败：${e.message}")
                 }
         } catch (e: Exception) {
             NexioLog.w(TAG, "push error ($reason): ${e.message}")
             releasePushSlot()
+            onResult?.invoke(false, "推送异常：${e.message}")
         }
     }
 
