@@ -117,7 +117,7 @@ fun SearchBar(
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
-    // 折射随材质档位：通透玻璃档保留，清透磨砂及更省档关闭（与液态玻璃按钮一致）
+    // 折射随材质档位：通透玻璃档保留，其余档关闭（与液态玻璃按钮一致）
     val chromeLens = chromeLensEnabled
     // 玻璃模糊随材质档位：通透玻璃档更低（折射接管通透感），其余档 8
     val glassBlur = LocalGlassBlurDp.current
@@ -298,7 +298,7 @@ fun InputField(
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
     val internalInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
     val capsuleShape = ContinuousCapsule()
-    // 折射随材质档位：通透玻璃档保留，清透磨砂及更省档关闭
+    // 折射随材质档位：通透玻璃档保留，其余档关闭
     val chromeLens = chromeLensEnabled
     // 玻璃模糊随材质档位：通透玻璃档更低（折射接管通透感），其余档 8
     val glassBlur = LocalGlassBlurDp.current

@@ -11,7 +11,8 @@ import com.haooz.chedule.i18n.MiscStr
 import com.kyant.backdrop.isRenderEffectSupported
 
 /**
- * 应用材质质量档（通透玻璃 / 清透磨砂 / 性能优先 / 无材质），玻璃模糊、折射、边光都读它；默认清透磨砂。
+ * 应用材质质量档（通透玻璃 / 清透磨砂 / 无材质），玻璃模糊、折射、边光都读它；默认清透磨砂。
+ * 顶栏「真·渐进模糊」是独立开关 [trueProgressiveBlur]，不占用档位。
  *
  * 统一限制：RenderEffect 不可用（Android API < 31）的设备锁死无材质档（见 [normalize]），
  * 模糊相关的按能力降级分支不在这里出现——能力不足时档位本身就是无材质。
@@ -19,19 +20,20 @@ import com.kyant.backdrop.isRenderEffectSupported
 object AppMaterialSettings {
 
     const val KEY_APP_MATERIAL = "app_material"
+    /** 顶栏「真·渐进模糊」开关的持久化键（默认开启）。 */
+    const val KEY_TRUE_PROGRESSIVE_BLUR = "true_progressive_blur"
     private const val PREFS_NAME = "app_preferences"
 
     const val BEST = "best"
     const val BALANCED = "balanced"
-    const val PERFORMANCE = "performance"
     const val NONE = "none"
 
-    /** 性能优先档描边同色系提亮幅度（向白混合比例） */
+    /** 降级描边同色系提亮幅度（向白混合比例） */
     private const val STROKE_LIGHTEN = 0.2f
 
     /** 通透玻璃档玻璃模糊（dp）：折射接管通透感，模糊只留一点点 */
     private const val GLASS_BLUR_BEST = 4f
-    /** 清透磨砂 / 性能优先档玻璃模糊（dp）：无折射，需要磨砂 */
+    /** 清透磨砂档玻璃模糊（dp）：无折射，需要磨砂 */
     private const val GLASS_BLUR_MILLED = 8f
     /** 通透玻璃档下拉面板模糊（dp）：恒定值，不随展开渐变 */
     private const val GLASS_PANEL_BLUR_BEST = 4f
@@ -50,12 +52,20 @@ object AppMaterialSettings {
         get() = listOf(
             BEST to MiscStr.materialBest(),
             BALANCED to MiscStr.materialBalanced(),
-            PERFORMANCE to MiscStr.materialPerformance(),
             NONE to MiscStr.materialNone(),
         )
 
     /** 当前档位；组合期可读，写入走 [apply]。 */
     var level: String by mutableStateOf(BALANCED)
+
+    /**
+     * 顶栏「真·渐进模糊」开关（默认开启）。
+     * 开 → AGSL 逐像素半径渐变的真渐进；关 → 等值 blur + alpha 淡出的轻量假渐进。
+     * 无材质档走渐变遮罩，此开关对它无效（设置页会置灰）。
+     * 组合期可读：Theme 下发 `progressiveBlurUseFake()` 时读它，切开关要当场重算。
+     */
+    var trueProgressiveBlur: Boolean by mutableStateOf(true)
+        private set
 
     /**
      * 平台锁定的档位（null = 用户可选）。锁定后 [normalize] 一律返回它，
@@ -72,14 +82,11 @@ object AppMaterialSettings {
     fun labelOf(level: String): String =
         entries.firstOrNull { it.first == level }?.second ?: MiscStr.materialBalanced()
 
-    /** 按钮 / 低栏背景板折射：仅通透玻璃档保留，清透磨砂及更省档关闭。 */
+    /** 按钮 / 低栏背景板折射：仅通透玻璃档保留，其余档关闭。 */
     fun chromeLensEnabled(): Boolean = level == BEST
 
     /** 是否通透玻璃档（折射 + 低模糊那一档）。 */
     fun isBestTier(): Boolean = level == BEST
-
-    /** 是否性能优先档：折射在渲染侧被强制关掉，卡片模糊仍保留。 */
-    fun isPerformanceTier(): Boolean = level == PERFORMANCE
 
     /** 是否无材质档：玻璃模糊 / 折射 / vibrancy 全关，渐进模糊降级为渐变遮罩。 */
     fun isNoneTier(): Boolean = level == NONE
@@ -89,7 +96,7 @@ object AppMaterialSettings {
 
     /**
      * 玻璃件采样模糊半径（dp）。通透玻璃档有折射（[chromeLensEnabled]）撑着玻璃的「厚度」，
-     * 模糊压得很低让折射纹理透出来；清透磨砂 / 性能优先没有折射，靠 8 的磨砂顶住质感；无材质档 0（不模糊）。
+     * 模糊压得很低让折射纹理透出来；清透磨砂没有折射，靠 8 的磨砂顶住质感；无材质档 0（不模糊）。
      */
     fun glassBlurDp(): Float = when (level) {
         NONE -> 0f
@@ -117,9 +124,9 @@ object AppMaterialSettings {
 
     /**
      * 玻璃底色 alpha：无材质档返回 1f（玻璃面改实色），通透玻璃档比常态低一档让折射和背后的内容
-     * 透出来；清透磨砂 / 性能优先档原值返回。
+     * 透出来；清透磨砂档原值返回。
      *
-     * @param milledAlpha 清透磨砂 / 性能优先档原本使用的 alpha
+     * @param milledAlpha 清透磨砂档原本使用的 alpha
      */
     fun glassSurfaceAlpha(milledAlpha: Float, isLight: Boolean): Float =
         if (level == NONE) 1f else (milledAlpha - glassSurfaceAlphaDrop(isLight)).coerceAtLeast(0f)
@@ -128,7 +135,7 @@ object AppMaterialSettings {
     fun solidSurfaceAlpha(baseAlpha: Float): Float = if (level == NONE) 1f else baseAlpha
 
     /**
-     * 通透玻璃档的底色 alpha 降幅（浅色 / 深色各一档）；清透磨砂 / 性能优先档 0。
+     * 通透玻璃档的底色 alpha 降幅（浅色 / 深色各一档）；清透磨砂 / 无材质档 0。
      * [glassSurfaceAlpha] 与 :miuix 下发都用它。
      */
     fun glassSurfaceAlphaDrop(isLight: Boolean): Float = when {
@@ -137,11 +144,14 @@ object AppMaterialSettings {
         else -> GLASS_SURFACE_ALPHA_DROP_DARK
     }
 
-    /** 性能优先档用假渐进模糊（等值 blur + alpha 淡出）替代真渐进（AGSL 多重采样）；通透玻璃 / 清透磨砂保留真模糊。 */
-    fun progressiveBlurUseFake(): Boolean = level == PERFORMANCE
+    /**
+     * 顶栏是否走「假渐进模糊」（等值 blur + alpha 淡出，不跑 AGSL 多重采样）。
+     * 由「真·渐进模糊」开关决定，与材质档位无关；无材质档另有渐变遮罩优先。
+     */
+    fun progressiveBlurUseFake(): Boolean = !trueProgressiveBlur
 
     /**
-     * 性能优先 / 无材质档把高光描边降级为普通纯色描边（无模糊、SrcOver）；[baseColor] 非空时按同色系
+     * 无材质档把高光描边降级为普通纯色描边（无模糊、SrcOver）；[baseColor] 非空时按同色系
      * 提亮一档作描边，否则按主题回退（浅色白 / 深色灰）。通透玻璃 / 清透磨砂保留原高光。
      */
     fun resolveEdgeLight(
@@ -149,7 +159,7 @@ object AppMaterialSettings {
         isLightTheme: Boolean,
         baseColor: Color? = null,
     ): com.kyant.backdrop.edgelight.EdgeLight {
-        if (level != PERFORMANCE && level != NONE) return source
+        if (level != NONE) return source
         val stroke = baseColor?.let(::lightenSameHue)
             ?: if (isLightTheme) Color.White else Color(0xFF333333)
         return com.kyant.backdrop.edgelight.EdgeLight(
@@ -178,19 +188,26 @@ object AppMaterialSettings {
         this.level = normalize(level)
     }
 
-    /**
-     * 启动时从偏好载入到全局状态，走 [AppStorage] 按名字取（Android 仍是同一个
-     * `app_preferences` 文件，存量数据不受影响）。
-     */
-    fun load() {
-        level = normalize(AppStorage.store(PREFS_NAME).getString(KEY_APP_MATERIAL, BALANCED))
+    /** 切换「真·渐进模糊」：全局状态立即更新，Theme 的 CompositionLocal 随重组下发。 */
+    fun applyTrueProgressiveBlur(enabled: Boolean) {
+        trueProgressiveBlur = enabled
     }
 
-    /** 旧值 / 非法值落到清透磨砂档；模糊能力不可用（Android API < 31）一律锁进无材质档。 */
+    /**
+     * 启动时从偏好载入到全局状态，走 [AppStorage] 按名字取（Android 仍是同一个
+     * `app_preferences` 文件，存量数据不受影响）。旧「性能优先」档值由 [normalize] 回落到清透磨砂。
+     */
+    fun load() {
+        val store = AppStorage.store(PREFS_NAME)
+        level = normalize(store.getString(KEY_APP_MATERIAL, BALANCED))
+        trueProgressiveBlur = store.getBoolean(KEY_TRUE_PROGRESSIVE_BLUR, true)
+    }
+
+    /** 旧值 / 非法值（含已下线的 "performance"）落到清透磨砂档；模糊能力不可用（Android API < 31）一律锁进无材质档。 */
     private fun normalize(level: String): String {
         lockedLevel?.let { return it }
         val resolved = when (level) {
-            BEST, BALANCED, PERFORMANCE, NONE -> level
+            BEST, BALANCED, NONE -> level
             else -> BALANCED
         }
         return if (resolved != NONE && !isRenderEffectSupported()) NONE else resolved

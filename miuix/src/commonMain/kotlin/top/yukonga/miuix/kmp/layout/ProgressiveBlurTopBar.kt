@@ -17,9 +17,12 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
@@ -118,12 +121,18 @@ private class InvalidateDrawOnStateNode(
  *
  * 四条渲染路径，按能力从高到低：
  * 1. **渐变遮罩**（无材质档）：无模糊，表面色 alpha 纵向渐变淡出。
- * 2. **AGSL 两趟**（`isRuntimeShaderSupported()`，API 33+ 且非性能档）：抖动采样 + 环形去噪，
- *    shader 与参数说明见 `ProgressiveBlurShaders.kt`。
- * 3. **假渐进**（性能档，或 AGSL 不可用但 RenderEffect 可用——即 API 31–32）：
- *    等值 `blur` + alpha 纵向淡出，观感接近、成本低一截。
+ * 2. **AGSL 两趟**（`isRuntimeShaderSupported()`，API 33+ 且「真·渐进模糊」开关开启）：
+ *    抖动采样 + 环形去噪，shader 与参数说明见 `ProgressiveBlurShaders.kt`。
+ * 3. **假渐进**（开关关闭，或 AGSL 不可用但 RenderEffect 可用——即 API 31–32）：
+ *    **一次 blur + 一个极简淡出 pass 串在同一条 RenderEffect 链里**：录制 backdrop 的那个离屏
+ *    layer 就把「模糊 → 淡出」做完了，不再额外开 `Offscreen` 合成层做 `DstIn`。淡出 shader
+ *    只有 1 次 `content.eval`、零循环（真渐进是 32 tap + 12 tap denoise）。
+ *    API 31–32 / 鸿蒙没有 AGSL 图像滤镜，退回 `Offscreen + DstIn` 的旧写法。
  * 4. **渐变遮罩兜底**（无 RenderEffect）：统一限制后理论上不可达——API < 31 已被材质档锁进
  *    无材质（走 1），桌面 / iOS 恒支持。保留遮罩兜底，模糊不可用时不降级为纯色。
+ *
+ * 单趟化的依据见 `topics/glass.md`：应用侧不该为「渐进」再叠一层全尺寸离屏合成，
+ * 模糊交给一个 RenderEffect，渐变只作为参数/一个逐像素 pass 存在。
  */
 @Composable
 fun ProgressiveBlurTopBar(
@@ -139,9 +148,10 @@ fun ProgressiveBlurTopBar(
     tintColor: Color = MiuixTheme.colorScheme.surface,
     blurAlpha: Float = 1f,
     /**
-     * 性能档是否用「假渐进模糊」（等值 blur + alpha 淡出，不跑 AGSL 多重采样）。
+     * 是否用「假渐进模糊」（一次 blur + 极简淡出，不跑 AGSL 多重采样）。
+     * 「真·渐进模糊」开关关闭时为真；无材质档走渐变遮罩，不受它影响。
      *
-     * 由 [LocalUseFakeProgressiveBlur] 提供，避免让本文件反向依赖业务层的材质设置
+     * 由 [LocalUseFakeProgressiveBlur] 提供，避免让本文件反向依赖业务层的偏好设置
      * （App 在根部 provide，28 个调用点无需逐个改）；也可显式传参覆盖。
      */
     useFakeProgressiveBlur: Boolean = LocalUseFakeProgressiveBlur.current,
@@ -220,6 +230,40 @@ fun ProgressiveBlurTopBar(
             }
         }
 
+    // 假渐进淡出 pass 的 shader key 必须独立：RuntimeShader 缓存按名字索引，
+    // 与真渐进共名会取到 32 tap 那份（或反过来），表现为糊带全黑 / 不淡出。
+    val fadeShaderKey = remember(resampleKey) {
+        "ProgressiveBlurFade_${progressiveBlurShaderSeq.addAndFetch(1)}"
+    }
+    /**
+     * 假渐进：**blur → 淡出 一条 RenderEffect 链**。
+     *
+     * 淡出不再走 `drawWithContent + DstIn`（那要再开一层全尺寸 `Offscreen` 合成层，
+     * 并多画一遍渐变矩形）；折进链里后，录制 backdrop 的那一个离屏 layer 就够。
+     * 淡出 shader 只有 1 次 `content.eval`、零循环，与真渐进的 32 tap 不是一个量级。
+     */
+    val fakeBlurEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+        remember(fadeShaderKey, edgeFadeStart) {
+            {
+                // Mirror：`TileMode.Clamp`（blur 的默认）会把顶边的采样钳到第一行，
+                // 12dp 半径下顶栏最上沿会被拉平成一条「没糊」的带子 —— 设置页最明显。
+                blur(BlurMaxRadius.toPx(), TileMode.Mirror)
+                // ⚠ Mirror 会让 blur() 把 padding 撑到 radius，而外扩的那圈缓冲录的是屏幕外（空），
+                // 镜像过去仍是空 —— 压回 0，让镜像只发生在节点内。淡出 shader 的坐标也据此按节点算。
+                padding = 0f
+                runtimeShaderEffect(fadeShaderKey, PROGRESSIVE_FADE_SHADER, "content") {
+                    setFloatUniform(
+                        "contentSize",
+                        size.width * downsampleScale,
+                        size.height * downsampleScale
+                    )
+                    setFloatUniform("fadeStart", edgeFadeStart.coerceIn(0.4f, 0.95f))
+                    setFloatUniform("hold", 0.55f)
+                    setFloatUniform("midAlpha", 0.45f)
+                }
+            }
+        }
+
     Box(modifier = modifier) {
         // 只重建糊层，不 remount content
         key(resampleKey, useFakeProgressiveBlur, useGradientMask) {
@@ -245,51 +289,36 @@ fun ProgressiveBlurTopBar(
                             )
                     )
                 }
-                // 假渐进：性能档，或 AGSL 不可用但 RenderEffect 可用（API 31–32）
+                // 假渐进：「真·渐进模糊」开关关闭，或 AGSL 不可用但 RenderEffect 可用（API 31–32）
                 isRenderEffectSupported() -> {
-                    // 等值 blur + alpha 渐变淡出，观感接近真渐进，成本低一截
-                    val fadeBrush = remember(totalHeight, edgeFadeStart) {
-                        Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to Color.White,
-                                (edgeFadeStart * 0.55f).coerceIn(0.2f, 0.9f) to Color.White,
-                                edgeFadeStart.coerceIn(0.4f, 0.95f) to Color.White.copy(alpha = 0.45f),
-                                1.0f to Color.Transparent,
-                            ),
+                    if (isRuntimeShaderSupported()) {
+                        // 单趟：模糊与淡出共用同一个离屏 layer，没有第二层 Offscreen 合成。
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(totalHeight)
+                                .graphicsLayer { alpha = blurAlpha }
+                                .invalidateDrawOnSampleTrack(sampleTrack)
+                                .drawBackdrop(
+                                    backdrop = backdrop,
+                                    shape = blurShapeBlock,
+                                    effects = fakeBlurEffects,
+                                    highlight = null,
+                                    shadow = null,
+                                )
+                        )
+                    } else {
+                        // API 31–32 / 鸿蒙：AGSL 图像滤镜不可用，淡出只能回 Canvas 合成。
+                        // 保留旧写法作能力兜底，别让糊带整条实糊到底。
+                        LegacyFakeProgressiveBlur(
+                            backdrop = backdrop,
+                            blurShapeBlock = blurShapeBlock,
+                            totalHeight = totalHeight,
+                            blurAlpha = blurAlpha,
+                            edgeFadeStart = edgeFadeStart,
+                            sampleTrack = sampleTrack,
                         )
                     }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(totalHeight)
-                            .graphicsLayer {
-                                alpha = blurAlpha
-                                compositingStrategy =
-                                    androidx.compose.ui.graphics.CompositingStrategy.Offscreen
-                                clip = true
-                            }
-                            .invalidateDrawOnSampleTrack(sampleTrack)
-                            .drawWithContent {
-                                drawContent()
-                                // 只淡出糊层自身，不盖到 content()
-                                drawRect(fadeBrush, blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
-                            }
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = blurShapeBlock,
-                                effects = {
-                                    // Mirror：`TileMode.Clamp`（blur 的默认）会把顶边的采样钳到第一行，
-                                    // 12dp 半径下顶栏最上沿会被拉平成一条「没糊」的带子 —— 设置页最明显。
-                                    // 镜像发生在节点边界内，和真模糊那套镜像采样同思路。
-                                    blur(BlurMaxRadius.toPx(), TileMode.Mirror)
-                                    // ⚠ Mirror 会让 blur() 把 padding 撑到 radius，而外扩的那圈缓冲
-                                    // 录的是屏幕外（空），镜像过去仍是空 —— 压回 0，让镜像只发生在节点内。
-                                    padding = 0f
-                                },
-                                highlight = null,
-                                shadow = null,
-                            )
-                    )
                 }
                 // 兜底仍走渐变遮罩：模糊能力缺失时不降级为纯色（统一限制后理论不可达，见顶部文档）
                 else -> {
@@ -299,6 +328,60 @@ fun ProgressiveBlurTopBar(
         }
         content()
     }
+}
+
+/**
+ * 能力兜底（API 31–32 / 鸿蒙）：没有 AGSL 图像滤镜，淡出只能回到 Canvas 合成。
+ *
+ * `CompositingStrategy.Offscreen` 不能省 —— `DstIn` 作用于 canvas 的整个 dest，
+ * 不独立成层会把顶栏下面的内容一起擦掉。这一层全尺寸离屏合成正是单趟路径省掉的成本，
+ * 所以只在没有 AGSL 的平台上付。参数与旧实现逐项对齐，观感不变。
+ */
+@Composable
+private fun LegacyFakeProgressiveBlur(
+    backdrop: Backdrop,
+    blurShapeBlock: () -> Shape,
+    totalHeight: Dp,
+    blurAlpha: Float,
+    edgeFadeStart: Float,
+    sampleTrack: () -> Float,
+) {
+    val fadeBrush = remember(totalHeight, edgeFadeStart) {
+        Brush.verticalGradient(
+            colorStops = arrayOf(
+                0.0f to Color.White,
+                (edgeFadeStart * 0.55f).coerceIn(0.2f, 0.9f) to Color.White,
+                edgeFadeStart.coerceIn(0.4f, 0.95f) to Color.White.copy(alpha = 0.45f),
+                1.0f to Color.Transparent,
+            ),
+        )
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(totalHeight)
+            .graphicsLayer {
+                alpha = blurAlpha
+                compositingStrategy = CompositingStrategy.Offscreen
+                clip = true
+            }
+            .invalidateDrawOnSampleTrack(sampleTrack)
+            .drawWithContent {
+                drawContent()
+                // 只淡出糊层自身，不盖到 content()
+                drawRect(fadeBrush, blendMode = BlendMode.DstIn)
+            }
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = blurShapeBlock,
+                effects = {
+                    blur(BlurMaxRadius.toPx(), TileMode.Mirror)
+                    padding = 0f
+                },
+                highlight = null,
+                shadow = null,
+            )
+    )
 }
 
 /**

@@ -21,13 +21,16 @@ import com.kyant.backdrop.edgelight.isSystemLightTheme
  * 各值默认取「无折射 / 不降级」的一方，与不注入时行为一致。
  */
 
-/** chrome 透镜（折射）开关：通透玻璃档开，清透磨砂及更省档关。 */
+/** chrome 透镜（折射）开关：通透玻璃档开，其余档关。 */
 val LocalChromeLensEnabled = compositionLocalOf { false }
 
 /** 无材质档：玻璃材质（模糊 / 折射 / vibrancy）整体关闭，渐进模糊降级为渐变遮罩。 */
 val LocalMaterialNoneEnabled = compositionLocalOf { false }
 
-/** 渐进模糊是否用「假」实现（等值 blur + alpha 淡出，不跑 AGSL 多重采样）：仅性能优先档为真。 */
+/**
+ * 渐进模糊是否用「假」实现（等值 blur + alpha 淡出，不跑 AGSL 多重采样）：
+ * App 的「真·渐进模糊」开关关闭时为真；无材质档走渐变遮罩，不受它影响。
+ */
 val LocalUseFakeProgressiveBlur = compositionLocalOf { false }
 
 /** 玻璃件（搜索框 / 输入框等）的采样模糊半径（dp）。 */
@@ -62,7 +65,7 @@ val LocalEdgeLightResolver =
  * 模块内统一取描边光。
  *
  * backdrop 的 `rememberDefaultEdgeLight` 只按亮暗 / 底色缓存，不知道 App 材质档，
- * 切到性能优先 / 无材质档后仍会返回旧的高光描边。这里把注入的解析器放进 `key`：
+ * 切到无材质档后仍会返回旧的高光描边。这里把注入的解析器放进 `key`：
  * 解析器身份随档位变，切档时整组重算，降级当场生效。
  */
 @Composable

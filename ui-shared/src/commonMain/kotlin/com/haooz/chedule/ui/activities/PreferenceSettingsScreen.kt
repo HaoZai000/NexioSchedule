@@ -147,6 +147,12 @@ fun PreferenceSettingsScreen(
             )
         )
     }
+    // 「真·渐进模糊」默认开；与档位同存 app_preferences，切换时同步全局状态
+    var trueProgressiveBlurEnabled by remember {
+        mutableStateOf(
+            appPrefs.getBoolean(AppMaterialSettings.KEY_TRUE_PROGRESSIVE_BLUR, true)
+        )
+    }
     // 统一限制：模糊能力不可用（Android API < 31）一律锁进无材质档；桌面 / iOS 恒支持不锁
     val materialLocked = !com.kyant.backdrop.isRenderEffectSupported()
     val effectiveMaterialLevel = if (materialLocked) {
@@ -154,9 +160,11 @@ fun PreferenceSettingsScreen(
     } else {
         appMaterialLevel
     }
-    // 启动时同步到全局，后续材质效果直接读 AppMaterialSettings.level
+    // 启动时同步到全局，后续材质效果直接读 AppMaterialSettings.level；
+    // 渐进模糊开关也在这里兜一次（未调 load() 的入口靠它对齐）。
     LaunchedEffect(Unit) {
         AppMaterialSettings.apply(effectiveMaterialLevel)
+        AppMaterialSettings.applyTrueProgressiveBlur(trueProgressiveBlurEnabled)
     }
 
     val isTablet = isTabletWidth()
@@ -262,61 +270,76 @@ fun PreferenceSettingsScreen(
                         }
                     }
                 }
-                // 材质行被平台锁定时隐藏；锁定时若也没有岛光开关，整张卡片不占位（否则多出一格 12dp 间距）
-                if (AppMaterialSettings.lockedLevel == null || islandNotification) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            insideMargin = PaddingValues(0.dp)
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                // 平台锁定档位时不给切换入口（鸿蒙：玻璃能力固定）
-                                if (AppMaterialSettings.lockedLevel == null) {
-                                    val appMaterialEntry = DropdownEntry(
-                                        items = (if (materialLocked) {
-                                            // 锁定态只留无材质一项，其余档位点不到
-                                            listOf(
-                                                AppMaterialSettings.NONE to
-                                                    AppMaterialSettings.labelOf(AppMaterialSettings.NONE)
-                                            )
-                                        } else {
-                                            AppMaterialSettings.entries
-                                        }).map { (value, label) ->
-                                            DropdownItem(
-                                                text = label,
-                                                selected = effectiveMaterialLevel == value,
-                                                onClick = {
-                                                    FeatureLog.preference("app_material=$value")
-                                                    appMaterialLevel = value
-                                                    AppMaterialSettings.apply(value)
-                                                    appPrefs.edit {
-                                                        putString(AppMaterialSettings.KEY_APP_MATERIAL, value)
-                                                    }
+                // 材质卡片：档位行在平台锁定时隐藏，真·渐进模糊与岛光开关按各自条件显示
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            // 平台锁定档位时不给切换入口（鸿蒙：玻璃能力固定）
+                            if (AppMaterialSettings.lockedLevel == null) {
+                                val appMaterialEntry = DropdownEntry(
+                                    items = (if (materialLocked) {
+                                        // 锁定态只留无材质一项，其余档位点不到
+                                        listOf(
+                                            AppMaterialSettings.NONE to
+                                                AppMaterialSettings.labelOf(AppMaterialSettings.NONE)
+                                        )
+                                    } else {
+                                        AppMaterialSettings.entries
+                                    }).map { (value, label) ->
+                                        DropdownItem(
+                                            text = label,
+                                            selected = effectiveMaterialLevel == value,
+                                            onClick = {
+                                                FeatureLog.preference("app_material=$value")
+                                                appMaterialLevel = value
+                                                AppMaterialSettings.apply(value)
+                                                appPrefs.edit {
+                                                    putString(AppMaterialSettings.KEY_APP_MATERIAL, value)
                                                 }
-                                            )
-                                        }
-                                    )
-                                    OverlayDropdownMenu(
-                                        title = PreferenceStr.appMaterialEffect(),
-                                        // summary 为空时自动显示当前选中档位；锁定态给出原因
-                                        summary = if (materialLocked) PreferenceStr.materialLockedSummary() else null,
-                                        entry = appMaterialEntry,
-                                        collapseOnSelection = true,
-                                        liquidGlassBackdrop = liquidGlassBackdrop,
-                                        dropdownColors = liquidGlassDropdownColors,
-                                    )
+                                            }
+                                        )
+                                    }
+                                )
+                                OverlayDropdownMenu(
+                                    title = PreferenceStr.appMaterialEffect(),
+                                    // summary 为空时自动显示当前选中档位；锁定态给出原因
+                                    summary = if (materialLocked) PreferenceStr.materialLockedSummary() else null,
+                                    entry = appMaterialEntry,
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                            }
+                            // 与「应用材质效果」同一张卡片：默认开启，无材质档（含能力锁定）时禁用
+                            SwitchPreference(
+                                title = PreferenceStr.trueProgressiveBlur(),
+                                summary = if (effectiveMaterialLevel == AppMaterialSettings.NONE) {
+                                    PreferenceStr.trueProgressiveBlurDisabled()
+                                } else { null },
+                                checked = trueProgressiveBlurEnabled,
+                                enabled = effectiveMaterialLevel != AppMaterialSettings.NONE,
+                                onCheckedChange = { enabled ->
+                                    FeatureLog.preference("true_progressive_blur=$enabled")
+                                    trueProgressiveBlurEnabled = enabled
+                                    AppMaterialSettings.applyTrueProgressiveBlur(enabled)
+                                    appPrefs.edit {
+                                        putBoolean(AppMaterialSettings.KEY_TRUE_PROGRESSIVE_BLUR, enabled)
+                                    }
                                 }
-                                CardExpand(visible = islandNotification) {
-                                    SwitchPreference(
-                                        title = PreferenceStr.superIslandGlow(),
-                                        summary = PreferenceStr.superIslandGlowSummary(),
-                                        checked = islandExpandGlowEnabled,
-                                        onCheckedChange = {
-                                            islandExpandGlowEnabled = it
-                                            reminderPrefs.edit { putBoolean("island_expand_glow_enabled", it) }
-                                        }
-                                    )
-                                }
+                            )
+                            CardExpand(visible = islandNotification) {
+                                SwitchPreference(
+                                    title = PreferenceStr.superIslandGlow(),
+                                    summary = PreferenceStr.superIslandGlowSummary(),
+                                    checked = islandExpandGlowEnabled,
+                                    onCheckedChange = {
+                                        islandExpandGlowEnabled = it
+                                        reminderPrefs.edit { putBoolean("island_expand_glow_enabled", it) }
+                                    }
+                                )
                             }
                         }
                     }

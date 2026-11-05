@@ -149,6 +149,24 @@ fun wallpaperTexMap(
     return floatArrayOf(kx, ky, mx, my)
 }
 
+/**
+ * 把玻璃采样原点从「变换后的窗口坐标」还原到「壁纸层的逻辑坐标」
+ */
+fun untransformGlassOrigin(
+    origin: Offset,
+    scale: Float,
+    translationY: Float,
+    pivotX: Float,
+    pivotY: Float,
+): Offset {
+    if (scale == 1f && translationY == 0f) return origin
+    val s = if (scale == 0f) 1f else scale
+    return Offset(
+        x = (origin.x - pivotX) / s + pivotX,
+        y = (origin.y - pivotY - translationY) / s + pivotY,
+    )
+}
+
 /** 等比缩到最长边 [maxEdge]；已经够小就原样返回（不复制）。 */
 private fun scaleToMaxEdge(src: ImageBitmap, maxEdge: Int): ImageBitmap {
     val longest = max(src.width, src.height)

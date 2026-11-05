@@ -38,7 +38,6 @@ object MiscStr {
 
     val materialBest = L("通透玻璃", "Clear Glass")
     val materialBalanced = L("清透磨砂", "Frosted Glass")
-    val materialPerformance = L("性能优先", "Performance First")
     val materialNone = L("无材质", "No Material")
 
     // ---- 隐私政策同意弹窗 ----

@@ -70,4 +70,31 @@ class SoftGlassTexMapTest {
         val (x, _) = map(screenW / 2f, screenH / 2f, offset = Offset(100f, 0f))
         assertNear(texW / 2f - 50f, x, "偏移后 x")
     }
+
+    @Test
+    fun identityTransformKeepsOrigin() {
+        // 主界面静止态：graphicsLayer 不产生变换，origin 必须原样返回（不引入浮点误差）
+        val p = Offset(137f, 892f)
+        val out = untransformGlassOrigin(p, 1f, 0f, screenW / 2f, screenH / 2f)
+        assertNear(p.x, out.x, "恒等 x")
+        assertNear(p.y, out.y, "恒等 y")
+    }
+
+    @Test
+    fun originTransformInvertsMainContentLayer() {
+        // 外观页开洞：主内容层缩放 0.65、绕非中心 pivot、并带弹窗让位位移。
+        // positionInWindow() 拿到的是变换后的坐标，必须能还原回壁纸层的逻辑坐标。
+        val scale = 0.65f
+        val translationY = 90f
+        val pivotX = 0.42f * screenW
+        val pivotY = 0.58f * screenH
+        val logic = Offset(233f, 1407f)
+        val window = Offset(
+            (logic.x - pivotX) * scale + pivotX,
+            (logic.y - pivotY) * scale + pivotY + translationY,
+        )
+        val back = untransformGlassOrigin(window, scale, translationY, pivotX, pivotY)
+        assertNear(logic.x, back.x, "逆变换 x")
+        assertNear(logic.y, back.y, "逆变换 y")
+    }
 }

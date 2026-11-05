@@ -753,9 +753,6 @@ fun CourseScheduleApp(
                         cardBlurRadius = 0f,
                         cardRefraction = CardRefractionLevel.OFF,
                     )
-                    // 性能优先档：只关折射（外观页该项已置灰），卡片模糊保留
-                    com.haooz.chedule.ui.utils.AppMaterialSettings.PERFORMANCE ->
-                        base.copy(cardRefraction = CardRefractionLevel.OFF)
                     else -> base
                 }
             }

@@ -20,6 +20,8 @@ object PreferenceStr {
     val appMaterialEffect = L("应用材质效果", "App Material Effects")
     val materialLockedSummary =
         L("当前系统版本不支持模糊效果，已锁定为无材质", "Blur effects are not supported on this system version; locked to None")
+    val trueProgressiveBlur = L("真·渐进模糊", "True Progressive Blur")
+    val trueProgressiveBlurDisabled = L("无材质档下不可用", "Unavailable with No Material")
     val superIslandGlow = L("小米超级岛光效", "Xiaomi Super Island Glow")
     val superIslandGlowSummary =
         L("在小米超级岛展开态显示流动光效", "Show a flowing glow when Xiaomi Super Island is expanded")

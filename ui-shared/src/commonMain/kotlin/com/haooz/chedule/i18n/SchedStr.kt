@@ -52,7 +52,6 @@ object SchedStr {
     val cardEdgeThickness = L("边缘厚度", "Edge thickness")
     val cardRim = L("高光描边", "Rim highlight")
     val noMaterial = L("无材质", "No Material")
-    val performanceMode = L("性能优先", "Performance")
     val wallpaperRequired = L("需设置壁纸", "Wallpaper required")
     val courseCardHeight = L("课程卡片高度", "Course card height")
     val courseCardCornerRadius = L("课程卡片圆角", "Course card corner radius")

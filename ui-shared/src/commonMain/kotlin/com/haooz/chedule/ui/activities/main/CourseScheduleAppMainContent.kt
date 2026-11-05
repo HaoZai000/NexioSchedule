@@ -35,6 +35,7 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -44,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -94,6 +96,7 @@ import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.today.TodayScreen
 import com.haooz.chedule.ui.components.rememberSoftGlassSurface
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.untransformGlassOrigin
 import com.haooz.chedule.ui.components.BackToNowFloatingButton
 import com.haooz.chedule.ui.components.LiquidNavigationRail
 import com.haooz.chedule.ui.components.PublishNativeBottomBar
@@ -206,6 +209,49 @@ internal fun CourseScheduleAppMainContent(
         //  · 翻页时两页不会拿着两份 backdrop 去抢同一个 shader 程序的 uniform 配置
         //   （程序按尺寸共享，配置不同会每帧来回重灌、还每次新建 BitmapShader）。
         // 以后真要给两页不同参数，得让 surface 带上各自的 style 再分开烘焙。
+        //
+        // ⚠ 采样坐标系修正：卡片的 origin 走 positionInWindow()，而 Compose 的
+        // NodeCoordinator.toParentPosition() 会 layer.mapOffset(...) —— 祖先 graphicsLayer 的
+        // scale / translationY / transformOrigin 都算进去了。texMap 却是按「未变换的全屏壁纸层」
+        // 推的仿射，两者必须落在同一坐标系。
+        // 外观页主内容层恰好由「开洞编辑（调壁纸）」和「弹窗让位（调任意参数）」驱动这几个变换：
+        // 不做逆变换时，一改参数就重绘、把变换后的 origin 灌进 shader，卡片里的壁纸立刻整体错位。
+        // 所有动画值都在 lambda 内部读（draw 期订阅），组合期一律不碰，避免逐帧重组整个外壳。
+        val latestCutoutActive by rememberUpdatedState(isWindowCutoutActive)
+        val latestCustomizeExiting by rememberUpdatedState(isCustomizeExiting)
+        val latestCutoutCenterX by rememberUpdatedState(cutoutCenterXRatio)
+        val latestCutoutCenterY by rememberUpdatedState(cutoutCenterYRatio)
+        val glassOriginParams: State<FloatArray> = remember(
+            cutoutMainScale, customizeExitScale, sheetOffsetY, screenWPx, screenHPx,
+        ) {
+            derivedStateOf {
+                val cutout = cutoutMainScale.value
+                val exitScale = if (latestCustomizeExiting) customizeExitScale.value else 1f
+                // 与主内容层 graphicsLayer 的 effectiveScale 逐项一致
+                val s = if (latestCustomizeExiting && latestCutoutActive) cutout else exitScale * cutout
+                val sheetScaleProg = ((cutout - 0.65f) / 0.35f).coerceIn(0f, 1f)
+                val ty = sheetOffsetY.value * (1f - sheetScaleProg)
+                // transformOrigin 的赋值顺序也一样：开洞那份会覆盖退出动画那份
+                val px = if (latestCutoutActive) {
+                    latestCutoutCenterX * screenWPx
+                } else {
+                    screenWPx * 0.5f
+                }
+                val py = when {
+                    latestCutoutActive -> latestCutoutCenterY * screenHPx
+                    latestCustomizeExiting -> screenHPx * 0.58f
+                    else -> screenHPx * 0.5f
+                }
+                floatArrayOf(s, ty, px, py)
+            }
+        }
+        // lambda 引用必须稳定：它是 rememberSoftGlassSurface 的 key，重建会连带重建每张卡的 modifier
+        val glassOriginTransform: (Offset) -> Offset = remember(glassOriginParams) {
+            { p ->
+                val v = glassOriginParams.value
+                untransformGlassOrigin(p, v[0], v[1], v[2], v[3])
+            }
+        }
         val softGlassSurface = rememberSoftGlassSurface(
             wallpaperBitmap = glassWallpaper,
             wallpaperScale = glassScale,
@@ -213,6 +259,7 @@ internal fun CourseScheduleAppMainContent(
             screenWidthPx = screenWPx,
             screenHeightPx = screenHPx,
             style = scheduleGlassStyle,
+            originTransform = glassOriginTransform,
         )
         // 主 tab 切换时 pager 整体平移，两页的玻璃采样都要按帧刷新
         val tabGlassRedraw: () -> Unit = remember(mainPagerState) {

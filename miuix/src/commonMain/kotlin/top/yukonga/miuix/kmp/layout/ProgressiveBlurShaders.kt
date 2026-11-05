@@ -157,3 +157,33 @@ half4 main(float2 coord) {
     return sum / wsum;
 }
 """
+
+/**
+ * 假渐进的淡出 pass：**单次 `content.eval`、零循环**，跟 [PROGRESSIVE_BLUR_SHADER] 的 32 tap
+ * 不是一个量级。
+ *
+ * 它接在 `blur()` 之后组成同一条 RenderEffect 链，于是淡出不再需要额外一层
+ * `CompositingStrategy.Offscreen` + `drawRect(DstIn)`：录制 backdrop 的那一个离屏 layer
+ * 就能把「模糊 → 淡出」一次做完。
+ *
+ * 分段是照搬旧 `Brush.verticalGradient` 的三个停点，保证切到这条路径观感不变：
+ * `[0, fadeStart*hold]` 全不透明 → `[…, fadeStart]` 降到 [midAlpha] → `[fadeStart, 1]` 降到 0。
+ * 坐标是 layer 缓冲的局部像素（padding 已压回 0），与真渐进的 contentSize 口径一致。
+ */
+internal const val PROGRESSIVE_FADE_SHADER = """
+uniform shader content;
+uniform float2 contentSize;
+uniform float fadeStart;
+uniform float hold;
+uniform float midAlpha;
+
+half4 main(float2 coord) {
+    half4 color = content.eval(coord);
+    float t = clamp(coord.y / max(contentSize.y, 1.0), 0.0, 1.0);
+    float holdEnd = fadeStart * hold;
+    float head = mix(1.0, midAlpha,
+        clamp((t - holdEnd) / max(fadeStart - holdEnd, 0.0001), 0.0, 1.0));
+    float tail = 1.0 - clamp((t - fadeStart) / max(1.0 - fadeStart, 0.0001), 0.0, 1.0);
+    return color * (head * tail);
+}
+"""

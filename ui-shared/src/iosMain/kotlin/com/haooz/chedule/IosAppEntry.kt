@@ -239,8 +239,6 @@ internal fun NexioIosMain(host: IosAppHost) {
                             afternoonSections = d.afternoonSections,
                             showClassroom = d.showClassroom,
                             showTeacher = d.showTeacher,
-                            wallpaperBackdrop = d.wallpaperBackdrop,
-                            blurRadius = d.blurRadius,
                             surfaceOpacity = d.surfaceOpacity,
                             // 下课烟花是 Android 专有（LocalContext/nanoTime），iOS 不渲染
                             fireworksOverlay = null,

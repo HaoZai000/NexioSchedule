@@ -66,6 +66,8 @@ val LocalGlassRedrawSignal = staticCompositionLocalOf<() -> Unit> { {} }
  * ⚠ 只有 [wallpaperBitmap] 会触发重建（降采样 + 缩略图）。样式、缩放、偏移一律**不进任何
  * remember key**：它们分别只是 shader 的 uniform 与一个 2×2 仿射，改成 State 让绘制期去读，
  * 这样拖模糊 / 拖壁纸连卡片 modifier 都不会重建，更不会重烘位图。
+ *
+ * @param originTransform 绘制期求值的「窗口坐标 → 壁纸层逻辑坐标」修正
  */
 @Composable
 fun rememberSoftGlassSurface(
@@ -75,6 +77,7 @@ fun rememberSoftGlassSurface(
     screenWidthPx: Float,
     screenHeightPx: Float,
     style: SoftGlassStyle = SoftGlassStyle(),
+    originTransform: (Offset) -> Offset = { it },
 ): SoftGlassSurface? {
     val backdrop = remember(wallpaperBitmap) {
         val bmp = wallpaperBitmap
@@ -102,8 +105,8 @@ fun rememberSoftGlassSurface(
     val texMapState = remember { mutableStateOf(texMap) }
     SideEffect { texMapState.value = texMap }
 
-    return remember(backdrop) {
-        DefaultSoftGlassSurface(backdrop, styleState, texMapState)
+    return remember(backdrop, originTransform) {
+        DefaultSoftGlassSurface(backdrop, styleState, texMapState, originTransform)
     }
 }
 
@@ -111,6 +114,7 @@ private class DefaultSoftGlassSurface(
     private val backdrop: SoftGlassBackdrop,
     private val styleState: State<SoftGlassStyle>,
     private val texMapState: State<FloatArray>,
+    private val originTransform: (Offset) -> Offset,
 ) : SoftGlassSurface {
     override fun modifier(
         density: Density,
@@ -121,7 +125,8 @@ private class DefaultSoftGlassSurface(
         backdrop = backdrop,
         styleProvider = { styleState.value },
         density = density,
-        origin = origin,
+        // positionInWindow() 含祖先 graphicsLayer 变换，先还原到壁纸层的逻辑坐标系
+        origin = { originTransform(origin()) },
         texMapProvider = { texMapState.value },
         radiusPx = radiusPx,
         redraw = redraw,
