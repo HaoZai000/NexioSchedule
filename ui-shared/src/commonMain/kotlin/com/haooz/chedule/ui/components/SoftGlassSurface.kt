@@ -3,31 +3,31 @@
 package com.haooz.chedule.ui.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import com.haooz.chedule.ui.glass.SoftGlassBackdrop
 import com.haooz.chedule.ui.glass.SoftGlassStyle
-import com.haooz.chedule.ui.glass.bakeSpec
-import com.haooz.chedule.ui.glass.bakeSoftGlassBase
-import com.haooz.chedule.ui.glass.toBackdrop
 import com.haooz.chedule.ui.glass.isSoftGlassShaderAvailable
+import com.haooz.chedule.ui.glass.prepareSoftGlassBackdrop
 import com.haooz.chedule.ui.glass.softGlass
+import com.haooz.chedule.ui.glass.wallpaperTexMap
 
 /**
  * 柔光玻璃的绘制能力，供 `commonMain` 的卡片调用。
  *
- * 需要这层抽象：卡片背景由平台画（AGSL / SkSL + 位图采样），`commonMain` 引不到 `RuntimeShader`，
- * 所以这里只暴露「给我一个 Modifier」。shader 实例由 `SoftGlassProgramCache` 按尺寸 / 圆角 / 样式共享。
+ * 需要这层抽象：卡片背景由平台画（AGSL / SkSL + 纹理采样），`commonMain` 引不到 `RuntimeShader`，
+ * 所以这里只暴露「给我一个 Modifier」。shader 实例由 `SoftGlassProgramCache` 按尺寸 / 圆角共享。
  */
 interface SoftGlassSurface {
     /**
-     * @param origin 面板左上角在背景位图里的坐标，**绘制期**求值。
-     *   位图已与屏幕对齐（同尺寸同原点），所以直接传窗口坐标即可。
+     * @param origin 面板左上角的**窗口坐标**，绘制期求值。
      * @param radiusPx 圆角（px）；null = 用样式里的 `cornerRadius`。
      * @param redraw 绘制期读一次的「位置信号」，让滚动 / 翻页时按帧失效。
      */
@@ -42,8 +42,9 @@ interface SoftGlassSurface {
 /**
  * 页面级柔光玻璃能力，按页共享（课表、今日各一份，页面样式互不影响）。
  *
- * 对齐 + 模糊是同步烘焙，同一页只算一次；由 `CourseScheduleAppMainContent` 计算并下发。
- * 无壁纸 / 平台没有 shader 时为 null，所有面板退回纯色表面。
+ * 只准备「壁纸纹理 + 坐标映射」，不做任何模糊 / 调色烘焙：
+ * 拖模糊、拖壁纸、改任何外观参数都只重灌 uniform。无壁纸 / 平台没有 shader 时为 null，
+ * 所有面板退回纯色表面。
  */
 val LocalSoftGlassSurface = staticCompositionLocalOf<SoftGlassSurface?> { null }
 
@@ -60,11 +61,11 @@ val LocalSoftGlassSurface = staticCompositionLocalOf<SoftGlassSurface?> { null }
 val LocalGlassRedrawSignal = staticCompositionLocalOf<() -> Unit> { {} }
 
 /**
- * 把壁纸按它**实际显示**的变换（ContentScale.Fit 居中 × 手势缩放 × 用户偏移）
- * 对齐成半分辨率基准位图，再出轻 / 重两级模糊。
+ * 准备玻璃的采样源。
  *
- * 对齐在内部消化，调用方不用管壁纸缩放；shader 用 `bakeScale` 把面板坐标折算到纹理。
- * 同步烘焙，第一帧就能带着玻璃出。
+ * ⚠ 只有 [wallpaperBitmap] 会触发重建（降采样 + 缩略图）。样式、缩放、偏移一律**不进任何
+ * remember key**：它们分别只是 shader 的 uniform 与一个 2×2 仿射，改成 State 让绘制期去读，
+ * 这样拖模糊 / 拖壁纸连卡片 modifier 都不会重建，更不会重烘位图。
  */
 @Composable
 fun rememberSoftGlassSurface(
@@ -75,44 +76,41 @@ fun rememberSoftGlassSurface(
     screenHeightPx: Float,
     style: SoftGlassStyle = SoftGlassStyle(),
 ): SoftGlassSurface? {
-    // 第一段：对齐壁纸 + 降采样。只跟壁纸 / 变换 / 屏幕尺寸有关 —— 外观页怎么调都该命中缓存
-    //（对齐要画 1/2 屏位图再逐像素读回，是这里最贵的一步）。
-    val base = remember(
-        wallpaperBitmap,
-        wallpaperScale,
-        wallpaperOffset,
-        screenWidthPx,
-        screenHeightPx,
-    ) {
+    val backdrop = remember(wallpaperBitmap) {
         val bmp = wallpaperBitmap
-        if (bmp == null || bmp.width <= 0 || bmp.height <= 0 || !isSoftGlassShaderAvailable()) {
+        if (bmp == null || !isSoftGlassShaderAvailable()) {
             null
         } else {
-            runCatching {
-                bakeSoftGlassBase(
-                    wallpaper = bmp,
-                    scale = wallpaperScale,
-                    offset = wallpaperOffset,
-                    screenWidthPx = screenWidthPx,
-                    screenHeightPx = screenHeightPx,
-                )
-            }.getOrNull()
+            prepareSoftGlassBackdrop(bmp)
         }
+    } ?: return null
+
+    val styleState = remember { mutableStateOf(style) }
+    SideEffect { styleState.value = style }
+
+    val texMap = remember(backdrop, wallpaperScale, wallpaperOffset, screenWidthPx, screenHeightPx) {
+        wallpaperTexMap(
+            textureWidth = backdrop.levels[0].width,
+            textureHeight = backdrop.levels[0].height,
+            wallpaperScale = wallpaperScale,
+            wallpaperOffset = wallpaperOffset,
+            screenWidthPx = screenWidthPx,
+            screenHeightPx = screenHeightPx,
+        )
     }
-    // 第二段：模糊 + 调色。key 只取烘焙真正读到的字段（两个模糊半径 + 调色参数），
-    // **不要退化成整个 style**：厚度 / 边缘宽度 / 折射倍率 / 描边开关都只是 uniform，
-    // 进了 key 就等于每拖一格重算整屏模糊 —— 那正是「调什么都很卡」的根因。
-    val bakeSpec = style.bakeSpec()
-    val backdrop = remember(base, bakeSpec) {
-        base?.let { runCatching { it.toBackdrop(style) }.getOrNull() }
+    // 映射做成 State：拖壁纸时只让绘制失效，不重建 surface，也不重建每张卡的 modifier。
+    val texMapState = remember { mutableStateOf(texMap) }
+    SideEffect { texMapState.value = texMap }
+
+    return remember(backdrop) {
+        DefaultSoftGlassSurface(backdrop, styleState, texMapState)
     }
-    if (backdrop == null) return null
-    return remember(backdrop, style) { DefaultSoftGlassSurface(backdrop, style) }
 }
 
 private class DefaultSoftGlassSurface(
     private val backdrop: SoftGlassBackdrop,
-    private val style: SoftGlassStyle,
+    private val styleState: State<SoftGlassStyle>,
+    private val texMapState: State<FloatArray>,
 ) : SoftGlassSurface {
     override fun modifier(
         density: Density,
@@ -121,9 +119,10 @@ private class DefaultSoftGlassSurface(
         redraw: () -> Unit,
     ): Modifier = Modifier.softGlass(
         backdrop = backdrop,
-        style = style,
+        styleProvider = { styleState.value },
         density = density,
         origin = origin,
+        texMapProvider = { texMapState.value },
         radiusPx = radiusPx,
         redraw = redraw,
     )

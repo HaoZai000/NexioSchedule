@@ -67,7 +67,7 @@ data class ScheduleCombination(
     val offset: Offset,
     val scale: Float,
     var snapshot: ImageBitmap? = null,
-    var cardBlurRadius: Float = 32f,
+    var cardBlurRadius: Float = 10f,
     var cardAlpha: Float = 0.15f,
     var cardSurfaceAlpha: Float? = null,
     var cardHeight: Float = 54f,

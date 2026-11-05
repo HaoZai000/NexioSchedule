@@ -4,344 +4,185 @@ package com.haooz.chedule.ui.glass
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageBitmapConfig
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
 
 /**
- * 玻璃的采样源：每页只做一次，页内所有玻璃面板共用。
+ * 玻璃的采样源：一叠**逐级模糊的壁纸**（模糊金字塔），每页一份，页内所有玻璃面板共用。
  *
- * [refract] 轻模糊（喂 `uRefractTex`，折射与内部都采它），
- * [big] 重模糊（喂 `uBgColorTex`，只给描边用）。
+ * [levels] 第 0 级是清晰壁纸（最长边 [BASE_MAX_EDGE]），第 i 级是上一级的 1/2 再补一次模糊，
+ * 等效半径约 `2^i` 个第 0 级 texel。shader 取相邻两级按权重混合 —— 于是「模糊半径」只是
+ * 一个档位 + 一个权重，拖滑杆不重烘任何位图。
  *
- * 两张都**不含颜色处理** —— 调色在烘焙阶段由 `applyGlassColorProcess` 做掉，shader 只采样。
- * [meanLuma] 是背景平均亮度（0..1），当前只喂 [SoftGlassStyle.adapted]，而它是恒等返回。
+ * 为什么不直接在 shader 里做螺旋模糊：半径 20 texel 以上要几千个抽头才能不出颗粒，
+ * 十几个抽头只会得到「几个方向的重影」，看起来根本不像模糊。真实实现都是先降采样模糊。
  */
 data class SoftGlassBackdrop(
-    val refract: ImageBitmap,
-    val big: ImageBitmap,
+    val levels: List<ImageBitmap>,
     val meanLuma: Float,
-    /** 位图相对屏幕的缩放；shader 用 uBakeScale 把面板 px 映射到纹理 px。 */
-    val bakeScale: Float = 1f,
-)
+) {
+    val levelCount: Int get() = levels.size
+}
+
+/** 第 0 级的最长边。再大对玻璃没意义（它本来就是模糊的），只白占显存与采样带宽。 */
+private const val BASE_MAX_EDGE = 1024
+
+/** 金字塔级数。7 级 ⇒ 等效半径覆盖到 64 个第 0 级 texel，够 80px 滑杆用。 */
+private const val LEVEL_COUNT = 7
 
 /**
- * 把壁纸按它**实际显示**的变换烘成半分辨率位图，再出轻 / 重两级模糊。
+ * 每级降采样之后再补的模糊半径（该级 texel）。
  *
- * 对齐公式来自共享壁纸层的实际绘制（`CourseScheduleAppMainContent`）：
+ * 取 1 而不是 2：级间 σ 比越接近 1，shader 里「相邻两级按权重混合」时留下的
+ * 清晰细节就越少 —— 否则低模糊段会看出「清晰图和糊图叠在一起」的半透明感。
+ */
+private const val LEVEL_BLUR_RADIUS = 1
+
+/**
+ * 把壁纸做成模糊金字塔。
+ *
+ * 逐级 1/2 降采样（2×2 盒式）再补一次小半径盒式模糊，三次盒式累积下来接近高斯。
+ * 成本只跟壁纸有关，换壁纸时做一次，约几十毫秒。
+ */
+fun prepareSoftGlassBackdrop(wallpaper: ImageBitmap): SoftGlassBackdrop? {
+    if (wallpaper.width <= 0 || wallpaper.height <= 0) return null
+    return runCatching {
+        val base = scaleToMaxEdge(wallpaper.asSoftwareBitmap(), BASE_MAX_EDGE)
+        var width = base.width
+        var height = base.height
+        var pixels = base.toPixelMap().buffer
+
+        // 第 0 级必须是**完全清晰**的原图：滑杆拖到 0 就是没有模糊。
+        val levels = ArrayList<ImageBitmap>(LEVEL_COUNT)
+        levels += createImageBitmapFromArgb(pixels, width, height)
+        for (i in 1 until LEVEL_COUNT) {
+            val nextW = (width / 2).coerceAtLeast(1)
+            val nextH = (height / 2).coerceAtLeast(1)
+            if (nextW == width && nextH == height) {
+                // 已经到 1px，后面的级重复用最后一张
+                levels += levels.last()
+                continue
+            }
+            pixels = downsample2x(pixels, width, height, nextW, nextH)
+            width = nextW
+            height = nextH
+            boxBlurTriple(pixels, width, height, LEVEL_BLUR_RADIUS)
+            levels += createImageBitmapFromArgb(pixels, width, height)
+        }
+        SoftGlassBackdrop(levels = levels, meanLuma = meanLumaOf(levels.last()))
+    }.getOrNull()
+}
+
+/**
+ * 模糊半径（第 0 级 texel）→ 相邻两级 + 混合权重。
+ *
+ * 各级的等效 σ 是推算的：第 1 级由「1/2 降采样 + 三次盒式(半径 1)」构成，
+ * 降采样贡献 σ ≈ 1 个第 0 级 texel，三次盒式（`3·((2r+1)²−1)/12` = 方差 2）在 1/2 分辨率上
+ * 折算回来 σ ≈ 2.8，合起来约 **3**。之后每级翻倍。
+ * 所以 [LEVEL1_SIGMA] 取 3：第 i 级（i≥1）的等效 σ ≈ `3·2^(i−1)`。
+ *
+ * 第 0 级是**完全清晰**的图（滑杆 0 = 无模糊），1 texel 以下直接用它；
+ * 1 ~ 第 1 级之间线性过渡 —— 这段很窄，混合留下的「清晰细节残留」看不出来。
+ */
+data class LevelPair(val a: Int, val b: Int, val t: Float)
+
+private const val LEVEL1_SIGMA = 3f
+
+fun SoftGlassBackdrop.levelPair(radiusInBaseTexels: Float, levelCount: Int = this.levelCount): LevelPair {
+    if (levelCount <= 1) return LevelPair(0, 0, 0f)
+    val last = levelCount - 1
+    val r = radiusInBaseTexels.coerceAtLeast(0f)
+    if (r <= 1f) return LevelPair(0, 0, 0f)
+    if (r < LEVEL1_SIGMA) {
+        // 0 ~ 第 1 级之间线性过渡
+        return LevelPair(0, 1, (r / LEVEL1_SIGMA).coerceIn(0f, 1f))
+    }
+    val lvl = (1f + kotlin.math.ln(r / LEVEL1_SIGMA) / kotlin.math.ln(2f))
+        .coerceIn(0f, last.toFloat())
+    val a = lvl.toInt().coerceIn(0, last)
+    if (a >= last) return LevelPair(last, last, 0f)
+    return LevelPair(a, a + 1, (lvl - a).coerceIn(0f, 1f))
+}
+
+/**
+ * 屏幕坐标 → 第 0 级纹理 texel 的仿射：`texPx = screenPx * (k.x, k.y) + (m.x, m.y)`。
+ *
+ * 与壁纸层实际绘制一致（`CourseScheduleAppMainContent`）：
  * ```
- * screen = (bitmap × fitScale + fitOffset − center) × s + center + offset
+ * screen = (tex × fitScale + fitOffset − center) × s + center + offset
  * s = max(wallpaperScale, minScale)；minScale = cover/fit
  * ```
- *
- * 亮度滤镜（`wallpaperBrightness`）没跟 —— 玻璃色调与壁纸亮度差一档，属已知取舍。
+ * 反解即得 k / m。**只跟手势与屏幕尺寸有关**，跟任何外观参数都无关 —— 拖壁纸时
+ * 每条卡只是重灌这一个 float4，一次位图都不用重画。
  */
-fun buildSoftGlassBackdrop(
-    wallpaper: ImageBitmap,
-    style: SoftGlassStyle,
-    density: Float,
-    scale: Float,
-    offset: Offset,
+fun wallpaperTexMap(
+    textureWidth: Int,
+    textureHeight: Int,
+    wallpaperScale: Float,
+    wallpaperOffset: Offset,
     screenWidthPx: Float,
     screenHeightPx: Float,
-): SoftGlassBackdrop =
-    bakeSoftGlassBase(wallpaper, scale, offset, screenWidthPx, screenHeightPx).toBackdrop(style)
+): FloatArray {
+    val w = screenWidthPx.coerceAtLeast(1f)
+    val h = screenHeightPx.coerceAtLeast(1f)
+    val tw = textureWidth.coerceAtLeast(1).toFloat()
+    val th = textureHeight.coerceAtLeast(1).toFloat()
 
-/**
- * 烘焙里「与样式无关」的那一半：按壁纸实际显示的变换对齐，再降采样到 1/4 屏。
- *
- * 拆出来是为了外观页别白跑：对齐要画一张 1/2 屏位图、再逐像素读回（`toPixelMap`），
- * 代价比模糊本身还高，而它只跟壁纸 / 变换 / 屏幕尺寸有关，跟任何外观参数都无关。
- */
-class SoftGlassBase internal constructor(
-    internal val pixels: IntArray,
-    internal val width: Int,
-    internal val height: Int,
-    internal val quarter: IntArray,
-    /** 对齐阶段的缩放（1/2），模糊半径要乘它换算到该分辨率。 */
-    internal val alignScale: Float,
-    internal val screenWidthPx: Float,
-)
-
-fun bakeSoftGlassBase(
-    wallpaper: ImageBitmap,
-    scale: Float,
-    offset: Offset,
-    screenWidthPx: Float,
-    screenHeightPx: Float,
-): SoftGlassBase {
-    // 玻璃本来就是模糊的，位图按半分辨率烘焙：CPU 模糊/内存都降到 1/4，画质几乎无损。
-    val bakeScale = 0.5f
-    val aligned = alignWallpaper(
-        wallpaper = wallpaper.asSoftwareBitmap(),
-        scale = scale,
-        offset = offset,
-        screenWidthPx = screenWidthPx,
-        screenHeightPx = screenHeightPx,
-        bakeScale = bakeScale,
-    )
-    val width = aligned.width
-    val height = aligned.height
-    val pixels = aligned.toPixelMap().buffer
-
-    // 采样源降采样：aligned 是 1/2 屏，再 /2 = **1/4 屏**（1 texel = 4px）。
-    // 不要再降到 1/8 屏：texel 变 8px 后，模糊半径小于 8px 时纹理精度不够，滑杆低段整段没反应。
-    val baseW = (width / 2).coerceAtLeast(1)
-    val baseH = (height / 2).coerceAtLeast(1)
-    val base = downsample4x(pixels, width, height, baseW, baseH)
-    val quarterW = (baseW / 4).coerceAtLeast(1)
-    val quarterH = (baseH / 4).coerceAtLeast(1)
-    val quarter = downsample4x(base, baseW, baseH, quarterW, quarterH)
-    return SoftGlassBase(base, baseW, baseH, quarter, bakeScale, screenWidthPx)
-}
-
-/**
- * 样式 → 两张模糊图 + 调色。
- *
- * ⚠ 只有 [SoftGlassBakeSpec] 里那些字段会改变结果；几何 / 光学参数（厚度、边缘宽度、
- * 折射倍率、方向光、描边开关…）各自只是一条 uniform，**不能**触发重新烘焙。
- */
-fun SoftGlassBase.toBackdrop(style: SoftGlassStyle): SoftGlassBackdrop {
-    val refractPx = blurBase(pixels, width, height, style.smallBlurRadius * alignScale)
-    val bigPx = blurBase(pixels, width, height, style.bigBlurRadius * alignScale)
-    // 颜色处理放在这里（系统 `applyGlassColorProcess` 同位置）：跑在低分辨率模糊图上、上采样之前，
-    // shader 采样到的直接是「已调色」的图，避免「先插值后调色」与系统顺序不符。
-    val styled = applyGlassColorProcess(refractPx, bigPx, style)
-    return SoftGlassBackdrop(
-        refract = createImageBitmapFromArgb(styled, width, height),
-        big = createImageBitmapFromArgb(bigPx, width, height),
-        meanLuma = meanLumaOf(quarter),
-        // 纹理又经过 4x 下采样：采样比例必须用「纹理宽 / 屏幕宽」，不能用对齐阶段的 bakeScale
-        bakeScale = width.toFloat() / screenWidthPx.coerceAtLeast(1f),
-    )
-}
-
-/** 壁纸显示变换 → 屏幕尺寸位图。纯 Compose Canvas，四端同一份。 */
-private fun alignWallpaper(
-    wallpaper: ImageBitmap,
-    scale: Float,
-    offset: Offset,
-    screenWidthPx: Float,
-    screenHeightPx: Float,
-    bakeScale: Float,
-): ImageBitmap {
-    val w = screenWidthPx.toInt().coerceAtLeast(1)
-    val h = screenHeightPx.toInt().coerceAtLeast(1)
-    val targetW = (w * bakeScale).toInt().coerceAtLeast(1)
-    val targetH = (h * bakeScale).toInt().coerceAtLeast(1)
-    val screen = ImageBitmap(targetW, targetH, ImageBitmapConfig.Argb8888)
-    val canvas = Canvas(screen)
-    canvas.scale(bakeScale, bakeScale)
-
-    val fitScale = min(w / wallpaper.width.toFloat(), h / wallpaper.height.toFloat())
-    val fitOffX = (w - wallpaper.width * fitScale) / 2f
-    val fitOffY = (h - wallpaper.height * fitScale) / 2f
-    val cover = max(w / wallpaper.width.toFloat(), h / wallpaper.height.toFloat())
+    val fitScale = minOf(w / tw, h / th)
+    val fitOffX = (w - tw * fitScale) / 2f
+    val fitOffY = (h - th * fitScale) / 2f
+    val cover = maxOf(w / tw, h / th)
     val minScale = if (fitScale > 0f) cover / fitScale else 1f
-    val s = max(scale, minScale)
+    val s = maxOf(wallpaperScale, minScale)
 
-    val centerX = w / 2f
-    val centerY = h / 2f
-    canvas.save()
-    canvas.translate(offset.x, offset.y)
-    canvas.translate(centerX, centerY)
-    canvas.scale(s, s)
-    canvas.translate(-centerX, -centerY)
-    canvas.translate(fitOffX, fitOffY)
-    canvas.scale(fitScale, fitScale)
-    canvas.drawImage(wallpaper, Offset.Zero, Paint())
-    canvas.restore()
-    return screen
+    val kx = 1f / (s * fitScale)
+    val ky = kx
+    val mx = ((-w / 2f - wallpaperOffset.x) / s - fitOffX + w / 2f) / fitScale
+    val my = ((-h / 2f - wallpaperOffset.y) / s - fitOffY + h / 2f) / fitScale
+    return floatArrayOf(kx, ky, mx, my)
 }
 
-/** 平均亮度（Rec.709 权重）。传进来的应该是 1/4 下采样图。 */
-private fun meanLumaOf(pixels: IntArray): Float {
-    if (pixels.isEmpty()) return 0.5f
-    var sum = 0f
-    for (c in pixels) {
-        sum += (0.2126f * ((c shr 16) and 0xFF) +
-            0.7152f * ((c shr 8) and 0xFF) +
-            0.0722f * (c and 0xFF)) / 255f
-    }
-    return sum / pixels.size
-}
-
-/**
- * 颜色处理，逐行等价实现 `libhwui.so` 的 `processGlassColor`，对应系统 `MiBlurBlendUtils`
- * 在 blur stage、低分辨率图、上采样之前跑的那一步：
- * darker(往紫黑常量混) → luminanceCurve → adjustColor → glassColor/gcr → innerMix。
- *
- * 必须在烘焙阶段做，不能挪进 shader：这几步乘法都是非线性的，系统「先调色后上采样」，
- * 反过来会插值出不同的过渡带与折射边缘。
- */
-private fun applyGlassColorProcess(
-    refract: IntArray,
-    big: IntArray,
-    style: SoftGlassStyle,
-): IntArray {
-    val n = refract.size
-    val out = IntArray(n)
-    // uDarker 混向的常量，硬编码在 libhwui.so
-    val darkR = 0.07874f
-    val darkG = 0.02848f
-    val darkB = 0.09278f
-    val darker = style.darker
-    val dLo = style.darkerRange.first
-    val dHi = style.darkerRange.second
-    val lc = style.luminanceValues
-    val c0 = lc.getOrElse(0) { 0f }
-    val c1 = lc.getOrElse(1) { 0f }
-    val c2 = lc.getOrElse(2) { 0f }
-    val c3 = lc.getOrElse(3) { 1f }
-    val amount = style.luminanceAmount
-    val sat = style.saturation
-    val bri = style.brightness
-    val bgSat = style.bgColorSaturation
-    val bgBri = style.bgColorBrightness
-    val white = style.innerColorWhite
-    val burn = style.burn
-    val glassR = style.glassColor.red
-    val glassG = style.glassColor.green
-    val glassB = style.glassColor.blue
-    val glassMix = style.glassColorMix
-    val innerMix = style.innerColorMix
-
-    for (i in 0 until n) {
-        val cp = refract[i]
-        var r = ((cp shr 16) and 0xFF) / 255f
-        var g = ((cp shr 8) and 0xFF) / 255f
-        var b = (cp and 0xFF) / 255f
-        val bp = big[i]
-        var br = ((bp shr 16) and 0xFF) / 255f
-        var bgc = ((bp shr 8) and 0xFF) / 255f
-        var bb = (bp and 0xFF) / 255f
-
-        // ── darker：往深紫黑混合，越亮混得越多 ──
-        val kc = mixF(0f, darker, smoothstep(dLo, dHi, luma(r, g, b)))
-        r += (darkR - r) * kc
-        g += (darkG - g) * kc
-        b += (darkB - b) * kc
-        val kb = mixF(0f, darker, smoothstep(dLo, dHi, luma(br, bgc, bb)))
-        br += (darkR - br) * kb
-        bgc += (darkG - bgc) * kb
-        bb += (darkB - bb) * kb
-
-        // ── luminanceCurve（比例模式，位图 alpha = 1）──
-        val l = clamp01(luma(r, g, b))
-        val adj = clamp01(((c0 * l + c1) * l + c2) * l + c3)
-        val s = adj / maxOf(l, 0.01f) * smoothstep(0f, 0.1f, l)
-        val mCurve = mixF(1f, s, amount)
-        r *= mCurve
-        g *= mCurve
-        b *= mCurve
-
-        // ── adjustColor(col, saturation, brightness) ──
-        val l1 = 0.2125f * r + 0.7153f * g + 0.0721f * b
-        r = mixF(l1, r, sat) + bri
-        g = mixF(l1, g, sat) + bri
-        b = mixF(l1, b, sat) + bri
-
-        // ── glassColor：adjustColor(bigCol, bgSat, bgBri) → 往白抬 ──
-        val lb = 0.2125f * br + 0.7153f * bgc + 0.0721f * bb
-        var gr = mixF(lb, br, bgSat) + bgBri
-        var gg = mixF(lb, bgc, bgSat) + bgBri
-        var gb = mixF(lb, bb, bgSat) + bgBri
-        gr = mixF(gr, 1f, white)
-        gg = mixF(gg, 1f, white)
-        gb = mixF(gb, 1f, white)
-
-        // ── gcr ──
-        val lumin = clamp01(luma(gr, gg, gb))
-        val tBurn = (if (burn <= 0f) 1f else powF(lumin, burn)) - 0.5f
-        val ratio = 0.8f * mixF(lumin, 1f, 1.587f * tBurn * tBurn * tBurn + 0.5f)
-        var gcrR = mixF(1f, gr, ratio)
-        var gcrG = mixF(1f, gg, ratio)
-        var gcrB = mixF(1f, gb, ratio)
-        val m = (gcrR + gcrG + gcrB) / 3f
-        val dx = gr - m
-        val dy = gg - m
-        val dz = gb - m
-        val gmask = smoothstep(0f, 0.4f, sqrt(dx * dx + dy * dy + dz * dz))
-        gcrR = mixF(m, gcrR, gmask)
-        gcrG = mixF(m, gcrG, gmask)
-        gcrB = mixF(m, gcrB, gmask)
-        gcrR = mixF(gcrR, glassR, glassMix)
-        gcrG = mixF(gcrG, glassG, glassMix)
-        gcrB = mixF(gcrB, glassB, glassMix)
-
-        // ── 合成 ──
-        val im = innerMix * ratio
-        r = mixF(r * gcrR, gcrR, im)
-        g = mixF(g * gcrG, gcrG, im)
-        b = mixF(b * gcrB, gcrB, im)
-
-        out[i] = (0xFF shl 24) or
-            ((r * 255f).toInt().coerceIn(0, 255) shl 16) or
-            ((g * 255f).toInt().coerceIn(0, 255) shl 8) or
-            (b * 255f).toInt().coerceIn(0, 255)
-    }
+/** 等比缩到最长边 [maxEdge]；已经够小就原样返回（不复制）。 */
+private fun scaleToMaxEdge(src: ImageBitmap, maxEdge: Int): ImageBitmap {
+    val longest = max(src.width, src.height)
+    if (longest <= maxEdge) return src
+    val f = maxEdge.toFloat() / longest
+    val tw = (src.width * f).roundToInt().coerceAtLeast(1)
+    val th = (src.height * f).roundToInt().coerceAtLeast(1)
+    val out = ImageBitmap(tw, th, ImageBitmapConfig.Argb8888)
+    Canvas(out).drawImageRect(
+        image = src,
+        srcOffset = IntOffset.Zero,
+        srcSize = IntSize(src.width, src.height),
+        dstOffset = IntOffset.Zero,
+        dstSize = IntSize(tw, th),
+        paint = Paint().apply { filterQuality = FilterQuality.Medium },
+    )
     return out
 }
 
-private fun luma(r: Float, g: Float, b: Float): Float = 0.2126f * r + 0.7152f * g + 0.0722f * b
-
-private fun clamp01(v: Float): Float = if (v < 0f) 0f else if (v > 1f) 1f else v
-
-private fun mixF(a: Float, b: Float, t: Float): Float = a + (b - a) * t
-
-private fun smoothstep(edge0: Float, edge1: Float, x: Float): Float {
-    val t = clamp01((x - edge0) / (edge1 - edge0))
-    return t * t * (3f - 2f * t)
-}
-
-private fun powF(base: Float, exp: Float): Float {
-    if (base <= 0f) return 0f
-    return kotlin.math.exp(exp * kotlin.math.ln(base))
-}
-
-/**
- * 背景模糊：对齐引擎的 `mi_lm_downsample` + 对称模糊。在传入数组的副本上算，不动 base
- * （轻 / 重两档共用同一份），返回 ARGB 像素，放大交给 shader 线性采样。
- *
- * - `mi_lm_downsample`（type 2）是 16 抽头，等价于对 4×4 取盒式均值；
- * - 之后在低分辨率上做三次盒式近似高斯（σ = 半径/3 再换算到该分辨率）。
- *
- * 盒半径必须由 σ 反解（`2r+1 = sqrt(4σ²+1)`）：固定核宽（如 ±3px 的 7 抽头）会把模糊强度
- * 硬顶住，`smallBlurRadius` 从 4dp 调到 32dp 画面不动。滑动窗口实现，代价与半径无关。
- */
-private fun blurBase(base: IntArray, width: Int, height: Int, radiusPx: Float): IntArray {
-    val work = base.copyOf()
-    // base 是 1/4 屏（aligned 的 1/2），所以 texel = 2 个 aligned px = 4 个屏幕 px
-    val sigma = (radiusPx / 2f) / 3f
-    if (radiusPx > 0.5f && sigma >= 0.2f) gaussianApprox(work, width, height, sigma)
-    // 不在这里放大回全屏：低分辨率位图交给 shader 线性采样。
-    return work
-}
-
-/** `mi_lm_downsample` type 2：4×4 盒式均值。 */
-private fun downsample4x(
+/** 2×2 盒式均值降采样。 */
+private fun downsample2x(
     src: IntArray,
     width: Int,
     height: Int,
     outWidth: Int,
     outHeight: Int,
 ): IntArray {
-    // 采样步长由实际缩放比决定（支持 2x / 4x），不是写死 4
     val fx = (width / outWidth).coerceAtLeast(1)
     val fy = (height / outHeight).coerceAtLeast(1)
     val count = fx * fy
     val out = IntArray(outWidth * outHeight)
     for (y in 0 until outHeight) {
         for (x in 0 until outWidth) {
-            var sa = 0
-            var sr = 0
-            var sg = 0
-            var sb = 0
+            var sa = 0; var sr = 0; var sg = 0; var sb = 0
             for (dy in 0 until fy) {
                 val sy = (y * fy + dy).coerceAtMost(height - 1)
                 val row = sy * width
@@ -354,52 +195,15 @@ private fun downsample4x(
                 }
             }
             out[y * outWidth + x] =
-                ((sa / count) shl 24) or ((sr / count) shl 16) or ((sg / count) shl 8) or (sb / count)
+                ((sa / count) shl 24) or ((sr / count) shl 16) or
+                    ((sg / count) shl 8) or (sb / count)
         }
     }
     return out
 }
 
-/**
- * 三次盒式 ≈ 高斯。盒半径由 σ 反解：三次宽 `2r+1` 的盒式，方差 = `3·((2r+1)²-1)/12`，
- * 令它等于 σ² ⇒ `2r+1 = sqrt(4σ²+1)`。滑动窗口实现，代价与半径无关。
- */
-private fun gaussianApprox(pixels: IntArray, width: Int, height: Int, sigma: Float) {
-    // 三次盒式的方差 = 3·((2r+1)²−1)/12。整数 r 的方差跳变很大（r=1→2 相当于 σ 从 0.87 跳到
-    // 2.45 texel），直接四舍五入会让滑杆低段没反应；改成按**方差**在相邻两档间插值，跑两遍再混合。
-    fun variance(r: Int): Float {
-        val c = (2 * r + 1).toFloat()
-        return 3f * (c * c - 1f) / 12f
-    }
-    val target = sigma * sigma
-    var r = 0
-    while (r < 64 && variance(r + 1) <= target) r++
-    val v0 = variance(r)
-    val v1 = variance(r + 1)
-    val t = if (v1 > v0) ((target - v0) / (v1 - v0)).coerceIn(0f, 1f) else 0f
-
-    if (t < 0.02f) {
-        boxTriple(pixels, width, height, r)
-        return
-    }
-    val lo = pixels.copyOf()
-    boxTriple(lo, width, height, r)
-    val hi = pixels.copyOf()
-    boxTriple(hi, width, height, r + 1)
-    for (i in pixels.indices) {
-        val a = lo[i]
-        val b = hi[i]
-        val ch = { x: Int, shift: Int -> (x shr shift) and 0xFF }
-        val ra = (ch(a, 16) + ((ch(b, 16) - ch(a, 16)) * t).toInt())
-        val ga = (ch(a, 8) + ((ch(b, 8) - ch(a, 8)) * t).toInt())
-        val ba = (ch(a, 0) + ((ch(b, 0) - ch(a, 0)) * t).toInt())
-        val aa = (ch(a, 24) + ((ch(b, 24) - ch(a, 24)) * t).toInt())
-        pixels[i] = (aa shl 24) or (ra shl 16) or (ga shl 8) or ba
-    }
-}
-
-/** 三趟盒式模糊（横竖交替），就地写回 [pixels]。 */
-private fun boxTriple(pixels: IntArray, width: Int, height: Int, radius: Int) {
+/** 三趟盒式模糊（横竖交替），就地写回。三趟累积的方差够接近高斯。 */
+private fun boxBlurTriple(pixels: IntArray, width: Int, height: Int, radius: Int) {
     if (radius <= 0) return
     val tmp = IntArray(pixels.size)
     repeat(3) {
@@ -428,10 +232,7 @@ private fun boxPass(
 
     for (o in 0 until outer) {
         val base = o * lineStart
-        var sa = 0
-        var sr = 0
-        var sg = 0
-        var sb = 0
+        var sa = 0; var sr = 0; var sg = 0; var sb = 0
         for (i in -radius..radius) {
             val c = src[base + i.coerceIn(0, inner - 1) * step]
             sa += (c ushr 24) and 0xFF
@@ -456,4 +257,15 @@ private fun boxPass(
     }
 }
 
-
+/** 平均亮度（Rec.709 权重）。传最粗的一级，几万像素，代价可忽略。 */
+private fun meanLumaOf(pixels: ImageBitmap): Float {
+    val buffer = runCatching { pixels.toPixelMap().buffer }.getOrNull() ?: return 0.5f
+    if (buffer.isEmpty()) return 0.5f
+    var sum = 0f
+    for (c in buffer) {
+        sum += (0.2126f * ((c shr 16) and 0xFF) +
+            0.7152f * ((c shr 8) and 0xFF) +
+            0.0722f * (c and 0xFF)) / 255f
+    }
+    return sum / buffer.size
+}

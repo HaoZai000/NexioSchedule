@@ -5,8 +5,9 @@ package com.haooz.chedule.ui.glass
 /*
  * 柔光玻璃材质（HyperOS `mi_glass_sdf` 的 AGSL / SkSL 实现）。
  *
- * 数据流：`SoftGlassBackdrop` 提供轻 / 重两张模糊图；主体按像素到轮廓的距离 `d`
- * 做折射、反射与方向光，`SOFT_GLASS_RIM_SHADER` 再用 LIGHTEN 叠一圈描边。
+ * 采样源是**壁纸纹理本身**（不是预先模糊好的位图）：模糊、调色全部在 shader 里按 uniform
+ * 现算。于是「模糊半径 / 壁纸缩放 / 壁纸偏移 / 所有调色参数」都只是一次 `setFloat`，
+ * 外观页怎么拖都不会重做 CPU 烘焙 —— 这是性能上最硬的一条约定，别再把它们做成烘焙参数。
  *
  * 形状：解析式 p-范数 G2 圆角，主体与描边共用同一份 `SOFT_GLASS_SDF`。
  * 平台：Android 用 AGSL `RuntimeShader`，桌面 / iOS / 鸿蒙用 Skiko SkSL；shader 源码共用。
@@ -65,15 +66,111 @@ float2 g2Grad(float2 p, float2 halfSize, float s, float n) {
 }
 """
 
+/*
+ * 壁纸采样：模糊已经烘在金字塔里（见 `SoftGlassBackdrop`），这里只做三线性混合。
+ *
+ * ⚠ 不要再退回「在 shader 里用十几个抽头做螺旋模糊」：半径 20 texel 以上，十几个采样点
+ * 的间距快赶上半径了，出来的不是模糊而是「几个方向的重影」。真实实现都是先降采样再模糊。
+ *
+ * 屏幕坐标 → 纹理坐标只是 `uTexMap` 一个仿射，所以拖壁纸、换模糊档位都不重建任何位图。
+ */
+internal val SOFT_GLASS_WALLPAPER_COARSE = """
+const float3 GLASS_LUMA = float3(0.2126, 0.7152, 0.0722);
+
+// 大模糊（glassColor 的底）固定取最粗一级：它跟当前模糊档位无关，越糊越稳。
+float3 sampleCoarse(float2 texPx) {
+    return uWallpaperCoarse.eval(
+        clamp(texPx * uLevelScaleCoarse, float2(0.5), uTexSizeCoarse - 0.5)
+    ).rgb;
+}
+"""
+
+/** 主体专用：相邻两级按权重混合（级别间的三线性）。 */
+internal val SOFT_GLASS_WALLPAPER_LEVELS = """
+float3 sampleLevel(float2 texPx) {
+    float3 a = uWallpaperA.eval(clamp(texPx * uLevelScaleA, float2(0.5), uTexSizeA - 0.5)).rgb;
+    float3 b = uWallpaperB.eval(clamp(texPx * uLevelScaleB, float2(0.5), uTexSizeB - 0.5)).rgb;
+    return mix(a, b, uBlendT);
+}
+"""
+
+/*
+ * 颜色处理：逐行等价 `libhwui.so` 的 `processGlassColor`。
+ *
+ * 顺序是「先模糊后调色」，这是数据依赖而非口味：gcr / glassColor 的输入就是**重模糊之后**
+ * 的背景色（`bigCol`），没有模糊图根本算不出来。所以旧实现（CPU 烘焙）也是 blur → color，
+ * 换架构时这条顺序没变。
+ *
+ * 系统把这一步放在 blur stage 内、低分辨率图上 —— 这一点是从 `MiBlurBlendUtils` 的调用
+ * 位置推断的，不是直接观测。我们这里没有中间位图，是「在采样点 blur、再调色」：
+ * 连续域上等价，且省掉降采样→上采样那一趟细节损失。
+ */
+internal val SOFT_GLASS_COLOR_PROCESS = """
+const float3 GLASS_DARK = float3(0.07874, 0.02848, 0.09278);
+
+float glassLuma(float3 c) { return dot(c, GLASS_LUMA); }
+
+float3 glassDarker(float3 c) {
+    float k = mix(0.0, uDarker, smoothstep(uDarkerRange.x, uDarkerRange.y, glassLuma(c)));
+    return mix(c, GLASS_DARK, k);
+}
+
+float3 glassAdjust(float3 c, float sat, float bri) {
+    float l = dot(c, float3(0.2125, 0.7153, 0.0721));
+    return mix(float3(l), c, sat) + bri;
+}
+
+float4 processGlassColor(float3 refractCol, float3 bigCol) {
+    float3 c = glassDarker(refractCol);
+    // luminanceCurve（比例模式）
+    float l = clamp(glassLuma(c), 0.0, 1.0);
+    float lc = ((uLuminance.x * l + uLuminance.y) * l + uLuminance.z) * l + uLuminance.w;
+    float curve = clamp(lc, 0.0, 1.0) / max(l, 0.01) * smoothstep(0.0, 0.1, l);
+    c = c * mix(1.0, curve, uLuminanceAmount);
+    c = glassAdjust(c, uSaturation, uBrightness);
+
+    // glassColor 由大模糊支派生：darker → adjustColor(bg) → 往白抬
+    float3 b = glassDarker(bigCol);
+    b = glassAdjust(b, uBgSat, uBgBri);
+    b = mix(b, float3(1.0), uInnerWhite);
+
+    float lumin = clamp(glassLuma(b), 0.0, 1.0);
+    float tBurn = (uBurn <= 0.0) ? 1.0 : pow(lumin, uBurn);
+    tBurn -= 0.5;
+    float ratio = 0.8 * mix(lumin, 1.0, 1.587 * tBurn * tBurn * tBurn + 0.5);
+
+    float3 gcr = mix(float3(1.0), b, ratio);
+    float m = (gcr.r + gcr.g + gcr.b) / 3.0;
+    float gmask = smoothstep(0.0, 0.4, length(b - float3(m)));
+    gcr = mix(float3(m), gcr, gmask);
+    gcr = mix(gcr, uGlassColor.rgb, uGlassColor.a);
+
+    float im = uInnerMix * ratio;
+    c = mix(c * gcr, gcr, im);
+    return float4(clamp(c, float3(0.0), float3(1.0)), 1.0);
+}
+"""
+
 internal val SOFT_GLASS_SHADER = SOFT_GLASS_SDF + """
-// ── 几何 / 采样 ──
+// ── 几何 ──
 uniform float2 uSize;
 uniform float4 uCornerRadii;
 uniform float  uCornerExt;
 uniform float  uCornerPow;
 uniform float2 uOrigin;
-uniform float2 uTexSize;
-uniform float  uBakeScale;
+
+// ── 采样源（壁纸纹理 + 屏幕→纹理仿射；全是 uniform，改它们不触发任何重烘）──
+uniform shader uWallpaperA;
+uniform shader uWallpaperB;
+uniform shader uWallpaperCoarse;
+uniform float4 uTexMap;
+uniform float2 uTexSizeA;
+uniform float2 uTexSizeB;
+uniform float2 uTexSizeCoarse;
+uniform float  uLevelScaleA;
+uniform float  uLevelScaleB;
+uniform float  uLevelScaleCoarse;
+uniform float  uBlendT;
 
 uniform float  uEdgePx;
 uniform float  uEdgePow;
@@ -88,7 +185,7 @@ uniform float4 uGlassColor;
 uniform float  uAlpha;
 uniform float  uHit;
 uniform float  uInnerBottom;
-// 高光描边开关：0 = 关（关闭倒角上的方向光与底边提亮）
+// 高光描边开关：0 = 关（只切倒角上的方向光）
 uniform float  uEdgeHighlight;
 uniform float3 uLightDir;
 uniform float  uAngleK;
@@ -99,12 +196,22 @@ uniform float  uUsePowGate;
 uniform float  uDebug;
 uniform float  uNmlZAAThreshold;
 
-uniform shader uRefractTex;
-// 主体不采样 uBgColorTex（颜色处理在烘焙阶段完成）；重模糊只给 rim shader 用。
-// AGSL 会优化掉未使用的 uniform，留着声明会让 setSampler 抛异常 ⇒ 整块玻璃退化成白面。
+// ── 颜色处理（原先在 CPU 烘焙阶段，现在逐像素算；与系统 applyGlassColorProcess 同层级）──
+uniform float  uDarker;
+uniform float2 uDarkerRange;
+uniform float4 uLuminance;
+uniform float  uLuminanceAmount;
+uniform float  uSaturation;
+uniform float  uBrightness;
+uniform float  uBgSat;
+uniform float  uBgBri;
+uniform float  uInnerWhite;
+uniform float  uInnerMix;
+uniform float  uBurn;
 
 const float3 LUMA = float3(0.2126, 0.7152, 0.0722);
 
+""" + SOFT_GLASS_WALLPAPER_COARSE + SOFT_GLASS_WALLPAPER_LEVELS + SOFT_GLASS_COLOR_PROCESS + """
 
 // ── 倒角剖面（系统原文，libhwui.so 的 SDF 烘焙 shader）──
 //
@@ -173,12 +280,6 @@ float4 processLighting(float4 color, float3 normal) {
     return hsvv(color, lightenParam);
 }
 
-
-// 颜色处理已在烘焙阶段完成（SoftGlassBackdrop.applyGlassColorProcess），这里只采样。
-float4 tex(float2 uvPx) {
-    return uRefractTex.eval(clamp(uvPx, float2(0.5), uTexSize - 0.5));
-}
-
 half4 main(float2 fragCoord) {
     float2 halfSize = uSize * 0.5;
     float2 p = fragCoord - halfSize;
@@ -196,7 +297,6 @@ half4 main(float2 fragCoord) {
     // 这是「归一化 SDF」：折射厚度、反射衰减、内区判定都用它 —— 用的**不是** circle。
     float w = (x >= 0.85) ? 1.0 : 1.0 - pow(max(1.0 - circle, 1e-6), uEdgePow);
     // nmlZ = 1 - (1-w)^(1/edgePow)：两次幂正好相抵，恒等于 circle。
-    // 仍照抄式子，保持与系统「烘焙时乘 edgePow、采样时除回去」的拆分一致。
     float nmlZ = 1.0 - pow(max(1.0 - w, 0.0), max(uInvEdgePow, 1e-3));
     // 法线斜率 = dw/dx。系统对「弯曲后的 sdf」做中心差分，所以是曲线的导数而非曲线值 ——
     // 这一步决定折射带有多宽。
@@ -215,27 +315,25 @@ half4 main(float2 fragCoord) {
         ? float3(0.0, 0.0, 1.0)
         : normalize(float3(nxy.x, nxy.y, 1.0));
 
-    float2 uvPx = uOrigin + fragCoord * uBakeScale;
+    // 屏幕坐标 → 第 0 级纹理 texel。uOrigin 是面板左上角的窗口坐标，壁纸层与窗口同原点。
+    float2 texPx = (uOrigin + fragCoord) * uTexMap.xy + uTexMap.zw;
+    // 屏幕 px → 第 0 级 texel 的比例（x / y 相同：对齐是各向同性的），只用于折射 / 反射位移
+    float texK = uTexMap.x;
 
     // ── 调试视图 ──
     if (uDebug > 0.5) {
         if (uDebug < 1.5) {
-            // 1：归一化距离 x 灰度
             return half4(x, x, x, 1.0);
         } else if (uDebug < 2.5) {
-            // 2：红 = 折射带，绿 = 内部
             return half4(inner ? 0.0 : 1.0, inner ? 1.0 : 0.0, 0.0, 1.0);
         } else {
-            // 3：uRefractTex 原图
-            float2 tuv = clamp(uvPx, float2(0.5), uTexSize - 0.5);
-            half4 raw = uRefractTex.eval(tuv);
-            return half4(raw.rgb, 1.0);
+            return half4(sampleLevel(texPx), 1.0);
         }
     }
 
-    float4 refractionResult;
+    float3 refractionCol;
     if (inner) {
-        refractionResult = tex(uvPx);
+        refractionCol = sampleLevel(texPx);
     } else {
         float ior = uIOR + 0.2 * uHit;
         float3 refractDir = miRefract(float3(0.0, 0.0, -1.0), normal, 1.0 / ior);
@@ -243,21 +341,26 @@ half4 main(float2 fragCoord) {
         // uThicknessPx = 0 是外观里的「关闭折射」。但 t=0 时上式是 mix(-2·edge, 0, w)，
         // 也就是**负厚度 = 反向折射**，不是不折射。这里显式归零。
         refractThickness *= step(0.5, uThicknessPx);
-        refractionResult = tex(uvPx + refractDir.xy * refractThickness * uBakeScale);
+        refractionCol = sampleLevel(texPx + refractDir.xy * refractThickness * texK);
     }
 
-    float4 glassMaterial;
+    float3 materialRgb;
     if (inner) {
-        glassMaterial = refractionResult;
+        materialRgb = refractionCol;
     } else {
         // 反射方向 = 2*N.z*N.xy
         float2 refractXY = 2.0 * normal.z * normal.xy;
-        float4 reflectionResult = tex(uvPx + refractXY * (uReflectOffsetPx * (1.0 - w) * uBakeScale));
-        glassMaterial = mix(refractionResult, reflectionResult, (1.0 - nmlZ) * uReflStrength);
-        glassMaterial.rgb = addLight(
-            glassMaterial.rgb, reflectionResult.rgb, (1.0 - w) * uReflLighten
+        float3 reflectionCol = sampleLevel(
+            texPx + refractXY * (uReflectOffsetPx * (1.0 - w) * texK)
         );
+        materialRgb = mix(refractionCol, reflectionCol, (1.0 - nmlZ) * uReflStrength);
+        materialRgb = addLight(materialRgb, reflectionCol, (1.0 - w) * uReflLighten);
     }
+
+    // 大模糊支（glassColor 的来源）只在需要它的地方采：inner 也参与 innerMix。
+    float3 bigCol = sampleCoarse(texPx);
+
+    float4 glassMaterial = processGlassColor(materialRgb, bigCol);
 
     float tEdge = smoothstep(0.0, 1.0, fragCoord.y / max(uSize.y, 1.0));
     glassMaterial.rgb += tEdge * tEdge * uInnerBottom;
@@ -277,7 +380,7 @@ half4 main(float2 fragCoord) {
 """
 
 /**
- * 描边：取重模糊，在倒角带上叠方向光，再以 LIGHTEN 叠到主体上。
+ * 描边：取大模糊（缩略图）在倒角带上叠方向光，再以 LIGHTEN 叠到主体上。
  *
  * rimMask 把描边收在倒角带最外段（5% 满强度 → 60% 处渐隐到 0）。
  * 剖面固定用原式 `nmlZ = d`，不要换成 S 曲线：那会压平这段梯度，
@@ -289,8 +392,11 @@ uniform float4 uCornerRadii;
 uniform float  uCornerExt;
 uniform float  uCornerPow;
 uniform float2 uOrigin;
-uniform float2 uTexSize;
-uniform float  uBakeScale;
+
+uniform shader uWallpaperCoarse;
+uniform float4 uTexMap;
+uniform float2 uTexSizeCoarse;
+uniform float  uLevelScaleCoarse;
 
 uniform float  uEdgePx;
 uniform float  uInvEdgePow;
@@ -303,7 +409,8 @@ uniform float  uAlpha;
 uniform float  uRimWidthPx;
 uniform float  uRimSaturation;
 uniform float  uRimBrightness;
-uniform shader uBgColorTex;
+
+""" + SOFT_GLASS_WALLPAPER_COARSE + """
 
 const float3 LUMA = float3(0.2126, 0.7152, 0.0722);
 
@@ -324,7 +431,6 @@ float dynamicAdd(float3 color) {
 float calculateLighting(float3 normal, float3 lightDir, float intensity) {
     float d = dot(normal, lightDir);
     float angleFactor = clamp(1.0 - sqrt(max(1.0 - d, 0.0)) * uAngleK, 0.0, 1.0);
-    // 系统原式：不加 pow(d, edgePow) —— token 里的 DirectionalLight.edgePow 只给 bloom 滤镜（mainLightLength）。
     return max(d, 0.0) * intensity * angleFactor;
 }
 
@@ -335,7 +441,6 @@ float4 processLighting(float4 color, float3 normal) {
     float lightenParam = (l1 + l2) * 2.0 * dynamicAdd(color.rgb);
     return hsvv(color, lightenParam);
 }
-
 
 half4 main(float2 fragCoord) {
     float2 halfSize = uSize * 0.5;
@@ -358,8 +463,8 @@ half4 main(float2 fragCoord) {
     float2 nlmXY = inner ? float2(0.0) : g2Grad(p, halfSize, cornerS, cornerPow) * slope;
     float3 normal = inner ? float3(0.0, 0.0, 1.0) : float3(nlmXY, nmlZ);
 
-    float2 uv = clamp(uOrigin + fragCoord * uBakeScale, float2(0.5), uTexSize - 0.5);
-    float4 color = uBgColorTex.eval(uv);
+    float2 texPx = (uOrigin + fragCoord) * uTexMap.xy + uTexMap.zw;
+    float4 color = float4(sampleCoarse(texPx), 1.0);
     if (!inner) { color = processLighting(color, normal); }
     color = pow(color, float4(uColorPow));
     color.rgb = clamp(color.rgb, float3(0.0), float3(1.0));

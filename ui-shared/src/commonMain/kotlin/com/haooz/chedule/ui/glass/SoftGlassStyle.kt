@@ -82,7 +82,7 @@ data class SoftGlassStyle(
     /** uDirectionalLightOppositeIntensity。Large 档 0.8（右下那道）。 */
     val lightOppositeIntensity: Float = 0.8f,
 
-    // ── 颜色处理（processGlassColor，烘焙阶段逐像素算）──
+    // ── 颜色处理（processGlassColor，在 shader 里逐像素算；改这些只是改 uniform）──
     /** uBgColorSaturation。Large 档 **0.0**（大面板不做背景提饱和）。 */
     val bgColorSaturation: Float = 0f,
     /** uBgColorBrightness（加性）。Large 档 0.0。 */
@@ -133,7 +133,7 @@ data class SoftGlassStyle(
 
     /**
      * 调试视图。0 = 正常；1 = 归一化离边距离 `x` 画成灰度；2 = 分支着色（折射带红 / 内部绿）；
-     * 3 = 直接输出 `uRefractTex`，用于验证模糊是否真的进了 shader。
+     * 3 = 直接输出壁纸纹理原图（不模糊、不调色），用来定位采样映射写错了没有。
      */
     val debugView: Int = 0,
 ) {
@@ -146,49 +146,6 @@ data class SoftGlassStyle(
     @Suppress("UNUSED_PARAMETER")
     fun adapted(meanLuma: Float): SoftGlassStyle = this
 }
-
-/**
- * 烘焙（对齐之后的模糊 + 调色）真正读到的字段。
- *
- * 这些以外的参数 —— 厚度、边缘宽度、折射倍率、方向光、描边开关、透明度 —— 全都只是 uniform，
- * 改了只需要重灌 uniform。**别把整个 style 当烘焙的 key**：那会让外观页每动一格都重算整屏模糊，
- * 拖滑杆、点开关全部卡住（历史坑，见 `SoftGlassSurface.rememberSoftGlassSurface`）。
- */
-internal data class SoftGlassBakeSpec(
-    val smallBlurRadius: Float,
-    val bigBlurRadius: Float,
-    val darker: Float,
-    val darkerRange: Pair<Float, Float>,
-    val luminanceValues: List<Float>,
-    val luminanceAmount: Float,
-    val saturation: Float,
-    val brightness: Float,
-    val bgColorSaturation: Float,
-    val bgColorBrightness: Float,
-    val innerColorWhite: Float,
-    val innerColorMix: Float,
-    val burn: Float,
-    val glassColor: Color,
-    val glassColorMix: Float,
-)
-
-internal fun SoftGlassStyle.bakeSpec(): SoftGlassBakeSpec = SoftGlassBakeSpec(
-    smallBlurRadius = smallBlurRadius,
-    bigBlurRadius = bigBlurRadius,
-    darker = darker,
-    darkerRange = darkerRange,
-    luminanceValues = luminanceValues,
-    luminanceAmount = luminanceAmount,
-    saturation = saturation,
-    brightness = brightness,
-    bgColorSaturation = bgColorSaturation,
-    bgColorBrightness = bgColorBrightness,
-    innerColorWhite = innerColorWhite,
-    innerColorMix = innerColorMix,
-    burn = burn,
-    glassColor = glassColor,
-    glassColorMix = glassColorMix,
-)
 
 /** 课表页：与 `Glass_Common_Large_Regular` 1:1；模糊由外观设置覆盖（dp → px 在调用处换算）。 */
 val ScheduleSoftGlassStyle = SoftGlassStyle()

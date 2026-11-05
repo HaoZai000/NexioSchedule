@@ -1442,16 +1442,16 @@ fun CustomizeScheduleScreen(
                             SliderItem(
                                 label = SchedStr.cardBlur(),
                                 value = effectValue,
-                                // **px 单位**：直接就是 shader 的 smallBlurRadius，不做 density 换算。
-                                // 0..80px，默认 32px。
-                                valueRange = 0f..80f,
-                                keyPoints = listOf(32f),
+                                // **px 单位**，值就是 σ：直接喂 shader，不做 density 换算、也没有隐藏倍率。
+                                // 0..24px（上限见 CARD_BLUR_MAX_PX），默认 10px。
+                                valueRange = 0f..24f,
+                                keyPoints = listOf(10f),
                                 // 无材质档锁死：卡片模糊/折射整体关（渲染侧同步强制 0）
                                 enabled = hasWallpaper &&
                                     !com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier(),
                                 // 整数吸附，避免留下显示为 0 却仍有一丝模糊的小数
                                 onValueChange = { if (hasWallpaper) effectValue = it },
-                                quantize = { it.roundToInt().coerceIn(0, 80).toFloat() },
+                                quantize = { it.roundToInt().coerceIn(0, 24).toFloat() },
                                 suffix = "px",
                                 displayValue = { it.roundToInt().toString() },
                                 parseInput = { it.toFloatOrNull()?.coerceIn(0f, 80f) },

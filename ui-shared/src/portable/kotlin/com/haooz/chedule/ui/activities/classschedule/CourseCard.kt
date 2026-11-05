@@ -95,7 +95,7 @@ fun CourseCard(
     hasMultipleCourses: Boolean = false,
     softGlassSurface: SoftGlassSurface? = null,
     /** 玻璃采样源模糊（**px**，直接喂 smallBlurRadius）；这里只做透传，卡片自身不用 */
-    cardBlurRadius: Float = 32f,
+    cardBlurRadius: Float = 10f,
     cardAlpha: Float = 0.15f,
     /** 有壁纸时白/黑底不透明度（卡片不透明度） */
     cardSurfaceAlpha: Float = 0.40f,

@@ -7,12 +7,11 @@ import com.haooz.chedule.data.platform.DisplayLang
  */
 data class AppearanceConfig(
     /**
-     * 卡片模糊半径，**单位 px**（不是 dp）。
+     * 卡片模糊半径，**单位 px**（不是 dp），语义就是高斯 σ。
      *
-     * 直接就是柔光玻璃的 `smallBlurRadius`（折射采样源的模糊量）。
-     * 默认 32px（系统 `Glass_Common_Large_Regular` 原值 80，这里取更适合课程卡的档）。
+     * 直接喂柔光玻璃的 `smallBlurRadius`，**不做任何换算**。上限见 [CARD_BLUR_MAX_PX]。
      */
-    val cardBlurRadius: Float = 32f,
+    val cardBlurRadius: Float = 10f,
     /** 课程色着色程度（有无壁纸都可调） */
     val cardAlpha: Float = 0.15f,
     /**
@@ -72,7 +71,7 @@ fun AppearanceConfig.highlightSurfaceAlpha(isDark: Boolean): Float =
  * 保证兜底值与加载完成后派生的值相同，不会闪一帧默认值。
  */
 fun AppearanceConfig.Companion.fromStyle(style: AppearanceStyle): AppearanceConfig = AppearanceConfig(
-    cardBlurRadius = style.cardBlur,
+    cardBlurRadius = coerceBlurPx(style.cardBlur),
     cardAlpha = style.cardAlpha.coerceIn(0f, 1f),
     cardSurfaceAlpha = style.safeCardSurfaceAlpha,
     cardHeight = style.safeCardHeight,
@@ -96,6 +95,17 @@ fun AppearanceConfig.Companion.fromStyle(style: AppearanceStyle): AppearanceConf
  * `:core` 不能依赖 `:app`，所以两个字符串常量下沉到这里，`:app` 用 `const val` 转发，取值同源。
  * ⚠ 值**逐字未变**：改了等于老用户的外观设置全部读不出来。
  */
+/**
+ * 卡片模糊滑杆的上限（px，等于 σ）。
+ *
+ * 滑杆值就是 σ，没有任何隐藏倍率 —— 显示多少就是多少。上限取 24：再大在课程卡这种
+ * 小尺寸上已经看不出区别，只是白糊。
+ */
+const val CARD_BLUR_MAX_PX = 24f
+
+/** 只做范围钳制（滑杆调不出界，防的是手改存档 / 旧文件里的越界值）。 */
+fun coerceBlurPx(value: Float): Float = value.coerceIn(0f, CARD_BLUR_MAX_PX)
+
 object AppearancePrefs {
     /** 外观独立 prefs 文件名（`ScheduleAppearance.FILE`） */
     const val FILE = "appearance_settings"
@@ -118,7 +128,7 @@ data class AppearanceStyle(
     val offsetRefW: Float = 0f,
     val offsetRefH: Float = 0f,
     /** 课程卡片模糊半径（**px**，直接喂 `smallBlurRadius`，不乘 density） */
-    val cardBlur: Float = 32f,
+    val cardBlur: Float = 10f,
     val cardAlpha: Float = 0.15f,
     /** 有壁纸时白/黑底不透明度；null=未设置，用默认 */
     val cardSurfaceAlpha: Float? = null,

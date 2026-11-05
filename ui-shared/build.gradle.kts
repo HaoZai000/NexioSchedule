@@ -55,6 +55,11 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
+        // shader 冒烟测试要 Skia 的运行时编译器（SkSL）。currentOs 会带上当前平台的 skiko
+        // native，否则测试里 `RuntimeEffect` 一加载就 LibraryLoadException。
+        jvmTest.dependencies {
+            implementation(compose.desktop.currentOs)
+        }
         commonMain.dependencies {
             implementation(compose.foundation)
             implementation(compose.ui)
