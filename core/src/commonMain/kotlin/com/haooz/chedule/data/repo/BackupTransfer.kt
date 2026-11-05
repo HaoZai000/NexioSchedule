@@ -151,6 +151,11 @@ internal class BackupTransfer(private val host: RepoHost) {
         }
 
         var colorIndex = 0
+        // 备份不导出课程 id，这里现造。合成键只有「课名+星期+起始节」，不含教室/教师/
+        // 结束节/周次 —— 同一门课分两个实验室上（真实备份里就有）会撞 id。撞了的话
+        // INSERT OR REPLACE 会把后一条覆盖掉前一条，末尾的行表自校验因尺寸不符失败，
+        // 整单恢复回滚。所以撞 id 就补序号后缀，保证唯一。
+        val usedCourseIds = mutableSetOf<String>()
         val courses = coursesData.mapNotNull { courseMap ->
             val name = courseMap["name"] as? String ?: return@mapNotNull null
             val classroom = courseMap["classroom"] as? String ?: ""
@@ -175,8 +180,15 @@ internal class BackupTransfer(private val host: RepoHost) {
                 colorIndex++
                 c
             }
+            val baseCourseId = "${scheduleName}_${name}_${dayOfWeek}_$startSection"
+            var courseId = baseCourseId
+            var idSuffix = 2
+            while (!usedCourseIds.add(courseId)) {
+                courseId = "${baseCourseId}_$idSuffix"
+                idSuffix++
+            }
             Course(
-                id = "${scheduleName}_${name}_${dayOfWeek}_$startSection",
+                id = courseId,
                 scheduleId = scheduleName,
                 name = name,
                 classroom = classroom,
