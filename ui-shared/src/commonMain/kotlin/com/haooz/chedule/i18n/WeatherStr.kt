@@ -30,6 +30,11 @@ object WeatherStr {
     val hourlyTitle = L("24 小时预报", "Next 24 hours")
     val dailyTitle = L("未来 7 天预报", "7-day forecast")
     val nowcastTitle = L("短时降水", "Next 2 hours")
+    val rainBig = L("大", "Heavy")
+    val rainMedium = L("中", "Moderate")
+    val rainSmall = L("小", "Light")
+    val rainIn1Hour = L("1小时后", "In 1 h")
+    val rainIn2Hours = L("2小时后", "In 2 h")
     val airTitle = L("空气质量", "Air quality")
     val airHourlyTitle = L("24 小时空气", "Air over 24 h")
     val airUnits = L("单位 μg/m³（CO 为 mg/m³）", "μg/m³ (CO: mg/m³)")
@@ -37,6 +42,10 @@ object WeatherStr {
     val detailTitle = L("详细数据", "Details")
     val moreInfo = L("查看更多信息", "See more")
     val alertTitle = L("气象预警", "Alerts")
+    val alertIssued = L("%s 发布", "Issued at %s")
+    val alertSource = L("来源 · %s", "Source · %s")
+    val alertExpand = L("展开全文", "Show all")
+    val alertCollapse = L("收起", "Show less")
     val sourceTitle = L("数据来源", "Sources")
 
     // ── 时间词 ──

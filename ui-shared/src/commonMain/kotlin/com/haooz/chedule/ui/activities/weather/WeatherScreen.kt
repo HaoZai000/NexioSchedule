@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
@@ -57,16 +58,20 @@ import com.haooz.chedule.ui.activities.today.weatherIconRes
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.weather.LifeIndex
+import com.haooz.chedule.weather.RainNowcast
 import com.haooz.chedule.weather.WeatherAlert
 import com.haooz.chedule.weather.WeatherDay
 import com.haooz.chedule.weather.WeatherSnapshot
 import com.haooz.chedule.weather.WeatherStore
+import com.haooz.chedule.weather.alertLevelWord
 import com.haooz.chedule.weather.floorDiv
+import com.haooz.chedule.weather.splitAlertSource
 import com.haooz.chedule.weather.localHourMinute
 import com.haooz.chedule.weather.weekdayIndex
 import com.haooz.chedule.weather.windPowerFromKmh
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlin.math.sqrt
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import org.jetbrains.compose.resources.painterResource
@@ -154,24 +159,26 @@ fun WeatherScreen(
                         if (data.alerts.isNotEmpty()) item { AlertCard(data.alerts) }
                         data.nowcast?.let { cast ->
                             item {
-                                if (cast.headline.isNotBlank() || cast.detail.isNotBlank()) {
-                                    SectionCard(title = WeatherStr.nowcastTitle()) {
-                                        Text(
-                                            text = cast.headline.ifBlank { cast.detail },
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MiuixTheme.colorScheme.onSurface,
-                                        )
-                                        if (cast.detail.isNotBlank() && cast.detail != cast.headline) {
-                                            Spacer(Modifier.height(5.dp))
+                                when {
+                                    cast.values.isNotEmpty() -> NowcastChartCard(cast)
+                                    cast.headline.isNotBlank() || cast.detail.isNotBlank() ->
+                                        SectionCard(title = WeatherStr.nowcastTitle()) {
                                             Text(
-                                                text = cast.detail,
-                                                fontSize = 13.sp,
-                                                lineHeight = 19.sp,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                                text = cast.headline.ifBlank { cast.detail },
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MiuixTheme.colorScheme.onSurface,
                                             )
+                                            if (cast.detail.isNotBlank() && cast.detail != cast.headline) {
+                                                Spacer(Modifier.height(5.dp))
+                                                Text(
+                                                    text = cast.detail,
+                                                    fontSize = 13.sp,
+                                                    lineHeight = 19.sp,
+                                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                                )
+                                            }
                                         }
-                                    }
                                 }
                             }
                         }
@@ -486,64 +493,266 @@ private fun AirCapsule(aqi: Int?, level: String, onClick: () -> Unit) {
     }
 }
 
+// ── 短时降水：分钟级柱状图 ────────────────────────────────────────────
+
+private val NOWCAST_CHART_H = 64.dp
+
+/** 量程 */
+private const val NOWCAST_MAX = 1.2f
+
+@Composable
+private fun NowcastChartCard(cast: RainNowcast) {
+    val darkTheme = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(
+                start = CARD_H_PADDING, end = CARD_H_PADDING, top = 16.dp, bottom = 14.dp
+            )
+        ) {
+            Text(
+                text = cast.detail.ifBlank { cast.headline },
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                NowcastChart(
+                    values = cast.values,
+                    darkTheme = darkTheme,
+                    modifier = Modifier.weight(1f).height(NOWCAST_CHART_H),
+                )
+                Spacer(Modifier.width(6.dp))
+                Box(modifier = Modifier.width(12.dp).height(NOWCAST_CHART_H)) {
+                    listOf(
+                        WeatherStr.rainBig() to 0.dp,
+                        WeatherStr.rainMedium() to NOWCAST_CHART_H * (1f / 3f),
+                        WeatherStr.rainSmall() to NOWCAST_CHART_H * (2f / 3f),
+                    ).forEach { (label, y) ->
+                        Text(
+                            text = label,
+                            fontSize = 11.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.offset(y = y + 2.dp),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth().padding(end = 20.dp)) {
+                Text(
+                    text = WeatherStr.now(),
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = WeatherStr.rainIn1Hour(),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = WeatherStr.rainIn2Hours(),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.End,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NowcastChart(values: List<Float>, darkTheme: Boolean, modifier: Modifier) {
+    val grid = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.34f)
+    val bar = if (darkTheme) Color(0xFF9AB9E6) else Color(0xFF4A7FC1)
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val line = 1.dp.toPx()
+        for (i in 0..2) {
+            val y = h * i / 3f
+            dashedLine(grid, Offset(0f, y), Offset(w, y), line)
+        }
+        drawLine(color = grid, start = Offset(0f, h), end = Offset(w, h), strokeWidth = line)
+        drawLine(color = grid, start = Offset(0f, 0f), end = Offset(0f, h), strokeWidth = line)
+        dashedLine(grid, Offset(w, 0f), Offset(w, h), line)
+
+        val bars = values.chunked(2) { part ->
+            if (part.size == 1) part[0] else (part[0] + part[1]) / 2f
+        }
+        val cell = if (bars.isEmpty()) w else w / bars.size
+        val barW = (cell * 0.62f).coerceAtLeast(1.5.dp.toPx())
+        bars.forEachIndexed { i, v ->
+            if (v <= 0f) return@forEachIndexed
+            val barH = ((v / NOWCAST_MAX) * h).coerceIn(2.dp.toPx(), h)
+            drawRoundRect(
+                color = bar,
+                topLeft = Offset(i * cell + (cell - barW) / 2f, h - barH),
+                size = Size(barW, barH),
+                cornerRadius = CornerRadius(barW / 2f),
+            )
+        }
+    }
+}
+
+private fun DrawScope.dashedLine(color: Color, start: Offset, end: Offset, strokeWidth: Float) {
+    val dash = 4.dp.toPx()
+    val gap = 4.dp.toPx()
+    val dx = end.x - start.x
+    val dy = end.y - start.y
+    val len = sqrt(dx * dx + dy * dy)
+    if (len <= 0f) return
+    val ux = dx / len
+    val uy = dy / len
+    var d = 0f
+    while (d < len) {
+        val e = (d + dash).coerceAtMost(len)
+        drawLine(
+            color = color,
+            start = Offset(start.x + ux * d, start.y + uy * d),
+            end = Offset(start.x + ux * e, start.y + uy * e),
+            strokeWidth = strokeWidth,
+        )
+        d += dash + gap
+    }
+}
+
 // ── 预警 ──────────────────────────────────────────────────────────────
 
 @Composable
 private fun AlertCard(alerts: List<WeatherAlert>) {
+    val darkTheme = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+    val tone = alertColor(alerts.first())
     Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            alerts.forEachIndexed { index, alert ->
-                // IntrinsicSize.Min + fillMaxHeight：左侧色条才能跟着正文高度走
-                Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                    Box(
-                        modifier = Modifier
-                            .width(4.dp)
-                            .fillMaxHeight()
-                            .background(alertColor(alert.level))
+        Box {
+            Box(
+                modifier = Modifier.matchParentSize().background(
+                    Brush.linearGradient(
+                        0f to tone.copy(alpha = if (darkTheme) 0.16f else 0.10f),
+                        0.55f to tone.copy(alpha = if (darkTheme) 0.05f else 0.03f),
+                        1f to Color.Transparent,
                     )
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = alert.title,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
-                            if (alert.pubTime.isNotBlank()) {
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = alert.pubTime,
-                                    fontSize = 11.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                )
-                            }
-                        }
-                        if (alert.detail.isNotBlank()) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = alert.detail,
-                                fontSize = 13.sp,
-                                lineHeight = 19.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                maxLines = 4,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+                )
+            )
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .padding(horizontal = CARD_H_PADDING, vertical = 16.dp)
+            ) {
+                alerts.forEachIndexed { index, alert ->
+                    AlertRow(alert)
+                    if (index != alerts.lastIndex) {
+                        Spacer(Modifier.height(14.dp))
+                        Box(
+                            modifier = Modifier.fillMaxWidth()
+                                .height(0.5.dp)
+                                .background(MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.14f))
+                        )
+                        Spacer(Modifier.height(14.dp))
                     }
-                }
-                if (index != alerts.lastIndex) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 20.dp)
-                            .height(0.5.dp)
-                            .background(MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.15f))
-                    )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun AlertRow(alert: WeatherAlert) {
+    val tone = alertColor(alert)
+    val (body, source) = splitAlertSource(alert.detail)
+    var expanded by remember(alert) { mutableStateOf(false) }
+    var overflowing by remember(alert) { mutableStateOf(false) }
+    val issued = alertClock(alert.pubTime)
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = alert.title,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = MiuixTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Spacer(Modifier.width(8.dp))
+            AlertLevelChip(alert, tone)
+        }
+        if (issued.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = WeatherStr.alertIssued(issued),
+                fontSize = 11.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        }
+        if (body.isNotBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Box(
+                modifier = Modifier.fillMaxWidth().height(0.5.dp)
+                    .background(MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.12f))
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = body,
+                fontSize = 13.sp,
+                lineHeight = 21.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = if (expanded) Int.MAX_VALUE else 4,
+                overflow = TextOverflow.Ellipsis,
+                onTextLayout = { if (overflowing != it.didOverflowHeight) overflowing = it.didOverflowHeight },
+            )
+            if (overflowing || expanded) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = if (expanded) WeatherStr.alertCollapse() else WeatherStr.alertExpand(),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = tone,
+                    modifier = Modifier
+                        .clip(ContinuousCapsule())
+                        .clickable { expanded = !expanded }
+                        .padding(horizontal = 2.dp, vertical = 2.dp),
+                )
+            }
+        }
+        if (source.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = WeatherStr.alertSource(source),
+                fontSize = 11.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlertLevelChip(alert: WeatherAlert, tone: Color) {
+    val label = alertLevelWord(alert)
+    if (label.isBlank()) return
+    Box(
+        modifier = Modifier
+            .clip(ContinuousCapsule())
+            .background(tone.copy(alpha = 0.16f), ContinuousCapsule())
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = tone, maxLines = 1)
+    }
+}
+
+/** "19:39" / "2026-11-05 19:39" 都归到 "19:39"。 */
+private fun alertClock(raw: String): String {
+    val colon = raw.indexOf(':')
+    if (colon >= 2 && colon + 2 < raw.length) {
+        val hh = raw.substring(colon - 2, colon)
+        val mm = raw.substring(colon + 1, colon + 3)
+        if (hh.all { it.isDigit() } && mm.all { it.isDigit() }) return "$hh:$mm"
+    }
+    return raw.trim()
 }
 
 // ── 逐小时：温度曲线 ──────────────────────────────────────────────────
@@ -1114,10 +1323,10 @@ internal fun aqiColor(aqi: Int?): Color = when {
     else -> Color(0xFF9B59B6)
 }
 
-private fun alertColor(level: String): Color = when {
-    level.contains("红") -> Color(0xFFD9534F)
-    level.contains("橙") -> Color(0xFFE8833A)
-    level.contains("黄") -> Color(0xFFE8B23A)
+private fun alertColor(alert: WeatherAlert): Color = when (alertLevelWord(alert)) {
+    "红色" -> Color(0xFFD9534F)
+    "橙色" -> Color(0xFFE8833A)
+    "黄色" -> Color(0xFFE8B23A)
     else -> Color(0xFF4A90D9)
 }
 

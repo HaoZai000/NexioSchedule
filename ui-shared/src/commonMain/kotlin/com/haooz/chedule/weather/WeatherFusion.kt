@@ -31,7 +31,7 @@ internal object WeatherFusion {
         val hourly = mergeHourly(ordered)
         val daily = mergeDaily(ordered)
         val air = mergeAir(ordered)
-        val alerts = ordered.flatMap { it.alerts }.distinctBy { it.title + it.type + it.level }
+        val alerts = mergeAlerts(ordered.flatMap { it.alerts })
         val indices = ordered.firstNotNullOfOrNull { src -> src.indices.takeIf { it.isNotEmpty() } }.orEmpty()
         val nowcast = ordered.firstNotNullOfOrNull { it.nowcast }
         val placeName = place.name?.takeIf(String::isNotBlank)

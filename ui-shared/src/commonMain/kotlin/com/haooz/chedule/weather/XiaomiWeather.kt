@@ -110,8 +110,16 @@ internal object XiaomiWeather {
         val nowcast = root.optJsonObject("minutely")?.optJsonObject("precipitation")?.let { p ->
             val headline = p.optString("shortDescription").ifBlank { p.optString("description") }
             val detail = p.optString("description")
-            if (headline.isBlank() && detail.isBlank()) null
-            else RainNowcast(headline = headline, detail = detail)
+            val values = p.optJsonArray("value")?.let { arr ->
+                List(arr.size) { i -> arr.optString(i).toFloatOrNull() ?: 0f }
+            }.orEmpty()
+            if (headline.isBlank() && detail.isBlank() && values.isEmpty()) null
+            else RainNowcast(
+                headline = headline,
+                detail = detail,
+                values = values,
+                pubTime = clockOf(p.optString("pubTime")),
+            )
         }
 
         if (now == null && hourly.isEmpty() && daily.isEmpty()) return null

@@ -116,10 +116,12 @@ data class AirQuality(
     val tip: String = "",
 )
 
-/** 分钟级降水（小米 minutely）。 */
+/** 分钟级降水：[values] 从当前分钟起，每分钟一个强度值。 */
 data class RainNowcast(
     val headline: String = "",
     val detail: String = "",
+    val values: List<Float> = emptyList(),
+    val pubTime: String = "",
 )
 
 /**
