@@ -1288,9 +1288,15 @@ fun TimeConfigEditScreen(
                                             textStyle = MiuixTheme.textStyles.title2,
                                             modifier = Modifier.weight(1f)
                                         )
-                                        val breakOptions = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60)
-                                        val breakIndex =
-                                            breakOptions.indexOf(quickTempValue).coerceAtLeast(0)
+                                        // 0 = 不休息：大课间与小课间同域，UI 是唯一闸门（数据/计算/序列化三层本就支持 0）
+                                        val baseBreakOptions =
+                                            listOf(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60)
+                                        // 不在候选里的值（导入/备份带来的 8 分钟等）必须并进来：
+                                        // 原先 indexOf().coerceAtLeast(0) 会把它静默显示成列表首项，一按确定就被改写。
+                                        val breakOptions =
+                                            if (quickTempValue in baseBreakOptions) baseBreakOptions
+                                            else (baseBreakOptions + quickTempValue).sorted()
+                                        val breakIndex = breakOptions.indexOf(quickTempValue)
                                         NumberPicker(
                                             value = breakIndex,
                                             onValueChange = { quickTempValue = breakOptions[it] },

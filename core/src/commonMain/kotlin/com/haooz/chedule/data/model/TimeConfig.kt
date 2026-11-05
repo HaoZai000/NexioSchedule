@@ -685,6 +685,11 @@ data class TimeConfig(
                 eveningSections = evening,
                 classDuration = if (raw.classDuration > 0) raw.classDuration else 45,
                 shortBreak = if (raw.shortBreak >= 0) raw.shortBreak else 10,
+                // 大课间原先不夹：导入/备份带进负数或 999 会直接进渲染。
+                // 0 是合法值（= 不休息），上限与短课间同一量级。
+                longBreakMorning = raw.longBreakMorning.coerceIn(0, 60),
+                longBreakAfternoon = raw.longBreakAfternoon.coerceIn(0, 60),
+                longBreakEvening = raw.longBreakEvening.coerceIn(0, 60),
                 sectionTimes = raw.sectionTimes ?: emptyMap(),
                 sectionNames = raw.sectionNames ?: emptyMap(),
                 specialBlocks = raw.safeSpecialBlocks
