@@ -57,6 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.glass.BrightTone
+import com.haooz.chedule.ui.glass.GlassFill
+import com.haooz.chedule.ui.glass.GlassTone
+import com.haooz.chedule.ui.glass.ThemeFill
+import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.applyLiveGlass
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
@@ -67,7 +74,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.abs
@@ -81,6 +88,9 @@ import top.yukonga.miuix.kmp.utils.rememberNavigationBack
 
 /** 外层为阴影预留的内缩；外部按占位槽真实位置摆放本控件时需减掉它。跨模块须 public。 */
 val LiquidGlassDropdownShadowPadding = 24.dp
+
+/** 形变面板的实时柔光 shader 缓存键（与顶栏按钮分开：两者尺寸不同，共用会互相覆盖 uniform）。 */
+private const val LIVE_DROPDOWN_GLASS_KEY = "NexioSoftGlassLiveDropdown"
 
 /** 收起态圆形按钮直径，也是容器变换的起点尺寸 */
 private val ButtonDiameter = 42.dp
@@ -122,6 +132,14 @@ fun LiquidGlassDropdownMenu(
     offsetPx: () -> Offset = { Offset.Zero },
     // 顶栏滚动材质透明度：收起态跟随它渐显渐隐，展开时按 fraction 渐显
     materialAlpha: Float = 1f,
+    /**
+     * 材质填充策略。默认 [ThemeFill]（浅色白 0.55 / 深色黑 0.45）—— 与顶栏液态玻璃按钮
+     * 同一个默认值：收起态那颗 42dp 圆就是按钮，形变过程中材质不能突变。
+     * 传 `NoneFill` 则透出原本的玻璃色。
+     */
+    fill: GlassFill = ThemeFill,
+    /** 材质基调；默认 [BrightTone]（悬浮控件那套）。 */
+    tone: GlassTone = BrightTone,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val isLightTheme = !isAppDarkTheme()
@@ -131,6 +149,15 @@ fun LiquidGlassDropdownMenu(
     else if (isLightTheme) Color(0xFFFAFAFA).copy(AppMaterialSettings.glassSurfaceAlpha(0.76f, isLight = true))
         else Color(0xFF242424).copy(AppMaterialSettings.glassSurfaceAlpha(0.84f, isLight = false))
     val chromeLens = AppMaterialSettings.chromeLensEnabled()
+    // 面板材质：几何 / 光学 / 调色都来自材质层，这里只声明用哪一套
+    val panelGlassStyle = AppMaterialSettings.chromeGlassStyle(
+        base = ScheduleSoftGlassStyle,
+        isDark = !isLightTheme,
+        fill = fill,
+        tone = tone,
+    )
+    val useSoftGlass = AppMaterialSettings.glassEffectsEnabled()
+    val panelCornerRadiusPx = with(LocalDensity.current) { PanelCornerRadius.toPx() }
     val triggerIconTint = if (isLightTheme) Color.Black.copy(0.85f) else Color.White.copy(0.85f)
     val hapticFeedback = LocalHapticFeedback.current
     // 锚点迁移进度：比尺寸更快到 1，先"移向面板中心"再放大
@@ -348,12 +375,26 @@ fun LiquidGlassDropdownMenu(
         ) {
             // 与顶栏液态玻璃按钮同一套采样效果；blur 随展开档位过渡（8dp → 24dp）；无材质档整体关
             val glassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
-                remember(chromeLens, blurStep, blurDp) {
+                remember(chromeLens, blurStep, blurDp, panelGlassStyle, useSoftGlass) {
                     {
-                        if (AppMaterialSettings.glassEffectsEnabled()) {
-                            vibrancy()
+                        if (useSoftGlass) {
                             blur(blurDp.dp.toPx())
-                            // 折射随展开步进（与 blur 同一组 8 档，不额外增加 effects 重建次数）
+                            // 形变中的面板：尺寸每帧在变，uniform 在 draw 期按当前 size 重灌
+                            // （DrawBackdrop 的 effectScope.update 会在尺寸变化时重放 effects）
+                            runtimeShaderEffect(
+                                key = LIVE_DROPDOWN_GLASS_KEY,
+                                shaderString = SOFT_GLASS_LIVE_SHADER,
+                                uniformShaderName = "content",
+                            ) {
+                                applyLiveGlass(
+                                    style = panelGlassStyle,
+                                    width = size.width,
+                                    height = size.height,
+                                    radiusPx = panelCornerRadiusPx,
+                                )
+                            }
+                        } else if (AppMaterialSettings.glassEffectsEnabled()) {
+                            blur(blurDp.dp.toPx())
                             if (chromeLens) lens(6f.dp.toPx(), 36f.dp.toPx())
                         }
                     }
@@ -369,13 +410,20 @@ fun LiquidGlassDropdownMenu(
                         effects = glassEffects,
                         highlight = null,
                         shadow = null,
-                        onDrawSurface = {
-                            drawRect(containerColor)
+                        // 柔光自己画玻璃色与方向光；无材质档不跑 shader，必须留容器色
+                        onDrawSurface = if (useSoftGlass) null else {
+                            { drawRect(containerColor) }
                         }
                     )
-                    .edgeLight(
-                        shape = ContinuousRoundedRectangle(PanelCornerRadius),
-                        edgeLight = rememberDefaultEdgeLight(degradedBaseColor = containerColor),
+                    .then(
+                        if (useSoftGlass) {
+                            Modifier
+                        } else {
+                            Modifier.edgeLight(
+                                shape = ContinuousRoundedRectangle(PanelCornerRadius),
+                                edgeLight = rememberDefaultEdgeLight(degradedBaseColor = containerColor),
+                            )
+                        }
                     )
             )
 

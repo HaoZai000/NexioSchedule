@@ -1,83 +1,31 @@
 // Copyright (C) 2026 Haooz · AGPL-3.0-only
+//
+// 柔光玻璃的 shader 源码：AGSL（Android）与 SkSL（Skiko 各平台）共用同一份文本。
+//
+// 采样源为纹理本身，模糊与调色均由 uniform 在 shader 内现算，调整模糊半径、
+// 纹理映射与调色参数不会触发 CPU 侧重建。可见轮廓由 Compose 的 G2 Path 裁剪；
+// shader 中的圆弧 SDF 仅用于计算倒角带、法线与高光。
 
 package com.haooz.chedule.ui.glass
 
-/*
- * 柔光玻璃材质（HyperOS `mi_glass_sdf` 的 AGSL / SkSL 实现）。
+import com.kyant.capsule.SdfG2Corner
+
+// ── 公共 shader 片段 ─────────────────────────────────────────────────
+
+/** 几何 SDF：标准圆弧圆角矩形的距离与梯度，用于倒角带、法线与方向光计算。 */
+internal val SOFT_GLASS_SDF = SdfG2Corner.shaderSource
+
+/**
+ * 大模糊底色采样：固定取金字塔最粗一级，与当前模糊档位无关。
  *
- * 采样源是**壁纸纹理本身**（不是预先模糊好的位图）：模糊、调色全部在 shader 里按 uniform
- * 现算。于是「模糊半径 / 壁纸缩放 / 壁纸偏移 / 所有调色参数」都只是一次 `setFloat`，
- * 外观页怎么拖都不会重做 CPU 烘焙 —— 这是性能上最硬的一条约定，别再把它们做成烘焙参数。
- *
- * 形状：解析式 p-范数 G2 圆角，主体与描边共用同一份 `SOFT_GLASS_SDF`。
- * 平台：Android 用 AGSL `RuntimeShader`，桌面 / iOS / 鸿蒙用 Skiko SkSL；shader 源码共用。
- */
-
-/*
- * 形状 SDF：G2 圆角用 p-范数超椭圆逼近。
- * r 是名义圆角；s = r * (1 + ext * ratio) 是角的扩展尺寸，p = 2 + bonus * ratio。
- * ext 取 0.40（库里的 G2 为 0.5287），让玻璃角部略收进 Compose 的 G2 形状。
- */
-
-internal val SOFT_GLASS_SDF = """
-const float G2_EXT = 0.40;
-const float G2_POW_BONUS = 0.60;
-
-float radiusAt(float2 c, float4 r) {
-    if (c.x >= 0.0) {
-        return c.y <= 0.0 ? r.y : r.z;
-    } else {
-        return c.y <= 0.0 ? r.x : r.w;
-    }
-}
-
-float g2Ratio(float2 halfSize, float r) {
-    return clamp((min(halfSize.x, halfSize.y) / max(r, 1e-3) - 1.0) / G2_EXT, 0.0, 1.0);
-}
-
-float g2CornerSize(float2 halfSize, float r) {
-    return r * (1.0 + G2_EXT * g2Ratio(halfSize, r));
-}
-
-float g2Pow(float2 halfSize, float r) {
-    return 2.0 + G2_POW_BONUS * g2Ratio(halfSize, r);
-}
-
-float g2Pnorm(float2 v, float n) {
-    return pow(pow(max(v.x, 0.0), n) + pow(max(v.y, 0.0), n), 1.0 / n);
-}
-
-float sdG2RoundedRect(float2 p, float2 halfSize, float s, float n) {
-    float2 q = abs(p) - halfSize + s;
-    return g2Pnorm(q, n) + min(max(q.x, q.y), 0.0) - s;
-}
-
-float2 g2Grad(float2 p, float2 halfSize, float s, float n) {
-    float2 q = abs(p) - halfSize + s;
-    float2 g;
-    if (q.x > 0.0 && q.y > 0.0) {
-        float pn = g2Pnorm(q, n);
-        float denom = pow(max(pn, 1e-4), n - 1.0);
-        g = float2(pow(q.x, n - 1.0), pow(q.y, n - 1.0)) / denom;
-    } else {
-        g = (q.x > q.y) ? float2(1.0, 0.0) : float2(0.0, 1.0);
-    }
-    return sign(p) * g;
-}
-"""
-
-/*
- * 壁纸采样：模糊已经烘在金字塔里（见 `SoftGlassBackdrop`），这里只做三线性混合。
- *
- * ⚠ 不要再退回「在 shader 里用十几个抽头做螺旋模糊」：半径 20 texel 以上，十几个采样点
- * 的间距快赶上半径了，出来的不是模糊而是「几个方向的重影」。真实实现都是先降采样再模糊。
- *
- * 屏幕坐标 → 纹理坐标只是 `uTexMap` 一个仿射，所以拖壁纸、换模糊档位都不重建任何位图。
+ * 模糊已在金字塔中烘焙（见 [SoftGlassBackdrop]），此处只做相邻级别的混合。
+ * 半径超过 20 texel 时，少量抽头的螺旋采样会产生方向性重影，因此采用
+ * 「先降采样、再模糊」的金字塔方案。屏幕坐标到纹理坐标的映射由 `uTexMap` 一次仿射完成。
  */
 internal val SOFT_GLASS_WALLPAPER_COARSE = """
 const float3 GLASS_LUMA = float3(0.2126, 0.7152, 0.0722);
 
-// 大模糊（glassColor 的底）固定取最粗一级：它跟当前模糊档位无关，越糊越稳。
+// 大模糊底色固定取最粗一级：与当前模糊档位无关，采样结果更稳定。
 float3 sampleCoarse(float2 texPx) {
     return uWallpaperCoarse.eval(
         clamp(texPx * uLevelScaleCoarse, float2(0.5), uTexSizeCoarse - 0.5)
@@ -85,7 +33,7 @@ float3 sampleCoarse(float2 texPx) {
 }
 """
 
-/** 主体专用：相邻两级按权重混合（级别间的三线性）。 */
+/** 主体采样：相邻两级按权重混合，实现级别间的连续过渡。 */
 internal val SOFT_GLASS_WALLPAPER_LEVELS = """
 float3 sampleLevel(float2 texPx) {
     float3 a = uWallpaperA.eval(clamp(texPx * uLevelScaleA, float2(0.5), uTexSizeA - 0.5)).rgb;
@@ -94,25 +42,22 @@ float3 sampleLevel(float2 texPx) {
 }
 """
 
-/*
- * 颜色处理：逐行等价 `libhwui.so` 的 `processGlassColor`。
+/**
+ * 颜色处理：与参考实现 `libhwui.so` 的 `processGlassColor` 等价。
  *
- * 顺序是「先模糊后调色」，这是数据依赖而非口味：gcr / glassColor 的输入就是**重模糊之后**
- * 的背景色（`bigCol`），没有模糊图根本算不出来。所以旧实现（CPU 烘焙）也是 blur → color，
- * 换架构时这条顺序没变。
- *
- * 系统把这一步放在 blur stage 内、低分辨率图上 —— 这一点是从 `MiBlurBlendUtils` 的调用
- * 位置推断的，不是直接观测。我们这里没有中间位图，是「在采样点 blur、再调色」：
- * 连续域上等价，且省掉降采样→上采样那一趟细节损失。
+ * 顺序为「先模糊、后调色」：gcr 与 glassColor 的输入是重模糊后的背景色 `bigCol`，
+ * 该数据依赖决定了二者不可交换。参考实现在 blur stage 的低分辨率图上执行本步；
+ * 此处在采样点完成模糊后逐像素调色，连续域上等价，并省去一次降采样与上采样。
  */
 internal val SOFT_GLASS_COLOR_PROCESS = """
-const float3 GLASS_DARK = float3(0.07874, 0.02848, 0.09278);
+// 压暗混向色：参考实现为硬编码的深紫黑，此处开放为 uniform 以支持中性配色
+uniform float3 uDarkerColor;
 
 float glassLuma(float3 c) { return dot(c, GLASS_LUMA); }
 
 float3 glassDarker(float3 c) {
     float k = mix(0.0, uDarker, smoothstep(uDarkerRange.x, uDarkerRange.y, glassLuma(c)));
-    return mix(c, GLASS_DARK, k);
+    return mix(c, uDarkerColor, k);
 }
 
 float3 glassAdjust(float3 c, float sat, float bri) {
@@ -129,7 +74,7 @@ float4 processGlassColor(float3 refractCol, float3 bigCol) {
     c = c * mix(1.0, curve, uLuminanceAmount);
     c = glassAdjust(c, uSaturation, uBrightness);
 
-    // glassColor 由大模糊支派生：darker → adjustColor(bg) → 往白抬
+    // glassColor 由大模糊底色派生：darker → adjustColor(bg) → 向白色提亮
     float3 b = glassDarker(bigCol);
     b = glassAdjust(b, uBgSat, uBgBri);
     b = mix(b, float3(1.0), uInnerWhite);
@@ -151,15 +96,14 @@ float4 processGlassColor(float3 refractCol, float3 bigCol) {
 }
 """
 
+/** 主体 shader：几何 SDF + 金字塔采样 + 颜色处理 + 倒角剖面与光照。 */
 internal val SOFT_GLASS_SHADER = SOFT_GLASS_SDF + """
-// ── 几何 ──
+// ── 几何 ─────────────────────────────────────────────────────────────
 uniform float2 uSize;
 uniform float4 uCornerRadii;
-uniform float  uCornerExt;
-uniform float  uCornerPow;
 uniform float2 uOrigin;
 
-// ── 采样源（壁纸纹理 + 屏幕→纹理仿射；全是 uniform，改它们不触发任何重烘）──
+// ── 采样源 · 壁纸纹理与屏幕到纹理的仿射 ──────────────────────────────
 uniform shader uWallpaperA;
 uniform shader uWallpaperB;
 uniform shader uWallpaperCoarse;
@@ -196,7 +140,7 @@ uniform float  uUsePowGate;
 uniform float  uDebug;
 uniform float  uNmlZAAThreshold;
 
-// ── 颜色处理（原先在 CPU 烘焙阶段，现在逐像素算；与系统 applyGlassColorProcess 同层级）──
+// ── 颜色处理 · 与参考实现 applyGlassColorProcess 同层级 ──────────────
 uniform float  uDarker;
 uniform float2 uDarkerRange;
 uniform float4 uLuminance;
@@ -213,11 +157,11 @@ const float3 LUMA = float3(0.2126, 0.7152, 0.0722);
 
 """ + SOFT_GLASS_WALLPAPER_COARSE + SOFT_GLASS_WALLPAPER_LEVELS + SOFT_GLASS_COLOR_PROCESS + """
 
-// ── 倒角剖面（系统原文，libhwui.so 的 SDF 烘焙 shader）──
+// ── 倒角剖面 · 参考实现 libhwui.so 的 SDF 烘焙 shader ────────────────
 //
-// smooth5_vertical(x, 0.5) 不是「一次五次平滑」，而是**先开方、再五次平滑**：
-// 它决定「折射区只有边界那几像素」。换成线性剖面，整个倒角带法线都接近水平、
-// 位移恒定，卡片会被整片拉花 —— 系统在 x=0.5 处 nmlZ 已到 0.95，只剩最外 1/4 带真正折射。
+// smooth5_vertical(x, 0.5) 先开方再作五次平滑，而非单次五次平滑：
+// 它使折射区只覆盖边界少量像素。线性剖面会使倒角带法线接近水平、位移恒定，
+// 造成整片拉花；参考实现在 x=0.5 处 nmlZ 已达 0.95，仅最外 1/4 带参与折射。
 float smooth5Map(float t) {
     t = mix(0.5, 1.0, t);
     t = clamp(t, 0.0, 1.0);
@@ -225,7 +169,7 @@ float smooth5Map(float t) {
     return (t - 0.5) * 2.0;
 }
 
-// 系统固定 k = 0.5，这里写死，顺带给出解析导数。
+// 参考实现固定 k = 0.5；此处同时给出解析导数。
 float circleOf(float x) {
     return smooth5Map(sqrt(clamp(x, 0.0, 1.0)));
 }
@@ -239,7 +183,7 @@ float circleOfDx(float x) {
 
 float luma(float3 c) { return dot(c, LUMA); }
 
-// AGSL 没有 refract()
+// AGSL 未提供内建 refract()，此处给出等价实现
 float3 miRefract(float3 I, float3 N, float eta) {
     float d = dot(N, I);
     float k = 1.0 - eta * eta * (1.0 - d * d);
@@ -267,7 +211,7 @@ float3 addLight(float3 color, float3 lightColor, float strength) {
 float calculateLighting(float3 normal, float3 lightDir, float intensity) {
     float d = dot(normal, lightDir);
     float angleFactor = clamp(1.0 - sqrt(max(1.0 - d, 0.0)) * uAngleK, 0.0, 1.0);
-    // 系统原式：不加 pow(d, edgePow) —— token 里的 DirectionalLight.edgePow 只给 bloom 滤镜（mainLightLength）。
+    // 参考实现原式不含 pow(d, edgePow)：档位中的 DirectionalLight.edgePow 仅用于 bloom 滤镜。
     return max(d, 0.0) * intensity * angleFactor;
 }
 
@@ -283,34 +227,33 @@ float4 processLighting(float4 color, float3 normal) {
 half4 main(float2 fragCoord) {
     float2 halfSize = uSize * 0.5;
     float2 p = fragCoord - halfSize;
-    float cornerR = radiusAt(p, uCornerRadii);
-    float cornerS = cornerR * uCornerExt;
-    float cornerPow = uCornerPow;
-    float sd = sdG2RoundedRect(p, halfSize, cornerS, cornerPow);
+    // 只算光学距离；可见轮廓由 G2 Path 裁剪（圆弧恒比 G2 更方，不会露缝）
+    float cornerR = min(radiusAt(p, uCornerRadii), min(halfSize.x, halfSize.y));
+    float sd = sdRoundRect(p, halfSize, cornerR);
     if (sd > 0.0) { return half4(0.0); }
 
     // x：0 = 轮廓边界，1 = 倒角带内沿（线性归一化距离）
     float x = clamp(-sd / max(uEdgePx, 1e-3), 0.0, 1.0);
     // circle = smooth5_vertical(x, 0.5)：系统 SDF 纹理里参与法线的那个剖面
     float circle = circleOf(x);
-    // w = 纹理 w 通道 = curve(x, edgePow)，x ≥ 0.85 处系统直接夹到 1。
-    // 这是「归一化 SDF」：折射厚度、反射衰减、内区判定都用它 —— 用的**不是** circle。
+    // w = 纹理 w 通道 = curve(x, edgePow)，x ≥ 0.85 处参考实现直接夹到 1。
+    // 归一化 SDF：折射厚度、反射衰减与内区判定均使用该值，而非 circle。
     float w = (x >= 0.85) ? 1.0 : 1.0 - pow(max(1.0 - circle, 1e-6), uEdgePow);
     // nmlZ = 1 - (1-w)^(1/edgePow)：两次幂正好相抵，恒等于 circle。
     float nmlZ = 1.0 - pow(max(1.0 - w, 0.0), max(uInvEdgePow, 1e-3));
-    // 法线斜率 = dw/dx。系统对「弯曲后的 sdf」做中心差分，所以是曲线的导数而非曲线值 ——
-    // 这一步决定折射带有多宽。
+    // 法线斜率为 dw/dx。参考实现对弯曲后的 sdf 做中心差分，取导数而非曲线值，
+    // 该值决定折射带宽度。
     float g = (x >= 0.85) ? 0.0 :
         uEdgePow * pow(max(1.0 - circle, 1e-6), uEdgePow - 1.0) * circleOfDx(x);
     g = min(g, 64.0);
 
-    // AA 走系统口径：smoothstep(0, smooth5_vertical(3/edge, 0.5), nmlZ)，即最外约 3px 软过渡。
+    // 抗锯齿口径与参考实现一致：smoothstep(0, smooth5_vertical(3/edge, 0.5), nmlZ)，最外约 3px 软过渡。
     float finalAlpha = smoothstep(0.0, uNmlZAAThreshold, nmlZ);
 
     bool inner = (1.0 - w) <= 0.000001;
     // 法线 = normalize(vec3(∇sd · g, 1))：方向取 SDF 梯度，z 由斜率归一化。
-    // 这里的 normal.z 与上面的 nmlZ 是两个量，别混用。
-    float2 nxy = g2Grad(p, halfSize, cornerS, cornerPow) * g;
+    // normal.z 与 nmlZ 为两个不同的量，不可互换。
+    float2 nxy = roundRectGrad(p, halfSize, cornerR) * g;
     float3 normal = inner
         ? float3(0.0, 0.0, 1.0)
         : normalize(float3(nxy.x, nxy.y, 1.0));
@@ -320,7 +263,7 @@ half4 main(float2 fragCoord) {
     // 屏幕 px → 第 0 级 texel 的比例（x / y 相同：对齐是各向同性的），只用于折射 / 反射位移
     float texK = uTexMap.x;
 
-    // ── 调试视图 ──
+    // ── 调试视图 ─────────────────────────────────────────────────────
     if (uDebug > 0.5) {
         if (uDebug < 1.5) {
             return half4(x, x, x, 1.0);
@@ -338,8 +281,8 @@ half4 main(float2 fragCoord) {
         float ior = uIOR + 0.2 * uHit;
         float3 refractDir = miRefract(float3(0.0, 0.0, -1.0), normal, 1.0 / ior);
         float refractThickness = mix((uThicknessPx - uEdgePx) * 2.0, uThicknessPx * 2.0, w);
-        // uThicknessPx = 0 是外观里的「关闭折射」。但 t=0 时上式是 mix(-2·edge, 0, w)，
-        // 也就是**负厚度 = 反向折射**，不是不折射。这里显式归零。
+        // uThicknessPx = 0 表示关闭折射。t=0 时上式为 mix(-2·edge, 0, w)，
+        // 即负厚度引起的反向折射；此处显式归零以保持语义一致。
         refractThickness *= step(0.5, uThicknessPx);
         refractionCol = sampleLevel(texPx + refractDir.xy * refractThickness * texK);
     }
@@ -365,7 +308,7 @@ half4 main(float2 fragCoord) {
     float tEdge = smoothstep(0.0, 1.0, fragCoord.y / max(uSize.y, 1.0));
     glassMaterial.rgb += tEdge * tEdge * uInnerBottom;
 
-    // 「高光描边」开关只管这一处：倒角带上的方向光（左上亮、右下暗、沿边起伏）
+    // 高光描边开关仅控制此处：倒角带上的方向光（左上亮、右下暗、沿边起伏）
     if (!inner && uEdgeHighlight > 0.5) { glassMaterial = processLighting(glassMaterial, normal); }
 
     if (uUsePowGate > 0.5) {
@@ -374,23 +317,20 @@ half4 main(float2 fragCoord) {
     glassMaterial.rgb = mix(clamp(glassMaterial.rgb, float3(0.0), float3(1.0)), uGlassColor.rgb, uUnshade);
     glassMaterial.a *= uAlpha * finalAlpha;
 
-    // 预乘输出
+    // 预乘 alpha 输出
     return half4(glassMaterial.rgb * glassMaterial.a, glassMaterial.a);
 }
 """
 
 /**
- * 描边：取大模糊（缩略图）在倒角带上叠方向光，再以 LIGHTEN 叠到主体上。
+ * 描边 shader：取大模糊底色在倒角带上叠加方向光，再以 LIGHTEN 混合到主体。
  *
- * rimMask 把描边收在倒角带最外段（5% 满强度 → 60% 处渐隐到 0）。
- * 剖面固定用原式 `nmlZ = d`，不要换成 S 曲线：那会压平这段梯度，
- * 高光从「沿边起伏」退化成「均匀亮条」。
+ * `rimMask` 将描边限制在倒角带最外段（5% 满强度，60% 处渐隐到 0）。
+ * 剖面固定使用 `nmlZ = d`：改用 S 曲线会压平该段梯度，使高光由沿边起伏退化为均匀亮条。
  */
 internal val SOFT_GLASS_RIM_SHADER = SOFT_GLASS_SDF + """
 uniform float2 uSize;
 uniform float4 uCornerRadii;
-uniform float  uCornerExt;
-uniform float  uCornerPow;
 uniform float2 uOrigin;
 
 uniform shader uWallpaperCoarse;
@@ -445,22 +385,21 @@ float4 processLighting(float4 color, float3 normal) {
 half4 main(float2 fragCoord) {
     float2 halfSize = uSize * 0.5;
     float2 p = fragCoord - halfSize;
-    float cornerR = radiusAt(p, uCornerRadii);
-    float cornerS = cornerR * uCornerExt;
-    float cornerPow = uCornerPow;
-    float sd = sdG2RoundedRect(p, halfSize, cornerS, cornerPow);
+    // 只算光学距离；可见轮廓由 G2 Path 裁剪（圆弧恒比 G2 更方，不会露缝）
+    float cornerR = min(radiusAt(p, uCornerRadii), min(halfSize.x, halfSize.y));
+    float sd = sdRoundRect(p, halfSize, cornerR);
     if (sd > 0.0) { return half4(0.0); }
 
     float d = clamp(-sd / max(uEdgePx, 1e-3), 0.0, 1.0);
 
-    // 固定用原式剖面（nmlZ = d）
+    // 剖面与参考实现一致（nmlZ = d）
     float nmlZ = 1.0 - pow(1.0 - d, max(uInvEdgePow, 1e-3));
     float slope = sqrt(max(0.0, 1.0 - nmlZ * nmlZ));
     // 1px 居中 AA：边界内 0.5px 全实，外 0.5px 全透
     float finalAlpha = smoothstep(-0.5, 0.5, -sd);
 
     bool inner = (1.0 - d) <= 0.000001;
-    float2 nlmXY = inner ? float2(0.0) : g2Grad(p, halfSize, cornerS, cornerPow) * slope;
+    float2 nlmXY = inner ? float2(0.0) : roundRectGrad(p, halfSize, cornerR) * slope;
     float3 normal = inner ? float3(0.0, 0.0, 1.0) : float3(nlmXY, nmlZ);
 
     float2 texPx = (uOrigin + fragCoord) * uTexMap.xy + uTexMap.zw;
@@ -482,5 +421,198 @@ half4 main(float2 fragCoord) {
     color.a *= finalAlpha * rimMask * uAlpha;
 
     return half4(color.rgb * color.a, color.a);
+}
+"""
+
+
+/**
+ * 实时录制版 shader：采样源为控件脚下的真实内容（已经过 BlurEffect 模糊），
+ * 而非壁纸纹理，适用于固定样式的小尺寸悬浮控件。
+ *
+ * 与 [SOFT_GLASS_SHADER] 的差别仅在采样入口：
+ * - 不使用金字塔与 `uTexMap`，内容层已是控件局部坐标且已完成模糊；
+ * - 调色链不含 gcr（该步骤需要完整的 glassColor 底图），保留 darker / adjustColor / innerMix。
+ *
+ * `content` 由 `RuntimeShaderEffect(shader, "content")` 注入，坐标单位为控件局部像素。
+ */
+internal val SOFT_GLASS_LIVE_SHADER = SOFT_GLASS_SDF + """
+uniform shader content;
+
+uniform float2 uSize;
+uniform float4 uCornerRadii;
+
+uniform float  uEdgePx;
+uniform float  uEdgePow;
+uniform float  uInvEdgePow;
+uniform float  uThicknessPx;
+uniform float  uReflectOffsetPx;
+uniform float  uIOR;
+uniform float  uReflStrength;
+uniform float  uReflLighten;
+uniform float  uColorPow;
+uniform float4 uGlassColor;
+uniform float  uAlpha;
+uniform float  uInnerBottom;
+uniform float  uEdgeHighlight;
+uniform float3 uLightDir;
+uniform float  uAngleK;
+uniform float  uLightIntensity;
+uniform float  uLightOpposite;
+uniform float  uNmlZAAThreshold;
+
+// 调色链的入参：与主体共用 SOFT_GLASS_COLOR_PROCESS，字段一一对应
+uniform float  uDarker;
+uniform float2 uDarkerRange;
+uniform float4 uLuminance;
+uniform float  uLuminanceAmount;
+uniform float  uSaturation;
+uniform float  uBrightness;
+uniform float  uBgSat;
+uniform float  uBgBri;
+uniform float  uInnerWhite;
+uniform float  uInnerMix;
+uniform float  uBurn;
+uniform float  uUnshade;
+uniform float  uUsePowGate;
+
+const float3 GLASS_LUMA = float3(0.2126, 0.7152, 0.0722);
+
+float luma(float3 c) { return dot(c, GLASS_LUMA); }
+
+float3 sampleContent(float2 p) {
+    return content.eval(clamp(p, float2(0.5), uSize - 0.5)).rgb;
+}
+
+/*
+ * 大模糊底（glassColor 的来源）。卡片侧直接采 500px 粗级纹理；这里只有一张
+ * 「控件脚下内容」，用绕一圈的 5 点平均近似那一级。**只影响底色取样，
+ * 后面的调色公式与卡片逐行相同**（同一个 processGlassColor）。
+ */
+float3 contentBig(float2 p) {
+    float r = min(uSize.x, uSize.y) * 0.42;
+    float3 sum = sampleContent(p);
+    for (int i = 0; i < 4; i++) {
+        float a = float(i) * 1.5707963 + 0.6;
+        sum += sampleContent(p + float2(cos(a), sin(a)) * r);
+    }
+    return sum / 5.0;
+}
+
+float smooth5Map(float t) {
+    t = mix(0.5, 1.0, t);
+    t = clamp(t, 0.0, 1.0);
+    t = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+    return (t - 0.5) * 2.0;
+}
+
+float circleOf(float x) { return smooth5Map(sqrt(clamp(x, 0.0, 1.0))); }
+
+float circleOfDx(float x) {
+    float s = sqrt(max(x, 1e-4));
+    float u = 0.5 + 0.5 * s;
+    return 15.0 * u * u * (1.0 - u) * (1.0 - u) / s;
+}
+
+float3 miRefract(float3 I, float3 N, float eta) {
+    float d = dot(N, I);
+    float k = 1.0 - eta * eta * (1.0 - d * d);
+    if (k < 0.0) { return float3(0.0); }
+    return eta * I - (eta * d + sqrt(k)) * N;
+}
+
+float4 hsvv(float4 col, float lighten) {
+    float v = luma(col.rgb);
+    float w = smoothstep(0.0, 0.5, v);
+    float k = mix(1.0 - v, v, w);
+    float g = 1.0 + smoothstep(0.0, 1.0, lighten) * mix(0.75, 0.4, w);
+    return float4((col.rgb + k) * g - k, col.a);
+}
+
+float dynamicAdd(float3 color) {
+    return mix(0.5, mix(0.5, 1.0, smoothstep(0.2, 1.0, distance(float3(1.0), color))), luma(color));
+}
+
+float3 addLight(float3 color, float3 lightColor, float strength) {
+    float w = 0.3 + 0.7 * clamp(1.9 - 2.15 * luma(color), 0.0, 1.0);
+    return color + lightColor * strength * w;
+}
+
+float calculateLighting(float3 normal, float3 lightDir, float intensity) {
+    float d = dot(normal, lightDir);
+    float angleFactor = clamp(1.0 - sqrt(max(1.0 - d, 0.0)) * uAngleK, 0.0, 1.0);
+    return max(d, 0.0) * intensity * angleFactor;
+}
+
+float4 processLighting(float4 color, float3 normal) {
+    float3 lightNormal = float3(normal.x, -normal.y, normal.z);
+    float l1 = calculateLighting(lightNormal, uLightDir, uLightIntensity);
+    float l2 = calculateLighting(lightNormal, uLightDir * float3(-1.0, -1.0, 1.0), uLightOpposite);
+    float lightenParam = (l1 + l2) * 2.0 * dynamicAdd(color.rgb);
+    return hsvv(color, lightenParam);
+}
+""" + SOFT_GLASS_COLOR_PROCESS + """
+
+half4 main(float2 fragCoord) {
+    float2 halfSize = uSize * 0.5;
+    float2 p = fragCoord - halfSize;
+    // 只算光学距离；可见轮廓由 G2 Path 裁剪（圆弧恒比 G2 更方，不会露缝）
+    float cornerR = min(radiusAt(p, uCornerRadii), min(halfSize.x, halfSize.y));
+    float sd = sdRoundRect(p, halfSize, cornerR);
+    if (sd > 0.0) { return half4(0.0); }
+
+    float x = clamp(-sd / max(uEdgePx, 1e-3), 0.0, 1.0);
+    float circle = circleOf(x);
+    float w = (x >= 0.85) ? 1.0 : 1.0 - pow(max(1.0 - circle, 1e-6), uEdgePow);
+    float nmlZ = 1.0 - pow(max(1.0 - w, 0.0), max(uInvEdgePow, 1e-3));
+    float g = (x >= 0.85) ? 0.0 :
+        uEdgePow * pow(max(1.0 - circle, 1e-6), uEdgePow - 1.0) * circleOfDx(x);
+    g = min(g, 64.0);
+
+    float finalAlpha = smoothstep(0.0, uNmlZAAThreshold, nmlZ);
+
+    bool inner = (1.0 - w) <= 0.000001;
+    float2 nxy = roundRectGrad(p, halfSize, cornerR) * g;
+    float3 normal = inner
+        ? float3(0.0, 0.0, 1.0)
+        : normalize(float3(nxy.x, nxy.y, 1.0));
+
+    float3 refractionCol;
+    if (inner) {
+        refractionCol = sampleContent(fragCoord);
+    } else {
+        float3 refractDir = miRefract(float3(0.0, 0.0, -1.0), normal, 1.0 / uIOR);
+        float refractThickness = mix((uThicknessPx - uEdgePx) * 2.0, uThicknessPx * 2.0, w);
+        refractThickness *= step(0.5, uThicknessPx);
+        refractionCol = sampleContent(fragCoord + refractDir.xy * refractThickness);
+    }
+
+    float3 materialRgb;
+    if (inner) {
+        materialRgb = refractionCol;
+    } else {
+        float2 refractXY = 2.0 * normal.z * normal.xy;
+        float3 reflectionCol = sampleContent(
+            fragCoord + refractXY * (uReflectOffsetPx * (1.0 - w))
+        );
+        materialRgb = mix(refractionCol, reflectionCol, (1.0 - nmlZ) * uReflStrength);
+        materialRgb = addLight(materialRgb, reflectionCol, (1.0 - w) * uReflLighten);
+    }
+
+    float3 bigCol = contentBig(fragCoord);
+
+    float4 glassMaterial = processGlassColor(materialRgb, bigCol);
+
+    float tEdge = smoothstep(0.0, 1.0, fragCoord.y / max(uSize.y, 1.0));
+    glassMaterial.rgb += tEdge * tEdge * uInnerBottom;
+
+    if (!inner && uEdgeHighlight > 0.5) { glassMaterial = processLighting(glassMaterial, normal); }
+
+    if (uUsePowGate > 0.5) {
+        glassMaterial = pow(glassMaterial, float4(uColorPow));
+    }
+    glassMaterial.rgb = mix(clamp(glassMaterial.rgb, float3(0.0), float3(1.0)), uGlassColor.rgb, uUnshade);
+    glassMaterial.a *= uAlpha * finalAlpha;
+
+    return half4(glassMaterial.rgb * glassMaterial.a, glassMaterial.a);
 }
 """

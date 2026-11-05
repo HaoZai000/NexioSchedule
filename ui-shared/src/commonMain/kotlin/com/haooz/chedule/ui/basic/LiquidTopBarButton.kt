@@ -36,7 +36,13 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.backdrop.effects.vibrancy
+import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.chedule.ui.glass.SoftGlassStyle
+import com.haooz.chedule.ui.glass.smooth5Vertical
 import com.kyant.capsule.ContinuousCapsule
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -66,6 +72,18 @@ fun LiquidTopBarButton(
     containerColor: Color = Color.Unspecified,
     performHapticFeedback: Boolean = true,
     enabled: Boolean = true,
+    /** 用柔光玻璃（实时采按钮脚下的真实内容）替代 kyant 的 blur+lens。 */
+    useSoftGlass: Boolean = true,
+    /**
+     * 材质填充策略。默认 [com.haooz.chedule.ui.glass.ThemeFill]（浅色白 / 深色黑 0.4）；
+     * 传 [com.haooz.chedule.ui.glass.NoneFill] 则透出原本的玻璃色。
+     */
+    fill: com.haooz.chedule.ui.glass.GlassFill = com.haooz.chedule.ui.glass.ThemeFill,
+    /**
+     * 材质基调。默认 [com.haooz.chedule.ui.glass.BrightTone]（不压暗）：按钮里只有图标，
+     * 没有需要在玻璃内保证可读性的文字，压暗只会让它在浅色页面上变成一块灰。
+     */
+    tone: com.haooz.chedule.ui.glass.GlassTone = com.haooz.chedule.ui.glass.BrightTone,
 ) {
     val animationScope = rememberCoroutineScope()
     val interactiveHighlight = remember(animationScope) {
@@ -90,16 +108,44 @@ fun LiquidTopBarButton(
     val glassBlur = com.haooz.chedule.ui.utils.AppMaterialSettings.glassBlurDp()
     val glassEffectsOn = com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()
     val buttonShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { ContinuousCapsule() } }
-    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens, glassBlur, glassEffectsOn) {
-        {
-            if (glassEffectsOn) {
-                vibrancy()
-                blur(glassBlur.dp.toPx())
-                // 均衡及以下关闭折射
-                if (chromeLens) lens(6f.dp.toPx(), 36f.dp.toPx())
+    // 材质、档位差异、基调、填充全部由材质层给出，这里只说「用哪套」
+    val buttonGlassStyle: SoftGlassStyle =
+        com.haooz.chedule.ui.utils.AppMaterialSettings.chromeGlassStyle(
+            base = ScheduleSoftGlassStyle,
+            isDark = !isLightTheme,
+            fill = fill,
+            tone = tone,
+        )
+    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+        remember(chromeLens, glassBlur, glassEffectsOn, useSoftGlass, buttonGlassStyle) {
+            if (useSoftGlass) {
+                {
+                    if (glassEffectsOn) {
+                        blur(glassBlur.dp.toPx())
+                        runtimeShaderEffect(
+                            key = LIVE_GLASS_KEY,
+                            shaderString = SOFT_GLASS_LIVE_SHADER,
+                            uniformShaderName = "content",
+                        ) {
+                            applyLiveGlass(
+                                style = buttonGlassStyle,
+                                width = size.width,
+                                height = size.height,
+                            )
+                        }
+                    }
+                }
+            } else {
+                {
+                    if (glassEffectsOn) {
+                        vibrancy()
+                        blur(glassBlur.dp.toPx())
+                        // 均衡及以下关闭折射
+                        if (chromeLens) lens(6f.dp.toPx(), 36f.dp.toPx())
+                    }
+                }
             }
         }
-    }
     val buttonOnDrawSurface: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit =
         remember(resolvedContainerColor) {
             { drawRect(resolvedContainerColor) }
@@ -182,9 +228,17 @@ fun LiquidTopBarButton(
                     highlight = null,
                     shadow = null,
                     layerBlock = { alpha = backdropAlpha },
-                    onDrawSurface = buttonOnDrawSurface
+                    // 柔光自己会画玻璃色与方向光，再叠容器色 / edgeLight 会把折射盖住。
+                    // 但「无材质档」不跑 shader，必须留容器色，否则按钮变成透空圆孔。
+                    onDrawSurface = if (useSoftGlass && glassEffectsOn) null else buttonOnDrawSurface
                 )
-                .edgeLight(shape = ContinuousCapsule(), edgeLight = rememberDefaultEdgeLight(degradedBaseColor = resolvedContainerColor))
+                .then(
+                    if (useSoftGlass && glassEffectsOn) Modifier
+                    else Modifier.edgeLight(
+                        shape = ContinuousCapsule(),
+                        edgeLight = rememberDefaultEdgeLight(degradedBaseColor = resolvedContainerColor),
+                    )
+                )
                 .zIndex(0f)
         )
         // 按压高光单独一层、与材质层平级：drawBackdrop 的 layerBlock 会把整个节点 alpha
@@ -225,3 +279,7 @@ fun LiquidTopBarButton(
         )
     }
 }
+
+
+/** 实时录制柔光的 shader 缓存键（参数全固定，一个程序够全应用按钮用）。 */
+private const val LIVE_GLASS_KEY = "NexioSoftGlassLive"

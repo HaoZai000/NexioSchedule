@@ -1,4 +1,6 @@
 // Copyright (C) 2026 Haooz · AGPL-3.0-only
+//
+// shader 源码的编译冒烟测试：在 CI 阶段验证 AGSL / SkSL 语法。
 
 package com.haooz.chedule.ui.glass
 
@@ -6,11 +8,11 @@ import org.jetbrains.skia.RuntimeEffect
 import kotlin.test.Test
 
 /**
- * 柔光玻璃 shader 的编译冒烟测试。
+ * shader 源码的编译冒烟测试。
  *
- * 两端共用同一份源码（Android 走 AGSL、桌面 / iOS / 鸿蒙走 SkSL），语法错在真机上只会表现为
- * 「玻璃退回白面」—— 被 `runCatching` 吞掉，极难定位。这里用 Skia 的运行时编译器先把语法
- * 过一遍：能过 SkSL 的源码基本都能过 AGSL（两者是同一门方言）。
+ * 各平台共用同一份源码（Android 使用 AGSL，桌面 / iOS / 鸿蒙使用 SkSL）。
+ * 语法错误在运行时会被 `runCatching` 捕获并回退为纯色表面，不易定位，
+ * 因此此处用 Skia 的运行时编译器预先校验；两种方言语法一致。
  */
 class SoftGlassShaderCompileTest {
 
@@ -22,5 +24,10 @@ class SoftGlassShaderCompileTest {
     @Test
     fun rimShaderCompiles() {
         RuntimeEffect.makeForShader(SOFT_GLASS_RIM_SHADER)
+    }
+
+    @Test
+    fun liveShaderCompiles() {
+        RuntimeEffect.makeForShader(SOFT_GLASS_LIVE_SHADER)
     }
 }

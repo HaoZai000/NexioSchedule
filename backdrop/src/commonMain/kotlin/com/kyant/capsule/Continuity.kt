@@ -54,6 +54,15 @@ interface Continuity {
 
     companion object {
 
+        /**
+         * 全应用默认圆角：kyant 原版 [G2Continuity]（圆弧 + 两段三次贝塞尔，G2 连续曲率）。
+         *
+         * **形状只有这一个真相**：卡片 / 按钮 / 底栏 / 胶囊的裁剪、描边、背景全走它，
+         * 玻璃 shader 不参与定形，只按 [SdfG2Corner] 的圆弧 SDF 算倒角带与高光。
+         *
+         * ⚠ 别再把默认换成别的实现：曾换成 p 范数超椭圆（n=3.4），位置拟合得上但
+         * **圆角发尖**、胶囊退化成普通圆角 clip，底栏一眼就能看出来。
+         */
         @Stable
         val Default: Continuity = G2Continuity()
     }

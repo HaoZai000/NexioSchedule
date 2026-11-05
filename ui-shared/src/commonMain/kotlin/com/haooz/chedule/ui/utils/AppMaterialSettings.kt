@@ -8,6 +8,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.i18n.MiscStr
+import com.haooz.chedule.ui.glass.BrightTone
+import com.haooz.chedule.ui.glass.GlassFill
+import com.haooz.chedule.ui.glass.GlassTone
+import com.haooz.chedule.ui.glass.SoftGlassStyle
+import com.haooz.chedule.ui.glass.ThemeFill
 import com.kyant.backdrop.isRenderEffectSupported
 
 /**
@@ -31,10 +36,8 @@ object AppMaterialSettings {
     /** 降级描边同色系提亮幅度（向白混合比例） */
     private const val STROKE_LIGHTEN = 0.2f
 
-    /** 通透玻璃档玻璃模糊（dp）：折射接管通透感，模糊只留一点点 */
-    private const val GLASS_BLUR_BEST = 4f
-    /** 清透磨砂档玻璃模糊（dp）：无折射，需要磨砂 */
-    private const val GLASS_BLUR_MILLED = 8f
+    /** 玻璃件采样模糊（dp）：全档位统一（无材质档为 0） */
+    private const val GLASS_BLUR_DP = 6f
     /** 通透玻璃档下拉面板模糊（dp）：恒定值，不随展开渐变 */
     private const val GLASS_PANEL_BLUR_BEST = 4f
     /** 下拉面板比小玻璃件多出来的模糊量（dp）：8 → 24 的原始跨度（仅非通透玻璃档用） */
@@ -88,6 +91,26 @@ object AppMaterialSettings {
     /** 是否通透玻璃档（折射 + 低模糊那一档）。 */
     fun isBestTier(): Boolean = level == BEST
 
+    /**
+     * 悬浮控件（顶栏按钮、胶囊这类）的玻璃样式：基准样式套上基调与填充，再按材质档位
+     * 决定折射与高光 —— 磨砂档没有折射，方向光也关掉（纯磨砂面）；通透玻璃档两者都留。
+     *
+     * 控件的材质就这一处定义，调用方只传「用哪个基调 / 哪个填充」。
+     */
+    fun chromeGlassStyle(
+        base: SoftGlassStyle,
+        isDark: Boolean,
+        fill: GlassFill = ThemeFill,
+        tone: GlassTone = BrightTone,
+    ): SoftGlassStyle {
+        val resolved = base.copy(fill = fill, tone = tone).filled(isDark)
+        return if (isBestTier()) {
+            resolved
+        } else {
+            resolved.copy(refractionScale = 0f, edgeHighlight = false)
+        }
+    }
+
     /** 是否无材质档：玻璃模糊 / 折射 / vibrancy 全关，渐进模糊降级为渐变遮罩。 */
     fun isNoneTier(): Boolean = level == NONE
 
@@ -95,14 +118,10 @@ object AppMaterialSettings {
     fun glassEffectsEnabled(): Boolean = level != NONE
 
     /**
-     * 玻璃件采样模糊半径（dp）。通透玻璃档有折射（[chromeLensEnabled]）撑着玻璃的「厚度」，
-     * 模糊压得很低让折射纹理透出来；清透磨砂没有折射，靠 8 的磨砂顶住质感；无材质档 0（不模糊）。
+     * 玻璃件采样模糊半径（dp）。**所有档位统一 6**：档位差异交给折射与描边，
+     * 不再靠模糊量区分（4/8 两档在小控件上几乎看不出差别，反而让参数多一套）。
      */
-    fun glassBlurDp(): Float = when (level) {
-        NONE -> 0f
-        BEST -> GLASS_BLUR_BEST
-        else -> GLASS_BLUR_MILLED
-    }
+    fun glassBlurDp(): Float = if (level == NONE) 0f else GLASS_BLUR_DP
 
     /**
      * 弹出面板（下拉菜单）采样模糊半径（dp）。

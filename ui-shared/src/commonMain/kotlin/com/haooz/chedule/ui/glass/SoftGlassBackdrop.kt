@@ -1,4 +1,8 @@
 // Copyright (C) 2026 Haooz · AGPL-3.0-only
+//
+// 柔光玻璃的采样源：把壁纸预烘焙为逐级模糊的金字塔，并计算屏幕到纹理的坐标映射。
+//
+// 模糊结果按页共享，参数变化只需更新 uniform，不重建位图。
 
 package com.haooz.chedule.ui.glass
 
@@ -14,15 +18,20 @@ import androidx.compose.ui.unit.IntSize
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+// ── 采样源 ───────────────────────────────────────────────────────────
+
 /**
- * 玻璃的采样源：一叠**逐级模糊的壁纸**（模糊金字塔），每页一份，页内所有玻璃面板共用。
+ * 逐级模糊的壁纸金字塔，供同一页面内的所有玻璃面板共享。
  *
- * [levels] 第 0 级是清晰壁纸（最长边 [BASE_MAX_EDGE]），第 i 级是上一级的 1/2 再补一次模糊，
- * 等效半径约 `2^i` 个第 0 级 texel。shader 取相邻两级按权重混合 —— 于是「模糊半径」只是
- * 一个档位 + 一个权重，拖滑杆不重烘任何位图。
+ * [levels] 第 0 级为清晰壁纸（最长边 [BASE_MAX_EDGE]），第 i 级由上一级按 1/2 降采样
+ * 后补一次模糊得到，等效半径约 `2^i` 个第 0 级 texel。shader 在相邻两级间按权重混合，
+ * 因此模糊半径只需表示为「级别 + 权重」，调整半径不触发位图重建。
  *
- * 为什么不直接在 shader 里做螺旋模糊：半径 20 texel 以上要几千个抽头才能不出颗粒，
- * 十几个抽头只会得到「几个方向的重影」，看起来根本不像模糊。真实实现都是先降采样模糊。
+ * 半径超过 20 texel 时，shader 内少量抽头的螺旋采样会产生方向性重影；
+ * 采用「先降采样、再模糊」的金字塔可获得稳定的大半径模糊。
+ *
+ * @property levels 由清晰到模糊排列的各级位图。
+ * @property meanLuma 最粗一级的平均亮度（Rec.709）。
  */
 data class SoftGlassBackdrop(
     val levels: List<ImageBitmap>,
@@ -31,25 +40,30 @@ data class SoftGlassBackdrop(
     val levelCount: Int get() = levels.size
 }
 
-/** 第 0 级的最长边。再大对玻璃没意义（它本来就是模糊的），只白占显存与采样带宽。 */
+/** 第 0 级位图的最长边；更大的分辨率对模糊采样没有增益，只会增加显存与带宽。 */
 private const val BASE_MAX_EDGE = 1024
 
-/** 金字塔级数。7 级 ⇒ 等效半径覆盖到 64 个第 0 级 texel，够 80px 滑杆用。 */
+/** 金字塔级数。7 级可覆盖到 64 个第 0 级 texel 的等效半径。 */
 private const val LEVEL_COUNT = 7
 
 /**
- * 每级降采样之后再补的模糊半径（该级 texel）。
+ * 每级降采样后追加的盒式模糊半径（以该级 texel 计）。
  *
- * 取 1 而不是 2：级间 σ 比越接近 1，shader 里「相邻两级按权重混合」时留下的
- * 清晰细节就越少 —— 否则低模糊段会看出「清晰图和糊图叠在一起」的半透明感。
+ * 取 1 而非 2：级间 σ 比越接近 1，相邻两级混合时残留的清晰细节越少，
+ * 可避免低模糊段出现清晰层与模糊层叠加的半透明感。
  */
 private const val LEVEL_BLUR_RADIUS = 1
 
+/** 第 1 级的等效 σ（以第 0 级 texel 计）。 */
+private const val LEVEL1_SIGMA = 3f
+
 /**
- * 把壁纸做成模糊金字塔。
+ * 由壁纸构建模糊金字塔。
  *
- * 逐级 1/2 降采样（2×2 盒式）再补一次小半径盒式模糊，三次盒式累积下来接近高斯。
- * 成本只跟壁纸有关，换壁纸时做一次，约几十毫秒。
+ * 逐级按 1/2 降采样（2×2 盒式）并追加小半径盒式模糊，三次累积接近高斯。
+ * 计算量仅与壁纸尺寸相关，更换壁纸时执行一次。
+ *
+ * @return 金字塔；输入尺寸非法或处理失败时返回 null。
  */
 fun prepareSoftGlassBackdrop(wallpaper: ImageBitmap): SoftGlassBackdrop? {
     if (wallpaper.width <= 0 || wallpaper.height <= 0) return null
@@ -59,14 +73,14 @@ fun prepareSoftGlassBackdrop(wallpaper: ImageBitmap): SoftGlassBackdrop? {
         var height = base.height
         var pixels = base.toPixelMap().buffer
 
-        // 第 0 级必须是**完全清晰**的原图：滑杆拖到 0 就是没有模糊。
+        // 第 0 级保持完全清晰，使模糊半径为 0 时无额外模糊。
         val levels = ArrayList<ImageBitmap>(LEVEL_COUNT)
         levels += createImageBitmapFromArgb(pixels, width, height)
         for (i in 1 until LEVEL_COUNT) {
             val nextW = (width / 2).coerceAtLeast(1)
             val nextH = (height / 2).coerceAtLeast(1)
             if (nextW == width && nextH == height) {
-                // 已经到 1px，后面的级重复用最后一张
+                // 已降到 1px，后续级别复用最后一张位图
                 levels += levels.last()
                 continue
             }
@@ -80,28 +94,37 @@ fun prepareSoftGlassBackdrop(wallpaper: ImageBitmap): SoftGlassBackdrop? {
     }.getOrNull()
 }
 
+// ── 级别选择 ─────────────────────────────────────────────────────────
+
 /**
- * 模糊半径（第 0 级 texel）→ 相邻两级 + 混合权重。
+ * 相邻两级的索引与混合权重。
  *
- * 各级的等效 σ 是推算的：第 1 级由「1/2 降采样 + 三次盒式(半径 1)」构成，
- * 降采样贡献 σ ≈ 1 个第 0 级 texel，三次盒式（`3·((2r+1)²−1)/12` = 方差 2）在 1/2 分辨率上
- * 折算回来 σ ≈ 2.8，合起来约 **3**。之后每级翻倍。
- * 所以 [LEVEL1_SIGMA] 取 3：第 i 级（i≥1）的等效 σ ≈ `3·2^(i−1)`。
- *
- * 第 0 级是**完全清晰**的图（滑杆 0 = 无模糊），1 texel 以下直接用它；
- * 1 ~ 第 1 级之间线性过渡 —— 这段很窄，混合留下的「清晰细节残留」看不出来。
+ * @property a 较清晰一级的索引。
+ * @property b 较模糊一级的索引。
+ * @property t 由 [a] 到 [b] 的混合权重，取值 0..1。
  */
 data class LevelPair(val a: Int, val b: Int, val t: Float)
 
-private const val LEVEL1_SIGMA = 3f
-
+/**
+ * 把模糊半径（第 0 级 texel）映射为相邻两级与混合权重。
+ *
+ * 第 1 级由「1/2 降采样 + 三次盒式（半径 1）」构成：降采样贡献 σ ≈ 1 个第 0 级 texel，
+ * 三次盒式（方差 `3·((2r+1)²−1)/12` = 2）在 1/2 分辨率上折算为 σ ≈ 2.8，合计约 3。
+ * 之后每级翻倍，故第 i 级（i ≥ 1）的等效 σ ≈ `3·2^(i−1)`，即 [LEVEL1_SIGMA]。
+ *
+ * 第 0 级完全清晰，半径小于 1 texel 时直接使用；1 到第 1 级之间作线性过渡，
+ * 该区间较窄，混合残留的清晰细节不明显。
+ *
+ * @param radiusInBaseTexels 以第 0 级 texel 计的模糊半径。
+ * @param levelCount 参与选择的级别数，默认取当前金字塔的级数。
+ */
 fun SoftGlassBackdrop.levelPair(radiusInBaseTexels: Float, levelCount: Int = this.levelCount): LevelPair {
     if (levelCount <= 1) return LevelPair(0, 0, 0f)
     val last = levelCount - 1
     val r = radiusInBaseTexels.coerceAtLeast(0f)
     if (r <= 1f) return LevelPair(0, 0, 0f)
     if (r < LEVEL1_SIGMA) {
-        // 0 ~ 第 1 级之间线性过渡
+        // 第 0 级到第 1 级之间作线性过渡
         return LevelPair(0, 1, (r / LEVEL1_SIGMA).coerceIn(0f, 1f))
     }
     val lvl = (1f + kotlin.math.ln(r / LEVEL1_SIGMA) / kotlin.math.ln(2f))
@@ -111,16 +134,19 @@ fun SoftGlassBackdrop.levelPair(radiusInBaseTexels: Float, levelCount: Int = thi
     return LevelPair(a, a + 1, (lvl - a).coerceIn(0f, 1f))
 }
 
+// ── 坐标映射 ─────────────────────────────────────────────────────────
+
 /**
- * 屏幕坐标 → 第 0 级纹理 texel 的仿射：`texPx = screenPx * (k.x, k.y) + (m.x, m.y)`。
+ * 计算屏幕坐标到第 0 级纹理 texel 的仿射：`texPx = screenPx * (k.x, k.y) + (m.x, m.y)`。
  *
- * 与壁纸层实际绘制一致（`CourseScheduleAppMainContent`）：
+ * 与壁纸层的绘制变换互为逆运算：
  * ```
  * screen = (tex × fitScale + fitOffset − center) × s + center + offset
  * s = max(wallpaperScale, minScale)；minScale = cover/fit
  * ```
- * 反解即得 k / m。**只跟手势与屏幕尺寸有关**，跟任何外观参数都无关 —— 拖壁纸时
- * 每条卡只是重灌这一个 float4，一次位图都不用重画。
+ * 结果只取决于变换参数与屏幕尺寸，与材质参数无关，因此纹理平移时只需重灌该 float4。
+ *
+ * @return `(kx, ky, mx, my)` 四个仿射系数。
  */
 fun wallpaperTexMap(
     textureWidth: Int,
@@ -150,7 +176,13 @@ fun wallpaperTexMap(
 }
 
 /**
- * 把玻璃采样原点从「变换后的窗口坐标」还原到「壁纸层的逻辑坐标」
+ * 把采样原点由变换后的窗口坐标还原到壁纸层的逻辑坐标。
+ *
+ * @param origin 变换后的窗口坐标。
+ * @param scale 缩放系数；为 0 时按 1 处理。
+ * @param translationY 纵向平移量。
+ * @param pivotX 缩放中心 x。
+ * @param pivotY 缩放中心 y。
  */
 fun untransformGlassOrigin(
     origin: Offset,
@@ -167,7 +199,7 @@ fun untransformGlassOrigin(
     )
 }
 
-/** 等比缩到最长边 [maxEdge]；已经够小就原样返回（不复制）。 */
+/** 等比缩放至最长边不超过 [maxEdge]；尺寸已满足时原样返回，不复制位图。 */
 private fun scaleToMaxEdge(src: ImageBitmap, maxEdge: Int): ImageBitmap {
     val longest = max(src.width, src.height)
     if (longest <= maxEdge) return src
@@ -186,7 +218,7 @@ private fun scaleToMaxEdge(src: ImageBitmap, maxEdge: Int): ImageBitmap {
     return out
 }
 
-/** 2×2 盒式均值降采样。 */
+/** 2×2 盒式均值降采样，写出新的 ARGB 像素数组。 */
 private fun downsample2x(
     src: IntArray,
     width: Int,
@@ -220,7 +252,7 @@ private fun downsample2x(
     return out
 }
 
-/** 三趟盒式模糊（横竖交替），就地写回。三趟累积的方差够接近高斯。 */
+/** 三趟横竖交替的盒式模糊，结果就地写回；三趟累积的方差接近高斯。 */
 private fun boxBlurTriple(pixels: IntArray, width: Int, height: Int, radius: Int) {
     if (radius <= 0) return
     val tmp = IntArray(pixels.size)
@@ -231,8 +263,9 @@ private fun boxBlurTriple(pixels: IntArray, width: Int, height: Int, radius: Int
 }
 
 /**
- * 一趟盒式模糊，越界按边缘 clamp（窗口宽度恒为 `2r+1`）。
- * ARGB 打包成一个 Int，四个通道必须各自滑动累加 —— 直接对打包值求和会串味。
+ * 一趟盒式模糊，越界按边缘 clamp，窗口宽度恒为 `2r+1`。
+ *
+ * ARGB 打包在单个 Int 中，四个通道需分别滑动累加；直接对打包值求和会造成通道串扰。
  */
 private fun boxPass(
     src: IntArray,
@@ -275,7 +308,7 @@ private fun boxPass(
     }
 }
 
-/** 平均亮度（Rec.709 权重）。传最粗的一级，几万像素，代价可忽略。 */
+/** 按 Rec.709 权重计算平均亮度；输入为最粗一级，像素量小，开销可忽略。 */
 private fun meanLumaOf(pixels: ImageBitmap): Float {
     val buffer = runCatching { pixels.toPixelMap().buffer }.getOrNull() ?: return 0.5f
     if (buffer.isEmpty()) return 0.5f
