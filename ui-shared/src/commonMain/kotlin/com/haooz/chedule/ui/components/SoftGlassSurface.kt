@@ -12,7 +12,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import com.haooz.chedule.ui.glass.SoftGlassBackdrop
 import com.haooz.chedule.ui.glass.SoftGlassStyle
-import com.haooz.chedule.ui.glass.buildSoftGlassBackdrop
+import com.haooz.chedule.ui.glass.bakeSpec
+import com.haooz.chedule.ui.glass.bakeSoftGlassBase
+import com.haooz.chedule.ui.glass.toBackdrop
 import com.haooz.chedule.ui.glass.isSoftGlassShaderAvailable
 import com.haooz.chedule.ui.glass.softGlass
 
@@ -73,27 +75,22 @@ fun rememberSoftGlassSurface(
     screenHeightPx: Float,
     style: SoftGlassStyle = SoftGlassStyle(),
 ): SoftGlassSurface? {
-    val density = LocalDensity.current
-    // 同步烘焙（半分辨率 + 低分辨率模糊）单次约几十毫秒，第一帧就能带着玻璃出。
-    // key 必须是整个 style：调色已跑在烘焙里，任一颜色参数变化都得重烘，不能只盯两个模糊半径。
-    val backdrop = remember(
+    // 第一段：对齐壁纸 + 降采样。只跟壁纸 / 变换 / 屏幕尺寸有关 —— 外观页怎么调都该命中缓存
+    //（对齐要画 1/2 屏位图再逐像素读回，是这里最贵的一步）。
+    val base = remember(
         wallpaperBitmap,
         wallpaperScale,
         wallpaperOffset,
         screenWidthPx,
         screenHeightPx,
-        density.density,
-        style,
     ) {
         val bmp = wallpaperBitmap
         if (bmp == null || bmp.width <= 0 || bmp.height <= 0 || !isSoftGlassShaderAvailable()) {
             null
         } else {
             runCatching {
-                buildSoftGlassBackdrop(
+                bakeSoftGlassBase(
                     wallpaper = bmp,
-                    style = style,
-                    density = density.density,
                     scale = wallpaperScale,
                     offset = wallpaperOffset,
                     screenWidthPx = screenWidthPx,
@@ -101,6 +98,13 @@ fun rememberSoftGlassSurface(
                 )
             }.getOrNull()
         }
+    }
+    // 第二段：模糊 + 调色。key 只取烘焙真正读到的字段（两个模糊半径 + 调色参数），
+    // **不要退化成整个 style**：厚度 / 边缘宽度 / 折射倍率 / 描边开关都只是 uniform，
+    // 进了 key 就等于每拖一格重算整屏模糊 —— 那正是「调什么都很卡」的根因。
+    val bakeSpec = style.bakeSpec()
+    val backdrop = remember(base, bakeSpec) {
+        base?.let { runCatching { it.toBackdrop(style) }.getOrNull() }
     }
     if (backdrop == null) return null
     return remember(backdrop, style) { DefaultSoftGlassSurface(backdrop, style) }

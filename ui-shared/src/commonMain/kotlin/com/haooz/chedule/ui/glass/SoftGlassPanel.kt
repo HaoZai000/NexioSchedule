@@ -27,34 +27,48 @@ import androidx.compose.ui.unit.dp
  * `uSize` / `uCornerRadii` / `fragCoord` 是面板本地 px，形状由解析式 G2 SDF 计算。
  */
 
-/** program 缓存键：尺寸 + 圆角 + 样式 + backdrop + 密度全同才复用。 */
+/**
+ * program 缓存键：**只放决定渲染目标的量**（哪一趟 / 面板尺寸 / 圆角）。
+ *
+ * ⚠ 样式与采样纹理**不能进键**：它们全都只是 uniform，改一次重灌一次就够。
+ * 以前把 style / backdrop 也放进来，外观页每拖一格都会新建一个 `RuntimeShader`
+ * —— AGSL 要现场编译，于是拖滑杆、点开关全都卡成幻灯。
+ */
 private data class SoftGlassProgramKey(
     val rim: Boolean,
     val width: Int,
     val height: Int,
     val radiusTenths: Int,
-    val style: SoftGlassStyle,
-    val backdrop: SoftGlassBackdrop,
-    val densityHundredths: Int,
 )
 
+/** 一次 uniform 灌装对应的配置；与 slot 上记的比对，变了才重灌。 */
+private data class SoftGlassProgramConfig(
+    val style: SoftGlassStyle,
+    val backdrop: SoftGlassBackdrop,
+)
+
+/** 编译好的 program + 它当前装着哪份配置。 */
+private class SoftGlassProgramSlot(val program: SoftGlassProgram) {
+    var config: SoftGlassProgramConfig? = null
+}
+
 /**
- * 同键卡片共用一份 shader：不共享时一屏 40 张卡要建 80 个 RuntimeShader（AGSL 编译是首帧大头），
- * 共享后只按「尺寸 + 圆角」建，通常个位数。绘制仍逐卡进行，只在 draw 前改 `uOrigin`。
+ * 同键卡片共用一份 shader：不共享时一屏 40 张卡要建 80 个 RuntimeShader（AGSL 编译是首帧大头）。
+ * 键里只有尺寸 / 圆角，所以程序数量通常是个位数，且样式来回调不会再触发编译。
  */
 private object SoftGlassProgramCache {
     private const val MAX_ENTRIES = 32
-    private val cache = LinkedHashMap<SoftGlassProgramKey, SoftGlassProgram>()
+    private val cache = LinkedHashMap<SoftGlassProgramKey, SoftGlassProgramSlot>()
 
-    fun get(key: SoftGlassProgramKey, create: () -> SoftGlassProgram): SoftGlassProgram {
+    fun get(key: SoftGlassProgramKey, create: () -> SoftGlassProgramSlot): SoftGlassProgramSlot {
         cache[key]?.let { return it }
-        val program = create()
+        val slot = create()
         if (cache.size >= MAX_ENTRIES) {
             val oldest = cache.keys.firstOrNull()
             if (oldest != null) cache.remove(oldest)
         }
-        cache[key] = program
-        return program
+        cache[key] = slot
+        return slot
     }
 }
 
@@ -91,71 +105,94 @@ fun Modifier.softGlass(
     val radiusDp = radius / density.density
     val glassInsetDp = (0.9f + (radiusDp - 10f) * 0.11f).coerceIn(0.9f, 2f)
     val glassRadius = (radius - glassInsetDp * density.density).coerceAtLeast(0f)
-    val originAtBuild = origin()
-
     val keyBase = if (backdrop != null && sizePx.width > 0) {
         SoftGlassProgramKey(
             rim = false,
             width = sizePx.width,
             height = sizePx.height,
             radiusTenths = (glassRadius * 10f).roundToInt(),
-            style = style,
-            backdrop = backdrop,
-            densityHundredths = (density.density * 100f).roundToInt(),
         )
     } else null
-    // shader 编译失败不该让课表崩：整段兜住，退回半透明白面（onDrawBehind 里的兜底分支）。
-    val bodyProgram = if (keyBase != null) {
+    // 挂不住就退回半透明白面（onDrawBehind 的兜底分支），不让 shader 编译失败冒到课表上。
+    val bodySlot = if (keyBase != null && backdrop != null) {
         runCatching {
             SoftGlassProgramCache.get(keyBase) {
-                SoftGlassProgram(SOFT_GLASS_SHADER).apply {
-                    applyBodyUniforms(
-                        backdrop = backdrop!!,
-                        style = style,
-                        density = density.density,
-                        panelSize = sizePx,
-                        radiusPx = glassRadius,
-                        origin = originAtBuild,
-                    )
-                }
+                SoftGlassProgramSlot(SoftGlassProgram(SOFT_GLASS_SHADER))
             }
         }.getOrNull()
     } else null
-    val rimProgram = if (keyBase != null && style.rimEnabled) {
+    val rimSlot = if (keyBase != null && backdrop != null) {
         runCatching {
             SoftGlassProgramCache.get(keyBase.copy(rim = true)) {
-                SoftGlassProgram(SOFT_GLASS_RIM_SHADER).apply {
-                    applyRimUniforms(
-                        backdrop = backdrop!!,
-                        style = style,
-                        density = density.density,
-                        panelSize = sizePx,
-                        radiusPx = glassRadius,
-                        origin = originAtBuild,
-                    )
-                }
+                SoftGlassProgramSlot(SoftGlassProgram(SOFT_GLASS_RIM_SHADER))
             }
         }.getOrNull()
     } else null
+    val config = if (bodySlot != null && backdrop != null) {
+        SoftGlassProgramConfig(style = style, backdrop = backdrop)
+    } else null
+    val surfaceBackdrop = backdrop
 
     onDrawBehind {
         // 先读滚动 / 翻页信号：draw 期读 State 才会订阅，滚动时按帧失效。
         redraw()
 
-        if (bodyProgram == null) {
+        if (bodySlot == null || config == null || surfaceBackdrop == null) {
             drawRect(Color.White.copy(alpha = 0.14f))
             return@onDrawBehind
         }
-        // 采样原点会动（滚动 / 拖拽 / 翻周）：shader 实例复用，只更新这一个 uniform。
         val o = origin()
-        val bake = backdrop?.bakeScale ?: 1f
-        bodyProgram.setFloat2("uOrigin", o.x * bake, o.y * bake)
-        rimProgram?.setFloat2("uOrigin", o.x * bake, o.y * bake)
+        val bake = surfaceBackdrop.bakeScale
+
+        /**
+         * 配置变了（拖参数 / 切开关）就在**绘制期**就地重灌 uniform。
+         *
+         * 放在这里而不是 build 期：shader 实例按尺寸缓存、跨面板共享，uniform 是它自己的状态。
+         * 若在 build 期灌，两个配置不同的面板（不同页 / 弹窗 vs 卡片）会互相覆盖；
+         * 若把 style 塞进缓存键，拖一格就重编译一次 AGSL —— 那才是原来卡顿的根因。
+         * 这里每次绘制比一次配置，相同就跳过，所以常态下只有 compare 开销。
+         */
+        if (bodySlot.config != config) {
+            val ok = runCatching {
+                bodySlot.program.applyBodyUniforms(
+                    backdrop = surfaceBackdrop,
+                    style = style,
+                    density = density.density,
+                    panelSize = sizePx,
+                    radiusPx = glassRadius,
+                    origin = o,
+                )
+            }.isSuccess
+            if (!ok) {
+                drawRect(Color.White.copy(alpha = 0.14f))
+                return@onDrawBehind
+            }
+            bodySlot.config = config
+        }
+        rimSlot?.let { slot ->
+            if (slot.config != config) {
+                runCatching {
+                    slot.program.applyRimUniforms(
+                        backdrop = surfaceBackdrop,
+                        style = style,
+                        density = density.density,
+                        panelSize = sizePx,
+                        radiusPx = glassRadius,
+                        origin = o,
+                    )
+                }
+                slot.config = config
+            }
+        }
+
+        // 采样原点会动（滚动 / 拖拽 / 翻周）：shader 实例复用，只更新这一个 uniform。
+        bodySlot.program.setFloat2("uOrigin", o.x * bake, o.y * bake)
+        rimSlot?.program?.setFloat2("uOrigin", o.x * bake, o.y * bake)
         drawIntoCanvas { canvas ->
-            bodyProgram.draw(canvas, size.width, size.height, SoftGlassBlend.NORMAL)
+            bodySlot.program.draw(canvas, size.width, size.height, SoftGlassBlend.NORMAL)
             // 描边用 LIGHTEN（逐通道取最大），只提亮、保留左上 / 右下方向差；
             // 换 SCREEN 会把暗部一起抬起来，四周变均匀。
-            rimProgram?.draw(canvas, size.width, size.height, SoftGlassBlend.LIGHTEN)
+            rimSlot?.program?.draw(canvas, size.width, size.height, SoftGlassBlend.LIGHTEN)
         }
     }
 }
@@ -304,7 +341,4 @@ private fun SoftGlassProgram.applyRimUniforms(
         density = density,
         bakeScale = backdrop.bakeScale,
     )
-    setFloat("uRimWidthPx", style.rimWidth)
-    setFloat("uRimSaturation", style.rimSaturation)
-    setFloat("uRimBrightness", style.rimBrightness)
 }

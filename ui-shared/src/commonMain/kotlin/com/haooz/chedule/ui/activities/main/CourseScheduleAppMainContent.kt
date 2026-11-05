@@ -94,7 +94,6 @@ import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.today.TodayScreen
 import com.haooz.chedule.ui.components.rememberSoftGlassSurface
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.TodaySoftGlassStyle
 import com.haooz.chedule.ui.components.BackToNowFloatingButton
 import com.haooz.chedule.ui.components.LiquidNavigationRail
 import com.haooz.chedule.ui.components.PublishNativeBottomBar
@@ -201,29 +200,19 @@ internal fun CourseScheduleAppMainContent(
                 edgeHighlight = glassEdgeHighlight,
             )
         }
-        val todayGlassStyle = remember(glassRefractionScale, glassBlurPx, glassEdgePx, glassEdgeHighlight) {
-            TodaySoftGlassStyle.copy(
-                refractionScale = glassRefractionScale,
-                smallBlurRadius = glassBlurPx,
-                edgeWidth = glassEdgePx,
-                edgeHighlight = glassEdgeHighlight,
-            )
-        }
-        val scheduleSoftGlassSurface = rememberSoftGlassSurface(
+        // 两页共用一套玻璃参数（折射 / 模糊 / 厚度 / 描边都来自 displayAppearance），
+        // 所以**只烘焙一次、共用一个 surface**：
+        //  · 少一次整屏烘焙（对齐 + 模糊 + 调色），拖「卡片模糊」时不再 ×2；
+        //  · 翻页时两页不会拿着两份 backdrop 去抢同一个 shader 程序的 uniform 配置
+        //   （程序按尺寸共享，配置不同会每帧来回重灌、还每次新建 BitmapShader）。
+        // 以后真要给两页不同参数，得让 surface 带上各自的 style 再分开烘焙。
+        val softGlassSurface = rememberSoftGlassSurface(
             wallpaperBitmap = glassWallpaper,
             wallpaperScale = glassScale,
             wallpaperOffset = glassOffset,
             screenWidthPx = screenWPx,
             screenHeightPx = screenHPx,
             style = scheduleGlassStyle,
-        )
-        val todaySoftGlassSurface = rememberSoftGlassSurface(
-            wallpaperBitmap = glassWallpaper,
-            wallpaperScale = glassScale,
-            wallpaperOffset = glassOffset,
-            screenWidthPx = screenWPx,
-            screenHeightPx = screenHPx,
-            style = todayGlassStyle,
         )
         // 主 tab 切换时 pager 整体平移，两页的玻璃采样都要按帧刷新
         val tabGlassRedraw: () -> Unit = remember(mainPagerState) {
@@ -1029,7 +1018,7 @@ internal fun CourseScheduleAppMainContent(
                                                                 todayJumpToDateTrigger = 0
                                                             },
                                                             useSharedWallpaper = !isShiftMode && wallpaperBitmap != null,
-                                                            softGlassSurface = todaySoftGlassSurface,
+                                                            softGlassSurface = softGlassSurface,
                                                             tabRedraw = tabGlassRedraw,
                                                             cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
                                                             liquidGlassBackdrop = liquidGlassBackdrop,
@@ -1500,7 +1489,7 @@ internal fun CourseScheduleAppMainContent(
                                                                 },
                                                                 appearance = displayAppearance,
                                                                 liquidGlassBackdrop = liquidGlassBackdrop,
-                                                                softGlassSurface = scheduleSoftGlassSurface,
+                                                                softGlassSurface = softGlassSurface,
                                                                 tabRedraw = tabGlassRedraw,
                                                                 onGridGeometryChange = { geom ->
                                                                     gridGeometry = geom

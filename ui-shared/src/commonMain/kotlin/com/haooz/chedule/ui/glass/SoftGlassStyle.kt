@@ -94,7 +94,7 @@ data class SoftGlassStyle(
     /** uLuminanceCurveMode：0 = 混灰，1 = 比例。 */
     val luminanceCurveMode: Int = 1,
     /** uSaturation。Large 档 2.2。 */
-    val saturation: Float = 2.2f,
+    val saturation: Float = 2.0f,
     /**
      * uBrightness（加性，作用在折射内容 `col` 上）。Large 档 0.08。
      *
@@ -125,21 +125,6 @@ data class SoftGlassStyle(
      */
     val edgeHighlight: Boolean = true,
 
-    /**
-     * 是否额外叠一圈独立描边 shader（LIGHTEN 合成）。
-     *
-     * **系统没有这一层**：libhwui 的 glass shader 里没有 `rimWidth` / `uRimSaturation` /
-     * `uRimBrightness`，边缘高光全部由 `processLighting` 在倒角带上自然产生。
-     * 开着会比系统更硬更亮，边缘还会出现「卡中卡」。
-     */
-    val rimEnabled: Boolean = false,
-    /** 描边宽度（px；框架是环几何，这里用带内遮罩顶替）。 */
-    val rimWidth: Float = edgeWidth * 0.6f,
-    /** 描边饱和度（1 = 不变，>1 更艳）。 */
-    val rimSaturation: Float = 1.2f,
-    /** 描边提亮倍率（>1 更亮）。 */
-    val rimBrightness: Float = 1f,
-
     // ── 模糊 ──
     /** 轻模糊：折射采样源（px）。系统 Large 档 80px；外观默认取 32px（见 `AppearanceConfig`）。 */
     val smallBlurRadius: Float = 32f,
@@ -161,6 +146,49 @@ data class SoftGlassStyle(
     @Suppress("UNUSED_PARAMETER")
     fun adapted(meanLuma: Float): SoftGlassStyle = this
 }
+
+/**
+ * 烘焙（对齐之后的模糊 + 调色）真正读到的字段。
+ *
+ * 这些以外的参数 —— 厚度、边缘宽度、折射倍率、方向光、描边开关、透明度 —— 全都只是 uniform，
+ * 改了只需要重灌 uniform。**别把整个 style 当烘焙的 key**：那会让外观页每动一格都重算整屏模糊，
+ * 拖滑杆、点开关全部卡住（历史坑，见 `SoftGlassSurface.rememberSoftGlassSurface`）。
+ */
+internal data class SoftGlassBakeSpec(
+    val smallBlurRadius: Float,
+    val bigBlurRadius: Float,
+    val darker: Float,
+    val darkerRange: Pair<Float, Float>,
+    val luminanceValues: List<Float>,
+    val luminanceAmount: Float,
+    val saturation: Float,
+    val brightness: Float,
+    val bgColorSaturation: Float,
+    val bgColorBrightness: Float,
+    val innerColorWhite: Float,
+    val innerColorMix: Float,
+    val burn: Float,
+    val glassColor: Color,
+    val glassColorMix: Float,
+)
+
+internal fun SoftGlassStyle.bakeSpec(): SoftGlassBakeSpec = SoftGlassBakeSpec(
+    smallBlurRadius = smallBlurRadius,
+    bigBlurRadius = bigBlurRadius,
+    darker = darker,
+    darkerRange = darkerRange,
+    luminanceValues = luminanceValues,
+    luminanceAmount = luminanceAmount,
+    saturation = saturation,
+    brightness = brightness,
+    bgColorSaturation = bgColorSaturation,
+    bgColorBrightness = bgColorBrightness,
+    innerColorWhite = innerColorWhite,
+    innerColorMix = innerColorMix,
+    burn = burn,
+    glassColor = glassColor,
+    glassColorMix = glassColorMix,
+)
 
 /** 课表页：与 `Glass_Common_Large_Regular` 1:1；模糊由外观设置覆盖（dp → px 在调用处换算）。 */
 val ScheduleSoftGlassStyle = SoftGlassStyle()

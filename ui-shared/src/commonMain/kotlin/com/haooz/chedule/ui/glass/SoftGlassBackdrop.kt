@@ -49,7 +49,32 @@ fun buildSoftGlassBackdrop(
     offset: Offset,
     screenWidthPx: Float,
     screenHeightPx: Float,
-): SoftGlassBackdrop {
+): SoftGlassBackdrop =
+    bakeSoftGlassBase(wallpaper, scale, offset, screenWidthPx, screenHeightPx).toBackdrop(style)
+
+/**
+ * 烘焙里「与样式无关」的那一半：按壁纸实际显示的变换对齐，再降采样到 1/4 屏。
+ *
+ * 拆出来是为了外观页别白跑：对齐要画一张 1/2 屏位图、再逐像素读回（`toPixelMap`），
+ * 代价比模糊本身还高，而它只跟壁纸 / 变换 / 屏幕尺寸有关，跟任何外观参数都无关。
+ */
+class SoftGlassBase internal constructor(
+    internal val pixels: IntArray,
+    internal val width: Int,
+    internal val height: Int,
+    internal val quarter: IntArray,
+    /** 对齐阶段的缩放（1/2），模糊半径要乘它换算到该分辨率。 */
+    internal val alignScale: Float,
+    internal val screenWidthPx: Float,
+)
+
+fun bakeSoftGlassBase(
+    wallpaper: ImageBitmap,
+    scale: Float,
+    offset: Offset,
+    screenWidthPx: Float,
+    screenHeightPx: Float,
+): SoftGlassBase {
     // 玻璃本来就是模糊的，位图按半分辨率烘焙：CPU 模糊/内存都降到 1/4，画质几乎无损。
     val bakeScale = 0.5f
     val aligned = alignWallpaper(
@@ -72,18 +97,27 @@ fun buildSoftGlassBackdrop(
     val quarterW = (baseW / 4).coerceAtLeast(1)
     val quarterH = (baseH / 4).coerceAtLeast(1)
     val quarter = downsample4x(base, baseW, baseH, quarterW, quarterH)
+    return SoftGlassBase(base, baseW, baseH, quarter, bakeScale, screenWidthPx)
+}
 
-    val refractPx = blurBase(base, baseW, baseH, style.smallBlurRadius * bakeScale)
-    val bigPx = blurBase(base, baseW, baseH, style.bigBlurRadius * bakeScale)
+/**
+ * 样式 → 两张模糊图 + 调色。
+ *
+ * ⚠ 只有 [SoftGlassBakeSpec] 里那些字段会改变结果；几何 / 光学参数（厚度、边缘宽度、
+ * 折射倍率、方向光、描边开关…）各自只是一条 uniform，**不能**触发重新烘焙。
+ */
+fun SoftGlassBase.toBackdrop(style: SoftGlassStyle): SoftGlassBackdrop {
+    val refractPx = blurBase(pixels, width, height, style.smallBlurRadius * alignScale)
+    val bigPx = blurBase(pixels, width, height, style.bigBlurRadius * alignScale)
     // 颜色处理放在这里（系统 `applyGlassColorProcess` 同位置）：跑在低分辨率模糊图上、上采样之前，
     // shader 采样到的直接是「已调色」的图，避免「先插值后调色」与系统顺序不符。
     val styled = applyGlassColorProcess(refractPx, bigPx, style)
     return SoftGlassBackdrop(
-        refract = createImageBitmapFromArgb(styled, baseW, baseH),
-        big = createImageBitmapFromArgb(bigPx, baseW, baseH),
+        refract = createImageBitmapFromArgb(styled, width, height),
+        big = createImageBitmapFromArgb(bigPx, width, height),
         meanLuma = meanLumaOf(quarter),
         // 纹理又经过 4x 下采样：采样比例必须用「纹理宽 / 屏幕宽」，不能用对齐阶段的 bakeScale
-        bakeScale = baseW.toFloat() / screenWidthPx.coerceAtLeast(1f),
+        bakeScale = width.toFloat() / screenWidthPx.coerceAtLeast(1f),
     )
 }
 
