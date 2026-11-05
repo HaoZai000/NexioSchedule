@@ -91,12 +91,20 @@ object IosScheduleShare {
                 val json = toJsonElement(scheduleMap).toString()
                 createShare(scheduleName, json).fold(
                     onSuccess = { created ->
-                        UIPasteboard.generalPasteboard.string = created
-                        val ok = shareCard(created, scheduleName)
+                        val code = created.first
+                        val validMinutes = created.second
+                        UIPasteboard.generalPasteboard.string = code
+                        val ok = shareCard(code, scheduleName, validMinutes)
                         if (ok) {
-                            showToast(L("口令已复制：「%s」30 分钟内有效", "Code copied: \"%s\". Valid for 30 minutes")(created), longDuration = true)
+                            showToast(
+                                L(
+                                    "口令已复制：「%s」%s 分钟内有效",
+                                    "Code copied: \"%s\". Valid for %s minutes",
+                                )(code, validMinutes),
+                                longDuration = true,
+                            )
                         } else {
-                            showToast(L("口令已复制「%s」，但生成图片失败", "Code copied: \"%s\", but generating the image failed")(created), longDuration = true)
+                            showToast(L("口令已复制「%s」，但生成图片失败", "Code copied: \"%s\", but generating the image failed")(code), longDuration = true)
                         }
                     },
                     onFailure = { e ->
@@ -110,7 +118,10 @@ object IosScheduleShare {
     }
 
     /** 上传课表创建分享口令；失败返回带原文案原因的 failure（与 Android 同一套文案） */
-    private suspend fun createShare(scheduleName: String, scheduleJson: String): Result<String> =
+    private suspend fun createShare(
+        scheduleName: String,
+        scheduleJson: String,
+    ): Result<Pair<String, Int>> =
         withContext(ioDispatcher) {
             try {
                 val payload = jsonObjectOf(
@@ -125,25 +136,28 @@ object IosScheduleShare {
                         IllegalStateException(err.ifBlank { L("服务器错误 HTTP %s", "Server error HTTP %s")(resp.code) })
                     )
                 }
-                val code = runCatching { parseJsonObject(text).optString("code") }.getOrDefault("")
+                val parsed = runCatching { parseJsonObject(text) }.getOrNull()
+                val code = parsed?.optString("code").orEmpty()
                 if (code.isBlank()) {
                     return@withContext Result.failure(IllegalStateException(L("服务器未返回口令", "The server did not return a share code")()))
                 }
-                Result.success(code)
+                // 有效期以服务端 expires_in 为准（与 Android 同口径），别再写死 30 分钟
+                val validMinutes = ((parsed?.optInt("expires_in", 1800) ?: 1800) + 59) / 60
+                Result.success(code to validMinutes.coerceAtLeast(1))
             } catch (e: Exception) {
                 Result.failure(e)
             }
         }
 
     /** 在模板上绘出口令并唤起系统分享面板；返回是否成功拉起 */
-    private suspend fun shareCard(code: String, scheduleName: String): Boolean {
+    private suspend fun shareCard(code: String, scheduleName: String, validMinutes: Int): Boolean {
         val png = try {
             renderCardPng(code)
         } catch (e: Exception) {
             NexioLog.e("Share", "出图失败：${e.message}", e)
             null
         } ?: return false
-        return presentShareSheet(png, code, scheduleName)
+        return presentShareSheet(png, code, scheduleName, validMinutes)
     }
 
     /** 模板 + 口令 → PNG 字节（skia 绘制） */
@@ -186,7 +200,12 @@ object IosScheduleShare {
     }
 
     /** PNG 字节 → UIImage → 系统分享面板；文本与 Android 的分享文案逐字一致 */
-    private fun presentShareSheet(png: ByteArray, code: String, scheduleName: String): Boolean {
+    private fun presentShareSheet(
+        png: ByteArray,
+        code: String,
+        scheduleName: String,
+        validMinutes: Int,
+    ): Boolean {
         val host = IosUiHost.topViewController() ?: return false
         val tmpPath = NSTemporaryDirectory() + "share_$code.png"
         val nsData = png.toNSData()
@@ -194,9 +213,9 @@ object IosScheduleShare {
         val image = UIImage.imageWithContentsOfFile(tmpPath) ?: return false
 
         val text = L(
-            "我分享了课表「%s」\n口令：%s\n打开 Nexio课程表，用口令导入即可（30 分钟内有效）",
-            "I shared my schedule \"%s\"\nCode: %s\nOpen Nexio Schedule and import with this code (valid for 30 minutes)"
-        )(scheduleName, code)
+            "我分享了课表「%s」\n口令：%s\n打开 Nexio课程表，用口令导入即可（%s 分钟内有效）",
+            "I shared my schedule \"%s\"\nCode: %s\nOpen Nexio Schedule and import with this code (valid for %s minutes)"
+        )(scheduleName, code, validMinutes)
         val controller = UIActivityViewController(
             activityItems = listOf(image, text),
             applicationActivities = null,

@@ -253,10 +253,10 @@ object ShareImageGenerator {
         }
     }
 
-    /** 系统分享：图片 + 口令文案 */
-    fun shareCard(context: Context, code: String, scheduleName: String): Boolean {
+    /** 系统分享：图片 + 口令文案（[validMinutes] 用服务端返回的 expires_in，别写死） */
+    fun shareCard(context: Context, code: String, scheduleName: String, validMinutes: Int): Boolean {
         val uri = writeShareImage(context, code) ?: return false
-        val text = AndroidMiscStr.shareTextNN(scheduleName, code)
+        val text = AndroidMiscStr.shareTextNN(scheduleName, code, validMinutes)
         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
             type = "image/png"
             putExtra(android.content.Intent.EXTRA_STREAM, uri)
@@ -298,14 +298,20 @@ fun performScheduleShare(
             val json = GsonBuilder().create().toJson(scheduleMap)
             ShareCodeApi.createShare(scheduleName, json).fold(
                 onSuccess = { created ->
+                    // 有效期以服务端 expires_in 为准，向上取整到分钟，至少 1
+                    val validMinutes = ((created.expiresInSeconds + 59) / 60).coerceAtLeast(1)
                     copyShareCodeToClipboard(context, created.code)
                     val ok = ShareImageGenerator.shareCard(
                         context,
                         created.code,
-                        created.scheduleName
+                        created.scheduleName,
+                        validMinutes,
                     )
                     if (ok) {
-                        showToast(AndroidMiscStr.codeCopiedValidN(created.code), longDuration = true)
+                        showToast(
+                            AndroidMiscStr.codeCopiedValidN(created.code, validMinutes),
+                            longDuration = true,
+                        )
                     } else {
                         showToast(AndroidMiscStr.codeCopiedImageFailedN(created.code), longDuration = true)
                     }
