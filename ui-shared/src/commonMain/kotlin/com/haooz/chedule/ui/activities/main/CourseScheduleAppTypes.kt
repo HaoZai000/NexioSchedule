@@ -81,6 +81,7 @@ data class ScheduleCombination(
     var showTeacher: Boolean = true,
     var cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     var cardEdgeThickness: CardEdgeThickness = CardEdgeThickness.DEFAULT,
+    var cardRim: Boolean = true,
     var wallpaperIsLight: Boolean? = null,
     var wallpaperBlur: Boolean = false,
 )
@@ -102,6 +103,7 @@ fun AppearanceConfig.Companion.fromCombination(c: ScheduleCombination): Appearan
         showTeacher = c.showTeacher,
         cardRefraction = c.cardRefraction,
         cardEdgeThickness = c.cardEdgeThickness,
+        cardRim = c.cardRim,
         wallpaperBlur = c.wallpaperBlur,
     )
 

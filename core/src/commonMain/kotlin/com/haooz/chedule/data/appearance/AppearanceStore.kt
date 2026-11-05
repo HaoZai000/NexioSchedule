@@ -149,6 +149,9 @@ object AppearanceStore {
     fun getCardEdgeThickness(): CardEdgeThickness = currentStyle().safeEdgeThickness
     fun saveCardEdgeThickness(level: CardEdgeThickness) = updateStyle { it.copy(cardEdgeThickness = level) }
 
+    fun getCardRim(): Boolean = currentStyle().cardRim
+    fun saveCardRim(enabled: Boolean) = updateStyle { it.copy(cardRim = enabled) }
+
     fun getWallpaperBlur(): Boolean = currentStyle().wallpaperBlur
     fun saveWallpaperBlur(blur: Boolean) = updateStyle { it.copy(wallpaperBlur = blur) }
 }

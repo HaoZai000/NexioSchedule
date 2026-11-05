@@ -212,7 +212,8 @@ fun CourseCard(
         }
     }
 
-    val effectiveAlpha = (if (hasBlur) cardAlpha * 1.6f else cardAlpha).coerceIn(0f, 1f)
+    // 玻璃底自带壁纸色，会把课程色压淡，所以有壁纸时把着色再放大一档（15% → 19.5%）
+    val effectiveAlpha = (if (hasBlur) cardAlpha * 1.3f else cardAlpha).coerceIn(0f, 1f)
     val courseColors = rememberCourseColors(course, isDark)
     val useMonet = MiuixTheme.isDynamicColor
     val inactiveColor =

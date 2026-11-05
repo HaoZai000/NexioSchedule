@@ -41,7 +41,6 @@ import com.haooz.chedule.ui.activities.classschedule.nowMinuteOfDay
 import com.haooz.chedule.ui.activities.classschedule.parseHmMinutes
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.theme.rememberCourseColors
-import com.kyant.backdrop.Backdrop
 import com.kyant.capsule.ContinuousCapsule
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
@@ -60,8 +59,6 @@ private val AccentBarWidth = 4.dp
  */
 internal data class TodayTimelineStyle(
     val isDark: Boolean,
-    val backdrop: Backdrop?,
-    val blurRadius: Float,
     val surfaceOpacity: Float,
     val cornerRadius: Float = 16f,
     val showClassroom: Boolean = true,
@@ -176,8 +173,6 @@ private fun TodayTimelineCard(
 
     BlurCard(
         cornerRadius = style.cornerRadius.dp,
-        wallpaperBackdrop = style.backdrop,
-        blurRadius = style.blurRadius,
         surfaceOpacity = style.surfaceOpacity,
         modifier = modifier,
     ) {

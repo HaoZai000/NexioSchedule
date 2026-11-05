@@ -627,8 +627,6 @@ fun AndroidCourseScheduleApp(privacyConsented: Boolean) {
                 afternoonSections = d.afternoonSections,
                 showClassroom = d.showClassroom,
                 showTeacher = d.showTeacher,
-                wallpaperBackdrop = d.wallpaperBackdrop,
-                blurRadius = d.blurRadius,
                 surfaceOpacity = d.surfaceOpacity,
                 // 下课烟花仍留在 Android（依赖 LocalContext / System.nanoTime）
                 fireworksOverlay = { trigger, modifier ->

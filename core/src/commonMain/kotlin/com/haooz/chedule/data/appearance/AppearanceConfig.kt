@@ -35,6 +35,8 @@ data class AppearanceConfig(
     val cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     /** 玻璃边缘厚度档位（乘在 `SoftGlassStyle.edgeWidth` 上，不改文件里的默认值） */
     val cardEdgeThickness: CardEdgeThickness = CardEdgeThickness.DEFAULT,
+    /** 卡片玻璃的高光描边（倒角方向光）；课表页与今日页共用，默认开 = 现在的观感 */
+    val cardRim: Boolean = true,
     val wallpaperBlur: Boolean = false
 ) {
     companion object
@@ -84,6 +86,7 @@ fun AppearanceConfig.Companion.fromStyle(style: AppearanceStyle): AppearanceConf
     showTeacher = style.showTeacher,
     cardRefraction = style.safeRefraction,
     cardEdgeThickness = style.safeEdgeThickness,
+    cardRim = style.cardRim,
     wallpaperBlur = style.wallpaperBlur,
 )
 
@@ -133,6 +136,8 @@ data class AppearanceStyle(
     val cardRefraction: CardRefractionLevel? = null,
     /** 边缘厚度档位；null = 未设置，用默认 */
     val cardEdgeThickness: CardEdgeThickness? = null,
+    /** 卡片高光描边；缺键（老数据）= true，保持原有观感 */
+    val cardRim: Boolean = true,
     val wallpaperBlur: Boolean = false
 ) {
     val safeAlignment: CardContentAlignment get() = cardContentAlignment ?: CardContentAlignment.CENTER_CENTER
@@ -259,12 +264,23 @@ enum class CardTextColor {
     }
 }
 
-/** 卡片玻璃对壁纸的透镜折射强度（需壁纸才生效） */
-enum class CardRefractionLevel(val lensRadiusDp: Float, val lensStrengthDp: Float) {
-    OFF(0f, 0f),
-    WEAK(4f, 16f),
-    DEFAULT(5f, 25f),
-    STRONG(6f, 36f);
+/**
+ * 卡片玻璃的折射强度（需壁纸才生效）。
+ *
+ * [scale] 乘在柔光玻璃的折射厚度上（`SoftGlassStyle.thickness`，基准 96px）；
+ * 反射采样偏移不跟着缩放。没有柔光时不折射
+ *
+ * ⚠ 按 ordinal 落盘，**新档位只能往后加**。
+ */
+enum class CardRefractionLevel(
+    /** 折射厚度倍率；0 = 关（厚度与反射偏移一起归零） */
+    val scale: Float,
+) {
+    OFF(0f),
+    WEAK(0.75f),
+    DEFAULT(1f),
+    STRONG(1.25f),
+    EXTREME(1.5f);
 
     val label: String
         get() = when (this) {
@@ -272,6 +288,7 @@ enum class CardRefractionLevel(val lensRadiusDp: Float, val lensStrengthDp: Floa
             WEAK -> if (DisplayLang.isZh) "较弱" else "Weak"
             DEFAULT -> if (DisplayLang.isZh) "默认" else "Default"
             STRONG -> if (DisplayLang.isZh) "较强" else "Strong"
+            EXTREME -> if (DisplayLang.isZh) "最强" else "Strongest"
         }
 
     companion object {
@@ -288,13 +305,15 @@ enum class CardRefractionLevel(val lensRadiusDp: Float, val lensStrengthDp: Floa
 enum class CardEdgeThickness(val scale: Float) {
     SMALLER(0.8f),
     DEFAULT(1.0f),
-    LARGER(1.2f);
+    LARGER(1.2f),
+    LARGEST(1.5f);
 
     val label: String
         get() = when (this) {
             SMALLER -> if (DisplayLang.isZh) "较小" else "Smaller"
             DEFAULT -> if (DisplayLang.isZh) "默认" else "Default"
             LARGER -> if (DisplayLang.isZh) "较大" else "Larger"
+            LARGEST -> if (DisplayLang.isZh) "最大" else "Largest"
         }
 
     companion object {

@@ -348,6 +348,11 @@ fun CustomizeScheduleScreen(
         sheetResetKey
     ) { mutableStateOf(appearance.cardEdgeThickness) }
     LaunchedEffect(appearance.cardEdgeThickness) { cardEdgeValue = appearance.cardEdgeThickness }
+    var cardRimValue by remember(
+        currentCombinationIndex,
+        sheetResetKey
+    ) { mutableStateOf(appearance.cardRim) }
+    LaunchedEffect(appearance.cardRim) { cardRimValue = appearance.cardRim }
     var wallpaperBlurValue by remember(
         currentCombinationIndex,
         sheetResetKey
@@ -385,6 +390,7 @@ fun CustomizeScheduleScreen(
         showTeacher = showTeacherValue,
         cardRefraction = if (materialNone) AppearanceStore.getCardRefraction() else cardRefractionValue,
         cardEdgeThickness = cardEdgeValue,
+        cardRim = cardRimValue,
         wallpaperBlur = wallpaperBlurValue
     )
     LaunchedEffect(effectValue, cardAlphaValue, cardSurfaceAlphaValue) { onAppearanceChange(buildAppearance()) }
@@ -405,6 +411,7 @@ fun CustomizeScheduleScreen(
     LaunchedEffect(showTeacherValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(cardRefractionValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(cardEdgeValue) { onAppearanceChange(buildAppearance()) }
+    LaunchedEffect(cardRimValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(wallpaperBlurValue) { onAppearanceChange(buildAppearance()) }
 
     val customizeButtonAlpha = remember { Animatable(1f) }
@@ -1428,6 +1435,10 @@ fun CustomizeScheduleScreen(
                                 displayValue = { (it * 100).roundToInt().toString() },
                                 parseInput = { it.toFloatOrNull()?.let { v -> (v / 100f).coerceIn(0f, 1f) } }
                             )
+                        }
+                    }
+                    SheetCard {
+                        Column {
                             SliderItem(
                                 label = SchedStr.cardBlur(),
                                 value = effectValue,
@@ -1467,7 +1478,7 @@ fun CustomizeScheduleScreen(
                             )
                             EdgeThicknessItem(
                                 value = cardEdgeValue,
-                                // 只乘在文件默认的 edgeWidth 上（×0.8 / ×1 / ×1.2），不改默认值
+                                // 只乘在文件默认的 edgeWidth 上（×0.8 / ×1 / ×1.2 / ×1.5），不改默认值
                                 enabled = hasWallpaper &&
                                     !com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier(),
                                 onValueChange = { if (hasWallpaper) cardEdgeValue = it },
@@ -1477,6 +1488,29 @@ fun CustomizeScheduleScreen(
                                     SchedStr.wallpaperRequired()
                                 }
                             )
+                            // 高光描边：倒角带上的方向光，课表页与今日页同一开关（默认开）
+                            // 每一档材质都有这圈光（无材质档只是模糊/折射归零），所以只按有无壁纸判可用
+                            val rimEnabled = hasWallpaper
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = SchedStr.cardRim(),
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 17.sp,
+                                    color = if (rimEnabled) MiuixTheme.colorScheme.onSurface
+                                    else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                )
+                                Switch(
+                                    checked = cardRimValue,
+                                    enabled = rimEnabled,
+                                    onCheckedChange = { if (rimEnabled) cardRimValue = it }
+                                )
+                            }
                         }
                     }
                 }
@@ -1972,7 +2006,7 @@ private fun RefractionItem(
 }
 
 /**
- * 边缘厚度（较小 ×0.8 / 默认 ×1.0 / 较大 ×1.2）。
+ * 边缘厚度（较小 ×0.8 / 默认 ×1.0 / 较大 ×1.2 / 最大 ×1.5）。
  *
  * 与 [RefractionItem] 同一个交互形态：位置连续跟手，取整只作用于对外提交。
  * 档位是**倍率**，乘在 `SoftGlassStyle.edgeWidth` 的文件默认值上。

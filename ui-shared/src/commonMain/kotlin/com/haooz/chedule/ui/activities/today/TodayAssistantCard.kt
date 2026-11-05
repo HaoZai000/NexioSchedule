@@ -88,7 +88,7 @@ import com.haooz.chedule.uishared.resources.icon_sand
 import com.haooz.chedule.uishared.resources.icon_sunny
 import com.haooz.chedule.uishared.resources.icon_sunny_night
 import com.haooz.chedule.uishared.resources.icon_t_storm
-import com.kyant.backdrop.Backdrop
+import com.haooz.chedule.ui.components.LocalSoftGlassSurface
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.PI
@@ -739,8 +739,6 @@ fun TodayAssistantCard(
     afternoonSections: Int,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
-    wallpaperBackdrop: Backdrop? = null,
-    blurRadius: Float = 0f,
     surfaceOpacity: Float,
     /** 下课烟花（Android = FireworksOverlay，依赖 LocalContext/nanoTime）；null = 该端无此效果 */
     fireworksOverlay: (@Composable (trigger: Int, modifier: Modifier) -> Unit)? = null,
@@ -773,8 +771,8 @@ fun TodayAssistantCard(
         animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
         label = "assistantTintFade"
     )
-    // 有壁纸时是玻璃面，透上来的底子杂，渐变要浓一档才立得住
-    val tintAlpha = if (wallpaperBackdrop != null) 0.24f else 0.1f
+    // 有玻璃时底子是从壁纸采样来的、比较杂，渐变要浓一档才立得住
+    val tintAlpha = if (LocalSoftGlassSurface.current != null) 0.24f else 0.1f
     val tintBrush = remember(tintColor, tintAlpha) {
         tintColor?.let { color ->
             Brush.verticalGradient(
@@ -826,10 +824,7 @@ fun TodayAssistantCard(
     //   底部圆角先被切成直角。高度变化交给下面各行动画自己收拢
     Box(modifier = Modifier.fillMaxWidth()) {
         BlurCard(
-            wallpaperBackdrop = wallpaperBackdrop,
-            blurRadius = blurRadius,
             surfaceOpacity = surfaceOpacity,
-            showEdgeLight = wallpaperBackdrop != null && blurRadius > 0f,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(

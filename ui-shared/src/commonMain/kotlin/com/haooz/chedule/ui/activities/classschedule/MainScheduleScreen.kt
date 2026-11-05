@@ -49,13 +49,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -74,7 +72,6 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.appearance.AppearanceConfig
-import com.haooz.chedule.data.appearance.CardRefractionLevel
 import com.haooz.chedule.data.appearance.scheduleSurfaceAlpha
 import com.haooz.chedule.data.holiday.HolidayCourseExclusion
 import com.haooz.chedule.data.holiday.HolidayEntry
@@ -110,12 +107,10 @@ import com.haooz.chedule.ui.utils.rememberPagerTakeoverGestureState
 import com.haooz.chedule.ui.utils.schedulePageBackgroundColor
 import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
-import com.kyant.backdrop.Backdrop
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
+import com.kyant.backdrop.Backdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
-import kotlin.math.roundToInt
-import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -132,6 +127,8 @@ import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 import top.yukonga.miuix.kmp.utils.OverScrollState
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.milliseconds
 
 // 普通 holder 而非 state：避免 onGloballyPositioned 每次写入触发卡片重组
 

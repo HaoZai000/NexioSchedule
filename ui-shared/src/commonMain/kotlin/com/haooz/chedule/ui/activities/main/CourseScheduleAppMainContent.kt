@@ -93,7 +93,6 @@ import com.haooz.chedule.ui.activities.classschedule.ScheduleTopBar
 import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.today.TodayScreen
 import com.haooz.chedule.ui.components.rememberSoftGlassSurface
-import com.haooz.chedule.data.appearance.CardRefractionLevel
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.chedule.ui.glass.TodaySoftGlassStyle
 import com.haooz.chedule.ui.components.BackToNowFloatingButton
@@ -186,29 +185,28 @@ internal fun CourseScheduleAppMainContent(
         val glassOffset =
             if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset
         // 外观里的「卡片折射 / 卡片模糊 / 边缘厚度」两页共用同一套值
-        val glassRefractionScale = when (displayAppearance.cardRefraction) {
-            CardRefractionLevel.OFF -> 0f
-            CardRefractionLevel.WEAK -> 0.75f
-            CardRefractionLevel.DEFAULT -> 1f
-            CardRefractionLevel.STRONG -> 1.25f
-        }
+        val glassRefractionScale = displayAppearance.cardRefraction.scale
         // 柔光样式统一吃 px：外观里的模糊本身就是 px，直接透传
         val glassBlurPx = displayAppearance.cardBlurRadius
         // 边缘厚度档位只是倍率，乘在文件默认的 edgeWidth 上
         val glassEdgePx = ScheduleSoftGlassStyle.edgeWidth *
             displayAppearance.cardEdgeThickness.scale
-        val scheduleGlassStyle = remember(glassRefractionScale, glassBlurPx, glassEdgePx) {
+        // 高光描边：倒角上的方向光，两页共用同一个开关
+        val glassEdgeHighlight = displayAppearance.cardRim
+        val scheduleGlassStyle = remember(glassRefractionScale, glassBlurPx, glassEdgePx, glassEdgeHighlight) {
             ScheduleSoftGlassStyle.copy(
                 refractionScale = glassRefractionScale,
                 smallBlurRadius = glassBlurPx,
                 edgeWidth = glassEdgePx,
+                edgeHighlight = glassEdgeHighlight,
             )
         }
-        val todayGlassStyle = remember(glassRefractionScale, glassBlurPx, glassEdgePx) {
+        val todayGlassStyle = remember(glassRefractionScale, glassBlurPx, glassEdgePx, glassEdgeHighlight) {
             TodaySoftGlassStyle.copy(
                 refractionScale = glassRefractionScale,
                 smallBlurRadius = glassBlurPx,
                 edgeWidth = glassEdgePx,
+                edgeHighlight = glassEdgeHighlight,
             )
         }
         val scheduleSoftGlassSurface = rememberSoftGlassSurface(
@@ -1031,11 +1029,8 @@ internal fun CourseScheduleAppMainContent(
                                                                 todayJumpToDateTrigger = 0
                                                             },
                                                             useSharedWallpaper = !isShiftMode && wallpaperBitmap != null,
-                                                            sharedWallpaperBackdrop = sharedWallpaperBackdrop,
                                                             softGlassSurface = todaySoftGlassSurface,
                                                             tabRedraw = tabGlassRedraw,
-                                                            cardBlurRadius = displayAppearance.cardBlurRadius,
-                                                            cardRefraction = displayAppearance.cardRefraction,
                                                             cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
                                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                                             showClassroom = displayAppearance.showClassroom,

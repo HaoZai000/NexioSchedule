@@ -267,11 +267,13 @@ private fun SoftGlassProgram.applyBodyUniforms(
     val refractionScale = style.refractionScale.coerceAtLeast(0f)
     setFloat("uEdgePow", style.edgePow.coerceAtLeast(0.05f))
     setFloat("uThicknessPx", style.thickness * refractionScale)
-    setFloat("uReflectOffsetPx", style.reflectOffset * refractionScale)
+    // 反射偏移各档固定，只有「折射=关」才归零（详见 SoftGlassStyle.reflectOffset）
+    setFloat("uReflectOffsetPx", if (refractionScale > 0f) style.reflectOffset else 0f)
     setFloat("uIOR", style.refractIOR)
     setFloat("uReflStrength", style.reflectionStrength)
     setFloat("uReflLighten", style.reflectionLighten)
     setFloat("uInnerBottom", style.innerBottom)
+    setFloat("uEdgeHighlight", if (style.edgeHighlight) 1f else 0f)
     setFloat("uUnshade", style.unshade)
     setFloat("uUsePowGate", if (style.usePowGate) 1f else 0f)
     // AA 阈值：系统 = smooth5_vertical(3/edge, 0.5) = smooth5Map(√(3/edge))。

@@ -607,6 +607,9 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 AppearanceStore.saveCardEdgeThickness(
                                     appearanceToSave.cardEdgeThickness
                                 )
+                                AppearanceStore.saveCardRim(
+                                    appearanceToSave.cardRim
+                                )
                                 AppearanceStore.saveWallpaperBlur(
                                     appearanceToSave.wallpaperBlur
                                 )

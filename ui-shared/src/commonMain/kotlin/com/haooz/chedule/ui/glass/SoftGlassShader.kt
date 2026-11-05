@@ -88,6 +88,8 @@ uniform float4 uGlassColor;
 uniform float  uAlpha;
 uniform float  uHit;
 uniform float  uInnerBottom;
+// 高光描边开关：0 = 关（关闭倒角上的方向光与底边提亮）
+uniform float  uEdgeHighlight;
 uniform float3 uLightDir;
 uniform float  uAngleK;
 uniform float  uLightIntensity;
@@ -252,13 +254,16 @@ half4 main(float2 fragCoord) {
         float2 refractXY = 2.0 * normal.z * normal.xy;
         float4 reflectionResult = tex(uvPx + refractXY * (uReflectOffsetPx * (1.0 - w) * uBakeScale));
         glassMaterial = mix(refractionResult, reflectionResult, (1.0 - nmlZ) * uReflStrength);
-        glassMaterial.rgb = addLight(glassMaterial.rgb, reflectionResult.rgb, (1.0 - w) * uReflLighten);
+        glassMaterial.rgb = addLight(
+            glassMaterial.rgb, reflectionResult.rgb, (1.0 - w) * uReflLighten
+        );
     }
 
     float tEdge = smoothstep(0.0, 1.0, fragCoord.y / max(uSize.y, 1.0));
     glassMaterial.rgb += tEdge * tEdge * uInnerBottom;
 
-    if (!inner) { glassMaterial = processLighting(glassMaterial, normal); }
+    // 「高光描边」开关只管这一处：倒角带上的方向光（左上亮、右下暗、沿边起伏）
+    if (!inner && uEdgeHighlight > 0.5) { glassMaterial = processLighting(glassMaterial, normal); }
 
     if (uUsePowGate > 0.5) {
         glassMaterial = pow(glassMaterial, float4(uColorPow));

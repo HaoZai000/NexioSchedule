@@ -24,7 +24,7 @@ object AppearanceStyleCodec {
         "cardCornerRadius", "wallpaperBrightness", "wallpaperIsLight",
         "showBreakDividers", "cardContentAlignment", "cardTextColor",
         "cardTextScale", "showClassroom", "showTeacher", "cardRefraction",
-        "cardEdgeThickness", "wallpaperBlur"
+        "cardEdgeThickness", "cardRim", "wallpaperBlur"
     )
 
     fun encode(style: AppearanceStyle): String {
@@ -50,6 +50,7 @@ object AppearanceStyleCodec {
                 put("showTeacher", JsonPrimitive(style.showTeacher))
                 style.cardRefraction?.let { put("cardRefraction", JsonPrimitive(it.ordinal)) }
                 style.cardEdgeThickness?.let { put("cardEdgeThickness", JsonPrimitive(it.ordinal)) }
+                put("cardRim", JsonPrimitive(style.cardRim))
                 put("wallpaperBlur", JsonPrimitive(style.wallpaperBlur))
             }
         )
@@ -87,6 +88,7 @@ object AppearanceStyleCodec {
                 showTeacher = obj.boolOr("showTeacher", true),
                 cardRefraction = obj.enumOr("cardRefraction") { CardRefractionLevel.fromOrdinal(it) },
                 cardEdgeThickness = obj.enumOr("cardEdgeThickness") { CardEdgeThickness.fromOrdinal(it) },
+                cardRim = obj.boolOr("cardRim", true),
                 wallpaperBlur = obj.boolOr("wallpaperBlur", false),
             )
         }.getOrNull()

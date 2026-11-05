@@ -508,6 +508,7 @@ class CourseScheduleAppState {
                     showTeacher = value.showTeacher,
                     cardRefraction = value.cardRefraction,
                     cardEdgeThickness = value.cardEdgeThickness,
+                    cardRim = value.cardRim,
                     wallpaperBlur = value.wallpaperBlur
                 )
             }
@@ -541,6 +542,7 @@ class CourseScheduleAppState {
             showTeacher = AppearanceStore.getShowTeacher(),
             cardRefraction = AppearanceStore.getCardRefraction(),
             cardEdgeThickness = AppearanceStore.getCardEdgeThickness(),
+            cardRim = AppearanceStore.getCardRim(),
             wallpaperIsLight = AppearanceStore.getWallpaperIsLight(),
             wallpaperBlur = AppearanceStore.getWallpaperBlur()
         )

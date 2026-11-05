@@ -21,7 +21,7 @@ data class SoftGlassStyle(
     /**
      * uShapeEdgePx：倒角带宽度，**单位 px**（不是 dp），即「边缘看起来多厚」。
      *
-     * 60px 是文件内默认值；外观页的「边缘厚度」只在它上面乘 0.8 / 1.0 / 1.2。
+     * 60px 是文件内默认值；外观页的「边缘厚度」只在它上面乘 0.8 / 1.0 / 1.2 / 1.5。
      */
     val edgeWidth: Float = 60f,
     /** uShapeEdgePow（Large 档 4.0）。剖面曲线由 shader 里系统的 `curve()` 唯一确定。 */
@@ -39,11 +39,11 @@ data class SoftGlassStyle(
      * Large 档给 80，这里取 **96**（外观「折射=默认」即此值）。
      */
     val thickness: Float = 96f,
-    /** 反射采样偏移（px）。Large 档 600，这里取 **720**，与厚度同比例。 */
-    val reflectOffset: Float = 720f,
+    /** 反射采样偏移（px）。Large 档 600 */
+    val reflectOffset: Float = 600f,
 
     // ── 折射 / 反射 ──
-    /** 折射倍率：0.8 = 较弱，1.0 = 默认，1.2 = 较强；由外观的折射档位统一决定。 */
+    /** 折射厚度倍率：外观折射档位直接给这里（0 / 0.75 / 1 / 1.25 / 1.5）。 */
     val refractionScale: Float = 1f,
     /** uRefractIOR。Large 档 3.0。 */
     val refractIOR: Float = 3f,
@@ -118,6 +118,12 @@ data class SoftGlassStyle(
     val pressLightCenterStrength: Float = 0f,
     val pressLightCenterPeak: Float = 0f,
     val pressRingStrength: List<Float> = listOf(0f, 0f),
+
+    /**
+     * **高光描边**：只切换倒角带上的方向光（`processLighting`）。
+     * 开 = 边上有方向感（左上亮、右下暗、沿边起伏）；关 = 边变成均匀的一圈
+     */
+    val edgeHighlight: Boolean = true,
 
     /**
      * 是否额外叠一圈独立描边 shader（LIGHTEN 合成）。
