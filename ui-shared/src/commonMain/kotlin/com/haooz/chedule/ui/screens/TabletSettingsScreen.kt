@@ -66,6 +66,7 @@ import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.AppLanguage
+import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.L10n
 import com.haooz.chedule.i18n.SettingsStr
@@ -78,7 +79,6 @@ import com.haooz.chedule.ui.activities.WidgetIntroScreen
 import com.haooz.chedule.ui.basic.LiquidGlassTextButton
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.CardExpand
-import com.haooz.chedule.ui.components.WebDavActionButtons
 import com.haooz.chedule.ui.components.tabletNavChromeTitleSlot
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.navigation.AppRoute
@@ -196,7 +196,7 @@ fun TabletSettingsChromeOverlay() {
     val collapsedHPx = with(density) { collapsedH.roundToPx() }
     val collapsedTotalPx = with(density) {
         (com.haooz.chedule.ui.components.TabletNavSideInset +
-            com.haooz.chedule.ui.components.TabletNavIconRailWidth).toPx()
+                com.haooz.chedule.ui.components.TabletNavIconRailWidth).toPx()
     }
     val expandedWidthPx = with(density) {
         (widthDp.dp * com.haooz.chedule.ui.components.TabletNavSideWidthFraction).toPx()
@@ -285,7 +285,7 @@ private fun rememberPaneMaskAlpha(contentOffset: Float): Float {
     val scrollThresholdPx = with(density) { 10.dp.toPx() }
     val showMask =
         contentOffset < -scrollThresholdPx ||
-            (contentOffset >= 0f && overScroll.offset < 0f)
+                (contentOffset >= 0f && overScroll.offset < 0f)
     val maskAnim = remember { Animatable(0f) }
     LaunchedEffect(showMask) {
         val spec =
@@ -518,7 +518,7 @@ fun TabletSettingsScreen(
                                         val settingsRouter = LocalAppRouter.current
                                         dests.filterNot {
                                             it in StandaloneDests || it in BottomMoreDests ||
-                                                (!showUpdateSettings && it == TabletSettingsDest.Update)
+                                                    (!showUpdateSettings && it == TabletSettingsDest.Update)
                                         }
                                             .forEach { dest ->
                                                 val jumpActivity =
@@ -852,14 +852,34 @@ fun TabletSettingsScreen(
                             }
 
                             // 右栏底部主操作：在录制层之外（本 Box 的上层），采样 rightPaneBackdrop
-                            TabletSettingsDest.WebDav -> WebDavActionButtons(
-                                backdrop = rightPaneBackdrop,
-                                backingUp = webDavBackingUp,
-                                restoring = webDavRestoring,
-                                onBackup = { onWebDavBackup() },
-                                onRestore = { onWebDavRestore() },
-                                modifier = Modifier.align(Alignment.BottomCenter),
-                            )
+                            TabletSettingsDest.WebDav -> Row(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 28.dp)
+                                    .navigationBarsPadding()
+                                    .padding(bottom = 20.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Box(Modifier.weight(1f)) {
+                                    LiquidGlassTextButton(
+                                        text = if (webDavBackingUp) ChromeStr.backingUp()
+                                        else ChromeStr.backupToCloud(),
+                                        onClick = { onWebDavBackup() },
+                                        backdrop = rightPaneBackdrop,
+                                        primary = true,
+                                    )
+                                }
+                                Box(Modifier.weight(1f)) {
+                                    LiquidGlassTextButton(
+                                        text = if (webDavRestoring) ChromeStr.restoring()
+                                        else ChromeStr.restoreFromCloud(),
+                                        onClick = { onWebDavRestore() },
+                                        backdrop = rightPaneBackdrop,
+                                        primary = true,
+                                    )
+                                }
+                            }
 
                             else -> {}
                         }
@@ -1453,7 +1473,9 @@ private fun TabletSemesterPane(
                     text = CommonStr.ok(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        val date = "${tempYear.toString().padStart(4, '0')}/${tempMonth.toString().padStart(2, '0')}/${tempDay.toString().padStart(2, '0')}"
+                        val date = "${tempYear.toString().padStart(4, '0')}/${
+                            tempMonth.toString().padStart(2, '0')
+                        }/${tempDay.toString().padStart(2, '0')}"
                         viewModel.setClassStartTime(date)
                         showStartDateDialog = false
                     },

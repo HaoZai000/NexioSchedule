@@ -37,9 +37,6 @@ private val BOTTOM_BAR_CIRCLE = 56.dp
 /** 胶囊与圆钮的静止间距 */
 private val BOTTOM_BAR_GAP = 10.dp
 
-/** 圆钮朝右拖时形状还要多留的宽度，不参与居中 */
-private val BOTTOM_BAR_DRAG_ROOM = 18.dp
-
 /** 每格占屏比，沿用「3 格占 0.63」的密度 */
 private const val TAB_WIDTH_FRACTION = 0.21f
 
@@ -51,7 +48,7 @@ fun scheduleBottomBarHeight(): Dp = BOTTOM_BAR_CIRCLE + bottomFloatingPadding()
  * 手机端底部导航。平板导航由 MainActivity 叠层 [LiquidNavigationRail] 绘制，此处直接返回，
  * 避免 Scaffold bottomBar 的 fillMaxSize 挡住内容滚动。
  *
- * 圆钮是底栏形状的一部分（见 [LiquidBottomTabs] 的 trailing），胶囊、圆、融球颈由同一个 Shape 描述。
+ * tab 胶囊与右侧圆按钮是两块独立玻璃（见 [LiquidBottomTabs] 的 trailing），中间只有间距、不再融合。
  * 宿主接管底部导航（鸿蒙 ArkUI）时这里根本不会被组合，语义发布见 [PublishNativeBottomBar]。
  */
 @Composable
@@ -82,7 +79,6 @@ fun ScheduleBottomBar(
             contentDescription = CommonStr.settings(),
             onClick = { openSettings() },
             gap = BOTTOM_BAR_GAP,
-            dragRoom = BOTTOM_BAR_DRAG_ROOM,
         )
     }
 
@@ -93,9 +89,9 @@ fun ScheduleBottomBar(
             .height(BOTTOM_BAR_CIRCLE),
     ) {
         val pillWidth = maxWidth * tabsWidthFraction
-        // 居中按「胶囊 + 间距 + 圆钮」算，拖动余量只是形状向右的备用宽度
+        // 居中按「胶囊 + 间距 + 圆钮」算；两块独立玻璃，不需要额外拖动余量
         val visibleWidth = pillWidth + BOTTOM_BAR_GAP + BOTTOM_BAR_CIRCLE
-        val nodeWidth = visibleWidth + BOTTOM_BAR_DRAG_ROOM
+        val nodeWidth = visibleWidth
         val nodeLeft = (maxWidth - visibleWidth) / 2
 
         LiquidBottomTabs(

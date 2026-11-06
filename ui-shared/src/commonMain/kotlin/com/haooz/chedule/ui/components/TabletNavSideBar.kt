@@ -59,9 +59,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
-import com.haooz.chedule.ui.basic.DropdownPanelDragSelectState
-import com.haooz.chedule.ui.basic.dropdownPanelDragSelect
-import com.haooz.chedule.ui.basic.dropdownPanelEntry
+import top.yukonga.miuix.kmp.interactive.DropdownPanelDragSelectState
+import top.yukonga.miuix.kmp.interactive.dropdownPanelDragSelect
+import top.yukonga.miuix.kmp.interactive.dropdownPanelEntry
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.glass.BarFill

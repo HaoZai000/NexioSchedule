@@ -102,7 +102,7 @@ fun DayColumn(
     onPendingChange: (day: Int, section: Int) -> Unit = { _, _ -> },
     softGlassSurface: SoftGlassSurface? = null,
     solidBackingColor: Color? = null,
-    cardBlurRadius: Float = 4f,
+    cardBlurRadius: Float = 12f,
     cardAlpha: Float = 0.15f,
     cardSurfaceAlpha: Float = 0.40f,
     cardHeightPerSection: Float = 54f,

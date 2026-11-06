@@ -92,6 +92,7 @@ import com.haooz.chedule.ui.activities.main.PagerJumpNeighbor
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.CourseDetailSheet
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
+import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.components.LocalSoftGlassSurface
 import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.text.LocalTextMotionInstant
@@ -868,7 +869,7 @@ fun MainScheduleScreen(
                         (1..5).toList() + (weekendDaysByWeek[week] ?: emptySet())
                             .filter { it in 6..7 }
                     }
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.fillMaxSize().then(LocalPageStartPadding.current)) {
                         // 柔光采样源整页只算一份；页内所有卡片/分界带/落点遮罩共用
                         CompositionLocalProvider(
                             LocalSoftGlassSurface provides softGlassSurface,

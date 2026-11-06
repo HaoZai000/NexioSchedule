@@ -6,6 +6,7 @@ import androidx.compose.ui.layout.LayoutModifier
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.util.lerp
 import com.haooz.chedule.ui.utils.screenHeightDp
@@ -15,11 +16,6 @@ import kotlin.math.roundToInt
 /**
  * 设置页叠层标题槽：左/右栏顶栏标题随侧栏避让平移与分宽。
  * 竖屏侧栏为叠层，标题不跟随展开；横屏仍随避让。进度只在 measure 读。
- *
- * ⚠ 2026-10-11 从 `:androidApp` 的 `components/TabletNavSideBar.kt` 拆到 `:ui-shared`：
- * `TabletSettingsScreen` 迁入 commonMain 后需要它，而它只依赖跨平台符号
- * （[TabletNavSideState] 同在 :ui-shared，screenWidthDp/screenHeightDp 在 :ui-shared）。
- * Android 专有的 `TabletNavSideBar`/`LiquidNavigationRail`/`startActivity*` 仍留 androidApp。
  */
 @Composable
 internal fun Modifier.tabletNavChromeTitleSlot(
@@ -31,6 +27,7 @@ internal fun Modifier.tabletNavChromeTitleSlot(
     isLeftColumn: Boolean,
 ): Modifier {
     val lockCollapsed = screenHeightDp() > screenWidthDp()
+    val startInsetPx = with(LocalDensity.current) { LocalChromeStartInset.current.roundToPx() }
     return this then TabletNavChromeTitleSlotElement(
         maxWPx = maxWPx,
         collapsedTotalPx = collapsedTotalPx,
@@ -39,6 +36,7 @@ internal fun Modifier.tabletNavChromeTitleSlot(
         heightPx = heightPx,
         isLeftColumn = isLeftColumn,
         lockCollapsed = lockCollapsed,
+        startInsetPx = startInsetPx,
     )
 }
 
@@ -50,6 +48,7 @@ private class TabletNavChromeTitleSlotElement(
     private val heightPx: Int,
     private val isLeftColumn: Boolean,
     private val lockCollapsed: Boolean = false,
+    private val startInsetPx: Int = 0,
 ) : LayoutModifier {
 
     override fun MeasureScope.measure(
@@ -65,16 +64,17 @@ private class TabletNavChromeTitleSlotElement(
                 TabletNavSideState.expandProgress.floatValue,
             )
         }
-        val contentW = (maxWPx - sidePad).coerceAtLeast(0f)
+        val basePad = startInsetPx + sidePad
+        val contentW = (maxWPx - basePad).coerceAtLeast(0f)
         // 左栏标题槽与分栏同步：固定屏宽 0.39（maxWPx 即全屏宽）
         val leftW = maxWPx * 0.39f
         val x: Int
         val w: Int
         if (isLeftColumn) {
-            x = sidePad.roundToInt()
+            x = basePad.roundToInt()
             w = leftW.roundToInt().coerceAtLeast(0)
         } else {
-            x = (sidePad + leftW).roundToInt()
+            x = (basePad + leftW).roundToInt()
             w = (contentW - leftW).roundToInt().coerceAtLeast(0)
         }
         val placeable = measurable.measure(
@@ -83,7 +83,10 @@ private class TabletNavChromeTitleSlotElement(
                 height = heightPx,
             )
         )
-        return layout(maxWPx.roundToInt().coerceAtLeast(placeable.width + x), statusBarPx + heightPx) {
+        return layout(
+            maxWPx.roundToInt().coerceAtLeast(placeable.width + x),
+            statusBarPx + heightPx
+        ) {
             placeable.place(x, statusBarPx)
         }
     }
@@ -92,12 +95,13 @@ private class TabletNavChromeTitleSlotElement(
         if (this === other) return true
         if (other !is TabletNavChromeTitleSlotElement) return false
         return maxWPx == other.maxWPx &&
-            collapsedTotalPx == other.collapsedTotalPx &&
-            expandedWidthPx == other.expandedWidthPx &&
-            statusBarPx == other.statusBarPx &&
-            heightPx == other.heightPx &&
-            isLeftColumn == other.isLeftColumn &&
-            lockCollapsed == other.lockCollapsed
+                collapsedTotalPx == other.collapsedTotalPx &&
+                expandedWidthPx == other.expandedWidthPx &&
+                statusBarPx == other.statusBarPx &&
+                heightPx == other.heightPx &&
+                isLeftColumn == other.isLeftColumn &&
+                lockCollapsed == other.lockCollapsed &&
+                startInsetPx == other.startInsetPx
     }
 
     override fun hashCode(): Int {
@@ -107,6 +111,7 @@ private class TabletNavChromeTitleSlotElement(
         result = 31 * result + statusBarPx
         result = 31 * result + heightPx
         result = 31 * result + isLeftColumn.hashCode()
+        result = 31 * result + startInsetPx
         return result
     }
 }

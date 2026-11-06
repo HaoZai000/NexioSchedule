@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
@@ -74,6 +73,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -99,6 +99,8 @@ import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.chedule.ui.glass.untransformGlassOrigin
 import com.haooz.chedule.ui.components.BackToNowFloatingButton
 import com.haooz.chedule.ui.components.LiquidNavigationRail
+import com.haooz.chedule.ui.components.LocalChromeStartInset
+import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.components.PublishNativeBottomBar
 import com.haooz.chedule.ui.components.ScheduleBottomBar
 import com.haooz.chedule.ui.components.scheduleBottomBarHeight
@@ -109,6 +111,7 @@ import com.haooz.chedule.ui.components.tabletNavExpandSampleTrack
 import com.haooz.chedule.ui.components.tabletNavRailStartPadding
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
+import com.haooz.chedule.ui.navigation.LocalMainLayerRedrawSignal
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TabletCourseManagePane
@@ -261,9 +264,21 @@ internal fun CourseScheduleAppMainContent(
             style = scheduleGlassStyle,
             originTransform = glassOriginTransform,
         )
-        // 主 tab 切换时 pager 整体平移，两页的玻璃采样都要按帧刷新
-        val tabGlassRedraw: () -> Unit = remember(mainPagerState) {
-            { mainPagerState.currentPageOffsetFraction }
+        // 卡片玻璃在各自 draw 里按窗口坐标采样壁纸，而祖先层「只平移、不重绘子树」时
+        // positionInWindow() 变了却没人重画 —— 玻璃就贴着旧像素走（贴纸感 / 错位）。
+        // 滚动 / 翻页 / 侧栏伸缩逐帧订阅；二级页转场是整层平移，卡片要相对不动，
+        // 只在转场结束、主界面归位后由 mainLayerRedraw() 补一帧重采样。
+        val mainLayerRedraw = LocalMainLayerRedrawSignal.current
+        val tabGlassRedraw: () -> Unit = remember(mainPagerState, mainLayerRedraw) {
+            {
+                // 主 tab pager 整体平移
+                mainPagerState.currentPageOffsetFraction
+                // pad 侧栏展开 / 收起：页内留白在 layout 期插值，卡片跟着横移
+                TabletNavSideState.expanded
+                TabletNavSideState.expandProgress.floatValue
+                // 退出二级页、整层归位后补一帧；转场过程中它不变，卡片玻璃不会自己漂
+                mainLayerRedraw()
+            }
         }
 
         // 连贯动画期间下层的实时模糊半径（dp）：长按菜单优先，其次详情 morph；与宿主侧口径一致
@@ -413,6 +428,13 @@ internal fun CourseScheduleAppMainContent(
         ) {
             val hostNav = LocalHostNavigation.current
             val nativeBarInset = (hostNav?.topBarInset ?: 0.0).dp
+            // 横屏摄像头安全区宽度：只用于页内留白，不缩容器
+            val startInsetDp = WindowInsets.safeDrawing.only(WindowInsetsSides.Left).union(
+                WindowInsets(
+                    left = (hostNav?.leftSafeAreaInset ?: 0.0).toFloat().dp,
+                    right = 0.dp,
+                )
+            ).asPaddingValues().calculateLeftPadding(LocalLayoutDirection.current)
             // 右侧避让量：右下角竖排的原生 tab bar 占的空间（折叠屏 iPhone 折叠态）。
             val titleEndPadding = (hostNav?.rightSafeAreaInset ?: 0.0).toFloat().dp
             // 右上角两颗按钮的唯一发布点：今日页与课程表页各一组，跟着主 pager 平移。
@@ -499,15 +521,6 @@ internal fun CourseScheduleAppMainContent(
             val scaffoldContent = @Composable {
                 Scaffold(
                     modifier = Modifier
-                        // ⚠ 只取 Left、不取 Horizontal：`safeDrawing` 的 right 
-                        .windowInsetsPadding(
-                            WindowInsets.safeDrawing.only(WindowInsetsSides.Left).union(
-                                WindowInsets(
-                                    left = (hostNav?.leftSafeAreaInset ?: 0.0).toFloat().dp,
-                                    right = 0.dp,
-                                )
-                            )
-                        )
                         .consumeWindowInsets(PaddingValues(top = nativeBarInset)),
                     bottomBar = {
                         // 平板导航在叠层；这里不占 Scaffold bottomBar，避免全屏挡住内容滚动
@@ -891,6 +904,8 @@ internal fun CourseScheduleAppMainContent(
                             sharedWallpaperBitmap,
                             showCustomizePage,
                             mainPagerState,
+                            navBarStyle,
+                            selectedTab,
                         ) {
                             derivedStateOf {
                                 // 搭配页/开洞编辑：必须始终显示壁纸层，否则选完壁纸「没反应」
@@ -899,8 +914,14 @@ internal fun CourseScheduleAppMainContent(
                                 }
                                 val page = mainPagerState.currentPage
                                 val off = abs(mainPagerState.currentPageOffsetFraction)
-                                !isShiftMode && sharedWallpaperBitmap != null &&
-                                        (page != 2 || off > 0.01f)
+                                // pad 只有今日/课表页铺壁纸；切回主页面时随滑动提前铺上
+                                val onMainPage = if (navBarStyle == "rail") {
+                                    page in 0..1 ||
+                                        (page == 2 && off > 0.01f && selectedTab in 0..1)
+                                } else {
+                                    page != 2 || off > 0.01f
+                                }
+                                !isShiftMode && sharedWallpaperBitmap != null && onMainPage
                             }
                         }
                         if (showSharedWallpaperLayer && sharedWallpaperBitmap != null) {
@@ -989,17 +1010,7 @@ internal fun CourseScheduleAppMainContent(
                             }
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .then(
-                                    if (navBarStyle == "rail") {
-                                        tabletNavRailStartPadding()
-                                    } else {
-                                        Modifier
-                                    }
-                                )
-                        ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
                             // 主 tab 仅由底栏 / 侧栏点击切换，关闭用户手势翻页；方向跟原生宿主 / 平板 rail 一致。
                             // pager 不做整体内缩（折叠屏 iPhone 折叠态右下角是竖排原生 tab bar）
                             val pageRightInset = (hostNav?.rightSafeAreaInset ?: 0.0).toFloat().dp
@@ -1014,7 +1025,14 @@ internal fun CourseScheduleAppMainContent(
                             val mainPagerPageKey: (Int) -> String = { page ->
                                 if (isShiftMode) "shift-$page" else "main-$page"
                             }
-                            val mainPagerPageContent: @Composable (Int) -> Unit = { page ->
+                            // 每页自己留白，pager 容器保持全屏，左右滑动不裁内容
+                            val pageStartModifier = Modifier
+                                .padding(start = startInsetDp)
+                                .then(
+                                    if (navBarStyle == "rail") tabletNavRailStartPadding()
+                                    else Modifier
+                                )
+                            val mainPagerPageBody: @Composable (Int) -> Unit = { page ->
                                 if (!isShiftMode) {
                                     when (page) {
                                         0 -> {
@@ -1732,6 +1750,16 @@ internal fun CourseScheduleAppMainContent(
                                     }
                                 }
                             }
+                            val mainPagerPageContent: @Composable (Int) -> Unit = { page ->
+                                CompositionLocalProvider(LocalPageStartPadding provides pageStartModifier) {
+                                    // 今日/课表页内部还有横向 pager，留白交给它们自己的滚动内容
+                                    val outerPadding =
+                                        if (!isShiftMode && page in 0..1) Modifier else pageStartModifier
+                                    Box(Modifier.fillMaxSize().then(outerPadding)) {
+                                        mainPagerPageBody(page)
+                                    }
+                                }
+                            }
                             // 竖排分支不预组合相邻页：Compose 从「当前页 + 1」开始数
                             // beyondViewportPageCount 个页去测量，请求的页号不会夹回 pageCount
                             // （折叠屏 iPhone 实测 IndexOutOfBoundsException: Index 3, size 3）。
@@ -2260,7 +2288,10 @@ internal fun CourseScheduleAppMainContent(
             val effectiveDark = effectiveForcedDark ?: appSettingDark
             val pageController = rememberAppThemeController(isDark = effectiveDark)
             MiuixTheme(controller = pageController) {
-                CompositionLocalProvider(LocalForcedDarkTheme provides effectiveForcedDark) {
+                CompositionLocalProvider(
+                    LocalForcedDarkTheme provides effectiveForcedDark,
+                    LocalChromeStartInset provides startInsetDp,
+                ) {
                     scaffoldContent()
                     // 平板：胶囊/侧栏叠层（不占 Scaffold bottomBar，内容可正常滚动）
                     if (navBarStyle == "rail") {
@@ -2309,7 +2340,10 @@ internal fun CourseScheduleAppMainContent(
                                     coroutineScope.launch { jumpToWeek(currentWeek) }
                                 }
                             },
-                            modifier = Modifier.fillMaxSize().zIndex(22f),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(start = startInsetDp)
+                                .zIndex(22f),
                         )
                     }
                     // 平板设置：标题与分界线画在顶栏模糊之上。

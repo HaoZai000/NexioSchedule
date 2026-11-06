@@ -195,6 +195,10 @@ fun CourseEditScreen(
 
     val isTablet = isTabletWidth()
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
+    // 嵌入分栏时宿主已处理安全区，页内只留固定白边
+    val horizontalSafeInsets = if (embedded) Modifier else Modifier.windowInsetsPadding(
+        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
+    )
 
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
@@ -354,9 +358,7 @@ fun CourseEditScreen(
                             CollapsibleTopAppBar(
                                 title = courseName,
                                 largeTitle = courseName,
-                                modifier = Modifier.windowInsetsPadding(
-                                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
-                                ),
+                                modifier = horizontalSafeInsets,
                                 scrollBehavior = scrollBehavior,
                                 contentPadding = {},
                                 startAction = if (embedded || nativeChrome != null) null else {
@@ -461,7 +463,7 @@ fun CourseEditScreen(
                                 columns = StaggeredGridCells.Fixed(1),
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                                    .then(horizontalSafeInsets)
                                     .overScrollVertical()
                                     .scrollEndHaptic(
                                         hapticFeedbackType = HapticFeedbackType.TextHandleMove

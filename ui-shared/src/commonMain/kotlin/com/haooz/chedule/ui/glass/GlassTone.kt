@@ -66,7 +66,7 @@ object TokenTone : GlassTone {
         reflectionStrength = 0.8f,
         reflectionLighten = 1f,
         // ── 压暗与调色 ───────────────────────────────────────────────
-        darker = 0.2f,
+        darker = 0.08f,
         darkerColor = Color(0.07874f, 0.02848f, 0.09278f),
         darkerRange = 0.6f to 1.0f,
         luminanceValues = listOf(0f, 2f, 0.5f, 0.8f),

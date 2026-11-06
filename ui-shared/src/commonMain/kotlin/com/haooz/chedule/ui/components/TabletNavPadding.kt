@@ -1,6 +1,7 @@
 package com.haooz.chedule.ui.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Measurable
@@ -15,9 +16,7 @@ import com.haooz.chedule.ui.utils.screenWidthDp
 import kotlin.math.roundToInt
 
 /**
- * 平板侧栏的布局常量与内容区避让（2026-10-10 从 TabletNavSideBar.kt 迁入 :ui-shared ——
- * ScheduleTopBar / MainActivity 都要用 [tabletNavRailStartPadding]，而侧栏 UI 本体
- * 仍留在 androidApp（Activity/WindowManager 依赖）。同包名，调用方 import 零改动。
+ * 平板侧栏的布局常量与内容区避让
  */
 
 /** 展开侧栏占位宽度占屏宽比例 */
@@ -28,6 +27,12 @@ val TabletNavIconRailWidth = 84.dp
 
 /** 遮罩相对屏幕左缘的间距，展开/折叠保持不变（不贴边、也不左跳） */
 val TabletNavSideInset = 12.dp
+
+/** 今日/课表页滚动内容自己读的左侧留白；视口保持全屏，左右滑动不裁内容 */
+val LocalPageStartPadding = staticCompositionLocalOf<Modifier> { Modifier }
+
+/** 侧栏与标题栏共用的左侧安全区留白 */
+val LocalChromeStartInset = staticCompositionLocalOf { 0.dp }
 
 /**
  * 内容区左侧的避让宽度。

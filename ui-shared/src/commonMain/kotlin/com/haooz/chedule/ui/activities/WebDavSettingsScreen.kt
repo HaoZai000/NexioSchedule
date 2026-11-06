@@ -66,7 +66,7 @@ fun WebDavSettingsScreen(
     onConnectedChange: (Boolean) -> Unit = {},
     onTestConnectionReady: (() -> Unit) -> Unit = {},
     /**
-     * 底部「备份到云端 / 从云端恢复」的实现反抛给宿主（用 [WebDavActionButtons]）
+     * 底部「备份到云端 / 从云端恢复」的实现反抛给宿主（宿主在 overlay 里直接渲染两颗文字按钮）
      */
     onBackupRestoreReady: (onBackup: () -> Unit, onRestore: () -> Unit) -> Unit = { _, _ -> },
     onBusyStateChange: (backingUp: Boolean, restoring: Boolean) -> Unit = { _, _ -> },
@@ -456,7 +456,7 @@ fun WebDavSettingsScreen(
             }
 
             // 底部「备份 / 恢复」不在这里画：本页在录制层内，按钮会采到自己。
-            // 宿主在录制层之外用 WebDavActionButtons 渲染（见参数 onBackupRestoreReady 的说明）。
+            // 宿主在录制层之外直接用两颗文字玻璃按钮渲染（见参数 onBackupRestoreReady 的说明）。
         }
     }
 }

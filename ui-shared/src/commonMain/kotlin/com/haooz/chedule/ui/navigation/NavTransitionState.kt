@@ -5,12 +5,31 @@ import androidx.compose.animation.core.animate
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import kotlin.math.roundToInt
+
+/**
+ * 主界面转场的「静止脉冲」。
+ *
+ * [MainLayerTransition] 用 `Modifier.layout` 平移整棵主界面树：**转场进行中整层向左平移是设计**，
+ * 卡片玻璃要相对卡片不动（纹理跟着整层一起走），逐帧重绘反而会让它自己漂 —— 所以这里
+ * **不**订阅连续的 [NavTransitionState.value]。
+ *
+ * 真正要修的是「二级页久留后返回」：进二级页途中若刷过一帧，卡片玻璃的 `uOrigin` 会停在
+ * 偏移后的窗口坐标；退回后位置回 0，子树却不重绘，玻璃就贴着错位的像素，滑一下才归位。
+ * 于是在转场结束、主界面回到 0 的那一刻发一次脉冲，让卡片在最终位置重采样一帧；
+ * 静止之后不再产生任何重绘。
+ */
+val LocalMainLayerRedrawSignal = staticCompositionLocalOf<() -> Unit> { {} }
 
 /**
  * 转场进度持有者（0 = 起始，1 = 完成）。两份：[AppNavHost] 的栈顶进度，和主界面（main）的首层进度 —— 主界面是常驻底座、不进转场容器（见 [AppRouter]），视差只能由宿主施加，故进度提到两边都够得着的高度：[AppNavHost] 写、MainActivity 容器读。
@@ -86,16 +105,31 @@ fun MainLayerTransition(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .layout { measurable, constraints ->
-                // 原样 measure：不把位移写进 constraints，子节点才不会被迫重测
-                val placeable = measurable.measure(constraints)
-                val dx = (-NAV_PARALLAX * state.value * placeable.width).roundToInt()
-                layout(placeable.width, placeable.height) {
-                    placeable.place(dx, 0)
-                }
-            },
-    ) { content() }
+    // 只在「转场结束、主界面回到 0」时递增一次。draw 期订阅的是这个离散值：
+    // 转场中间帧它不变 ⇒ 卡片一次都不重绘；动画落到 0 才补一帧重采样。
+    val settledEpoch = remember { mutableIntStateOf(0) }
+    LaunchedEffect(state) {
+        var wasSettled = true
+        snapshotFlow { state.value }.collect { v ->
+            val settled = v <= 0.001f
+            if (settled && !wasSettled) settledEpoch.intValue++
+            wasSettled = settled
+        }
+    }
+    // 稳定引用：组合期绝不读快照值（否则整棵主界面随转场每帧重组）
+    val redraw: () -> Unit = remember(state) { { settledEpoch.intValue } }
+    CompositionLocalProvider(LocalMainLayerRedrawSignal provides redraw) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .layout { measurable, constraints ->
+                    // 原样 measure：不把位移写进 constraints，子节点才不会被迫重测
+                    val placeable = measurable.measure(constraints)
+                    val dx = (-NAV_PARALLAX * state.value * placeable.width).roundToInt()
+                    layout(placeable.width, placeable.height) {
+                        placeable.place(dx, 0)
+                    }
+                },
+        ) { content() }
+    }
 }

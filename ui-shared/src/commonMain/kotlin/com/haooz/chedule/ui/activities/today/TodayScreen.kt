@@ -82,6 +82,7 @@ import com.haooz.chedule.ui.activities.main.PagerJumpNeighbor
 import com.haooz.chedule.ui.activities.main.jumpToPageSmoothly
 import com.haooz.chedule.ui.components.CourseDetailSheet
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
+import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.components.LocalSoftGlassSurface
 import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.text.LocalTextMotionInstant
@@ -762,6 +763,7 @@ fun TodayScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
+                            .then(LocalPageStartPadding.current)
                             .padding(
                                 start = tabletHorizontalPadding,
                                 end = tabletHorizontalPadding,

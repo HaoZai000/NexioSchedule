@@ -19,6 +19,9 @@ import com.kyant.backdrop.RuntimeShader
  * @param width 控件宽度（px）。
  * @param height 控件高度（px）。
  * @param radiusPx 圆角（px）；为 null 时取短边一半（胶囊）。形变中的控件应按当前尺寸逐帧传入。
+ * @param shapeRectPx 可见形状外接矩形 `[left, top, right, bottom]`（节点坐标系 px）。
+ *   null = 整个节点。材质节点带 bleed、可见轮廓是自定义 Path 时必须传，
+ *   否则倒角带会落在 bleed 外的节点边界上，可见区域内全是「平玻璃」。
  */
 internal fun RuntimeShader.applyLiveGlass(
     style: SoftGlassStyle,
@@ -26,15 +29,23 @@ internal fun RuntimeShader.applyLiveGlass(
     height: Float,
     /** 圆角（px）；为 null 时取短边一半（胶囊）。形变中的控件每帧按当前尺寸传入。 */
     radiusPx: Float? = null,
+    shapeRectPx: FloatArray? = null,
 ) {
     if (width <= 0f || height <= 0f) return
-    val half = minOf(width, height) * 0.5f
+    val rect = shapeRectPx?.takeIf { it.size >= 4 }
+    val shapeLeft = rect?.get(0) ?: 0f
+    val shapeTop = rect?.get(1) ?: 0f
+    val shapeRight = rect?.get(2) ?: width
+    val shapeBottom = rect?.get(3) ?: height
+    // 胶囊半径按可见形状短边算，否则带 bleed 的控件会被节点高度撑大
+    val half = minOf(shapeRight - shapeLeft, shapeBottom - shapeTop).coerceAtLeast(1f) * 0.5f
     val edgePx = style.edgeWidth
     // refractionScale = 0 表示关闭折射，见 [SoftGlassStyle.refractionScale]
     val refractionOn = style.refractionScale > 0f
 
     // ── 几何 ─────────────────────────────────────────────────────────
     setFloatUniform("uSize", width, height)
+    setFloatUniform("uShapeRect", shapeLeft, shapeTop, shapeRight, shapeBottom)
     // 圆角超过短边一半时钳制为胶囊。只灌名义半径：
     // 可见轮廓由 G2 Path 裁剪，shader 的圆弧 SDF 仅用于光学距离，不参与定形。
     val r = (radiusPx ?: half).coerceIn(0f, half)

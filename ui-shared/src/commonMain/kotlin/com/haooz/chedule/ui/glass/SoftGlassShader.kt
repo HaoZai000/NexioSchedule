@@ -440,6 +440,9 @@ uniform shader content;
 
 uniform float2 uSize;
 uniform float4 uCornerRadii;
+// 可见形状的外接矩形 [left, top, right, bottom]（节点坐标系 px）。
+// 默认等于整个节点；带 bleed 的自定义 Shape 传入可见矩形，倒角带才会落在真实轮廓上。
+uniform float4 uShapeRect;
 
 uniform float  uEdgePx;
 uniform float  uEdgePow;
@@ -553,8 +556,10 @@ float4 processLighting(float4 color, float3 normal) {
 """ + SOFT_GLASS_COLOR_PROCESS + """
 
 half4 main(float2 fragCoord) {
-    float2 halfSize = uSize * 0.5;
-    float2 p = fragCoord - halfSize;
+    float2 shapeSize = max(uShapeRect.zw - uShapeRect.xy, float2(1.0));
+    float2 halfSize = shapeSize * 0.5;
+    // 倒角带的参考中心是可见形状中心，不是含 bleed 的节点中心
+    float2 p = fragCoord - (uShapeRect.xy + uShapeRect.zw) * 0.5;
     // 只算光学距离；可见轮廓由 G2 Path 裁剪（圆弧恒比 G2 更方，不会露缝）
     float cornerR = min(radiusAt(p, uCornerRadii), min(halfSize.x, halfSize.y));
     float sd = sdRoundRect(p, halfSize, cornerR);

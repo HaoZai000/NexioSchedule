@@ -73,7 +73,7 @@ object AppearanceStyleCodec {
                 scale = obj.floatOr("scale", 1f),
                 offsetRefW = obj.floatOr("offsetRefW", 0f),
                 offsetRefH = obj.floatOr("offsetRefH", 0f),
-                cardBlur = coerceBlurPx(obj.floatOr("cardBlur", 10f)),
+                cardBlur = coerceBlurPx(obj.floatOr("cardBlur", 12f)),
                 cardAlpha = obj.floatOr("cardAlpha", 0.15f),
                 cardSurfaceAlpha = obj.floatOrNull("cardSurfaceAlpha"),
                 cardHeight = obj.floatOr("cardHeight", 54f),
@@ -88,7 +88,7 @@ object AppearanceStyleCodec {
                 showTeacher = obj.boolOr("showTeacher", true),
                 cardRefraction = obj.enumOr("cardRefraction") { CardRefractionLevel.fromOrdinal(it) },
                 cardEdgeThickness = obj.enumOr("cardEdgeThickness") { CardEdgeThickness.fromOrdinal(it) },
-                cardRim = obj.boolOr("cardRim", true),
+                cardRim = obj.boolOr("cardRim", false),
                 wallpaperBlur = obj.boolOr("wallpaperBlur", false),
             )
         }.getOrNull()

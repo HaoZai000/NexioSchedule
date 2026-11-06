@@ -35,6 +35,8 @@ import top.yukonga.miuix.kmp.basic.DropdownArrowEndAction
 import top.yukonga.miuix.kmp.basic.DropdownColors
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.interactive.DropdownMaskMode
+import top.yukonga.miuix.kmp.interactive.DropdownPanelDragSelectState
 import top.yukonga.miuix.kmp.popup.OverlayDropdownPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -195,7 +197,10 @@ fun OverlayDropdownMenu(
 
     // 跟手滑选状态。必须在本组件创建（不能由弹窗内容层自建）：弹窗在 Popup 独立
     // 窗口里，要跨窗口回传选中项，只能靠调用方持有的同一个实例
-    val dragSelectState = remember { DropdownPanelDragSelectState() }
+    // 与 LiquidGlassDropdownMenu 同款：整块遮罩在选项间连贯滑动
+    val dragSelectState = remember {
+        DropdownPanelDragSelectState(maskMode = DropdownMaskMode.Sliding)
+    }
 
     val nonEmptyEntries = entries.filter { it.items.isNotEmpty() }
     val hasEntries = nonEmptyEntries.isNotEmpty()

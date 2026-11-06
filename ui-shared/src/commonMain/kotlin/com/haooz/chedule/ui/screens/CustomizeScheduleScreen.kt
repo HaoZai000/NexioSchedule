@@ -1491,9 +1491,9 @@ fun CustomizeScheduleScreen(
                                 label = SchedStr.cardBlur(),
                                 value = effectValue,
                                 // **px 单位**，值就是 σ：直接喂 shader，不做 density 换算、也没有隐藏倍率。
-                                // 0..24px（上限见 CARD_BLUR_MAX_PX），默认 10px。
+                                // 0..24px（上限见 CARD_BLUR_MAX_PX），默认 12px。
                                 valueRange = 0f..24f,
-                                keyPoints = listOf(10f),
+                                keyPoints = listOf(12f),
                                 // 无材质档锁死：卡片模糊/折射整体关（渲染侧同步强制 0）
                                 enabled = hasWallpaper &&
                                     !com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier(),
@@ -1533,7 +1533,7 @@ fun CustomizeScheduleScreen(
                                     SchedStr.wallpaperRequired()
                                 }
                             )
-                            // 高光描边：倒角带上的方向光，课表页与今日页同一开关（默认开）
+                            // 高光描边：倒角带上的方向光，课表页与今日页同一开关（默认关）
                             // 每一档材质都有这圈光（无材质档只是模糊/折射归零），所以只按有无壁纸判可用
                             val rimEnabled = hasWallpaper
                             Row(

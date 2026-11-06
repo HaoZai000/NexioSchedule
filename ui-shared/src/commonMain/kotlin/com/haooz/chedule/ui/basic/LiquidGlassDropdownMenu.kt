@@ -82,7 +82,13 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.interactive.DropdownMaskMode
+import top.yukonga.miuix.kmp.interactive.DropdownPanelDragSelectState
+import top.yukonga.miuix.kmp.interactive.LocalDropdownPanelDragSelect
 import top.yukonga.miuix.kmp.interactive.computeDragTransform
+import top.yukonga.miuix.kmp.interactive.dropdownPanelDragSelect
+import top.yukonga.miuix.kmp.interactive.dropdownPanelEntry
+import top.yukonga.miuix.kmp.interactive.dropdownPanelSlidingMask
 import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.rememberNavigationBack
@@ -181,7 +187,10 @@ fun LiquidGlassDropdownMenu(
     // 展开过才播退出动画，首帧不播（否则启动时按钮会被带偏）
     var hasOpened by remember { mutableStateOf(false) }
     // 跟手滑选：菜单项各自登记位置，手势逐帧命中测试
-    val dragSelectState = remember { DropdownPanelDragSelectState() }
+    // 滑选遮罩：整块从一项连贯滑到另一项（另一形态是逐项淡入淡出，见 DropdownMaskMode）
+    val dragSelectState = remember {
+        DropdownPanelDragSelectState(maskMode = DropdownMaskMode.Sliding)
+    }
 
     // 预测性返回：始终注册（否则动画未播完时立即返回会抓不到手势）。⚠️ handler 与进度读取
     // 必须绑定同一份状态，拆开会导致跟手动画失效。
@@ -475,6 +484,8 @@ fun LiquidGlassDropdownMenu(
                         }
                         .blur(contentBlur)
                         .padding(vertical = 8.dp)
+                        // 遮罩与菜单项同在这个 Column 里，父层变换天然一起带。
+                        .dropdownPanelSlidingMask(dragSelectState)
                 ) {
                     // 菜单项从这里读跟手选中态（局部坐标换算要用面板在 root 里的位置）
                     CompositionLocalProvider(LocalDropdownPanelDragSelect provides dragSelectState) {

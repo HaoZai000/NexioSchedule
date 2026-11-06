@@ -39,6 +39,7 @@ import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownShadowPadding
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.components.LocalChromeStartInset
 import com.haooz.chedule.ui.components.rememberTopBarMaterialAlpha
 import com.haooz.chedule.ui.components.tabletNavRailStartPadding
 import com.haooz.chedule.ui.theme.rememberAppThemeController
@@ -373,11 +374,12 @@ internal fun TodayTopBar(
     val hostOwnsTopRight = LocalHostNavigation.current != null ||
         LocalNativeTopBarHost.current?.ownsTopRight == true
     // 平板：标题避让侧栏后左对齐用的附加修饰符
-    val titleRailPadding = if (isTabletLiquidGlass) {
-        tabletNavRailStartPadding().padding(start = 12.dp)
-    } else {
-        Modifier
-    }
+    val titleRailPadding = Modifier
+        .padding(start = LocalChromeStartInset.current)
+        .then(
+            if (isTabletLiquidGlass) tabletNavRailStartPadding().padding(start = 12.dp)
+            else Modifier
+        )
     val dayOfWeekNames = listOf(
         CommonStr.weekdayMon(), CommonStr.weekdayTue(), CommonStr.weekdayWed(),
         CommonStr.weekdayThu(), CommonStr.weekdayFri(), CommonStr.weekdaySat(),

@@ -45,6 +45,7 @@ import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.components.LocalChromeStartInset
 import com.haooz.chedule.ui.components.rememberTopBarMaterialAlpha
 import com.haooz.chedule.ui.components.tabletNavRailStartPadding
 import com.haooz.chedule.ui.components.text.miuix.Text
@@ -167,8 +168,9 @@ fun ScheduleTopBar(
     ) {
         Box {
             // 平板：标题避让左侧侧栏后左对齐（手机仍居中）
-            val titleRailPadding =
-                if (isTablet) tabletNavRailStartPadding().padding(start = 12.dp) else Modifier
+            val titleRailPadding = Modifier
+                .padding(start = LocalChromeStartInset.current)
+                .then(if (isTablet) tabletNavRailStartPadding().padding(start = 12.dp) else Modifier)
             val titleEndModifier =
                 if (titleEndPadding > 0.dp) Modifier.padding(end = titleEndPadding) else Modifier
             // zIndex 必须挂在这层 Box 上，不能直接传给 CollapsibleTopAppBar：
@@ -321,6 +323,7 @@ private fun DayOfWeekRow(
         modifier = modifier
             .fillMaxWidth()
             .height(40.dp)
+            .padding(start = LocalChromeStartInset.current)
             .then(
                 if (isTablet) {
                     // 侧栏避让放在原 padding(start=) 位置，避免撑高 dayOfWeekTopPadding

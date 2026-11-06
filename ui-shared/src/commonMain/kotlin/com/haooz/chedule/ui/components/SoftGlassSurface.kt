@@ -20,6 +20,13 @@ import com.haooz.chedule.ui.glass.softGlass
 import com.haooz.chedule.ui.glass.wallpaperTexMap
 
 /**
+ * 玻璃控件的拖动手感常量。值统一定义在 miuix（玻璃档位），这里只做本模块别名；
+ * 按钮 / 菜单 / 底栏都从 `com.haooz.chedule.ui.components` 引用，不能删。
+ */
+internal const val GlassDragStretchRatio = top.yukonga.miuix.kmp.interactive.GlassDragStretchRatio
+internal const val GlassDragTranslationDamping = top.yukonga.miuix.kmp.interactive.GlassDragTranslationDamping
+
+/**
  * 柔光玻璃的绘制能力，供 `commonMain` 的卡片调用。
  *
  * 需要这层抽象：卡片背景由平台画（AGSL / SkSL + 纹理采样），`commonMain` 引不到 `RuntimeShader`，

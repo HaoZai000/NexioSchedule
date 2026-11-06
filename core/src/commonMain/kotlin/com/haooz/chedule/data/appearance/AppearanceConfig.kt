@@ -10,8 +10,9 @@ data class AppearanceConfig(
      * 卡片模糊半径，**单位 px**（不是 dp），语义就是高斯 σ。
      *
      * 直接喂柔光玻璃的 `smallBlurRadius`，**不做任何换算**。上限见 [CARD_BLUR_MAX_PX]。
+     * 出厂默认 12px；与 [AppearanceStyle.cardBlur]、滑杆刻度、JSON 缺省值四处一致。
      */
-    val cardBlurRadius: Float = 10f,
+    val cardBlurRadius: Float = 12f,
     /** 课程色着色程度（有无壁纸都可调） */
     val cardAlpha: Float = 0.15f,
     /**
@@ -34,8 +35,8 @@ data class AppearanceConfig(
     val cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     /** 玻璃边缘厚度档位（乘在 `SoftGlassStyle.edgeWidth` 上，不改文件里的默认值） */
     val cardEdgeThickness: CardEdgeThickness = CardEdgeThickness.DEFAULT,
-    /** 卡片玻璃的高光描边（倒角方向光）；课表页与今日页共用，默认开 = 现在的观感 */
-    val cardRim: Boolean = true,
+    /** 卡片玻璃的高光描边（倒角方向光）；课表页与今日页共用，出厂默认关 */
+    val cardRim: Boolean = false,
     val wallpaperBlur: Boolean = false
 ) {
     companion object
@@ -127,8 +128,8 @@ data class AppearanceStyle(
     /** offset/scale 保存时的屏幕宽高（px）；0=未记录，加载时不重映射 */
     val offsetRefW: Float = 0f,
     val offsetRefH: Float = 0f,
-    /** 课程卡片模糊半径（**px**，直接喂 `smallBlurRadius`，不乘 density） */
-    val cardBlur: Float = 10f,
+    /** 课程卡片模糊半径（**px**，直接喂 `smallBlurRadius`，不乘 density）；出厂默认 12 */
+    val cardBlur: Float = 12f,
     val cardAlpha: Float = 0.15f,
     /** 有壁纸时白/黑底不透明度；null=未设置，用默认 */
     val cardSurfaceAlpha: Float? = null,
@@ -146,8 +147,8 @@ data class AppearanceStyle(
     val cardRefraction: CardRefractionLevel? = null,
     /** 边缘厚度档位；null = 未设置，用默认 */
     val cardEdgeThickness: CardEdgeThickness? = null,
-    /** 卡片高光描边；缺键（老数据）= true，保持原有观感 */
-    val cardRim: Boolean = true,
+    /** 卡片高光描边；缺键（老数据）按出厂默认关 */
+    val cardRim: Boolean = false,
     val wallpaperBlur: Boolean = false
 ) {
     val safeAlignment: CardContentAlignment get() = cardContentAlignment ?: CardContentAlignment.CENTER_CENTER
@@ -166,7 +167,7 @@ data class AppearanceStyle(
         get() = if (cardHeight > 0f) cardHeight else CombinationDefaults.CARD_HEIGHT_DEFAULT
 
     companion object {
-        /** 默认值集中一处，三处（本类 / 落地 JSON / UI 滑杆）必须一致 */
+        /** 默认值集中一处；本类 / JSON 缺省值 / UI 滑杆刻度 / 运行期快照四处必须一致 */
         fun defaults(): AppearanceStyle = AppearanceStyle()
     }
 }

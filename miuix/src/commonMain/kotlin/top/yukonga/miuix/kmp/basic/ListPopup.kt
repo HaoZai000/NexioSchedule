@@ -83,11 +83,13 @@ import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.anim.SinOutEasing
+import top.yukonga.miuix.kmp.interactive.DropdownMaskMode
 import top.yukonga.miuix.kmp.interactive.DropdownPanelDragSelectState
 import top.yukonga.miuix.kmp.interactive.InteractiveHighlight
 import top.yukonga.miuix.kmp.interactive.LocalDropdownPanelDragSelect
 import top.yukonga.miuix.kmp.interactive.dropdownPanelDragSelect
 import top.yukonga.miuix.kmp.interactive.dropdownPanelDragTransform
+import top.yukonga.miuix.kmp.interactive.dropdownPanelSlidingMask
 import top.yukonga.miuix.kmp.internal.drawBlurredRingShadow
 import top.yukonga.miuix.kmp.material.LocalGlassPanelBlurDp
 import top.yukonga.miuix.kmp.material.LocalGlassSurfaceAlphaDrop
@@ -1151,6 +1153,7 @@ private fun PopupMenuLayer(
     onSizeChange: (IntSize) -> Unit,
     content: @Composable () -> Unit,
 ) {
+    val dragSelect = LocalDropdownPanelDragSelect.current
     // 内容按**宽度**等比缩放（contentScale = rect宽 / 内容宽），但面板早期近乎方形、
     // 内容是长条，两者宽高比不一致 → 缩放后的高度会顶穿面板上下边。
     val clipShape: Shape = AnimatedPanelRectShape(
@@ -1194,7 +1197,15 @@ private fun PopupMenuLayer(
                 translationX = rect[0] + rect[2] / 2f - (style.overshootRoomPx + size.width / 2f)
                 translationY = rect[1] + rect[3] / 2f - (style.overshootRoomPx + size.height / 2f)
             }
-            .blur(style.contentBlur(style.fractionProgress())),
+            .blur(style.contentBlur(style.fractionProgress()))
+            // 遮罩与菜单项同在这个 Box 里：本层 graphicsLayer 与外层拖动形变天然一起带。
+            .then(
+                if (dragSelect?.maskMode == DropdownMaskMode.Sliding) {
+                    Modifier.dropdownPanelSlidingMask(dragSelect)
+                } else {
+                    Modifier
+                }
+            ),
     ) {
         content()
     }

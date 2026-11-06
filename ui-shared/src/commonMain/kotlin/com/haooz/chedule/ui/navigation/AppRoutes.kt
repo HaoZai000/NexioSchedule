@@ -5,9 +5,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -106,7 +108,6 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ShortcutMenu
 import com.haooz.chedule.ui.basic.ShortcutMenuItem
 import com.haooz.chedule.ui.components.DocumentPageScaffold
-import com.haooz.chedule.ui.components.WebDavActionButtons
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
@@ -770,7 +771,7 @@ fun CourseReminderRoute(
 
 /**
  * WebDAV 云备份设置路由：顶栏「测试连接」（[DocumentPageScaffold] 的 endAction）+
- * 底部「备份到云端 / 从云端恢复」（[WebDavActionButtons]，三端同一份实现）。
+ * 底部「备份到云端 / 从云端恢复」（overlay 里直接两颗 [LiquidGlassTextButton]）。
  *
  * ⚠ 底部按钮必须画在 `overlay` 里，不能挪进 [WebDavSettingsScreen]：本页内容整体在录制层内，
  * 按钮自己又采样同一层 backdrop，放进去就是自采自，直接崩。
@@ -801,14 +802,33 @@ fun WebDavSettingsRoute(
         title = ChromeStr.webdavBackup(),
         onBack = { router.popBack() },
         overlay = { backdrop ->
-            WebDavActionButtons(
-                backdrop = backdrop,
-                backingUp = backingUp,
-                restoring = restoring,
-                onBackup = onBackup,
-                onRestore = onRestore,
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
+            // 两颗独立文字玻璃按钮，与其他页面底部主操作同一套写法
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = if (isTabletWidth()) 28.dp else 24.dp)
+                    .navigationBarsPadding()
+                    .padding(bottom = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(Modifier.weight(1f)) {
+                    LiquidGlassTextButton(
+                        text = if (backingUp) ChromeStr.backingUp() else ChromeStr.backupToCloud(),
+                        onClick = onBackup,
+                        backdrop = backdrop,
+                        primary = true,
+                    )
+                }
+                Box(Modifier.weight(1f)) {
+                    LiquidGlassTextButton(
+                        text = if (restoring) ChromeStr.restoring() else ChromeStr.restoreFromCloud(),
+                        onClick = onRestore,
+                        backdrop = backdrop,
+                        primary = true,
+                    )
+                }
+            }
         },
         endAction = { backdropAlpha, shadowAlpha, backdrop ->
             LiquidTopBarButton(

@@ -118,7 +118,7 @@ data class SoftGlassStyle(
     /** 亮度曲线拐点，对应 `uBurn`（大面板档位 0.0）。 */
     val burn: Float = 0f,
     /** 亮部压暗强度，对应 `uDarker`（大面板档位 0.2）。 */
-    val darker: Float = 0.2f,
+    val darker: Float = 0.0f,
     /**
      * 亮部压暗所混向的颜色。参考实现硬编码为深紫黑 (0.0787, 0.0285, 0.0928)，
      * 其 R/B 分量高于 G，压暗后会带紫色；传 `Color.Black` 可得到中性压暗。
