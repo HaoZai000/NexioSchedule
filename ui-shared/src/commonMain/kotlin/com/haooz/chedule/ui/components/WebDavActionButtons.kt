@@ -68,10 +68,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 这两颗按钮的拖动手感，与 [com.haooz.chedule.ui.basic.LiquidGlassTextButton] 共用。
- * 拉伸 0.012、位移阻尼 0.032 —— 改这里两处一起变。
+ * 值统一定义在 miuix（玻璃档位），这里只做本模块别名。
  */
-internal const val GlassDragStretchRatio = 0.012f
-internal const val GlassDragTranslationDamping = 0.032f
+internal const val GlassDragStretchRatio = top.yukonga.miuix.kmp.interactive.GlassDragStretchRatio
+internal const val GlassDragTranslationDamping = top.yukonga.miuix.kmp.interactive.GlassDragTranslationDamping
 
 /**
  * 这两颗按钮的融球手感。

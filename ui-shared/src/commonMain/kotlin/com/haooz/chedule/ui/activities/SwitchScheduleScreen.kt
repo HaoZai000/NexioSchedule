@@ -60,7 +60,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -93,6 +95,12 @@ import com.haooz.chedule.ui.components.cardRevealLayer
 import com.haooz.chedule.ui.components.rememberCardRevealState
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.chedule.ui.glass.BarFill
+import com.haooz.chedule.ui.glass.BrightLargeTone
+import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
 import com.haooz.chedule.ui.utils.NativeDocumentActionEffect
@@ -103,13 +111,10 @@ import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberDefaultEdgeLight
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.backdrop.isRenderEffectSupported
 import com.kyant.capsule.ContinuousCapsule
 import kotlin.math.abs
@@ -153,6 +158,9 @@ import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+
+/** 切换课表页底部胶囊的柔光 shader 缓存键：尺寸与其他玻璃件不同，不能共用 uniform。 */
+private const val LIVE_SWITCH_BAR_GLASS_KEY = "NexioSoftGlassLiveSwitchBar"
 
 @Composable
 fun SwitchScheduleScreen(
@@ -640,6 +648,41 @@ fun SwitchScheduleScreen(
                         .copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.6f))
                     else Color(0xFF121212).copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.54f))
 
+                    // 柔光玻璃：材质、档位、调色全由材质层给出；模糊走档位值，无材质档整体关。
+                    // effects / shape / onDrawSurface 按引用比较，lambda 每帧新建会每帧重录采样层。
+                    val bottomBarGlassBlur = AppMaterialSettings.glassBlurDp()
+                    val bottomBarGlassOn = AppMaterialSettings.glassEffectsEnabled()
+                    val bottomBarGlassStyle = AppMaterialSettings.chromeGlassStyle(
+                        base = ScheduleSoftGlassStyle,
+                        isDark = isAppDarkTheme(),
+                        // 底部胶囊是「贴底 bar」类玻璃：走 BarFill + 大控件材质。
+                        fill = BarFill,
+                        tone = BrightLargeTone,
+                    )
+                    val bottomBarShapeBlock: () -> Shape = remember { { ContinuousCapsule() } }
+                    val bottomBarEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+                        remember(bottomBarGlassBlur, bottomBarGlassOn, bottomBarGlassStyle) {
+                            {
+                                if (bottomBarGlassOn) {
+                                    blur(bottomBarGlassBlur.dp.toPx())
+                                    runtimeShaderEffect(
+                                        key = LIVE_SWITCH_BAR_GLASS_KEY,
+                                        shaderString = SOFT_GLASS_LIVE_SHADER,
+                                        uniformShaderName = "content",
+                                    ) {
+                                        applyLiveGlass(
+                                            style = bottomBarGlassStyle,
+                                            width = size.width,
+                                            height = size.height,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    val bottomBarOnDrawSurface: DrawScope.() -> Unit = remember(containerColor) {
+                        { drawRect(containerColor) }
+                    }
+
                     // 按压高光：整条胶囊按哪亮哪。触发挂整条胶囊；下面的总手势会消费事件，
                     // 但 gestureModifier 是 observeConsumed=true 的纯视觉观察者，照常跟手。
                     val bottomBarScope = rememberCoroutineScope()
@@ -690,21 +733,11 @@ fun SwitchScheduleScreen(
                                 }
                                 .drawBackdrop(
                                     backdrop = liquidGlassBackdrop,
-                                    shape = { ContinuousCapsule() },
-                                    effects = {
-                                        // 无材质档整体关（这组是硬编码参数，不读档位模糊值）
-                                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()) {
-                                            vibrancy()
-                                            blur(4f.dp.toPx())
-                                            lens(6f.dp.toPx(), 36f.dp.toPx())
-                                        }
-                                    },
+                                    shape = bottomBarShapeBlock,
+                                    effects = bottomBarEffects,
                                     highlight = null,
-                                    onDrawSurface = { drawRect(containerColor) }
-                                )
-                                .edgeLight(
-                                    shape = ContinuousCapsule(),
-                                    edgeLight = rememberDefaultEdgeLight(degradedBaseColor = containerColor),
+                                    // 柔光自己画玻璃色与方向光；无材质档不跑 shader，必须留容器色
+                                    onDrawSurface = if (bottomBarGlassOn) null else bottomBarOnDrawSurface,
                                 )
                                 // 高光画在材质之上、条目之下（条目在 drawContent 里更靠内），
                                 // 且被 drawBackdrop 的 clipPath 裁进胶囊外形

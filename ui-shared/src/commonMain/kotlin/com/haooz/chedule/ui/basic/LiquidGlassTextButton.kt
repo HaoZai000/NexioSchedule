@@ -30,18 +30,24 @@ import com.haooz.chedule.ui.components.GlassDragStretchRatio
 import com.haooz.chedule.ui.components.GlassDragTranslationDamping
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.chedule.ui.glass.BrightTone
+import com.haooz.chedule.ui.glass.CustomizeFill
+import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.ThemeFill
+import com.haooz.chedule.ui.glass.applyLiveGlass
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberDefaultEdgeLight
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.capsule.ContinuousCapsule
 import top.yukonga.miuix.kmp.interactive.computeDragTransform
 import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** 文字玻璃按钮的柔光 shader 缓存键：尺寸与其他玻璃件不同，不能共用 uniform。 */
+private const val LIVE_TEXT_BUTTON_GLASS_KEY = "NexioSoftGlassLiveTextButton"
 
 /**
  * 底部悬浮液态玻璃按钮，效果对齐 [com.haooz.chedule.ui.components.BackToNowFloatingButton]：
@@ -94,20 +100,35 @@ fun LiquidGlassTextButton(
 
     val buttonShape: Shape = remember { ContinuousCapsule() }
     val buttonShapeBlock: () -> Shape = remember { { buttonShape } }
-    val chromeLens = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeLensEnabled()
-    // 玻璃模糊随材质档位：通透玻璃档更低（折射接管通透感），其余档 8；无材质档整体关
     val glassBlur = com.haooz.chedule.ui.utils.AppMaterialSettings.glassBlurDp()
     val glassEffectsOn = com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()
-    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens, glassBlur, glassEffectsOn) {
-        {
-            if (glassEffectsOn) {
-                vibrancy()
-                blur(glassBlur.dp.toPx())
-                // 均衡及以下关闭折射
-                if (chromeLens) lens(6f.dp.toPx(), 36f.dp.toPx())
+    // 白字按钮：主题色混进玻璃本色保证对比度；非 primary 变体走中性主题混合。
+    val buttonGlassStyle = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeGlassStyle(
+        base = ScheduleSoftGlassStyle,
+        isDark = !isLightTheme,
+        fill = if (primary) CustomizeFill(MiuixTheme.colorScheme.primary) else ThemeFill,
+        tone = BrightTone,
+    )
+    // drawBackdrop 按引用比较 shape / effects / onDrawSurface，lambda 每帧新建会重录采样层。
+    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+        remember(glassBlur, glassEffectsOn, buttonGlassStyle) {
+            {
+                if (glassEffectsOn) {
+                    blur(glassBlur.dp.toPx())
+                    runtimeShaderEffect(
+                        key = LIVE_TEXT_BUTTON_GLASS_KEY,
+                        shaderString = SOFT_GLASS_LIVE_SHADER,
+                        uniformShaderName = "content",
+                    ) {
+                        applyLiveGlass(
+                            style = buttonGlassStyle,
+                            width = size.width,
+                            height = size.height,
+                        )
+                    }
+                }
             }
         }
-    }
     val buttonOnDrawSurface: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit =
         remember(resolvedContainerColor, interactiveHighlight) {
             {
@@ -194,13 +215,9 @@ fun LiquidGlassTextButton(
                         scaleX = drag.scaleX
                         scaleY = drag.scaleY
                     },
-                    onDrawSurface = buttonOnDrawSurface
-                )
-                .edgeLight(
-                    shape = buttonShape,
-                    // 正常档用通用白高光；降级档没有模糊高光，纯色描边按按钮底色同色系提亮 ——
-                    // 白描边在彩色按钮上会像描了一圈白线
-                    edgeLight = rememberDefaultEdgeLight(degradedBaseColor = resolvedContainerColor),
+                    // 柔光自己画玻璃色与方向光，再叠容器色会把折射盖住；
+                    // 无材质档不跑 shader，必须留容器色，否则按钮变成透空圆孔。
+                    onDrawSurface = if (glassEffectsOn) null else buttonOnDrawSurface
                 )
                 .then(interactiveHighlight.modifier)
                 .then(if (enabled) interactiveHighlight.gestureModifier else Modifier)

@@ -66,6 +66,14 @@ private const val DefaultTranslationDamping = 0.08f
 private const val DefaultPressScaleDp = 4f
 
 /**
+ * 玻璃控件档位：拉伸/位移更细腻，供 ui-shared 的 LiquidGlass* 系列与 miuix 下拉面板共用。
+ * 尺寸相关项（pressScaleDp）在小圆上明显、在大面板上几乎无感，是刻意保留的观感差异。
+ */
+const val GlassDragStretchRatio = 0.012f
+const val GlassDragTranslationDamping = 0.032f
+const val GlassDragPressScaleDp = 2f
+
+/**
  * 竖向行程基准相对横向的缩放（<1 = 更容易吃满），按展开进度插值。
  * 菜单只有几行高，竖向行程天然比横向短，用同一基准时竖拖明显迟钝。
  */
@@ -304,6 +312,9 @@ fun Modifier.dropdownPanelDragTransform(
             pressProgress = pressProgress(),
             offset = dragOffset(),
             density = this,
+            stretchRatio = GlassDragStretchRatio,
+            translationDamping = GlassDragTranslationDamping,
+            pressScaleDp = GlassDragPressScaleDp,
         )
         scaleX = t.scaleX
         scaleY = t.scaleY

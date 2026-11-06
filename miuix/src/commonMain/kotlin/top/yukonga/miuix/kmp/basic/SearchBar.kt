@@ -65,11 +65,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.edgelight.isSystemLightTheme
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
@@ -78,14 +76,17 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.basic.SearchCleanup
 import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
-import top.yukonga.miuix.kmp.material.LocalChromeLensEnabled
 import top.yukonga.miuix.kmp.material.LocalGlassBlurDp
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
-import top.yukonga.miuix.kmp.material.rememberMaterialEdgeLight
+import top.yukonga.miuix.kmp.material.LocalSoftGlassLayer
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 import top.yukonga.miuix.kmp.utils.hasFocusReassignBug
+
+/** 柔光玻璃的 shader 缓存键：输入框与操作按钮尺寸不同，共用会互相覆盖 uniform */
+private const val SOFT_GLASS_SEARCH_KEY = "NexioSoftGlassLiveSearch"
+private const val SOFT_GLASS_SEARCH_ACTION_KEY = "NexioSoftGlassLiveSearchAction"
 
 /**
  * 搜索框组件
@@ -112,17 +113,14 @@ fun SearchBar(
     onActionClick: (() -> Unit)? = null,
     backdrop: Backdrop? = null,
     backdropAlpha: Float = 0f,
-    /** 是否启用 chrome 透镜（折射），跟随 App 的材质档位偏好 [LocalChromeLensEnabled]。 */
-    chromeLensEnabled: Boolean = LocalChromeLensEnabled.current,
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
-    // 折射随材质档位：通透玻璃档保留，其余档关闭（与液态玻璃按钮一致）
-    val chromeLens = chromeLensEnabled
     // 玻璃模糊随材质档位：通透玻璃档更低（折射接管通透感），其余档 8
     val glassBlur = LocalGlassBlurDp.current
-    // 无材质档：玻璃材质整体关闭（模糊 / 折射 / vibrancy 全跳过，只剩半透明底色）
+    // 无材质档：玻璃材质整体关闭（只剩半透明底色）
     val materialNone = LocalMaterialNoneEnabled.current
+    val softGlass = LocalSoftGlassLayer.current
 
     Column(
         modifier = modifier,
@@ -174,15 +172,23 @@ fun SearchBar(
                     ) {
                         if (backdrop != null) {
                             // 记得住引用：drawBackdrop 按引用比较 effects，每帧新建会导致重新录制采样层
-                            val actionEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens, glassBlur, materialNone) {
-                                {
-                                    if (!materialNone) {
-                                        vibrancy()
-                                        blur(glassBlur.dp.toPx())
-                                        if (chromeLens) lens(6f.dp.toPx(), 36f.dp.toPx())
+                            val actionEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+                                remember(glassBlur, materialNone, softGlass) {
+                                    {
+                                        if (!materialNone && softGlass != null) {
+                                            blur(glassBlur.dp.toPx())
+                                            val w = size.width
+                                            val h = size.height
+                                            runtimeShaderEffect(
+                                                key = SOFT_GLASS_SEARCH_ACTION_KEY,
+                                                shaderString = softGlass.shaderString,
+                                                uniformShaderName = "content",
+                                            ) {
+                                                softGlass.applyUniforms(this, w, h, null)
+                                            }
+                                        }
                                     }
                                 }
-                            }
                             Box(
                                 modifier = Modifier
                                     .matchParentSize()
@@ -195,17 +201,18 @@ fun SearchBar(
                                         layerBlock = { alpha = backdropAlpha },
                                         onDrawSurface = {}
                                     )
-                                    .edgeLight(shape = ContinuousCapsule(), edgeLight = rememberMaterialEdgeLight(baseColor = MiuixTheme.colorScheme.surfaceContainerHigh))
                             )
                         }
                         Box(
                             modifier = Modifier
                                 .matchParentSize()
                                 .background(
-                                    color = if (backdrop != null) {
-                                        MiuixTheme.colorScheme.surfaceContainerHigh
+                                    color = when {
+                                        softGlass != null -> Color.Transparent
+                                        backdrop != null -> MiuixTheme.colorScheme.surfaceContainerHigh
                                             .copy(alpha = if (materialNone) 1f else 0.6f)
-                                    } else MiuixTheme.colorScheme.surfaceContainerHigh,
+                                        else -> MiuixTheme.colorScheme.surfaceContainerHigh
+                                    },
                                     shape = ContinuousCapsule(),
                                 ),
                             contentAlignment = Alignment.Center
@@ -278,8 +285,6 @@ fun InputField(
     backdrop: Backdrop? = null,
     backdropAlpha: Float = 1f,
     shadowAlpha: Float = 0f,
-    /** 同 [SearchBar]：chrome 透镜开关，由 App 的材质档位注入（LocalChromeLensEnabled）。 */
-    chromeLensEnabled: Boolean = LocalChromeLensEnabled.current,
     /**
      * 当前是否浅色主题。
      *
@@ -298,12 +303,11 @@ fun InputField(
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
     val internalInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
     val capsuleShape = ContinuousCapsule()
-    // 折射随材质档位：通透玻璃档保留，其余档关闭
-    val chromeLens = chromeLensEnabled
     // 玻璃模糊随材质档位：通透玻璃档更低（折射接管通透感），其余档 8
     val glassBlur = LocalGlassBlurDp.current
-    // 无材质档：玻璃材质整体关闭（模糊 / 折射 / vibrancy 全跳过，只剩半透明底色）
+    // 无材质档：玻璃材质整体关闭（只剩半透明底色）
     val materialNone = LocalMaterialNoneEnabled.current
+    val softGlass = LocalSoftGlassLayer.current
 
     val actualLeadingIcon = leadingIcon ?: {
         Box(
@@ -393,15 +397,23 @@ fun InputField(
             // 与原 android.graphics.Color.parseColor("#12000000"/"#20000000") 等价（同 ARGB 值）
             val shadowColor = if (isLightTheme) Color(0x12000000) else Color(0x20000000)
             // 记得住引用：drawBackdrop 按引用比较 effects，每帧新建会导致重新录制采样层
-            val containerEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens, glassBlur, materialNone) {
-                {
-                    if (!materialNone) {
-                        vibrancy()
-                        blur(glassBlur.dp.toPx())
-                        if (chromeLens) lens(6f.dp.toPx(), 36f.dp.toPx())
+            val containerEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+                remember(glassBlur, materialNone, softGlass) {
+                    {
+                        if (!materialNone && softGlass != null) {
+                            blur(glassBlur.dp.toPx())
+                            val w = size.width
+                            val h = size.height
+                            runtimeShaderEffect(
+                                key = SOFT_GLASS_SEARCH_KEY,
+                                shaderString = softGlass.shaderString,
+                                uniformShaderName = "content",
+                            ) {
+                                softGlass.applyUniforms(this, w, h, null)
+                            }
+                        }
                     }
                 }
-            }
 
             Box(
                 modifier = Modifier
@@ -446,19 +458,20 @@ fun InputField(
                                 },
                                 onDrawSurface = {}
                             )
-                            .edgeLight(shape = capsuleShape, edgeLight = rememberMaterialEdgeLight(baseColor = containerColor))
                     )
                 }
                 Row(
                     modifier = Modifier
                         .background(
-                            color = if (backdrop != null) {
-                                lerp(
+                            color = when {
+                                softGlass != null -> Color.Transparent
+                                backdrop != null -> lerp(
                                     MiuixTheme.colorScheme.surfaceContainerHigh,
                                     containerColor,
                                     backdropAlpha
                                 )
-                            } else MiuixTheme.colorScheme.surfaceContainerHigh,
+                                else -> MiuixTheme.colorScheme.surfaceContainerHigh
+                            },
                             shape = capsuleShape,
                         )
                         .fillMaxWidth(),

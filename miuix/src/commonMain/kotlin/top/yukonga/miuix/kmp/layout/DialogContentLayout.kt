@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -58,10 +59,8 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.backdrop.isRenderEffectSupported
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
@@ -69,10 +68,9 @@ import top.yukonga.miuix.kmp.anim.DecelerateEasing
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.MotionAwareText
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.material.LocalChromeLensEnabled
 import top.yukonga.miuix.kmp.material.LocalGlassDialogBlurDp
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
-import top.yukonga.miuix.kmp.material.rememberMaterialEdgeLight
+import top.yukonga.miuix.kmp.material.LocalSoftGlassLayer
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.kyant.capsule.continuousSurface
 import top.yukonga.miuix.kmp.theme.LocalDismissState
@@ -82,6 +80,9 @@ import top.yukonga.miuix.kmp.utils.LocalPredictiveBackEnabled
 import top.yukonga.miuix.kmp.utils.getRoundedCorner
 import top.yukonga.miuix.kmp.utils.rememberNavigationBack
 import top.yukonga.miuix.kmp.window.WindowDialog
+
+/** 对话框面板的柔光 shader 缓存键：尺寸与其他玻璃件不同，不能共用 uniform。 */
+private const val SOFT_GLASS_DIALOG_KEY = "NexioSoftGlassLiveDialog"
 
 /**
  * Internal shared layout logic for [OverlayDialog] and [WindowDialog].
@@ -124,12 +125,11 @@ internal fun DialogContentLayout(
     defaultWindowInsetsPadding: Boolean = true,
     topInset: Dp? = null,
     /**
-     * 液态玻璃背景。非 null 时对话框走 `vibrancy + blur(24dp)` 的实时折射，
-     * 并叠一层描边高光。
+     * 柔光玻璃背景。非 null 时对话框走 `blur + 柔光 shader` 的实时折射。
      *
      * 这是本 fork 的定制（上游 Miuix 的对话框只有纯色 surface）。
      * App 侧 71 处 [top.yukonga.miuix.kmp.overlay.OverlayDialog] 调用点都在传它，
-     * 迁移时一度被漏掉，导致对话框的模糊与描边整体消失 —— 现已恢复。
+     * 迁移时一度被漏掉，导致对话框的模糊整体消失 —— 现已恢复。
      */
     liquidGlassBackdrop: Backdrop? = null,
     /** 背景色是否需要压暗/压浅到半透明（配合玻璃背景使用）。由调用方按当前主题算。 */
@@ -359,6 +359,30 @@ internal fun DialogContent(
     val glassActive = liquidGlassBackdrop != null &&
         isRenderEffectSupported() &&
         !LocalMaterialNoneEnabled.current
+    // 柔光玻璃由 App 在根部注入（shader + uniform 灌装）；null = 不启用，只剩半透明底色。
+    val softGlass = LocalSoftGlassLayer.current
+    val dialogBlur = LocalGlassDialogBlurDp.current
+    val cornerRadiusPx = with(density) { bottomCornerRadius.toPx() }
+    // drawBackdrop 按引用比较 effects；lambda 每帧新建会让节点每帧重新录制采样层
+    val dialogEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+        remember(dialogBlur, softGlass, cornerRadiusPx) {
+            {
+                if (softGlass != null) {
+                    blur(dialogBlur.dp.toPx())
+                    runtimeShaderEffect(
+                        key = SOFT_GLASS_DIALOG_KEY,
+                        shaderString = softGlass.shaderString,
+                        uniformShaderName = "content",
+                    ) {
+                        // 对话框面板：BarFill + 悬浮大控件材质（App 根部单独注入一套 style）
+                        softGlass.applyDialogUniforms(this, size.width, size.height, cornerRadiusPx)
+                    }
+                }
+            }
+        }
+    val dialogShapeBlock: () -> Shape = remember(bottomCornerRadius) {
+        { ContinuousRoundedRectangle(bottomCornerRadius) }
+    }
 
     val contentModifier = modifier
         .widthIn(max = DialogDefaults.MaxWidth)
@@ -388,32 +412,21 @@ internal fun DialogContent(
         .clip(ContinuousRoundedRectangle(bottomCornerRadius))
         .then(
             if (glassActive) {
-                val dialogBlur = LocalGlassDialogBlurDp.current
-                val chromeLens = LocalChromeLensEnabled.current
                 Modifier.drawBackdrop(
                     backdrop = liquidGlassBackdrop,
-                    shape = { ContinuousRoundedRectangle(bottomCornerRadius) },
-                    effects = {
-                        vibrancy()
-                        blur(dialogBlur.dp.toPx())
-                        // 折射：参数与下拉面板展开态同档（面板类玻璃）
-                        if (chromeLens) lens(6f.dp.toPx(), 36f.dp.toPx())
-                    },
+                    shape = dialogShapeBlock,
+                    effects = dialogEffects,
                     highlight = null,
                 )
             } else Modifier
         )
-        .edgeLight(
-            shape = ContinuousRoundedRectangle(bottomCornerRadius),
-            edgeLight = rememberMaterialEdgeLight(baseColor = backgroundColor),
-        )
         .background(
-            // 玻璃开：玻璃层之上压半透明底色保证文字对比度（深色压得更暗）；
+            // 柔光时不压底色（会把折射盖住）；其余档保留原来的实色 / 半透明底色保证文字对比度。
             // 玻璃关（无材质档 / 无 backdrop）：实色。模糊不可用不挂半透明「假玻璃」。
-            color = if (glassActive) {
-                backgroundColor.copy(alpha = if (isDark) 0.87f else 0.78f)
-            } else {
-                backgroundColor
+            color = when {
+                softGlass != null && glassActive -> Color.Transparent
+                glassActive -> backgroundColor.copy(alpha = if (isDark) 0.87f else 0.78f)
+                else -> backgroundColor
             },
             shape = ContinuousRoundedRectangle(bottomCornerRadius),
         )

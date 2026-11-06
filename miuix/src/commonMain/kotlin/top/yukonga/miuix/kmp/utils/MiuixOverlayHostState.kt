@@ -15,7 +15,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import com.kyant.backdrop.edgelight.EdgeLight
 import top.yukonga.miuix.kmp.material.GlassSurfaceAlphaDrop
-import top.yukonga.miuix.kmp.material.LocalChromeLensEnabled
 import top.yukonga.miuix.kmp.material.LocalEdgeLightResolver
 import top.yukonga.miuix.kmp.material.LocalGlassBlurDp
 import top.yukonga.miuix.kmp.material.LocalGlassDialogBlurDp
@@ -23,6 +22,8 @@ import top.yukonga.miuix.kmp.material.LocalGlassPanelBlurDp
 import top.yukonga.miuix.kmp.material.LocalGlassSurfaceAlphaDrop
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
 import top.yukonga.miuix.kmp.material.LocalMiuixTextMotion
+import top.yukonga.miuix.kmp.material.LocalSoftGlassLayer
+import top.yukonga.miuix.kmp.material.SoftGlassLayer
 import top.yukonga.miuix.kmp.material.LocalUseFakeProgressiveBlur
 import top.yukonga.miuix.kmp.material.MiuixTextMotion
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
@@ -105,7 +106,6 @@ internal data class MiuixOverlayTheme(
      */
     val monetColorEnabled: Boolean,
     val dismiss: (() -> Unit)?,
-    val chromeLensEnabled: Boolean,
     /** 无材质档快照：玻璃关 + 渐进模糊走渐变遮罩，root host 读不到声明页面的 CompositionLocal。 */
     val materialNoneEnabled: Boolean,
     val useFakeProgressiveBlur: Boolean,
@@ -119,6 +119,8 @@ internal data class MiuixOverlayTheme(
     val glassSurfaceAlphaDrop: GlassSurfaceAlphaDrop,
     /** 描边降级解析器快照，同上：弹窗描边在 root host 算，读不到声明页面的 CompositionLocal。 */
     val edgeLightResolver: (EdgeLight, Boolean, Color?) -> EdgeLight,
+    /** 柔光玻璃注入快照，同上：弹窗面板在 root host 渲染。 */
+    val softGlassLayer: SoftGlassLayer?,
     /**
      * 换字动效宿主快照，同上：弹窗在 root host 渲染，读不到声明页面的 CompositionLocal。
      * 漏传的表现是「页面里的文字换字有模糊，弹窗标题 / 摘要却硬切」。
@@ -139,7 +141,6 @@ internal data class MiuixOverlayTheme(
             LocalForcedDarkTheme provides forcedDark,
             LocalMonetColorEnabled provides monetColorEnabled,
             LocalDismissState provides dismiss,
-            LocalChromeLensEnabled provides chromeLensEnabled,
             LocalMaterialNoneEnabled provides materialNoneEnabled,
             LocalUseFakeProgressiveBlur provides useFakeProgressiveBlur,
             LocalGlassBlurDp provides glassBlurDp,
@@ -147,6 +148,7 @@ internal data class MiuixOverlayTheme(
             LocalGlassDialogBlurDp provides glassDialogBlurDp,
             LocalGlassSurfaceAlphaDrop provides glassSurfaceAlphaDrop,
             LocalEdgeLightResolver provides edgeLightResolver,
+            LocalSoftGlassLayer provides softGlassLayer,
             LocalMiuixTextMotion provides textMotion,
             LocalPredictiveBackEnabled provides predictiveBackEnabled,
             content = content,
@@ -166,7 +168,6 @@ internal fun currentMiuixOverlayTheme(): MiuixOverlayTheme = MiuixOverlayTheme(
     forcedDark = LocalForcedDarkTheme.current,
     monetColorEnabled = LocalMonetColorEnabled.current,
     dismiss = LocalDismissState.current,
-    chromeLensEnabled = LocalChromeLensEnabled.current,
     materialNoneEnabled = LocalMaterialNoneEnabled.current,
     useFakeProgressiveBlur = LocalUseFakeProgressiveBlur.current,
     glassBlurDp = LocalGlassBlurDp.current,
@@ -174,6 +175,7 @@ internal fun currentMiuixOverlayTheme(): MiuixOverlayTheme = MiuixOverlayTheme(
     glassDialogBlurDp = LocalGlassDialogBlurDp.current,
     glassSurfaceAlphaDrop = LocalGlassSurfaceAlphaDrop.current,
     edgeLightResolver = LocalEdgeLightResolver.current,
+    softGlassLayer = LocalSoftGlassLayer.current,
     textMotion = LocalMiuixTextMotion.current,
     predictiveBackEnabled = LocalPredictiveBackEnabled.current,
 )

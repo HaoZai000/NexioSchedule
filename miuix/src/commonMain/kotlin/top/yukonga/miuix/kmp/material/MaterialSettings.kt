@@ -5,6 +5,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.key
 import androidx.compose.ui.graphics.Color
+import com.kyant.backdrop.RuntimeShader
 import com.kyant.backdrop.edgelight.EdgeLight
 import com.kyant.backdrop.edgelight.isSystemLightTheme
 
@@ -21,10 +22,7 @@ import com.kyant.backdrop.edgelight.isSystemLightTheme
  * 各值默认取「无折射 / 不降级」的一方，与不注入时行为一致。
  */
 
-/** chrome 透镜（折射）开关：通透玻璃档开，其余档关。 */
-val LocalChromeLensEnabled = compositionLocalOf { false }
-
-/** 无材质档：玻璃材质（模糊 / 折射 / vibrancy）整体关闭，渐进模糊降级为渐变遮罩。 */
+/** 无材质档：玻璃材质整体关闭，渐进模糊降级为渐变遮罩。 */
 val LocalMaterialNoneEnabled = compositionLocalOf { false }
 
 /**
@@ -40,7 +38,7 @@ val LocalGlassBlurDp = compositionLocalOf { 8f }
 val LocalGlassPanelBlurDp = compositionLocalOf { 24f }
 
 /** 对话框 / 贴底弹窗的采样模糊半径（dp）。 */
-val LocalGlassDialogBlurDp = compositionLocalOf { 24f }
+val LocalGlassDialogBlurDp = compositionLocalOf { 12f }
 
 /** 玻璃底色 alpha 降幅（通透玻璃档专用，0 = 不降），浅色 / 深色各一档。 */
 @Immutable
@@ -50,6 +48,35 @@ data class GlassSurfaceAlphaDrop(
 )
 
 val LocalGlassSurfaceAlphaDrop = compositionLocalOf { GlassSurfaceAlphaDrop() }
+
+/**
+ * 柔光玻璃注入：shader 源码 + uniform 灌装（尺寸 / 圆角逐帧传入）。
+ * App 在根部 provide；null = 不启用，玻璃件只留实色底（不再回落 kyant 效果）。
+ */
+@Immutable
+class SoftGlassLayer(
+    val shaderString: String,
+    /** radiusPx = null 表示胶囊（取短边一半）。 */
+    val applyUniforms: RuntimeShader.(width: Float, height: Float, radiusPx: Float?) -> Unit,
+    /**
+     * 悬浮大控件（展开的下拉面板）的 uniform 灌装，参数同 [applyUniforms]。
+     * 默认回落到小控件材质；App 根部下发两套 style，这样只给大玻璃件换材质，
+     * 搜索框仍是小控件材质。对话框面板另走 [applyDialogUniforms]。
+     */
+    val applyLargeUniforms: RuntimeShader.(width: Float, height: Float, radiusPx: Float?) -> Unit =
+        applyUniforms,
+    /**
+     * 对话框面板（[top.yukonga.miuix.kmp.overlay.OverlayDialog] /
+     * [top.yukonga.miuix.kmp.window.WindowDialog] 共用的 DialogContentLayout）的 uniform 灌装，
+     * 参数同 [applyUniforms]。App 根部下发 `BarFill + BrightLargeTone`：
+     * 面板与底栏/下拉同属大控件，但底色单独按「面板混合」调，不能让 ListPopup 跟着换。
+     * 默认回落到 [applyLargeUniforms]。
+     */
+    val applyDialogUniforms: RuntimeShader.(width: Float, height: Float, radiusPx: Float?) -> Unit =
+        applyLargeUniforms,
+)
+
+val LocalSoftGlassLayer = compositionLocalOf<SoftGlassLayer?> { null }
 
 /**
  * 描边光降级解析器：材质档策略在 App 侧，:miuix 不能反向依赖，只能注入。

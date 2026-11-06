@@ -64,7 +64,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -96,17 +98,22 @@ import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
+import com.haooz.chedule.ui.glass.BrightTone
+import com.haooz.chedule.ui.glass.CustomizeFill
+import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.addScreenCornerRect
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.ui.utils.toShape
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.effects.blur as backdropBlur
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
 import kotlin.math.roundToInt
@@ -143,6 +150,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+
+/** 外观页两颗顶栏胶囊的柔光 shader 缓存键：尺寸与材质各异，不能共用 uniform。
+ * 中段预览切换胶囊不使用玻璃，故没有对应 key。 */
+private const val LIVE_CANCEL_CAPSULE_GLASS_KEY = "NexioSoftGlassLiveCustomizeCancel"
+private const val LIVE_APPLY_CAPSULE_GLASS_KEY = "NexioSoftGlassLiveCustomizeApply"
 
 /** 挖洞遮罩路径缓存：尺寸/圆角不变时只 translate，避免每帧重建 squircle */
 private class CutoutPathCache {
@@ -271,8 +283,58 @@ fun CustomizeScheduleScreen(
 
     val primaryColor = MiuixTheme.colorScheme.primary
     val exitContainerColor = Color(0xFF363636)
-        .copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.8f))
+        .copy(AppMaterialSettings.solidSurfaceAlpha(0.8f))
     val exitIconColor = Color.White
+
+    val isDarkTheme = isAppDarkTheme()
+    val capsuleBlurDp = AppMaterialSettings.glassBlurDp()
+    val capsuleGlassOn = AppMaterialSettings.glassEffectsEnabled()
+    // 取消按钮：走自定义颜色混合，颜色单独传；改下面两个色值就能微调深浅。
+    // 比 ThemeFill 的 #181818 / 纯白更淡，让同行的主题色「应用」更突出。
+    val cancelGlassColor = if (isDarkTheme) Color(0xFF5C5C5C) else Color(0xFFF0F0F0)
+    val cancelGlassStyle = AppMaterialSettings.chromeGlassStyle(
+        base = ScheduleSoftGlassStyle,
+        isDark = isDarkTheme,
+        fill = CustomizeFill(cancelGlassColor),
+        tone = BrightTone,
+    )
+    val applyGlassStyle = AppMaterialSettings.chromeGlassStyle(
+        base = ScheduleSoftGlassStyle,
+        isDark = isDarkTheme,
+        fill = CustomizeFill(primaryColor),
+        tone = BrightTone,
+    )
+    val capsuleShapeBlock: () -> Shape = remember { { ContinuousCapsule() } }
+    val cancelGlassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+        remember(capsuleBlurDp, capsuleGlassOn, cancelGlassStyle) {
+            {
+                if (capsuleGlassOn) {
+                    backdropBlur(capsuleBlurDp.dp.toPx())
+                    runtimeShaderEffect(
+                        key = LIVE_CANCEL_CAPSULE_GLASS_KEY,
+                        shaderString = SOFT_GLASS_LIVE_SHADER,
+                        uniformShaderName = "content",
+                    ) {
+                        applyLiveGlass(style = cancelGlassStyle, width = size.width, height = size.height)
+                    }
+                }
+            }
+        }
+    val applyGlassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+        remember(capsuleBlurDp, capsuleGlassOn, applyGlassStyle) {
+            {
+                if (capsuleGlassOn) {
+                    backdropBlur(capsuleBlurDp.dp.toPx())
+                    runtimeShaderEffect(
+                        key = LIVE_APPLY_CAPSULE_GLASS_KEY,
+                        shaderString = SOFT_GLASS_LIVE_SHADER,
+                        uniformShaderName = "content",
+                    ) {
+                        applyLiveGlass(style = applyGlassStyle, width = size.width, height = size.height)
+                    }
+                }
+            }
+        }
 
     var showApplyLoading by remember { mutableStateOf(false) }
     LaunchedEffect(isApplyingCustomize) {
@@ -940,6 +1002,21 @@ fun CustomizeScheduleScreen(
                         val applyHighlight =
                             remember(animationScope) { InteractiveHighlight(animationScope) }
                         val hapticFeedback = LocalHapticFeedback.current
+                        // 无材质档的实色底：按引用比较，必须 remember 成稳定 lambda。
+                        val cancelOnDrawSurface: DrawScope.() -> Unit =
+                            remember(exitContainerColor, exitHighlight) {
+                                {
+                                    drawRect(exitContainerColor)
+                                    drawRect(Color.Black.copy(alpha = 0.03f * exitHighlight.pressProgress))
+                                }
+                            }
+                        val applyOnDrawSurface: DrawScope.() -> Unit =
+                            remember(primaryColor, applyHighlight) {
+                                {
+                                    drawRect(primaryColor.copy(AppMaterialSettings.solidSurfaceAlpha(0.8f)))
+                                    drawRect(Color.Black.copy(alpha = 0.03f * applyHighlight.pressProgress))
+                                }
+                            }
                         val resolvedPreview = previewPage.coerceIn(0, 1)
                         // 选中滑块位置动画：0=今日，1=课程表
                         val thumbProgress = remember { Animatable(if (previewPage.coerceIn(0, 1) == 1) 1f else 0f) }
@@ -958,12 +1035,8 @@ fun CustomizeScheduleScreen(
                                 .height(40.dp)
                                 .drawBackdrop(
                                     backdrop = liquidGlassBackdrop,
-                                    shape = { ContinuousCapsule() },
-                                    effects = {
-                                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()) {
-                                            vibrancy()
-                                        }
-                                    },
+                                    shape = capsuleShapeBlock,
+                                    effects = cancelGlassEffects,
                                     highlight = null,
                                     shadow = { Shadow(alpha = 0.3f) },
                                     layerBlock = {
@@ -977,14 +1050,8 @@ fun CustomizeScheduleScreen(
                                         translationY =
                                             size.minDimension * 0.05f * offset.y / size.maxDimension
                                     },
-                                    onDrawSurface = {
-                                        drawRect(exitContainerColor)
-                                        drawRect(Color.Black.copy(alpha = 0.03f * exitHighlight.pressProgress))
-                                    }
-                                )
-                                .edgeLight(
-                                    shape = ContinuousCapsule(),
-                                    edgeLight = rememberDefaultEdgeLight(degradedBaseColor = exitContainerColor),
+                                    // 柔光自己画玻璃色，叠容器色会盖住折射；无材质档必须留实色底。
+                                    onDrawSurface = if (capsuleGlassOn) null else cancelOnDrawSurface,
                                 )
                                 .clickable(
                                     interactionSource = null,
@@ -1008,22 +1075,13 @@ fun CustomizeScheduleScreen(
                             )
                         }
                         // 中段：今日 / 课程表 预览切换（椭圆滑块，与取消/应用同行）
+                        // 不用玻璃：只留纯色底 + 圆角，既不采样也不挂 shader，白色图标靠底色保证对比度。
                         Box(
                             modifier = Modifier
                                 .width(120.dp)
                                 .height(40.dp)
-                                .drawBackdrop(
-                                    backdrop = liquidGlassBackdrop,
-                                    shape = { ContinuousCapsule() },
-                                    effects = {
-                                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()) {
-                                            vibrancy()
-                                        }
-                                    },
-                                    highlight = null,
-                                    shadow = { Shadow(alpha = 0.3f) },
-                                    onDrawSurface = { drawRect(exitContainerColor) }
-                                )
+                                .clip(ContinuousCapsule())
+                                .background(exitContainerColor)
                                 .padding(3.dp)
                         ) {
                             Box(modifier = Modifier.fillMaxSize()) {
@@ -1094,12 +1152,8 @@ fun CustomizeScheduleScreen(
                                 .height(40.dp)
                                 .drawBackdrop(
                                     backdrop = liquidGlassBackdrop,
-                                    shape = { ContinuousCapsule() },
-                                    effects = {
-                                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()) {
-                                            vibrancy()
-                                        }
-                                    },
+                                    shape = capsuleShapeBlock,
+                                    effects = applyGlassEffects,
                                     highlight = null,
                                     shadow = { Shadow(alpha = 0.3f) },
                                     layerBlock = {
@@ -1113,14 +1167,8 @@ fun CustomizeScheduleScreen(
                                         translationY =
                                             size.minDimension * 0.05f * offset.y / size.maxDimension
                                     },
-                                    onDrawSurface = {
-                                        drawRect(primaryColor.copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.8f)))
-                                        drawRect(Color.Black.copy(alpha = 0.03f * applyHighlight.pressProgress))
-                                    }
-                                )
-                                .edgeLight(
-                                    shape = ContinuousCapsule(),
-                                    edgeLight = rememberDefaultEdgeLight(degradedBaseColor = primaryColor),
+                                    // 柔光自己画玻璃色，叠容器色会盖住折射；无材质档必须留实色底。
+                                    onDrawSurface = if (capsuleGlassOn) null else applyOnDrawSurface,
                                 )
                                 .clickable(
                                     interactionSource = null,

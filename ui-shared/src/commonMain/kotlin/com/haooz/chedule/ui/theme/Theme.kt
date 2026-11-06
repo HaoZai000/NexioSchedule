@@ -25,6 +25,13 @@ import com.haooz.chedule.data.platform.currentDeviceInfo
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.KEY_CHANGED_ANYWHERE
 import com.haooz.chedule.ui.components.text.TextMotionBox
+import com.haooz.chedule.ui.glass.BarFill
+import com.haooz.chedule.ui.glass.BrightLargeTone
+import com.haooz.chedule.ui.glass.BrightTone
+import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.ThemeFill
+import com.haooz.chedule.ui.glass.applyLiveGlass
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.installAppSettingDarkBridge
@@ -32,7 +39,6 @@ import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
 import com.kyant.backdrop.edgelight.EdgeLight
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.material.GlassSurfaceAlphaDrop
-import top.yukonga.miuix.kmp.material.LocalChromeLensEnabled
 import top.yukonga.miuix.kmp.material.LocalEdgeLightResolver
 import top.yukonga.miuix.kmp.material.LocalGlassBlurDp
 import top.yukonga.miuix.kmp.material.LocalGlassDialogBlurDp
@@ -40,8 +46,10 @@ import top.yukonga.miuix.kmp.material.LocalGlassPanelBlurDp
 import top.yukonga.miuix.kmp.material.LocalGlassSurfaceAlphaDrop
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
 import top.yukonga.miuix.kmp.material.LocalMiuixTextMotion
+import top.yukonga.miuix.kmp.material.LocalSoftGlassLayer
 import top.yukonga.miuix.kmp.material.LocalUseFakeProgressiveBlur
 import top.yukonga.miuix.kmp.material.MiuixTextMotion
+import top.yukonga.miuix.kmp.material.SoftGlassLayer
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.LocalAppSettingDark
 import top.yukonga.miuix.kmp.theme.LocalMonetColorEnabled
@@ -183,6 +191,47 @@ fun CourseScheduleTheme(
                         AppMaterialSettings.resolveEdgeLight(source, isLightTheme, baseColor)
                     }
                 }
+            // 柔光玻璃：shader 与 uniform 灌装注入给 :miuix（弹窗面板等直接复用）。
+            // 实例必须随档位稳定，下游拿它当 remember key。
+            val softGlassDark = appDark ?: isSystemInDarkTheme()
+            val softGlassLayer: SoftGlassLayer? =
+                remember(AppMaterialSettings.level, softGlassDark) {
+                    if (!AppMaterialSettings.glassEffectsEnabled()) null
+                    else {
+                        val style = AppMaterialSettings.chromeGlassStyle(
+                            base = ScheduleSoftGlassStyle,
+                            isDark = softGlassDark,
+                            fill = ThemeFill,
+                            tone = BrightTone,
+                        )
+                        val largeStyle = AppMaterialSettings.chromeGlassStyle(
+                            base = ScheduleSoftGlassStyle,
+                            isDark = softGlassDark,
+                            fill = ThemeFill,
+                            tone = BrightLargeTone,
+                        )
+                        // 对话框面板（OverlayDialog / WindowDialog）：与底栏同走面板混合底色，
+                        // 材质档用悬浮大控件；单独一套，避免 ListPopup 跟着换成 BarFill。
+                        val dialogStyle = AppMaterialSettings.chromeGlassStyle(
+                            base = ScheduleSoftGlassStyle,
+                            isDark = softGlassDark,
+                            fill = BarFill,
+                            tone = BrightLargeTone,
+                        )
+                        SoftGlassLayer(
+                            shaderString = SOFT_GLASS_LIVE_SHADER,
+                            applyUniforms = { w, h, r ->
+                                applyLiveGlass(style = style, width = w, height = h, radiusPx = r)
+                            },
+                            applyLargeUniforms = { w, h, r ->
+                                applyLiveGlass(style = largeStyle, width = w, height = h, radiusPx = r)
+                            },
+                            applyDialogUniforms = { w, h, r ->
+                                applyLiveGlass(style = dialogStyle, width = w, height = h, radiusPx = r)
+                            },
+                        )
+                    }
+                }
             CompositionLocalProvider(
                 LocalScreenCornerRadius provides screenCornerRadius,
                 LocalScreenTopCornerRadii provides screenTopCorners,
@@ -196,7 +245,6 @@ fun CourseScheduleTheme(
                 LocalAppSettingDark provides appDark,
                 // :miuix 需要的 App 能力注入点（避免 :miuix → :app 反向依赖）；
                 // 调用点无需逐个改。
-                LocalChromeLensEnabled provides AppMaterialSettings.chromeLensEnabled(),
                 LocalMaterialNoneEnabled provides AppMaterialSettings.isNoneTier(),
                 LocalUseFakeProgressiveBlur provides AppMaterialSettings.progressiveBlurUseFake(),
                 LocalGlassBlurDp provides AppMaterialSettings.glassBlurDp(),
@@ -207,6 +255,7 @@ fun CourseScheduleTheme(
                     dark = AppMaterialSettings.glassSurfaceAlphaDrop(isLight = false),
                 ),
                 LocalEdgeLightResolver provides edgeLightResolver,
+                LocalSoftGlassLayer provides softGlassLayer,
                 LocalPredictiveBackEnabled provides PredictiveBackSettings.enabled,
                 // :miuix 内部绘制的展示文字（偏好项标题/副标题、下拉菜单当前值、
                 // 弹窗标题/摘要）交给我们的换字动效：模块不能反向依赖 :ui-shared，

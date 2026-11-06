@@ -38,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.LayoutModifier
@@ -62,15 +64,19 @@ import com.haooz.chedule.ui.basic.dropdownPanelDragSelect
 import com.haooz.chedule.ui.basic.dropdownPanelEntry
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.chedule.ui.glass.BarFill
+import com.haooz.chedule.ui.glass.BrightLargeTone
+import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.roundToInt
@@ -82,6 +88,9 @@ import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.Sidebar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** 平板侧栏的柔光 shader 缓存键：面板宽度逐帧变化，uniform 每帧按当前尺寸重灌。 */
+private const val LIVE_TABLET_NAV_GLASS_KEY = "NexioSoftGlassLiveTabletNavSideBar"
 
 /** 顶栏糊层 draw 阶段跟踪侧栏伸缩用的稳定引用（勿在组合期调用） */
 val tabletNavExpandSampleTrack: () -> Float = { TabletNavSideState.expandProgress.floatValue }
@@ -232,7 +241,6 @@ fun TabletNavSideBar(
     val containerColor =
         if (isLightTheme) Color(0xFFFFFFFF).copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.8f))
         else Color(0xFF242424).copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.8f))
-    val defaultEdgeLight = rememberDefaultEdgeLight(degradedBaseColor = containerColor)
     // 按压高光：跟手光晕，按哪亮哪。
     val animationScope = rememberCoroutineScope()
     val interactiveHighlight = remember(animationScope) {
@@ -255,6 +263,45 @@ fun TabletNavSideBar(
     // 玻璃遮罩圆角：屏幕圆角 − 左缘间距，不写死
     val sideCorner = rememberTabletNavMaskCorner(screenCornerRadiusPx)
     val density = LocalDensity.current
+
+    // 侧栏是「大面板」：与对话框同走 BarFill + BrightLargeTone。面板宽度在 layout 期逐帧变，
+    // uniform 必须在 draw 期读当前 size，不能把尺寸记进组合期状态。
+    val sideGlassStyle = AppMaterialSettings.chromeGlassStyle(
+        base = ScheduleSoftGlassStyle,
+        isDark = !isLightTheme,
+        fill = BarFill,
+        tone = BrightLargeTone,
+    )
+    val sideCornerPx = with(density) { sideCorner.toPx() }
+    val sideGlassBlurDp = AppMaterialSettings.glassPanelBlurDp()
+    val sideGlassOn = AppMaterialSettings.glassEffectsEnabled()
+    val sideShapeBlock: () -> Shape = remember(sideCorner) {
+        { ContinuousRoundedRectangle(sideCorner) }
+    }
+    val sideGlassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+        remember(sideGlassBlurDp, sideGlassOn, sideGlassStyle, sideCornerPx) {
+            {
+                if (sideGlassOn) {
+                    blur(sideGlassBlurDp.dp.toPx())
+                    runtimeShaderEffect(
+                        key = LIVE_TABLET_NAV_GLASS_KEY,
+                        shaderString = SOFT_GLASS_LIVE_SHADER,
+                        uniformShaderName = "content",
+                    ) {
+                        applyLiveGlass(
+                            style = sideGlassStyle,
+                            width = size.width,
+                            height = size.height,
+                            radiusPx = sideCornerPx,
+                        )
+                    }
+                }
+            }
+        }
+    // 无材质档（以及无 backdrop 分支）用的实色底：按引用比较，必须稳定。
+    val sideSurface: DrawScope.() -> Unit = remember(containerColor) {
+        { drawRect(containerColor) }
+    }
     val widthDp = screenWidthDp()
     val screenWidth = widthDp.dp
     val collapsedPanelPx = with(density) { TabletNavIconRailWidth.toPx() }
@@ -323,17 +370,12 @@ fun TabletNavSideBar(
                         Modifier
                             .drawBackdrop(
                                 backdrop = backdrop,
-                                shape = { ContinuousRoundedRectangle(sideCorner) },
-                                effects = {
-                                    if (com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()) {
-                                        vibrancy()
-                                        blur(12f.dp.toPx())
-                                    }
-                                },
+                                shape = sideShapeBlock,
+                                effects = sideGlassEffects,
                                 highlight = null,
-                                onDrawSurface = { drawRect(containerColor) },
+                                // 柔光自己画玻璃色与方向光；无材质档不跑 shader，必须留实色底。
+                                onDrawSurface = if (sideGlassOn) null else sideSurface,
                             )
-                            .edgeLight(shape = ContinuousRoundedRectangle(sideCorner), edgeLight = defaultEdgeLight)
                     } else {
                         // 无玻璃分支没有 drawBackdrop 的 clipPath 兜底：
                         // 高光是矩形 drawRect，不自己裁会溢出圆角画成方光块。

@@ -66,12 +66,17 @@ import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.glass.BarFill
+import com.haooz.chedule.ui.glass.BrightLargeTone
+import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentBottomBar
 import com.haooz.chedule.ui.utils.NativeDocumentBottomBarEffect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.ui.web.NoopWebHost
 import com.haooz.chedule.ui.web.WebHost
@@ -83,10 +88,8 @@ import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
@@ -104,6 +107,9 @@ import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 
+
+/** 网页页底部 dock 的柔光 shader 缓存键：尺寸与其他玻璃件不同，不能共用 uniform。 */
+private const val LIVE_WEB_DOCK_GLASS_KEY = "NexioSoftGlassLiveWebDock"
 
 private data class AlertData(
     val title: String,
@@ -178,16 +184,33 @@ fun WebViewScreen(
     var selectionData by remember { mutableStateOf<SelectionData?>(null) }
     var showCourseTablePicker by remember { mutableStateOf(false) }
     val webDockShapeBlock: () -> Shape = remember { { ContinuousCapsule() } }
-    // 与 LiquidBottomTabs 可见层同一套玻璃参数
-    // 玻璃模糊随材质档位：通透玻璃档更低（折射接管通透感），其余档 8；无材质档整体关
-    val webDockGlassBlur = com.haooz.chedule.ui.utils.AppMaterialSettings.glassBlurDp()
+    // 柔光玻璃：材质、档位、调色全由材质层给出；模糊走档位值，无材质档整体关。
+    // effects 必须记住引用，否则 drawBackdrop 每帧重新录制采样层。
+    val webDockGlassBlur = AppMaterialSettings.glassBlurDp()
+    val webDockGlassOn = AppMaterialSettings.glassEffectsEnabled()
+    val webDockGlassStyle = AppMaterialSettings.chromeGlassStyle(
+        base = ScheduleSoftGlassStyle,
+        isDark = isAppDarkTheme(),
+        // 底部 dock 是「贴底 bar」类玻璃：走 BarFill + 大控件材质。
+        fill = BarFill,
+        tone = BrightLargeTone,
+    )
     val webDockEffects: BackdropEffectScope.() -> Unit =
-        remember(webDockGlassBlur, com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()) {
+        remember(webDockGlassBlur, webDockGlassOn, webDockGlassStyle) {
             {
-                if (com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()) {
-                    vibrancy()
+                if (webDockGlassOn) {
                     blur(webDockGlassBlur.dp.toPx())
-                    lens(6f.dp.toPx(), 36f.dp.toPx())
+                    runtimeShaderEffect(
+                        key = LIVE_WEB_DOCK_GLASS_KEY,
+                        shaderString = SOFT_GLASS_LIVE_SHADER,
+                        uniformShaderName = "content",
+                    ) {
+                        applyLiveGlass(
+                            style = webDockGlassStyle,
+                            width = size.width,
+                            height = size.height,
+                        )
+                    }
                 }
             }
         }
@@ -207,7 +230,6 @@ fun WebViewScreen(
             drawRect(webDockSurfaceColor)
         }
     }
-    val webDockEdgeLight = rememberDefaultEdgeLight(degradedBaseColor = webDockSurfaceColor)
     var importCompleted by remember { mutableStateOf(false) }
 
     val currentOnImportComplete by rememberUpdatedState(onImportComplete)
@@ -475,9 +497,9 @@ fun WebViewScreen(
                         shape = webDockShapeBlock,
                         effects = webDockEffects,
                         highlight = null,
-                        onDrawSurface = webDockOnDrawSurface
+                        // 柔光自己画玻璃色与方向光；无材质档不跑 shader，必须留容器色
+                        onDrawSurface = if (webDockGlassOn) null else webDockOnDrawSurface
                     )
-                    .edgeLight(shape = ContinuousCapsule(), edgeLight = webDockEdgeLight)
             ) {
                 WebImportDockContent(
                     schoolName = school.name,

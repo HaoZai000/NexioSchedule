@@ -52,7 +52,7 @@ sealed interface GlassTone {
     fun apply(style: SoftGlassStyle): SoftGlassStyle
 }
 
-/** 壁纸通透材质：参数与参考实现的大面板档位 `Glass_Common_Large_Regular` 一致。 */
+/** 壁纸通透材质：参数与 `Glass_Common_Large_Regular` 一致。 */
 object TokenTone : GlassTone {
     override fun apply(style: SoftGlassStyle): SoftGlassStyle = style.copy(
         // ── 几何（px） ───────────────────────────────────────────────
@@ -95,13 +95,56 @@ object TokenTone : GlassTone {
     )
 }
 
-/** 悬浮控件材质：与 [TokenTone] 相同，仅将亮部压暗强度降为 0.08、混向色改为中性黑。 */
+/** 悬浮小控件材质 */
 object BrightTone : GlassTone {
     override fun apply(style: SoftGlassStyle): SoftGlassStyle = style.copy(
         // ── 几何（px） ───────────────────────────────────────────────
         edgeWidth = 60f,
         edgePow = 4f,
         thickness = 96f,
+        reflectOffset = 600f,
+        // ── 折射与反射 ───────────────────────────────────────────────
+        refractionScale = 1f,
+        refractIOR = 3f,
+        reflectionStrength = 0.8f,
+        reflectionLighten = 1f,
+        // ── 压暗与调色 ───────────────────────────────────────────────
+        darker = 0.08f,
+        darkerColor = Color.Black,
+        darkerRange = 0.6f to 1.0f,
+        luminanceValues = listOf(0f, 2f, 0.5f, 0.8f),
+        luminanceAmount = 0.15f,
+        saturation = 2f,
+        brightness = 0.08f,
+        bgColorSaturation = 0f,
+        bgColorBrightness = 0f,
+        innerColorWhite = 0.15f,
+        innerColorMix = 0.4f,
+        burn = 0f,
+        glassColor = Color.White,
+        glassColorMix = 0.1f,
+        colorPow = 1.2f,
+        alpha = 1f,
+        unshade = 0f,
+        usePowGate = true,
+        // ── 方向光 ───────────────────────────────────────────────────
+        lightDirection = Triple(-0.6f, 0.6f, -0.8f),
+        lightAngleRange = 1f,
+        lightIntensity = 1.6f,
+        lightOppositeIntensity = 0.8f,
+        edgeHighlight = true,
+        // ── 底边提亮 ─────────────────────────────────────────────────
+        innerBottom = 0.05f,
+    )
+}
+
+/** 悬浮大控件材质 */
+object BrightLargeTone : GlassTone {
+    override fun apply(style: SoftGlassStyle): SoftGlassStyle = style.copy(
+        // ── 几何（px） ───────────────────────────────────────────────
+        edgeWidth = 75f,
+        edgePow = 4f,
+        thickness = 120f,
         reflectOffset = 600f,
         // ── 折射与反射 ───────────────────────────────────────────────
         refractionScale = 1f,

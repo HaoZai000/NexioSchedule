@@ -26,7 +26,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInRoot
@@ -41,15 +43,17 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.haooz.chedule.ui.components.GlassDragStretchRatio
+import com.haooz.chedule.ui.components.GlassDragTranslationDamping
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.applyLiveGlass
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberDefaultEdgeLight
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
@@ -59,6 +63,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val MenuEnterEasing = CubicBezierEasing(0.3f, 1.25f, 0.32f, 1f)
 private val MenuExitEasing = CubicBezierEasing(0.3f, 1f, 0.3f, 1f)
+/** 快捷条的柔光 shader 缓存键：尺寸与其他玻璃件不同，不能共用 uniform。 */
+private const val LIVE_SHORTCUT_GLASS_KEY = "NexioSoftGlassLiveShortcutMenu"
 /**
  * 菜单布局四周的阴影留白：面板可见区比测量尺寸四边各小这么多。
  * 调用方算「与卡片的间距 / 右缘对齐」要按它换算（见 OverlayLayers 的 offset）。
@@ -93,6 +99,42 @@ fun ShortcutMenu(
         else if (isLightTheme) Color(0xFFFFFFFF)
             .copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.6f))
         else Color(0xFF121212).copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.54f))
+
+    // 柔光玻璃：材质、档位、调色全由材质层给出，这里只声明用 chrome（悬浮面板）那一套。
+    // 无材质档不跑 shader，必须留容器色，否则面板变成透空圆孔。
+    val glassBlur = com.haooz.chedule.ui.utils.AppMaterialSettings.glassBlurDp()
+    val glassEffectsOn = com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()
+    val shortcutGlassStyle = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeGlassStyle(
+        base = ScheduleSoftGlassStyle,
+        isDark = !isLightTheme,
+    )
+    val cornerRadiusPx = with(density) { 18.dp.toPx() }
+    // drawBackdrop 按引用比较 shape / effects / onDrawSurface；lambda 每帧新建会让节点
+    // 每帧 invalidateDraw、重新录制采样层并重跑采样。
+    val shortcutShapeBlock: () -> Shape = remember { { ContinuousRoundedRectangle(18.dp) } }
+    val glassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+        remember(glassBlur, glassEffectsOn, shortcutGlassStyle, cornerRadiusPx) {
+            {
+                if (glassEffectsOn) {
+                    blur(glassBlur.dp.toPx())
+                    runtimeShaderEffect(
+                        key = LIVE_SHORTCUT_GLASS_KEY,
+                        shaderString = SOFT_GLASS_LIVE_SHADER,
+                        uniformShaderName = "content",
+                    ) {
+                        applyLiveGlass(
+                            style = shortcutGlassStyle,
+                            width = size.width,
+                            height = size.height,
+                            radiusPx = cornerRadiusPx,
+                        )
+                    }
+                }
+            }
+        }
+    val surfaceOnDraw: DrawScope.() -> Unit = remember(containerColor) {
+        { drawRect(containerColor) }
+    }
 
     val scale = remember { Animatable(0f) }
     val alpha = remember { Animatable(0f) }
@@ -172,9 +214,13 @@ fun ShortcutMenu(
                     offset = interactiveHighlight.offset,
                     density = this,
                     shapeAspectRatio = 1f,
+                    stretchRatio = GlassDragStretchRatio,
+                    translationDamping = GlassDragTranslationDamping,
+                    pressScaleDp = 2f,
                 )
-                scaleX = scale.value * drag.scaleX
-                scaleY = scale.value * drag.scaleY
+                // 拉伸交给 drawBackdrop 的 layerBlock（源库采样时自动逆缩放），这里只留进场缩放
+                scaleX = scale.value
+                scaleY = scale.value
                 this.alpha = alpha.value
                 // 需要左移时 pivot 改为右下角(向左展开)，整体向左平移对齐目标右边缘
                 transformOrigin = TransformOrigin(
@@ -229,22 +275,29 @@ fun ShortcutMenu(
                 .then(interactiveHighlight.gestureModifier)
                 .drawBackdrop(
                     backdrop = backdrop,
-                    shape = { ContinuousRoundedRectangle(18.dp) },
-                    effects = {
-                        // 无材质档整体关（这组是硬编码参数，不读档位模糊值）
-                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()) {
-                            vibrancy()
-                            blur(4f.dp.toPx())
-                            lens(6f.dp.toPx(), 36f.dp.toPx())
-                        }
-                    },
+                    shape = shortcutShapeBlock,
+                    effects = glassEffects,
                     highlight = null,
                     shadow = null,
-                    onDrawSurface = {
-                        drawRect(containerColor)
-                    }
+                    layerBlock = {
+                        val drag = computeDragTransform(
+                            width = size.width,
+                            height = size.height,
+                            fraction = 1f,
+                            pressProgress = interactiveHighlight.pressProgress,
+                            offset = interactiveHighlight.offset,
+                            density = this,
+                            shapeAspectRatio = 1f,
+                            stretchRatio = GlassDragStretchRatio,
+                            translationDamping = GlassDragTranslationDamping,
+                            pressScaleDp = 2f,
+                        )
+                        scaleX = drag.scaleX
+                        scaleY = drag.scaleY
+                    },
+                    // 柔光自己画玻璃色与方向光，再叠容器色会把折射盖住
+                    onDrawSurface = if (glassEffectsOn) null else surfaceOnDraw,
                 )
-                .edgeLight(shape = ContinuousRoundedRectangle(18.dp), edgeLight = rememberDefaultEdgeLight(degradedBaseColor = containerColor))
                 .clip(ContinuousRoundedRectangle(18.dp))
                 .then(interactiveHighlight.modifier)
         ) {

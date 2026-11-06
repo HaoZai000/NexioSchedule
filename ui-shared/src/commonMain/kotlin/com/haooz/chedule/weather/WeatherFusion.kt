@@ -102,25 +102,38 @@ internal object WeatherFusion {
     // ── 逐时 ──────────────────────────────────────────────────────────
 
     /**
-     * 以「条目最多」的源为骨架（小米给到逐时，Open-Meteo 给 24 条），
-     * 再按**整点**对齐补其他源的缺字段。
+     * 24 小时预报的骨架优先用**权重最高的源（小米）**：小米的逐时是本地观测+插值
+     * （同样来自小米实况）对得上。只有小米**完全没给逐时数据**时，才退到其它源当骨架
+     * 骨架定下后，其它源只按**整点**对齐补 null 缺字段，不覆盖已有值
      */
     private fun mergeHourly(ordered: List<SourceData>): List<WeatherHour> {
         val withHourly = ordered.filter { it.hourly.isNotEmpty() }
         if (withHourly.isEmpty()) return emptyList()
-        val base = withHourly.maxByOrNull { it.hourly.size }!!
+        // 注意：不能按条目数选骨架
+        // 改按权重选，小米永远优先
+        val base = withHourly.maxByOrNull { it.weight }!!
         val byHour = withHourly
             .filter { it !== base }
             .flatMap { it.hourly }
             .groupBy { floorDiv(it.epochSec, 3600L) }
 
-        return base.hourly.map { hour ->
+        // 主源整段都没有 → 视为「主源不提供」，不回填，渲染层退化为显示小米风级。
+        // 注：主源一旦换成 Open-Meteo（小米挂了），它自己带降水字段，照常显示。
+        val baseCarriesPrecip = base.hourly.any { it.precipProb != null || it.precipMm != null }
+
+        // 小米逐时整体从「下一个整点」开始，当前小时那一桶往往缺（如 8:30 时首条是 9:00）。
+        // 把 base 缺的整点桶直接用 Open-Meteo 同桶整行补进来，避免 24 小时卡第一列（当前小时）空白。
+        // 补进来的整行保留 Open-Meteo 自己的字段（含降水概率），因为它本质就是 Open-Meteo 数据。
+        val baseBuckets = base.hourly.map { floorDiv(it.epochSec, 3600L) }.toSet()
+        val missingRows = byHour.filterKeys { it !in baseBuckets }.values.flatten()
+
+        return (base.hourly.map { hour ->
             val others = byHour[floorDiv(hour.epochSec, 3600L)].orEmpty()
             hour.copy(
                 tempC = hour.tempC ?: others.firstNotNullOfOrNull { it.tempC },
                 text = hour.text.ifBlank { others.firstNotNullOfOrNull { it.text.takeIf(String::isNotBlank) }.orEmpty() },
-                precipProb = hour.precipProb ?: others.firstNotNullOfOrNull { it.precipProb },
-                precipMm = hour.precipMm ?: others.firstNotNullOfOrNull { it.precipMm },
+                precipProb = if (baseCarriesPrecip) hour.precipProb ?: others.firstNotNullOfOrNull { it.precipProb } else null,
+                precipMm = if (baseCarriesPrecip) hour.precipMm ?: others.firstNotNullOfOrNull { it.precipMm } else null,
                 windSpeedKmh = hour.windSpeedKmh ?: others.firstNotNullOfOrNull { it.windSpeedKmh },
                 windDirDeg = hour.windDirDeg ?: others.firstNotNullOfOrNull { it.windDirDeg },
                 humidity = hour.humidity ?: others.firstNotNullOfOrNull { it.humidity },
@@ -131,7 +144,7 @@ internal object WeatherFusion {
                 uvIndex = hour.uvIndex ?: others.firstNotNullOfOrNull { it.uvIndex },
                 visibilityKm = hour.visibilityKm ?: others.firstNotNullOfOrNull { it.visibilityKm },
             )
-        }.sortedBy { it.epochSec }
+        } + missingRows).sortedBy { it.epochSec }
     }
 
     // ── 逐日 ──────────────────────────────────────────────────────────

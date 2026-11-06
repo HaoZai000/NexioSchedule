@@ -157,28 +157,33 @@ fun WeatherScreen(
                             )
                         }
                         if (data.alerts.isNotEmpty()) item { AlertCard(data.alerts) }
+                        // 两小时逐分钟降水：只有当窗口内确实出现降雨时才展示卡片。
+                        // 逐分钟强度全为 0（两小时内没有雨）时隐藏整张卡片，
+                        // 避免一排空柱图或「无降水」文字占位。
                         data.nowcast?.let { cast ->
-                            item {
-                                when {
-                                    cast.values.isNotEmpty() -> NowcastChartCard(cast)
-                                    cast.headline.isNotBlank() || cast.detail.isNotBlank() ->
-                                        SectionCard(title = WeatherStr.nowcastTitle()) {
-                                            Text(
-                                                text = cast.headline.ifBlank { cast.detail },
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.onSurface,
-                                            )
-                                            if (cast.detail.isNotBlank() && cast.detail != cast.headline) {
-                                                Spacer(Modifier.height(5.dp))
+                            if (cast.values.any { it > 0.1f }) {
+                                item {
+                                    when {
+                                        cast.values.isNotEmpty() -> NowcastChartCard(cast)
+                                        cast.headline.isNotBlank() || cast.detail.isNotBlank() ->
+                                            SectionCard(title = WeatherStr.nowcastTitle()) {
                                                 Text(
-                                                    text = cast.detail,
-                                                    fontSize = 13.sp,
-                                                    lineHeight = 19.sp,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                                    text = cast.headline.ifBlank { cast.detail },
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.onSurface,
                                                 )
+                                                if (cast.detail.isNotBlank() && cast.detail != cast.headline) {
+                                                    Spacer(Modifier.height(5.dp))
+                                                    Text(
+                                                        text = cast.detail,
+                                                        fontSize = 13.sp,
+                                                        lineHeight = 19.sp,
+                                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                                    )
+                                                }
                                             }
-                                        }
+                                    }
                                 }
                             }
                         }

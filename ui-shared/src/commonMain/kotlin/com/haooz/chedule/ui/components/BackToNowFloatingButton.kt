@@ -30,28 +30,31 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.util.fastCoerceAtMost
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.ui.components.GlassDragStretchRatio
+import com.haooz.chedule.ui.components.GlassDragTranslationDamping
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.chedule.ui.glass.BrightTone
+import com.haooz.chedule.ui.glass.CustomizeFill
+import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.glass.applyLiveGlass
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberDefaultEdgeLight
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.capsule.ContinuousCapsule
-import kotlin.math.abs
-import kotlin.math.atan2
-import kotlin.math.cos
 import kotlin.math.roundToInt
-import kotlin.math.sin
 import kotlin.math.tanh
+import top.yukonga.miuix.kmp.interactive.computeDragTransform
 import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** 「回到今天/本周」悬浮按钮的柔光 shader 缓存键：尺寸与其他玻璃件不同，不能共用 uniform。 */
+private const val LIVE_BACK_TO_NOW_GLASS_KEY = "NexioSoftGlassLiveBackToNow"
 
 /**
  * 底部导航栏上方的液态玻璃悬浮「返回今天/本周」按钮。
@@ -91,20 +94,35 @@ fun BackToNowFloatingButton(
     val buttonShape: Shape = ContinuousCapsule()
 
     val buttonShapeBlock: () -> Shape = remember { { buttonShape } }
-    val chromeLens = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeLensEnabled()
-    // 玻璃模糊随材质档位：通透玻璃档更低（折射接管通透感），其余档 8；无材质档整体关
     val glassBlur = com.haooz.chedule.ui.utils.AppMaterialSettings.glassBlurDp()
     val glassEffectsOn = com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()
-    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens, glassBlur, glassEffectsOn) {
-        {
-            if (glassEffectsOn) {
-                vibrancy()
-                blur(glassBlur.dp.toPx())
-                // 均衡及以下关闭折射
-                if (chromeLens) lens(6f.dp.toPx(), 36f.dp.toPx())
+    // 白字按钮：主题色混进玻璃本色保证对比度。
+    val buttonGlassStyle = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeGlassStyle(
+        base = ScheduleSoftGlassStyle,
+        isDark = !isLightTheme,
+        fill = CustomizeFill(MiuixTheme.colorScheme.primary),
+        tone = BrightTone,
+    )
+    // drawBackdrop 按引用比较 shape / effects / onDrawSurface，lambda 每帧新建会重录采样层。
+    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+        remember(glassBlur, glassEffectsOn, buttonGlassStyle) {
+            {
+                if (glassEffectsOn) {
+                    blur(glassBlur.dp.toPx())
+                    runtimeShaderEffect(
+                        key = LIVE_BACK_TO_NOW_GLASS_KEY,
+                        shaderString = SOFT_GLASS_LIVE_SHADER,
+                        uniformShaderName = "content",
+                    ) {
+                        applyLiveGlass(
+                            style = buttonGlassStyle,
+                            width = size.width,
+                            height = size.height,
+                        )
+                    }
+                }
             }
         }
-    }
     val buttonOnDrawSurface: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit =
         remember(resolvedContainerColor, interactiveHighlight) {
             {
@@ -121,10 +139,8 @@ fun BackToNowFloatingButton(
                 clip = false
                 val offset = interactiveHighlight.offset
                 val contentMin = (size.minDimension - shadowPadding.toPx() * 2).coerceAtLeast(1f)
-                // 起始跟手斜率：0.08 时位移约为手指的 8%，越拖阻尼越强（与 LiquidTopBarButton 一致）。
-                val initialDerivative = 0.08f
-                translationX = contentMin * tanh(initialDerivative * offset.x / contentMin)
-                translationY = contentMin * tanh(initialDerivative * offset.y / contentMin)
+                translationX = contentMin * tanh(GlassDragTranslationDamping * offset.x / contentMin)
+                translationY = contentMin * tanh(GlassDragTranslationDamping * offset.y / contentMin)
             }
             .drawBehind {
                 // 阴影画在 shadowPadding 内缩矩形上，模糊半径落在预留边距里，不会被父级裁切
@@ -182,33 +198,25 @@ fun BackToNowFloatingButton(
                     highlight = null,
                     shadow = null,
                     layerBlock = {
-                        val width = size.width
-                        val height = size.height
-
-                        val progress = interactiveHighlight.pressProgress.coerceAtLeast(0f)
-                        val scale = lerp(1f, 1f + 4f.dp.toPx() / size.height, progress)
-                        scaleX = scale
-                        scaleY = scale
-
-                        val offset = interactiveHighlight.offset
-                        val maxDragScale = 1f.dp.toPx() / size.height
-                        val offsetAngle = atan2(offset.y, offset.x)
-                        scaleX =
-                            scale +
-                                maxDragScale * abs(cos(offsetAngle) * offset.x / size.maxDimension) *
-                                (width / height).fastCoerceAtMost(1f)
-                        scaleY =
-                            scale +
-                                maxDragScale * abs(sin(offsetAngle) * offset.y / size.maxDimension) *
-                                (height / width).fastCoerceAtMost(1f)
+                        // 与 LiquidGlassTextButton 同一套玻璃档手感
+                        val drag = computeDragTransform(
+                            width = size.width,
+                            height = size.height,
+                            fraction = 1f,
+                            pressProgress = interactiveHighlight.pressProgress,
+                            offset = interactiveHighlight.offset,
+                            density = this,
+                            shapeAspectRatio = 1f,
+                            stretchRatio = GlassDragStretchRatio,
+                            translationDamping = GlassDragTranslationDamping,
+                            pressScaleDp = 2f,
+                        )
+                        scaleX = drag.scaleX
+                        scaleY = drag.scaleY
                     },
-                    onDrawSurface = buttonOnDrawSurface
-                )
-                // 描边：正常档走通用高光色（主题色描边会和填充同色，整圈糊在边缘）；
-                // 降级档没有模糊高光，纯色描边按按钮底色提亮，否则白描边在彩色按钮上很突兀
-                .edgeLight(
-                    shape = buttonShape,
-                    edgeLight = rememberDefaultEdgeLight(degradedBaseColor = resolvedContainerColor),
+                    // 柔光自己画玻璃色与方向光，再叠容器色会把折射盖住；
+                    // 无材质档不跑 shader，必须留容器色，否则按钮变成透空圆孔。
+                    onDrawSurface = if (glassEffectsOn) null else buttonOnDrawSurface
                 )
                 .then(interactiveHighlight.modifier)
                 .then(interactiveHighlight.gestureModifier)

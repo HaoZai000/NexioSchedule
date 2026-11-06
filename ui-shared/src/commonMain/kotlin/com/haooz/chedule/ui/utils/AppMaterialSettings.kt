@@ -38,17 +38,13 @@ object AppMaterialSettings {
 
     /** 玻璃件采样模糊（dp）：全档位统一（无材质档为 0） */
     private const val GLASS_BLUR_DP = 6f
-    /** 通透玻璃档下拉面板模糊（dp）：恒定值，不随展开渐变 */
-    private const val GLASS_PANEL_BLUR_BEST = 4f
-    /** 下拉面板比小玻璃件多出来的模糊量（dp）：8 → 24 的原始跨度（仅非通透玻璃档用） */
-    private const val GLASS_PANEL_BLUR_SPAN = 16f
+    /** 下拉面板展开态模糊（dp）：全档位统一，不随展开渐变 */
+    private const val GLASS_PANEL_BLUR_DP = 12f
     /** 通透玻璃档玻璃底色 alpha 降幅：深色降得多一点，浅色降少一点（浅底本身已亮） */
     private const val GLASS_SURFACE_ALPHA_DROP_DARK = 0.32f
     private const val GLASS_SURFACE_ALPHA_DROP_LIGHT = 0.2f
-    /** 通透玻璃档对话框模糊（dp） */
-    private const val GLASS_DIALOG_BLUR_BEST = 6f
-    /** 其余档对话框模糊（dp） */
-    private const val GLASS_DIALOG_BLUR_MILLED = 24f
+    /** 对话框 / 贴底弹窗玻璃的采样模糊（dp）：全档位统一 */
+    private const val GLASS_DIALOG_BLUR_DP = 12f
 
     // Pair.first 是持久化数据键（BEST/BALANCED/...），Pair.second 是展示名；按当前语言取值，不缓存
     val entries: List<Pair<String, String>>
@@ -124,22 +120,12 @@ object AppMaterialSettings {
     fun glassBlurDp(): Float = if (level == NONE) 0f else GLASS_BLUR_DP
 
     /**
-     * 弹出面板（下拉菜单）采样模糊半径（dp）。
-     * 通透玻璃档取恒定值、**不随展开渐变**（折射已经做出「厚度」，再叠模糊只会糊掉边缘）；
-     * 其余档取展开态的 24（小玻璃件 8 + 16 跨度）；无材质档 0（不模糊）。
+     * 弹出面板（下拉菜单）展开态采样模糊半径（dp）：全档位统一 12，不随展开渐变；无材质档 0。
      */
-    fun glassPanelBlurDp(): Float = when (level) {
-        NONE -> 0f
-        BEST -> GLASS_PANEL_BLUR_BEST
-        else -> glassBlurDp() + GLASS_PANEL_BLUR_SPAN
-    }
+    fun glassPanelBlurDp(): Float = if (level == NONE) 0f else GLASS_PANEL_BLUR_DP
 
-    /** 对话框 / 贴底弹窗玻璃的采样模糊半径（dp）：通透玻璃档更薄，其余档维持 24，无材质档 0。 */
-    fun glassDialogBlurDp(): Float = when (level) {
-        NONE -> 0f
-        BEST -> GLASS_DIALOG_BLUR_BEST
-        else -> GLASS_DIALOG_BLUR_MILLED
-    }
+    /** 对话框 / 贴底弹窗玻璃的采样模糊半径（dp）：全档位统一 12，无材质档 0（玻璃整体关）。 */
+    fun glassDialogBlurDp(): Float = if (level == NONE) 0f else GLASS_DIALOG_BLUR_DP
 
     /**
      * 玻璃底色 alpha：无材质档返回 1f（玻璃面改实色），通透玻璃档比常态低一档让折射和背后的内容

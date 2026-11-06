@@ -33,7 +33,7 @@ object NoneFill : GlassFill {
     override fun apply(style: SoftGlassStyle, isDark: Boolean): SoftGlassStyle = style
 }
 
-/** 主题混合：浅色主题混入白色 0.55，深色主题混入 `#181818` 0.45。 */
+/** 主题混合 */
 object ThemeFill : GlassFill {
     override fun apply(style: SoftGlassStyle, isDark: Boolean): SoftGlassStyle =
         style.filledWith(
@@ -46,8 +46,17 @@ object ThemeFill : GlassFill {
 object BarFill : GlassFill {
     override fun apply(style: SoftGlassStyle, isDark: Boolean): SoftGlassStyle =
         style.filledWith(
-            color = if (isDark) Color(0xFF242424) else Color.White,
-            mix = 0.8f,
+            color = if (isDark) Color(0xFF222222) else Color.White,
+            mix = if (isDark) 0.45f else 0.55f,
+        )
+}
+
+/** 自定义颜色混合 */
+data class CustomizeFill(val color: Color) : GlassFill {
+    override fun apply(style: SoftGlassStyle, isDark: Boolean): SoftGlassStyle =
+        style.filledWith(
+            color = color,
+            mix = if (isDark) 0.45f else 0.55f,
         )
 }
 
@@ -57,11 +66,9 @@ object BarFill : GlassFill {
  * 混合比例写入 [SoftGlassStyle.unshade] 而非 `glassColorMix`：shader 末步为
  * `rgb = mix(rgb, glassColor, unshade)`，负责整体着色；`glassColorMix` 只影响 gcr 的底色，
  * 作用量级小得多。
- *
- * 饱和度限制在 1.2 以内：残留背景色经 2.2 倍饱和放大后会形成彩色斑块。
  */
 internal fun SoftGlassStyle.filledWith(color: Color, mix: Float): SoftGlassStyle = copy(
     glassColor = color,
     unshade = mix.coerceIn(0f, 1f),
-    saturation = minOf(saturation, 1.2f),
+    saturation = minOf(saturation, 2.0f),
 )

@@ -37,6 +37,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -56,7 +57,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.ui.components.GlassDragStretchRatio
+import com.haooz.chedule.ui.components.GlassDragTranslationDamping
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.glass.BrightLargeTone
 import com.haooz.chedule.ui.glass.BrightTone
 import com.haooz.chedule.ui.glass.GlassFill
 import com.haooz.chedule.ui.glass.GlassTone
@@ -68,12 +72,9 @@ import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberDefaultEdgeLight
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -91,6 +92,9 @@ val LiquidGlassDropdownShadowPadding = 24.dp
 
 /** 形变面板的实时柔光 shader 缓存键（与顶栏按钮分开：两者尺寸不同，共用会互相覆盖 uniform）。 */
 private const val LIVE_DROPDOWN_GLASS_KEY = "NexioSoftGlassLiveDropdown"
+
+/** 展开进度超过该值就切到大控件材质：收起态是 42dp 圆按钮，半程以后已长成面板。 */
+private const val EXPANDED_TONE_THRESHOLD = 0.5f
 
 /** 收起态圆形按钮直径，也是容器变换的起点尺寸 */
 private val ButtonDiameter = 42.dp
@@ -138,8 +142,11 @@ fun LiquidGlassDropdownMenu(
      * 传 `NoneFill` 则透出原本的玻璃色。
      */
     fill: GlassFill = ThemeFill,
-    /** 材质基调；默认 [BrightTone]（悬浮控件那套）。 */
-    tone: GlassTone = BrightTone,
+    /**
+     * 展开态面板的材质基调；默认 [BrightLargeTone]（悬浮大控件那套）。
+     * 收起态那颗 42dp 圆按钮固定用 [BrightTone]，与顶栏液态玻璃按钮同一套。
+     */
+    tone: GlassTone = BrightLargeTone,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val isLightTheme = !isAppDarkTheme()
@@ -148,13 +155,20 @@ fun LiquidGlassDropdownMenu(
         .copy(alpha = AppMaterialSettings.glassSurfaceAlpha(if (isLightTheme) 0.76f else 0.84f, isLightTheme))
     else if (isLightTheme) Color(0xFFFAFAFA).copy(AppMaterialSettings.glassSurfaceAlpha(0.76f, isLight = true))
         else Color(0xFF242424).copy(AppMaterialSettings.glassSurfaceAlpha(0.84f, isLight = false))
-    val chromeLens = AppMaterialSettings.chromeLensEnabled()
-    // 面板材质：几何 / 光学 / 调色都来自材质层，这里只声明用哪一套
+    // 展开态面板材质：几何 / 光学 / 调色都来自材质层，这里只声明用哪一套
     val panelGlassStyle = AppMaterialSettings.chromeGlassStyle(
         base = ScheduleSoftGlassStyle,
         isDark = !isLightTheme,
         fill = fill,
         tone = tone,
+    )
+    // 收起态 42dp 圆按钮：与顶栏按钮同一套小控件材质。两套共用 fill，形变时底色不跳。
+    // 实例保持稳定，择一发生在 draw 期 —— 组合期换 style 会让 effects 每帧换引用、重录采样层。
+    val collapsedGlassStyle = AppMaterialSettings.chromeGlassStyle(
+        base = ScheduleSoftGlassStyle,
+        isDark = !isLightTheme,
+        fill = fill,
+        tone = BrightTone,
     )
     val useSoftGlass = AppMaterialSettings.glassEffectsEnabled()
     val panelCornerRadiusPx = with(LocalDensity.current) { PanelCornerRadius.toPx() }
@@ -183,6 +197,24 @@ fun LiquidGlassDropdownMenu(
             // 收起态是 42dp 小圆，min 会自动退回自身尺寸，光晕不会漫出圆外。
             radiusBaseDp = 150.dp,
         )
+    }
+    // 与 LiquidGlassTextButton 同一套：拉伸交给 drawBackdrop 的 layerBlock，源库采样时自动逆缩放
+    val glassLayerBlock: GraphicsLayerScope.() -> Unit = remember(interactiveHighlight, fraction) {
+        {
+            val drag = computeDragTransform(
+                width = size.width,
+                height = size.height,
+                fraction = fraction.value,
+                pressProgress = interactiveHighlight.pressProgress,
+                offset = interactiveHighlight.offset,
+                density = this,
+                stretchRatio = GlassDragStretchRatio,
+                translationDamping = GlassDragTranslationDamping,
+                pressScaleDp = 2f,
+            )
+            scaleX = drag.scaleX
+            scaleY = drag.scaleY
+        }
     }
 
     navBackState.handler(
@@ -266,13 +298,9 @@ fun LiquidGlassDropdownMenu(
     // 每帧换引用会让节点每帧重建 RenderEffect。
     val blurStep = (f.coerceIn(0f, 1f) * 8f).roundToInt()
     val expandStep = blurStep / 8f
-    // 通透玻璃档：面板模糊恒定，不随展开渐变（折射已经把「厚度」做出来了，再叠模糊只会糊掉边缘）。
-    // 其余档保持 8 → 24 的渐变；无材质档恒 0（玻璃效果整体关）。
-    val blurDp = when {
-        AppMaterialSettings.isNoneTier() -> 0f
-        AppMaterialSettings.isBestTier() -> AppMaterialSettings.glassPanelBlurDp()
-        else -> AppMaterialSettings.glassBlurDp() + 16f * expandStep
-    }
+    // 展开态模糊全档位统一 12dp：收起态 6 → 展开 12；无材质档恒 0（玻璃效果整体关）。
+    val blurDp = if (AppMaterialSettings.isNoneTier()) 0f
+    else AppMaterialSettings.glassBlurDp() + 6f * expandStep
     // 折射随展开连贯变大：折叠 (7, 28) → 展开 (12, 48)。折叠态是 42dp 小圆，折射带相对不能太厚；
     // 长成面板后同步加厚，边缘的水灵感才跟得上尺寸。
     // 面板自然高度：由容器内的内容以全尺寸测量得到，作为高度插值终点
@@ -315,9 +343,10 @@ fun LiquidGlassDropdownMenu(
                         pressProgress = interactiveHighlight.pressProgress,
                         offset = interactiveHighlight.offset,
                         density = this,
+                        stretchRatio = GlassDragStretchRatio,
+                        translationDamping = GlassDragTranslationDamping,
+                        pressScaleDp = 2f,
                     )
-                    scaleX = drag.scaleX
-                    scaleY = drag.scaleY
                     translationX = o.x - PanelWidth.toPx() * k + bouncePx + drag.translationX
                     translationY = o.y + targetHeight.toPx() * k - bouncePx + drag.translationY
                 }
@@ -371,11 +400,10 @@ fun LiquidGlassDropdownMenu(
                         )
                     }
                 }
-                .clip(ContinuousRoundedRectangle(PanelCornerRadius))
         ) {
             // 与顶栏液态玻璃按钮同一套采样效果；blur 随展开档位过渡（8dp → 24dp）；无材质档整体关
             val glassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
-                remember(chromeLens, blurStep, blurDp, panelGlassStyle, useSoftGlass) {
+                remember(blurStep, blurDp, panelGlassStyle, collapsedGlassStyle, useSoftGlass) {
                     {
                         if (useSoftGlass) {
                             blur(blurDp.dp.toPx())
@@ -386,20 +414,24 @@ fun LiquidGlassDropdownMenu(
                                 shaderString = SOFT_GLASS_LIVE_SHADER,
                                 uniformShaderName = "content",
                             ) {
+                                // 收起态圆按钮 / 展开态面板各一套材质，按展开进度在 draw 期择一。
+                                // fraction.value 在这里读不会触发重组，也不换 effects 引用。
+                                val activeStyle = if (fraction.value < EXPANDED_TONE_THRESHOLD) {
+                                    collapsedGlassStyle
+                                } else {
+                                    panelGlassStyle
+                                }
                                 applyLiveGlass(
-                                    style = panelGlassStyle,
+                                    style = activeStyle,
                                     width = size.width,
                                     height = size.height,
                                     radiusPx = panelCornerRadiusPx,
                                 )
                             }
-                        } else if (AppMaterialSettings.glassEffectsEnabled()) {
-                            blur(blurDp.dp.toPx())
-                            if (chromeLens) lens(6f.dp.toPx(), 36f.dp.toPx())
                         }
                     }
                 }
-            // 玻璃单独一层：只有它跟材质 alpha（layerBlock 作用于整个节点，挂容器上会连图标一起透明）
+            // 玻璃壳即内容容器：layerBlock 的缩放要连菜单项、高光、图标一起带动
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -410,56 +442,49 @@ fun LiquidGlassDropdownMenu(
                         effects = glassEffects,
                         highlight = null,
                         shadow = null,
+                        layerBlock = glassLayerBlock,
                         // 柔光自己画玻璃色与方向光；无材质档不跑 shader，必须留容器色
                         onDrawSurface = if (useSoftGlass) null else {
                             { drawRect(containerColor) }
                         }
                     )
-                    .then(
-                        if (useSoftGlass) {
-                            Modifier
-                        } else {
-                            Modifier.edgeLight(
-                                shape = ContinuousRoundedRectangle(PanelCornerRadius),
-                                edgeLight = rememberDefaultEdgeLight(degradedBaseColor = containerColor),
-                            )
-                        }
-                    )
-            )
-
-                // 按压高光必须夹在玻璃壳与菜单内容之间：居上被材质盖住，居下会盖掉
-                // 菜单项的跟手高亮底色（Plus 加色会把底色冲白）。
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .then(interactiveHighlight.modifier)
-            )
-
-            // 菜单内容：全尺寸居中、按中心缩放，随容器长大被裁出
-            Column(
-                modifier = Modifier
-                    // 居中：缩放中心始终 = 当前卡片整体的正中心
-                    .align(Alignment.Center)
-                    .requiredWidth(PanelWidth)
-                    .wrapContentHeight(align = Alignment.CenterVertically, unbounded = true)
-                    .onSizeChanged { panelHeightPx = it.height }
-                    .graphicsLayer {
-                        // 内容可见窗口：f<0.3 全隐、f>0.7 全显
-                        alpha = ((f - 0.3f) / 0.4f).coerceIn(0f, 1f)
-                        scaleX = contentScale
-                        scaleY = contentScale
-                        transformOrigin = TransformOrigin(0.5f, 0.5f)
-                    }
-                    .blur(contentBlur)
-                    .padding(vertical = 8.dp)
             ) {
-                // 菜单项从这里读跟手选中态（局部坐标换算要用面板在 root 里的位置）
-                CompositionLocalProvider(LocalDropdownPanelDragSelect provides dragSelectState) {
-                    content()
+
+                    // 按压高光必须夹在玻璃壳与菜单内容之间：居上被材质盖住，居下会盖掉
+                    // 菜单项的跟手高亮底色（Plus 加色会把底色冲白）。
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .then(interactiveHighlight.modifier)
+                )
+
+                // 菜单内容：全尺寸居中、按中心缩放，随容器长大被裁出
+                Column(
+                    modifier = Modifier
+                        // 居中：缩放中心始终 = 当前卡片整体的正中心
+                        .align(Alignment.Center)
+                        .requiredWidth(PanelWidth)
+                        .wrapContentHeight(align = Alignment.CenterVertically, unbounded = true)
+                        .onSizeChanged { panelHeightPx = it.height }
+                        .graphicsLayer {
+                            // 内容可见窗口：f<0.3 全隐、f>0.7 全显
+                            alpha = ((f - 0.3f) / 0.4f).coerceIn(0f, 1f)
+                            scaleX = contentScale
+                            scaleY = contentScale
+                            transformOrigin = TransformOrigin(0.5f, 0.5f)
+                        }
+                        .blur(contentBlur)
+                        .padding(vertical = 8.dp)
+                ) {
+                    // 菜单项从这里读跟手选中态（局部坐标换算要用面板在 root 里的位置）
+                    CompositionLocalProvider(LocalDropdownPanelDragSelect provides dragSelectState) {
+                        content()
+                    }
                 }
+
             }
 
-            // 收起态的图标：就在同一个玻璃盒里，随盒子长大淡出
+            // 收起态的图标：不进玻璃层，材质 alpha 不会连它一起隐掉
             if (triggerIcon != null) {
                 Box(
                     modifier = Modifier
