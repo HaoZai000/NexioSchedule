@@ -60,10 +60,12 @@ import com.haooz.chedule.ui.basic.ShortcutMenuItem
 import com.haooz.chedule.ui.basic.ShortcutMenuShadowPadding
 import com.haooz.chedule.ui.components.CrossWeekDropHint
 import com.haooz.chedule.ui.components.EdgeAutoPageIndicator
+import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.chedule.ui.glass.SoftGlassStyle
 import com.haooz.chedule.ui.screens.CombinationThumbnail
 import com.haooz.chedule.ui.screens.CourseDetailScreen
 import com.haooz.chedule.ui.screens.CustomizeScheduleScreen
@@ -101,6 +103,8 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
     state: CourseScheduleAppState,
     displayAppearance: AppearanceConfig,
     isEntryAnimating: Boolean,
+    /** 与网格卡片同一份柔光样式（采样源不同，参数必须严格一致） */
+    scheduleGlassStyle: SoftGlassStyle,
 ) {
     with(state) {
         val density = densityProvider
@@ -121,6 +125,19 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                 isDark = overlayEffectiveDark,
                 hasWallpaper = wallpaperBitmap != null
             )
+            // 浮层玻璃的采样层 = 底栏那一层（`liquidGlassBackdrop`，录的是整页内容含课程卡片）。
+            // 浮层画在录制层**之上**，所以只能从外部采，正好能连课程卡片一起录进来。
+            // 无材质档时主内容层根本没挂这个录制层（见 CourseScheduleAppMainContent），
+            // 此时喂进去只会采到空像素 —— 直接退回纯色卡片。
+            // 样式与网格卡片同一份，只压暗一档（大模糊底只能采自身矩形，压在亮卡片上会偏亮）。
+            val overlayGlassStyle = rememberOverlayGlassStyle(scheduleGlassStyle)
+            val overlayGlassBackdrop = if (
+                com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()
+            ) {
+                null
+            } else {
+                liquidGlassBackdrop
+            }
             // 拖浮层跟手高光的中心（px，非 state：只在 draw 里写，不触发额外失效）
             val glowCenterPx = remember { FloatArray(2) }
             val dragCardHighlight = remember {
@@ -141,8 +158,24 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                     drawFlatOverlay = false,
                 )
             }
+            // 浮层靠 graphicsLayer 平移，子树不会重绘；draw 期订阅这些位置量，
+            // 玻璃采样原点才能逐帧跟手（否则纹理像贴纸跟着卡片走）。
+            val floatingGlassRedraw: () -> Unit = remember {
+                {
+                    draggedCardPosition
+                    floatingOffsetX.floatValue
+                    floatingOffsetY.floatValue
+                    floatingScale.value
+                    swapFlightOffsetX.value
+                    swapFlightOffsetY.value
+                    swapFlightScale.value
+                }
+            }
             MiuixTheme(controller = overlayPageController) {
-                CompositionLocalProvider(LocalForcedDarkTheme provides overlayEffectiveForcedDark) {
+                CompositionLocalProvider(
+                    LocalForcedDarkTheme provides overlayEffectiveForcedDark,
+                    LocalGlassRedrawSignal provides floatingGlassRedraw,
+                ) {
                     // 跟手高光：画在浮层之前（同一父级里先声明先画），压在整页之上、浮层之下
                     Box(
                         Modifier
@@ -263,6 +296,10 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                     isCurrentWeek = if (isPasteFlight) true else course.isActiveInWeek(
                                         draggedWeek
                                     ),
+                                    // 浮层采实时录制层（能录到下面的课程卡片）；
+                                    // 样式与网格卡片同一份、只压暗一档，模糊 / 折射 / 边缘 / 描边一致
+                                    glassBackdrop = overlayGlassBackdrop,
+                                    glassStyle = overlayGlassStyle,
                                     cardBlurRadius = displayAppearance.cardBlurRadius,
                                     cardRefraction = displayAppearance.cardRefraction,
                                     cardAlpha = displayAppearance.cardAlpha,
@@ -314,6 +351,10 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 CourseCard(
                                     course = swapCourse,
                                     isCurrentWeek = true,
+                                    // 浮层采实时录制层（能录到下面的课程卡片）；
+                                    // 样式与网格卡片同一份、只压暗一档，模糊 / 折射 / 边缘 / 描边一致
+                                    glassBackdrop = overlayGlassBackdrop,
+                                    glassStyle = overlayGlassStyle,
                                     cardBlurRadius = displayAppearance.cardBlurRadius,
                                     cardRefraction = displayAppearance.cardRefraction,
                                     cardAlpha = displayAppearance.cardAlpha,

@@ -40,7 +40,7 @@ val LocalGlassPanelBlurDp = compositionLocalOf { 24f }
 /** 对话框 / 贴底弹窗的采样模糊半径（dp）。 */
 val LocalGlassDialogBlurDp = compositionLocalOf { 12f }
 
-/** 玻璃底色 alpha 降幅（通透玻璃档专用，0 = 不降），浅色 / 深色各一档。 */
+/** 玻璃底色 alpha 降幅（柔光玻璃档专用，0 = 不降），浅色 / 深色各一档。 */
 @Immutable
 data class GlassSurfaceAlphaDrop(
     val light: Float = 0f,

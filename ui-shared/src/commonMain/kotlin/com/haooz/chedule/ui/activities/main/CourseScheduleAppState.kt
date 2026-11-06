@@ -122,7 +122,6 @@ class CourseScheduleAppState {
      * 顶栏/底栏自己**不能**采它（会采到自己，见 LayerBackdropModifier 的循环采样问题）。
      */
     lateinit var overlayGlassBackdrop: Backdrop
-    lateinit var sharedWallpaperBackdrop: LayerBackdrop
     lateinit var windowInfo: WindowInfo
     lateinit var densityProvider: Density
     lateinit var detailLayerLayoutDirection: LayoutDirection

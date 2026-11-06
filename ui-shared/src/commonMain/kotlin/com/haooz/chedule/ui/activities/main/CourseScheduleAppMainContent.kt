@@ -34,7 +34,6 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.State
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -44,7 +43,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -94,9 +92,7 @@ import com.haooz.chedule.ui.activities.classschedule.MainScheduleScreen
 import com.haooz.chedule.ui.activities.classschedule.ScheduleTopBar
 import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.today.TodayScreen
-import com.haooz.chedule.ui.components.rememberSoftGlassSurface
-import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.untransformGlassOrigin
+import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.BackToNowFloatingButton
 import com.haooz.chedule.ui.components.LiquidNavigationRail
 import com.haooz.chedule.ui.components.LocalChromeStartInset
@@ -179,91 +175,12 @@ internal fun CourseScheduleAppMainContent(
     mainContentAlpha: Float,
     wallpaperImage: ImageBitmap?,
     originalWallpaperImage: ImageBitmap?,
+    softGlassSurface: SoftGlassSurface?,
 ) {
     with(state) {
         val density = densityProvider
-        // 两页各自一份柔光样式（edgeWidth/折射/模糊互不影响）；壁纸采样源相同但分别烘焙
-        val glassWallpaper =
-            if (showCustomizePage && !isWindowCutoutActive) originalWallpaperImage else wallpaperImage
-        val glassScale =
-            if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale
-        val glassOffset =
-            if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset
-        // 外观里的「卡片折射 / 卡片模糊 / 边缘厚度」两页共用同一套值
-        val glassRefractionScale = displayAppearance.cardRefraction.scale
-        // 柔光样式统一吃 px：外观里的模糊本身就是 px，直接透传
-        val glassBlurPx = displayAppearance.cardBlurRadius
-        // 边缘厚度档位只是倍率，乘在文件默认的 edgeWidth 上
-        val glassEdgePx = ScheduleSoftGlassStyle.edgeWidth *
-            displayAppearance.cardEdgeThickness.scale
-        // 高光描边：倒角上的方向光，两页共用同一个开关
-        val glassEdgeHighlight = displayAppearance.cardRim
-        val scheduleGlassStyle = remember(glassRefractionScale, glassBlurPx, glassEdgePx, glassEdgeHighlight) {
-            ScheduleSoftGlassStyle.copy(
-                refractionScale = glassRefractionScale,
-                smallBlurRadius = glassBlurPx,
-                edgeWidth = glassEdgePx,
-                edgeHighlight = glassEdgeHighlight,
-            )
-        }
-        // 两页共用一套玻璃参数（折射 / 模糊 / 厚度 / 描边都来自 displayAppearance），
-        // 所以**只烘焙一次、共用一个 surface**：
-        //  · 少一次整屏烘焙（对齐 + 模糊 + 调色），拖「卡片模糊」时不再 ×2；
-        //  · 翻页时两页不会拿着两份 backdrop 去抢同一个 shader 程序的 uniform 配置
-        //   （程序按尺寸共享，配置不同会每帧来回重灌、还每次新建 BitmapShader）。
-        // 以后真要给两页不同参数，得让 surface 带上各自的 style 再分开烘焙。
-        //
-        // ⚠ 采样坐标系修正：卡片的 origin 走 positionInWindow()，而 Compose 的
-        // NodeCoordinator.toParentPosition() 会 layer.mapOffset(...) —— 祖先 graphicsLayer 的
-        // scale / translationY / transformOrigin 都算进去了。texMap 却是按「未变换的全屏壁纸层」
-        // 推的仿射，两者必须落在同一坐标系。
-        // 外观页主内容层恰好由「开洞编辑（调壁纸）」和「弹窗让位（调任意参数）」驱动这几个变换：
-        // 不做逆变换时，一改参数就重绘、把变换后的 origin 灌进 shader，卡片里的壁纸立刻整体错位。
-        // 所有动画值都在 lambda 内部读（draw 期订阅），组合期一律不碰，避免逐帧重组整个外壳。
-        val latestCutoutActive by rememberUpdatedState(isWindowCutoutActive)
-        val latestCustomizeExiting by rememberUpdatedState(isCustomizeExiting)
-        val latestCutoutCenterX by rememberUpdatedState(cutoutCenterXRatio)
-        val latestCutoutCenterY by rememberUpdatedState(cutoutCenterYRatio)
-        val glassOriginParams: State<FloatArray> = remember(
-            cutoutMainScale, customizeExitScale, sheetOffsetY, screenWPx, screenHPx,
-        ) {
-            derivedStateOf {
-                val cutout = cutoutMainScale.value
-                val exitScale = if (latestCustomizeExiting) customizeExitScale.value else 1f
-                // 与主内容层 graphicsLayer 的 effectiveScale 逐项一致
-                val s = if (latestCustomizeExiting && latestCutoutActive) cutout else exitScale * cutout
-                val sheetScaleProg = ((cutout - 0.65f) / 0.35f).coerceIn(0f, 1f)
-                val ty = sheetOffsetY.value * (1f - sheetScaleProg)
-                // transformOrigin 的赋值顺序也一样：开洞那份会覆盖退出动画那份
-                val px = if (latestCutoutActive) {
-                    latestCutoutCenterX * screenWPx
-                } else {
-                    screenWPx * 0.5f
-                }
-                val py = when {
-                    latestCutoutActive -> latestCutoutCenterY * screenHPx
-                    latestCustomizeExiting -> screenHPx * 0.58f
-                    else -> screenHPx * 0.5f
-                }
-                floatArrayOf(s, ty, px, py)
-            }
-        }
-        // lambda 引用必须稳定：它是 rememberSoftGlassSurface 的 key，重建会连带重建每张卡的 modifier
-        val glassOriginTransform: (Offset) -> Offset = remember(glassOriginParams) {
-            { p ->
-                val v = glassOriginParams.value
-                untransformGlassOrigin(p, v[0], v[1], v[2], v[3])
-            }
-        }
-        val softGlassSurface = rememberSoftGlassSurface(
-            wallpaperBitmap = glassWallpaper,
-            wallpaperScale = glassScale,
-            wallpaperOffset = glassOffset,
-            screenWidthPx = screenWPx,
-            screenHeightPx = screenHPx,
-            style = scheduleGlassStyle,
-            originTransform = glassOriginTransform,
-        )
+        // 柔光采样源由外壳统一创建（见 rememberScheduleGlassSurface）：网格卡片、分界带、
+        // 落点遮罩与长按/交换浮层共用同一个实例，玻璃参数不可能漂移。
         // 卡片玻璃在各自 draw 里按窗口坐标采样壁纸，而祖先层「只平移、不重绘子树」时
         // positionInWindow() 变了却没人重画 —— 玻璃就贴着旧像素走（贴纸感 / 错位）。
         // 滚动 / 翻页 / 侧栏伸缩逐帧订阅；二级页转场是整层平移，卡片要相对不动，
@@ -978,20 +895,6 @@ internal fun CourseScheduleAppMainContent(
                                     contentDescription = null,
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        // 卡片（含无材质档：模糊/折射关但保留壁纸采样与着色/不透明度）
-                                        // 从这里实时采样
-                                        .liquidGlassLayerBackdrop(
-                                            backdrop = sharedWallpaperBackdrop,
-                                            recordKey = listOf(
-                                                sharedWallpaperBitmap,
-                                                sharedWallpaperScale,
-                                                sharedWallpaperOffset.x,
-                                                sharedWallpaperOffset.y,
-                                                sharedBrightness,
-                                                displayAppearance.wallpaperBlur,
-                                                sharedMinScale,
-                                            ),
-                                        )
                                         .graphicsLayer {
                                             val s = maxOf(sharedWallpaperScale, sharedMinScale)
                                             scaleX = s

@@ -888,7 +888,7 @@ fun ListPopupContent(
     val overshootRoomPx = with(localDensity) { overshootRoom.toPx() }
     // 无材质档：玻璃材质整体关闭，面板只剩半透明底色 + 描边
     val materialNone = LocalMaterialNoneEnabled.current
-    // 面板玻璃模糊随材质档位（通透玻璃档与其余档取值不同；弹窗跑在 root host，值来自主题快照）
+    // 面板玻璃模糊随材质档位（柔光玻璃档与其余档取值不同；弹窗跑在 root host，值来自主题快照）
     val panelBlur = LocalGlassPanelBlurDp.current
 
     val softGlass = LocalSoftGlassLayer.current
@@ -1294,7 +1294,7 @@ private fun BoxScope.PopupMaterialLayer(
     canvasH: Float,
     rect: (Float, Float) -> FloatArray,
 ) {
-    // 底色 alpha 随材质档位：通透玻璃档压低一档，折射才透得出来（与顶栏按钮 / 顶栏下拉同源）；
+    // 底色 alpha 随材质档位：柔光玻璃档压低一档，折射才透得出来（与顶栏按钮 / 顶栏下拉同源）；
     // 无材质档玻璃面改实色
     val materialNone = LocalMaterialNoneEnabled.current
     val alphaDrop = LocalGlassSurfaceAlphaDrop.current

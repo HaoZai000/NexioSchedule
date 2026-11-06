@@ -21,15 +21,20 @@ import kotlin.math.roundToInt
  * 主界面转场的「静止脉冲」。
  *
  * [MainLayerTransition] 用 `Modifier.layout` 平移整棵主界面树：**转场进行中整层向左平移是设计**，
- * 卡片玻璃要相对卡片不动（纹理跟着整层一起走），逐帧重绘反而会让它自己漂 —— 所以这里
- * **不**订阅连续的 [NavTransitionState.value]。
- *
- * 真正要修的是「二级页久留后返回」：进二级页途中若刷过一帧，卡片玻璃的 `uOrigin` 会停在
- * 偏移后的窗口坐标；退回后位置回 0，子树却不重绘，玻璃就贴着错位的像素，滑一下才归位。
- * 于是在转场结束、主界面回到 0 的那一刻发一次脉冲，让卡片在最终位置重采样一帧；
- * 静止之后不再产生任何重绘。
+ * 卡片玻璃要相对卡片不动（纹理跟着整层一起走），逐帧重绘没有意义
+ * 真正让「玻璃跳变归位」消失的是 [MainLayerTranslation]
  */
 val LocalMainLayerRedrawSignal = staticCompositionLocalOf<() -> Unit> { {} }
+
+/**
+ * 主界面整层的转场位移（px，负 = 左移），供「按窗口坐标采壁纸」的玻璃补回
+ */
+@Stable
+class MainLayerTranslation {
+    var dxPx: Float = 0f
+}
+
+val LocalMainLayerTranslation = staticCompositionLocalOf { MainLayerTranslation() }
 
 /**
  * 转场进度持有者（0 = 起始，1 = 完成）。两份：[AppNavHost] 的栈顶进度，和主界面（main）的首层进度 —— 主界面是常驻底座、不进转场容器（见 [AppRouter]），视差只能由宿主施加，故进度提到两边都够得着的高度：[AppNavHost] 写、MainActivity 容器读。
@@ -118,7 +123,12 @@ fun MainLayerTransition(
     }
     // 稳定引用：组合期绝不读快照值（否则整棵主界面随转场每帧重组）
     val redraw: () -> Unit = remember(state) { { settledEpoch.intValue } }
-    CompositionLocalProvider(LocalMainLayerRedrawSignal provides redraw) {
+    // 当前整层位移，写在 layout 期、由玻璃在 draw 期读
+    val translation = remember { MainLayerTranslation() }
+    CompositionLocalProvider(
+        LocalMainLayerRedrawSignal provides redraw,
+        LocalMainLayerTranslation provides translation,
+    ) {
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -126,6 +136,8 @@ fun MainLayerTransition(
                     // 原样 measure：不把位移写进 constraints，子节点才不会被迫重测
                     val placeable = measurable.measure(constraints)
                     val dx = (-NAV_PARALLAX * state.value * placeable.width).roundToInt()
+                    // 供玻璃采样补偿；非快照写，不触发任何失效
+                    translation.dxPx = dx.toFloat()
                     layout(placeable.width, placeable.height) {
                         placeable.place(dx, 0)
                     }

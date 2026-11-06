@@ -243,9 +243,6 @@ fun CourseScheduleApp(
                 liquidGlassBackdrop, topBarSampleBackdrop, bottomBarSampleBackdrop
             )
         }
-        // 供今日/课程表卡片玻璃采样：录的是共享壁纸层，不是页内透明占位
-        sharedWallpaperBackdrop = rememberLayerBackdrop()
-
         totalWeeks = viewModel.totalWeeks.collectAsState().value
         currentWeek = viewModel.currentWeek.collectAsState().value
         classStartTime = viewModel.classStartTime.collectAsState().value
@@ -881,6 +878,16 @@ fun CourseScheduleApp(
                     //   isDraggingCard 在起手、收手各补一帧。
                 }
             }
+            // 卡片柔光样式只有一份：网格（采静态壁纸）与浮层（采实时录制层）共用，
+            // 采样源不同但参数不可能漂移
+            val scheduleGlassStyle = rememberScheduleGlassStyle(displayAppearance)
+            // 静态壁纸采样源只建一份（烘焙一座金字塔，多建一份就是双倍显存）
+            val scheduleGlassSurface = rememberScheduleGlassSurface(
+                state = state,
+                scheduleGlassStyle = scheduleGlassStyle,
+                wallpaperImage = wallpaperImage,
+                originalWallpaperImage = originalWallpaperImage,
+            )
             // 主内容（带模糊/裁切）与浮层组各拆一个文件，外壳只做局部值派生
             CourseScheduleAppMainContent(
                 state = state,
@@ -891,11 +898,13 @@ fun CourseScheduleApp(
                 mainContentAlpha = mainContentAlpha,
                 wallpaperImage = wallpaperImage,
                 originalWallpaperImage = originalWallpaperImage,
+                softGlassSurface = scheduleGlassSurface,
             )
             CourseScheduleAppOverlayLayers(
                 state = state,
                 displayAppearance = displayAppearance,
                 isEntryAnimating = isEntryAnimating,
+                scheduleGlassStyle = scheduleGlassStyle,
             )
         }
     }

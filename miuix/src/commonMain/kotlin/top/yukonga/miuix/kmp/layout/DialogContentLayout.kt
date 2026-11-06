@@ -353,7 +353,7 @@ internal fun DialogContent(
         if (isLargeScreen) 0f else with(density) { bottomOutsideMargin.toPx() }
     }
 
-    // 液态玻璃：实时折射 + 档位模糊（通透玻璃档更薄）。能力探测用 backdrop 的
+    // 液态玻璃：实时折射 + 档位模糊（柔光玻璃档更薄）。能力探测用 backdrop 的
     // isRenderEffectSupported()（跨平台，含 skiko）；无材质档整体关玻璃，
     // 关掉后底色走半透明而非实心——模糊不可用也不降级纯色。
     val glassActive = liquidGlassBackdrop != null &&

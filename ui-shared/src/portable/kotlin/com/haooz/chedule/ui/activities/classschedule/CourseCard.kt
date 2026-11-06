@@ -57,10 +57,13 @@ import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
 import com.haooz.chedule.ui.components.SoftGlassSurface
+import com.haooz.chedule.ui.components.softGlassBackdrop
+import com.haooz.chedule.ui.glass.SoftGlassStyle
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.courseCardTextColor
 import com.haooz.chedule.ui.theme.rememberCourseColors
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.kyant.backdrop.Backdrop
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlin.math.abs
@@ -94,6 +97,16 @@ fun CourseCard(
     isWorkSwap: Boolean = false,
     hasMultipleCourses: Boolean = false,
     softGlassSurface: SoftGlassSurface? = null,
+    /**
+     * 实时录制版柔光采样源（网格里的静态壁纸采样之外的另一条路）。
+     *
+     * 浮层用它：浮层画在内容层**之上**，必须采「它下面此刻画了什么」才能连课程卡片一起录进来；
+     * 传 [softGlassSurface] 的话采的是壁纸，卡片底下有什么完全看不见。
+     * 与 [glassStyle] 配对使用，两个都非空才生效；[softGlassSurface] 优先。
+     */
+    glassBackdrop: Backdrop? = null,
+    /** 实时录制版的玻璃样式；必须与网格卡片同一份（见 `rememberScheduleGlassStyle`） */
+    glassStyle: SoftGlassStyle? = null,
     /** 玻璃采样源模糊（**px**，直接喂 smallBlurRadius）；这里只做透传，卡片自身不用 */
     cardBlurRadius: Float = 12f,
     cardAlpha: Float = 0.15f,
@@ -144,8 +157,8 @@ fun CourseCard(
 ) {
     val sectionCount = course.endSection - course.startSection + 1
     val cardHeight = (customCardHeightDp ?: (sectionCount * cardHeightPerSection)).dp
-    // 柔光只需要壁纸位图（softGlassSurface 内部自采），不需要 kyant 的共享层。
-    val hasBlur = softGlassSurface != null
+    // 柔光两条采样源：静态壁纸（网格）与实时录制（浮层）。任一可用即走玻璃分支。
+    val hasBlur = softGlassSurface != null || (glassBackdrop != null && glassStyle != null)
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
     val scope = rememberCoroutineScope()
     val localDensity = LocalDensity.current
@@ -294,7 +307,7 @@ fun CourseCard(
             // 必须 remember：每次重组新建 Modifier 会让 drawWithCache 缓存失效、
             // AGSL 跟着重编译。surface 与圆角不变时复用同一个实例，采样原点仍逐帧现取。
             val softGlassModifier = remember(softGlassSurface, glassRadiusPx, localDensity, glassRedraw) {
-                softGlassSurface.modifier(
+                softGlassSurface?.modifier(
                     density = localDensity,
                     radiusPx = glassRadiusPx,
                     redraw = glassRedraw,
@@ -310,6 +323,26 @@ fun CourseCard(
                     },
                 )
             }
+            // 浮层走实时录制：采样它下面的真实像素，课程卡片才能透过玻璃露出来。
+            // 形状 / 圆角 / 样式全部与静态路径同源；模糊量按 σ 口径换算，
+            // 否则同一个数字在 BlurEffect 半径语义下只有卡片 58% 的模糊量。
+            val liveBackdrop = glassBackdrop
+            val liveStyle = glassStyle
+            val liveGlassModifier = if (softGlassModifier == null &&
+                liveBackdrop != null && liveStyle != null
+            ) {
+                Modifier.softGlassBackdrop(
+                    backdrop = liveBackdrop,
+                    shape = backdropShape,
+                    style = liveStyle,
+                    radiusPx = glassRadiusPx,
+                    redraw = glassRedraw,
+                    blurSigmaPx = liveStyle.smallBlurRadius,
+                )
+            } else {
+                null
+            }
+            val glassModifier = softGlassModifier ?: liveGlassModifier
             Box(
                 modifier = modifier
                     .fillMaxWidth()
@@ -343,11 +376,11 @@ fun CourseCard(
                         }
                     )
                     .then(
-                        // 柔光玻璃不可用（无壁纸 / 非 Android）时直接铺表面色。
+                        // 柔光玻璃不可用（无壁纸 / 无录制层 / 非 Android）时直接铺表面色。
                         // 柔光自带折射 + 着色 + 描边，表面色仍压在最上面。
-                        if (softGlassModifier != null) {
+                        if (glassModifier != null) {
                             Modifier
-                                .then(softGlassModifier)
+                                .then(glassModifier)
                                 .background(surfaceColor, backdropShape)
                         } else {
                             Modifier.background(surfaceColor, backdropShape)

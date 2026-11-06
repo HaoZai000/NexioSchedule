@@ -5,19 +5,31 @@ package com.haooz.chedule.ui.components
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.unit.Density
+import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.SoftGlassBackdrop
 import com.haooz.chedule.ui.glass.SoftGlassStyle
+import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.chedule.ui.glass.glassBlurRadiusForSigma
 import com.haooz.chedule.ui.glass.isSoftGlassShaderAvailable
 import com.haooz.chedule.ui.glass.prepareSoftGlassBackdrop
 import com.haooz.chedule.ui.glass.softGlass
 import com.haooz.chedule.ui.glass.wallpaperTexMap
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.BackdropEffectScope
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.runtimeShaderEffect
 
 /**
  * 玻璃控件的拖动手感常量。值统一定义在 miuix（玻璃档位），这里只做本模块别名；
@@ -66,6 +78,71 @@ val LocalSoftGlassSurface = staticCompositionLocalOf<SoftGlassSurface?> { null }
  * 滚动 / 翻页 / 回弹每变一个像素就按帧重画，`uOrigin` 才能跟手。
  */
 val LocalGlassRedrawSignal = staticCompositionLocalOf<() -> Unit> { {} }
+
+/**
+ * 实时录制版柔光：采样控件脚下的**真实内容**，能录到已经在屏幕上的课程卡片。
+ *
+ * 与 [SoftGlassSurface] 的差别只有采样源：网格卡片采静态壁纸（更省、跨页可复用），
+ * 浮层必须采「它下面此刻画了什么」，否则浮层一拖起来就成了纯色块。
+ * 样式由调用方传入，两路共用同一份 [SoftGlassStyle]，参数不会漂移。
+ *
+ * @param shape 可见轮廓；实时路径靠它裁出玻璃形状（静态路径由 shader 自己处理圆角）。
+ * @param radiusPx 圆角（px），只用于倒角带的光学距离。
+ * @param redraw 绘制期读一次的位置信号，让 `graphicsLayer` 平移中的浮层逐帧重采。
+ * @param blurSigmaPx 模糊量口径（屏幕 px）。
+ */
+@Composable
+fun Modifier.softGlassBackdrop(
+    backdrop: Backdrop,
+    shape: Shape,
+    style: SoftGlassStyle,
+    radiusPx: Float,
+    redraw: () -> Unit = {},
+    blurSigmaPx: Float? = null,
+): Modifier {
+    val styleState = rememberUpdatedState(style)
+    val redrawState = rememberUpdatedState(redraw)
+    val blurSigmaState = rememberUpdatedState(blurSigmaPx)
+    // lambda 引用必须稳定：drawBackdrop 按引用比较 shape，每次重组新建会让节点重录采样层
+    val shapeProvider: () -> Shape = remember(shape) { { shape } }
+    val effects: BackdropEffectScope.() -> Unit = remember(radiusPx) {
+        {
+            redrawState.value()
+            val s = styleState.value
+            // Mirror 让边缘不退化成一圈硬边。σ 口径（浮层对齐卡片）要先换回 BlurEffect 半径
+            val sigma = blurSigmaState.value
+            blur(
+                if (sigma != null) glassBlurRadiusForSigma(sigma) else s.smallBlurRadius,
+                TileMode.Mirror,
+            )
+            padding = 0f
+            runtimeShaderEffect(
+                // key 只认字符串：尺寸不同必须分开，否则同帧多张卡的 uniform 会互相覆盖
+                key = "NexioSoftGlassLiveCourseCard_" +
+                    "${size.width.toInt()}x${size.height.toInt()}",
+                shaderString = SOFT_GLASS_LIVE_SHADER,
+                uniformShaderName = "content",
+            ) {
+                applyLiveGlass(
+                    style = s,
+                    width = size.width,
+                    height = size.height,
+                    radiusPx = radiusPx,
+                )
+            }
+        }
+    }
+    return drawBackdrop(
+        backdrop = backdrop,
+        shape = shapeProvider,
+        effects = effects,
+        highlight = null,
+        // 网格卡片那条静态路径没有投影，浮层要当同一块材质就不能自带一层默认阴影
+        shadow = null,
+        onDrawSurface = null,
+    )
+}
+
 
 /**
  * 准备玻璃的采样源。

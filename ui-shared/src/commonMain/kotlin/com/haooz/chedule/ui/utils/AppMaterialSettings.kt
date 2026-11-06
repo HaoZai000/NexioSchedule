@@ -16,7 +16,7 @@ import com.haooz.chedule.ui.glass.ThemeFill
 import com.kyant.backdrop.isRenderEffectSupported
 
 /**
- * 应用材质质量档（通透玻璃 / 清透磨砂 / 无材质），玻璃模糊、折射、边光都读它；默认清透磨砂。
+ * 应用材质质量档（柔光玻璃 / 清透磨砂 / 无材质），玻璃模糊、折射、边光都读它；默认清透磨砂。
  * 顶栏「真·渐进模糊」是独立开关 [trueProgressiveBlur]，不占用档位。
  *
  * 统一限制：RenderEffect 不可用（Android API < 31）的设备锁死无材质档（见 [normalize]），
@@ -40,7 +40,7 @@ object AppMaterialSettings {
     private const val GLASS_BLUR_DP = 6f
     /** 下拉面板展开态模糊（dp）：全档位统一，不随展开渐变 */
     private const val GLASS_PANEL_BLUR_DP = 12f
-    /** 通透玻璃档玻璃底色 alpha 降幅：深色降得多一点，浅色降少一点（浅底本身已亮） */
+    /** 柔光玻璃档玻璃底色 alpha 降幅：深色降得多一点，浅色降少一点（浅底本身已亮） */
     private const val GLASS_SURFACE_ALPHA_DROP_DARK = 0.32f
     private const val GLASS_SURFACE_ALPHA_DROP_LIGHT = 0.2f
     /** 对话框 / 贴底弹窗玻璃的采样模糊（dp）：全档位统一 */
@@ -81,15 +81,15 @@ object AppMaterialSettings {
     fun labelOf(level: String): String =
         entries.firstOrNull { it.first == level }?.second ?: MiscStr.materialBalanced()
 
-    /** 按钮 / 低栏背景板折射：仅通透玻璃档保留，其余档关闭。 */
+    /** 按钮 / 低栏背景板折射：仅柔光玻璃档保留，其余档关闭。 */
     fun chromeLensEnabled(): Boolean = level == BEST
 
-    /** 是否通透玻璃档（折射 + 低模糊那一档）。 */
+    /** 是否柔光玻璃档（折射 + 低模糊那一档）。 */
     fun isBestTier(): Boolean = level == BEST
 
     /**
      * 悬浮控件（顶栏按钮、胶囊这类）的玻璃样式：基准样式套上基调与填充，再按材质档位
-     * 决定折射与高光 —— 磨砂档没有折射，方向光也关掉（纯磨砂面）；通透玻璃档两者都留。
+     * 决定折射与高光 —— 磨砂档没有折射，方向光也关掉（纯磨砂面）；柔光玻璃档两者都留。
      *
      * 控件的材质就这一处定义，调用方只传「用哪个基调 / 哪个填充」。
      */
@@ -128,7 +128,7 @@ object AppMaterialSettings {
     fun glassDialogBlurDp(): Float = if (level == NONE) 0f else GLASS_DIALOG_BLUR_DP
 
     /**
-     * 玻璃底色 alpha：无材质档返回 1f（玻璃面改实色），通透玻璃档比常态低一档让折射和背后的内容
+     * 玻璃底色 alpha：无材质档返回 1f（玻璃面改实色），柔光玻璃档比常态低一档让折射和背后的内容
      * 透出来；清透磨砂档原值返回。
      *
      * @param milledAlpha 清透磨砂档原本使用的 alpha
@@ -140,7 +140,7 @@ object AppMaterialSettings {
     fun solidSurfaceAlpha(baseAlpha: Float): Float = if (level == NONE) 1f else baseAlpha
 
     /**
-     * 通透玻璃档的底色 alpha 降幅（浅色 / 深色各一档）；清透磨砂 / 无材质档 0。
+     * 柔光玻璃档的底色 alpha 降幅（浅色 / 深色各一档）；清透磨砂 / 无材质档 0。
      * [glassSurfaceAlpha] 与 :miuix 下发都用它。
      */
     fun glassSurfaceAlphaDrop(isLight: Boolean): Float = when {
@@ -157,7 +157,7 @@ object AppMaterialSettings {
 
     /**
      * 无材质档把高光描边降级为普通纯色描边（无模糊、SrcOver）；[baseColor] 非空时按同色系
-     * 提亮一档作描边，否则按主题回退（浅色白 / 深色灰）。通透玻璃 / 清透磨砂保留原高光。
+     * 提亮一档作描边，否则按主题回退（浅色白 / 深色灰）。柔光玻璃 / 清透磨砂保留原高光。
      */
     fun resolveEdgeLight(
         source: com.kyant.backdrop.edgelight.EdgeLight,

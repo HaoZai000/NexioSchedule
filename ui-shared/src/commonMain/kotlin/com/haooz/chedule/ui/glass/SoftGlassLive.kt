@@ -10,6 +10,21 @@ package com.haooz.chedule.ui.glass
 import com.kyant.backdrop.RuntimeShader
 
 /**
+ * σ（屏幕 px）→ Compose `BlurEffect` 的半径。
+ *
+ * 两条采样路的模糊量单位不同：
+ * - 卡片金字塔（[SoftGlassPanel]）把 `smallBlurRadius` 当 **σ**：`levelPair` 按 texel 的
+ *   σ 选级，混合后得到的就是同名 σ；
+ * - 实时路径（[com.haooz.chedule.ui.components.softGlassBackdrop]）把数值直接交给
+ *   `RenderEffect.createBlurEffect`，那是 Skia 的**半径**，σ = 0.57735 · radius + 0.5。
+ *
+ * 同一个 12 在两条路上的实际模糊量差约 1.7 倍：浮层（走实时路径）会比网格卡片更亮、
+ * 糊得更少。要「看起来是同一块材质」，浮层必须把外观里的 σ 换算成半径再传。
+ */
+internal fun glassBlurRadiusForSigma(sigmaPx: Float): Float =
+    if (sigmaPx <= 0f) 0f else (sigmaPx - 0.5f) / 0.57735f
+
+/**
  * 把 [style] 的全部参数灌入实时录制版 shader。
  *
  * 本函数不包含数值常量：几何、光学与调色均来自样式，样式由 [GlassTone] 与

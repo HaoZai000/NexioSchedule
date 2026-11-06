@@ -36,7 +36,7 @@ object MiscStr {
 
     // ---- 玻璃材质档位（AppMaterialSettings，档位常量本身是持久化数据键） ----
 
-    val materialBest = L("通透玻璃", "Clear Glass")
+    val materialBest = L("柔光玻璃", "Soft Glass")
     val materialBalanced = L("清透磨砂", "Frosted Glass")
     val materialNone = L("无材质", "No Material")
 

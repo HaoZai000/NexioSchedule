@@ -291,7 +291,7 @@ fun CustomizeScheduleScreen(
     val capsuleGlassOn = AppMaterialSettings.glassEffectsEnabled()
     // 取消按钮：走自定义颜色混合，颜色单独传；改下面两个色值就能微调深浅。
     // 比 ThemeFill 的 #181818 / 纯白更淡，让同行的主题色「应用」更突出。
-    val cancelGlassColor = if (isDarkTheme) Color(0xFF5C5C5C) else Color(0xFFF0F0F0)
+    val cancelGlassColor = Color(0xFF5C5C5C)
     val cancelGlassStyle = AppMaterialSettings.chromeGlassStyle(
         base = ScheduleSoftGlassStyle,
         isDark = isDarkTheme,

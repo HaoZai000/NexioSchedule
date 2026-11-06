@@ -80,7 +80,7 @@ fun LiquidTopBarButton(
     }
     val hapticFeedback = LocalHapticFeedback.current
     val isLightTheme = !isAppDarkTheme()
-    // 底色 alpha 随材质档位：通透玻璃档压低一档，让折射透出来（与下拉菜单同源；浅深各一档）
+    // 底色 alpha 随材质档位：柔光玻璃档压低一档，让折射透出来（与下拉菜单同源；浅深各一档）
     val resolvedContainerColor = if (containerColor != Color.Unspecified) containerColor
         else if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainer
             .copy(alpha = com.haooz.chedule.ui.utils.AppMaterialSettings.glassSurfaceAlpha(if (isLightTheme) 0.76f else 0.84f, isLightTheme))
@@ -92,7 +92,7 @@ fun LiquidTopBarButton(
 
     // drawBackdrop 的 element 按引用比较 shape / effects / onDrawSurface；lambda 每帧新建
     // 会让节点每帧 invalidateDraw、重新录制采样层并重跑采样
-    // 玻璃模糊随材质档位：通透玻璃档更低（折射接管通透感），其余档 8；无材质档整体关
+    // 玻璃模糊随材质档位：柔光玻璃档更低（折射接管通透感），其余档 8；无材质档整体关
     val glassBlur = com.haooz.chedule.ui.utils.AppMaterialSettings.glassBlurDp()
     val glassEffectsOn = com.haooz.chedule.ui.utils.AppMaterialSettings.glassEffectsEnabled()
     val buttonShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { ContinuousCapsule() } }

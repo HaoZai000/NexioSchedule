@@ -139,6 +139,6 @@ actual fun installPlatformStorage() {
         AppStorage.init { namespace -> OhosSqlStorage.store(namespace) }
     }
     CourseStorage.install { OhosSqlStorage.courseRows() }
-    // 鸿蒙端玻璃能力固定（有折射、无 Paint shader），材质档锁死通透玻璃，设置页不暴露切换。
+    // 鸿蒙端玻璃能力固定（有折射、无 Paint shader），材质档锁死柔光玻璃，设置页不暴露切换。
     AppMaterialSettings.lockTo(AppMaterialSettings.BEST)
 }

@@ -115,7 +115,7 @@ internal data class MiuixOverlayTheme(
     val glassPanelBlurDp: Float,
     /** 对话框 / 贴底弹窗模糊半径（dp）快照，同上。 */
     val glassDialogBlurDp: Float,
-    /** 玻璃底色 alpha 降幅快照（通透玻璃档 >0，其余 0），同上。 */
+    /** 玻璃底色 alpha 降幅快照（柔光玻璃档 >0，其余 0），同上。 */
     val glassSurfaceAlphaDrop: GlassSurfaceAlphaDrop,
     /** 描边降级解析器快照，同上：弹窗描边在 root host 算，读不到声明页面的 CompositionLocal。 */
     val edgeLightResolver: (EdgeLight, Boolean, Color?) -> EdgeLight,

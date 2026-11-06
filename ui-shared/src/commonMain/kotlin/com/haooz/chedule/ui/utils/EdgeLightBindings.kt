@@ -13,7 +13,7 @@ import com.kyant.backdrop.edgelight.rememberDefaultEdgeLight as backdropRemember
  *
  * ## 两个色是分开的
  *
- * - [baseColor] 只决定**高光描边**的染色（通透玻璃 / 清透磨砂档）。默认 null = 通用白高光。
+ * - [baseColor] 只决定**高光描边**的染色（柔光玻璃 / 清透磨砂档）。默认 null = 通用白高光。
  *   传容器色会让描边和填充同色系，整圈糊在按钮边缘上，所以除非有特别理由否则别传。
  * - [degradedBaseColor] 只在**降级描边**（无材质档）时用：那时没有模糊高光，
  *   靠「同色系提亮一档」把按钮轮廓从背景里拉出来。这里传容器色是对的。
