@@ -226,7 +226,6 @@ fun MainScheduleScreen(
     externalSelectedCourse: MutableState<Course?> = mutableStateOf(null),
     externalSelectedCourses: MutableState<List<Course>> = mutableStateOf(emptyList()),
 ) {
-    val cardBlurRadius = appearance.cardBlurRadius
     val cardAlpha = appearance.cardAlpha
     // 基准值（深色已 ×0.8）再低 15pp：亮色 40% ⇒ 25%，深色 32% ⇒ 17%。
     // 分界带 / 时间轴 / 浮层都从这里取，同页同值。
@@ -239,7 +238,6 @@ fun MainScheduleScreen(
     val cardTextScale = appearance.cardTextScale
     val showClassroom = appearance.showClassroom
     val showTeacher = appearance.showTeacher
-    val cardRefraction = appearance.cardRefraction
 
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -907,7 +905,6 @@ fun MainScheduleScreen(
                                     style = TimelineCardStyle(
                                         isDark = scheduleIsDark,
                                         softGlassSurface = softGlassSurface,
-                                        cardBlurRadius = cardBlurRadius,
                                         cardAlpha = cardAlpha,
                                         cardSurfaceAlpha = cardSurfaceAlpha,
                                         solidBacking = cardSolidBacking,
@@ -918,7 +915,6 @@ fun MainScheduleScreen(
                                         cardTextScale = cardTextScale,
                                         showClassroom = showClassroom,
                                         showTeacher = showTeacher,
-                                        cardRefraction = cardRefraction,
                                     ),
                                     contentTopPadding = contentTopPaddingDp,
                                     contentBottomPadding = scheduleEndSpacer,
@@ -1100,10 +1096,8 @@ fun MainScheduleScreen(
                                                 hasBlur = wallpaperBitmap != null,
                                                 isDark = scheduleIsDark,
                                                 cardCornerRadius = cardCornerRadius,
-                                                cardBlurRadius = cardBlurRadius,
                                                 cardAlpha = cardAlpha,
                                                 cardSurfaceAlpha = cardSurfaceAlpha,
-                                                cardRefraction = cardRefraction,
                                                 isTablet = isTablet,
                                                 softGlassSurface = softGlassSurface,
 
@@ -1125,7 +1119,6 @@ fun MainScheduleScreen(
                                         isTablet = isTablet,
                                         isDark = scheduleIsDark,
                                         hasWallpaper = wallpaperBitmap != null,
-                                        cardBlurRadius = cardBlurRadius,
                                     )
 
                                     Row(
@@ -1284,7 +1277,6 @@ fun MainScheduleScreen(
                                                 softGlassSurface = softGlassSurface,
 
                                                 solidBackingColor = cardSolidBacking,
-                                                cardBlurRadius = cardBlurRadius,
                                                 cardAlpha = cardAlpha,
                                                 cardSurfaceAlpha = cardSurfaceAlpha,
                                                 cardHeightPerSection = cardHeightPerSection,
@@ -1296,7 +1288,6 @@ fun MainScheduleScreen(
                                                 cardTextScale = cardTextScale,
                                                 showClassroom = showClassroom,
                                                 showTeacher = showTeacher,
-                                                cardRefraction = cardRefraction,
                                                 draggingCourseSlots = draggingCourseSlots,
                                                 onCourseDragStart = onCourseDragStart,
                                                 onCourseDrag = onCourseDrag,
@@ -1805,7 +1796,6 @@ private fun AnimatedDropTargetMask(
     isTablet: Boolean,
     isDark: Boolean,
     hasWallpaper: Boolean,
-    cardBlurRadius: Float,
 ) {
     val density = LocalDensity.current
     val left = remember { Animatable(0f) }

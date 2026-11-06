@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.appearance.CardContentAlignment
-import com.haooz.chedule.data.appearance.CardRefractionLevel
 import com.haooz.chedule.data.appearance.CardTextColor
 import com.haooz.chedule.data.holiday.HolidayCourseExclusion
 import com.haooz.chedule.data.model.Course
@@ -266,7 +265,6 @@ internal data class TimelineCardStyle(
     val isDark: Boolean,
     /** 柔光玻璃采样源（Android 才有实现；null = 纯色表面）。 */
     val softGlassSurface: SoftGlassSurface?,
-    val cardBlurRadius: Float,
     val cardAlpha: Float,
     val cardSurfaceAlpha: Float,
     val solidBacking: Color?,
@@ -277,7 +275,6 @@ internal data class TimelineCardStyle(
     val cardTextScale: Float,
     val showClassroom: Boolean,
     val showTeacher: Boolean,
-    val cardRefraction: CardRefractionLevel,
 )
 
 // ── 页面 ─────────────────────────────────────────────────────────────
@@ -581,8 +578,6 @@ private fun TimelineDayLane(
                 PendingAddCard(
                     isDark = style.isDark,
                     cardCornerRadius = style.cardCornerRadius,
-                    cardBlurRadius = style.cardBlurRadius,
-                    cardRefraction = style.cardRefraction,
                     softGlassSurface = style.softGlassSurface,
                     modifier = Modifier.fillMaxSize(),
                     onClick = {
@@ -637,7 +632,6 @@ internal fun TimelineCardsLayer(
             isWorkSwap = isWorkSwap,
             hasMultipleCourses = slot.hasMultiple,
             softGlassSurface = style.softGlassSurface,
-            cardBlurRadius = style.cardBlurRadius,
             cardAlpha = style.cardAlpha,
             cardSurfaceAlpha = style.cardSurfaceAlpha,
             solidBackingColor = style.solidBacking,
@@ -649,7 +643,6 @@ internal fun TimelineCardsLayer(
             cardTextScale = style.cardTextScale,
             showClassroom = style.showClassroom,
             showTeacher = style.showTeacher,
-            cardRefraction = style.cardRefraction,
             // 时间轴是阅读视图：调课落点依赖节次几何，这里不做拖拽
             dragEnabled = false,
             onClick = { onCourseClick(slot.course) },

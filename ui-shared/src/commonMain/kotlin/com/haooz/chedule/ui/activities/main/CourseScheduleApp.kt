@@ -728,6 +728,9 @@ fun CourseScheduleApp(
             // 材质档位必须进 remember key：切档时这里要当场重算，
             // 否则卡片模糊/折射要等下次重启（key 没变 → 返回旧 base）。
             val materialLevel = com.haooz.chedule.ui.utils.AppMaterialSettings.level
+            // 无材质档：卡片一个玻璃节点都不挂（CourseCard 直读 LocalMaterialNoneEnabled），
+            // 这里只需要保证连壁纸采样源都不建
+            val materialNone = materialLevel == com.haooz.chedule.ui.utils.AppMaterialSettings.NONE
             val displayAppearance = remember(
                 showCustomizePage,
                 isWindowCutoutActive,
@@ -887,6 +890,7 @@ fun CourseScheduleApp(
                 scheduleGlassStyle = scheduleGlassStyle,
                 wallpaperImage = wallpaperImage,
                 originalWallpaperImage = originalWallpaperImage,
+                enabled = !materialNone,
             )
             // 主内容（带模糊/裁切）与浮层组各拆一个文件，外壳只做局部值派生
             CourseScheduleAppMainContent(

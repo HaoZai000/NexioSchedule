@@ -51,7 +51,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.appearance.CardContentAlignment
-import com.haooz.chedule.data.appearance.CardRefractionLevel
 import com.haooz.chedule.data.appearance.CardTextColor
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.i18n.SchedStr
@@ -72,6 +71,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 落地冲击波：中心坐标 + token，触发周围课程卡涟漪 */
@@ -107,8 +107,6 @@ fun CourseCard(
     glassBackdrop: Backdrop? = null,
     /** 实时录制版的玻璃样式；必须与网格卡片同一份（见 `rememberScheduleGlassStyle`） */
     glassStyle: SoftGlassStyle? = null,
-    /** 玻璃采样源模糊（**px**，直接喂 smallBlurRadius）；这里只做透传，卡片自身不用 */
-    cardBlurRadius: Float = 12f,
     cardAlpha: Float = 0.15f,
     /** 有壁纸时白/黑底不透明度（卡片不透明度） */
     cardSurfaceAlpha: Float = 0.40f,
@@ -131,7 +129,6 @@ fun CourseCard(
     cardTextScale: Float = 1f,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
-    cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     isDragging: Boolean = false,
     /**
      * 长按后是否允许接着拖动（调课）。
@@ -157,8 +154,18 @@ fun CourseCard(
 ) {
     val sectionCount = course.endSection - course.startSection + 1
     val cardHeight = (customCardHeightDp ?: (sectionCount * cardHeightPerSection)).dp
-    // 柔光两条采样源：静态壁纸（网格）与实时录制（浮层）。任一可用即走玻璃分支。
-    val hasBlur = softGlassSurface != null || (glassBackdrop != null && glassStyle != null)
+    // 柔光两条采样源：静态壁纸（网格）与实时录制（浮层）
+    val glassSourceReady = softGlassSurface != null || (glassBackdrop != null && glassStyle != null)
+    // 无材质档（App 根部 provide）：一个玻璃节点都不挂，卡片退回普通半透明表面
+    val materialsEnabled = !LocalMaterialNoneEnabled.current
+    /**
+     * 是否用「一层底色 + 一层着色」的表面堆叠。
+     *
+     * 有材质档 = 玻璃可用时；**无材质档照样用同一套堆叠**，只是底下没有玻璃 ——
+     * 剩下的正好是「白/黑不透明底 + 课程色着色」的普通半透明卡片，比纯色模式多一层体积感。
+     * 有材质档但采样源缺失（无壁纸 / 非 Android）仍走纯色模式，保持原观感。
+     */
+    val layeredSurface = glassSourceReady || !materialsEnabled
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
     val scope = rememberCoroutineScope()
     val localDensity = LocalDensity.current
@@ -226,7 +233,7 @@ fun CourseCard(
     }
 
     // 玻璃底自带壁纸色，会把课程色压淡，所以有壁纸时把着色再放大一档（15% → 19.5%）
-    val effectiveAlpha = (if (hasBlur) cardAlpha * 1.3f else cardAlpha).coerceIn(0f, 1f)
+    val effectiveAlpha = (if (layeredSurface) cardAlpha * 1.3f else cardAlpha).coerceIn(0f, 1f)
     val courseColors = rememberCourseColors(course, isDark)
     val useMonet = MiuixTheme.isDynamicColor
     val inactiveColor =
@@ -247,10 +254,10 @@ fun CourseCard(
     }
     val themeBackground = MiuixTheme.colorScheme.background
     val monetCardBackground =
-        remember(cardColor, solidBackingColor, themeBackground, hasBlur, cardSurfaceAlpha, isDark) {
+        remember(cardColor, solidBackingColor, themeBackground, layeredSurface, cardSurfaceAlpha, isDark) {
             val backing = solidBackingColor?.compositeOver(themeBackground) ?: themeBackground
             val surface = cardColor.compositeOver(backing)
-            if (hasBlur) {
+            if (layeredSurface) {
                 (if (isDark) Color.Black else Color.White)
                     .copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f)).compositeOver(surface)
             } else surface
@@ -263,7 +270,7 @@ fun CourseCard(
         isCurrentWeek,
         isHoliday,
         isCourseCancelled,
-        hasBlur,
+        layeredSurface,
         isDark,
         cardTextColor,
     ) {
@@ -276,13 +283,13 @@ fun CourseCard(
             isCurrentWeek = isCurrentWeek,
             isHoliday = isHoliday,
             isCourseCancelled = isCourseCancelled,
-            hasBlur = hasBlur,
+            hasBlur = layeredSurface,
             isDark = isDark,
             cardTextColor = cardTextColor,
         )
     }
 
-    if (hasBlur) {
+    if (layeredSurface) {
         key(effectiveCornerRadius) {
             val backdropShape =
                 remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
@@ -292,10 +299,8 @@ fun CourseCard(
                 else Color.White.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
             }
 
-            // 白/黑底 + 课程色压成一次 drawRect（两次全卡 fill 是每卡每帧的固定成本）。
-            // ⚠ 顺序固定为「白/黑垫底、课程色在上」，别对调：课程色压在上面是既有观感，
-            // 换了整卡会亮一档。代价是不透明度对最终像素的贡献被课程色稀释（×0.85），
-            // 所以设置里的百分比指的是这一层自身的 alpha，不是最终像素里的占比。
+            // 白/黑底 + 课程色压成一次 drawRect（两次全卡 fill 是每卡每帧的固定成本）
+            // ⚠ 顺序固定为「白/黑垫底、课程色在上」，别对调：课程色压在上面是既有观感
             val surfaceColor = remember(cardColor, overlayColor) {
                 flattenStackedFills(overlayColor, cardColor)
             }
@@ -303,9 +308,7 @@ fun CourseCard(
             val needTransformLayer = sinkPressed || sinkActive || isDragging || rippleAnimating
             val glassRadiusPx = with(localDensity) { effectiveCornerRadius.dp.toPx() }
             // 柔光玻璃：采样原点是「卡片在壁纸位图里的坐标」= 窗口坐标 × 位图缩放。
-            // 位置在绘制期现取（onGloballyPositioned 回填的是普通字段，不能组合期读）。
-            // 必须 remember：每次重组新建 Modifier 会让 drawWithCache 缓存失效、
-            // AGSL 跟着重编译。surface 与圆角不变时复用同一个实例，采样原点仍逐帧现取。
+            // 位置在绘制期现取（onGloballyPositioned 回填的是普通字段，不能组合期读）
             val softGlassModifier = remember(softGlassSurface, glassRadiusPx, localDensity, glassRedraw) {
                 softGlassSurface?.modifier(
                     density = localDensity,
@@ -328,7 +331,7 @@ fun CourseCard(
             // 否则同一个数字在 BlurEffect 半径语义下只有卡片 58% 的模糊量。
             val liveBackdrop = glassBackdrop
             val liveStyle = glassStyle
-            val liveGlassModifier = if (softGlassModifier == null &&
+            val liveGlassModifier = if (materialsEnabled && softGlassModifier == null &&
                 liveBackdrop != null && liveStyle != null
             ) {
                 Modifier.softGlassBackdrop(
@@ -342,7 +345,9 @@ fun CourseCard(
             } else {
                 null
             }
-            val glassModifier = softGlassModifier ?: liveGlassModifier
+            // 无材质档：一个玻璃节点都不挂 —— 不采壁纸、不跑 AGSL，
+            // 只剩下面那层 surfaceColor（白/黑底 + 课程色），即普通半透明卡片
+            val glassModifier = if (materialsEnabled) softGlassModifier ?: liveGlassModifier else null
             Box(
                 modifier = modifier
                     .fillMaxWidth()
@@ -376,8 +381,8 @@ fun CourseCard(
                         }
                     )
                     .then(
-                        // 柔光玻璃不可用（无壁纸 / 无录制层 / 非 Android）时直接铺表面色。
-                        // 柔光自带折射 + 着色 + 描边，表面色仍压在最上面。
+                        // 柔光玻璃不可用（无材质档 / 无壁纸 / 无录制层 / 非 Android）时直接铺表面色。
+                        // 有玻璃时它自带折射 + 着色 + 描边，表面色仍压在最上面。
                         if (glassModifier != null) {
                             Modifier
                                 .then(glassModifier)
@@ -472,7 +477,7 @@ fun CourseCard(
                     }
                 )
                 .background(filledCardColor, cardShape)
-                // 与 hasBlur 分支一致：只存坐标，root 位置按需现算
+                // 与柔光表面分支一致：只存坐标，root 位置按需现算
                 .onGloballyPositioned { cardCoords[0] = it }
                 .courseCardGesture(
                     course = course,

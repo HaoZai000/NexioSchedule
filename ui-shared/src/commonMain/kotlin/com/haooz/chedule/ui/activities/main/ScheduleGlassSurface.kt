@@ -80,7 +80,12 @@ internal fun rememberScheduleGlassSurface(
     scheduleGlassStyle: SoftGlassStyle,
     wallpaperImage: ImageBitmap?,
     originalWallpaperImage: ImageBitmap?,
+    /** 无材质档传 false：卡片不挂玻璃，这里连壁纸金字塔都不烘焙 */
+    enabled: Boolean = true,
 ): SoftGlassSurface? {
+    // 无材质档：卡片走普通半透明表面，采样源一个都用不到 ——
+    // 别为它白烘一座金字塔（一次整图降采样 + 7 级显存）
+    if (!enabled) return null
     return with(state) {
         // 外观页开洞前显示已应用外观（原壁纸 / 原变换）
         val glassWallpaper =

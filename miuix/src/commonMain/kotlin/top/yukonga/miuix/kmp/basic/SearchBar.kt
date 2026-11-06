@@ -208,9 +208,13 @@ fun SearchBar(
                                 .matchParentSize()
                                 .background(
                                     color = when {
-                                        softGlass != null -> Color.Transparent
+                                        // 无材质档：effects 不画 shader，底色必须留在实色上
+                                        materialNone -> MiuixTheme.colorScheme.surfaceContainerHigh
+                                        // 柔光：玻璃图层的 alpha 跟着折叠进度走
+                                        softGlass != null -> MiuixTheme.colorScheme.surfaceContainerHigh
+                                            .copy(alpha = 1f - backdropAlpha.coerceIn(0f, 1f))
                                         backdrop != null -> MiuixTheme.colorScheme.surfaceContainerHigh
-                                            .copy(alpha = if (materialNone) 1f else 0.6f)
+                                            .copy(alpha = 0.6f)
                                         else -> MiuixTheme.colorScheme.surfaceContainerHigh
                                     },
                                     shape = ContinuousCapsule(),
@@ -464,7 +468,10 @@ fun InputField(
                     modifier = Modifier
                         .background(
                             color = when {
-                                softGlass != null -> Color.Transparent
+                                // 无材质档：玻璃不画，必须落到不透明的那份 containerColor
+                                materialNone -> containerColor
+                                softGlass != null -> MiuixTheme.colorScheme.surfaceContainerHigh
+                                    .copy(alpha = 1f - backdropAlpha.coerceIn(0f, 1f))
                                 backdrop != null -> lerp(
                                     MiuixTheme.colorScheme.surfaceContainerHigh,
                                     containerColor,

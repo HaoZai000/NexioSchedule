@@ -300,8 +300,6 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                     // 样式与网格卡片同一份、只压暗一档，模糊 / 折射 / 边缘 / 描边一致
                                     glassBackdrop = overlayGlassBackdrop,
                                     glassStyle = overlayGlassStyle,
-                                    cardBlurRadius = displayAppearance.cardBlurRadius,
-                                    cardRefraction = displayAppearance.cardRefraction,
                                     cardAlpha = displayAppearance.cardAlpha,
                                     cardSurfaceAlpha = displayAppearance.scheduleSurfaceAlpha(isAppDarkTheme()),
                                     // 无壁纸时垫页底色，取值见 floatSolidBacking
@@ -355,8 +353,6 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                     // 样式与网格卡片同一份、只压暗一档，模糊 / 折射 / 边缘 / 描边一致
                                     glassBackdrop = overlayGlassBackdrop,
                                     glassStyle = overlayGlassStyle,
-                                    cardBlurRadius = displayAppearance.cardBlurRadius,
-                                    cardRefraction = displayAppearance.cardRefraction,
                                     cardAlpha = displayAppearance.cardAlpha,
                                     cardSurfaceAlpha = displayAppearance.scheduleSurfaceAlpha(isAppDarkTheme()),
                                     // 无壁纸时垫页底色，取值见 floatSolidBacking

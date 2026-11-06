@@ -42,7 +42,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.appearance.CardContentAlignment
-import com.haooz.chedule.data.appearance.CardRefractionLevel
 import com.haooz.chedule.data.appearance.CardTextColor
 import com.haooz.chedule.data.holiday.HolidayCourseExclusion
 import com.haooz.chedule.data.model.Course
@@ -102,7 +101,6 @@ fun DayColumn(
     onPendingChange: (day: Int, section: Int) -> Unit = { _, _ -> },
     softGlassSurface: SoftGlassSurface? = null,
     solidBackingColor: Color? = null,
-    cardBlurRadius: Float = 12f,
     cardAlpha: Float = 0.15f,
     cardSurfaceAlpha: Float = 0.40f,
     cardHeightPerSection: Float = 54f,
@@ -114,7 +112,6 @@ fun DayColumn(
     cardTextScale: Float = 1f,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
-    cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     draggingCourseSlots: Set<Pair<String, Int>> = emptySet(),
     onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, currentWeek: Int) -> Unit = { _, _, _, _, _, _, -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
@@ -275,8 +272,6 @@ fun DayColumn(
                         section = pendingSection,
                         isDark = isDark,
                         cardCornerRadius = cardCornerRadius,
-                        cardBlurRadius = cardBlurRadius,
-                        cardRefraction = cardRefraction,
                         softGlassSurface = softGlassSurface,
                         hapticFeedback = hapticFeedback,
                         onEmptyClick = onEmptyClick
@@ -308,10 +303,8 @@ fun DayColumn(
                 cardTextScale = cardTextScale,
                 showClassroom = showClassroom,
                 showTeacher = showTeacher,
-                cardRefraction = cardRefraction,
                 softGlassSurface = softGlassSurface,
                 solidBackingColor = solidBackingColor,
-                cardBlurRadius = cardBlurRadius,
                 draggingCourseSlots = draggingCourseSlots,
                 touchState = touchState,
                 isDark = isDark,
@@ -353,10 +346,8 @@ private fun CourseCardsLayer(
     cardTextScale: Float,
     showClassroom: Boolean,
     showTeacher: Boolean,
-    cardRefraction: CardRefractionLevel,
     softGlassSurface: SoftGlassSurface? = null,
     solidBackingColor: Color? = null,
-    cardBlurRadius: Float,
     draggingCourseSlots: Set<Pair<String, Int>>,
     touchState: ScheduleTouchState? = null,
     isDark: Boolean,
@@ -466,7 +457,6 @@ private fun CourseCardsLayer(
                     isWorkSwap = isWorkSwap,
                     hasMultipleCourses = renderData.hasHiddenCourses,
                     softGlassSurface = softGlassSurface,
-                    cardBlurRadius = cardBlurRadius,
                     cardAlpha = cardAlpha,
                     cardSurfaceAlpha = cardSurfaceAlpha,
                     solidBackingColor = solidBackingColor,
@@ -479,7 +469,6 @@ private fun CourseCardsLayer(
                     cardTextScale = cardTextScale,
                     showClassroom = showClassroom,
                     showTeacher = showTeacher,
-                    cardRefraction = cardRefraction,
                     isDragging = isDragging,
                     // 自定义时间课不支持拖动调课（按时间轴定位，没有「挪到第几节」的落点），
                     // 长按只弹「编辑 / 删除」菜单
@@ -521,7 +510,6 @@ private fun CourseCardsLayer(
                 isWorkSwap = isWorkSwap,
                 hasMultipleCourses = idx == 0 && renderData.hasHiddenCourses,
                 softGlassSurface = softGlassSurface,
-                cardBlurRadius = cardBlurRadius,
                 cardAlpha = cardAlpha,
                 cardSurfaceAlpha = cardSurfaceAlpha,
                 solidBackingColor = solidBackingColor,
@@ -533,7 +521,6 @@ private fun CourseCardsLayer(
                 cardTextScale = cardTextScale,
                 showClassroom = showClassroom,
                 showTeacher = showTeacher,
-                cardRefraction = cardRefraction,
                 isDragging = isDragging,
                 onClick = {
                     onPendingChange(-1, -1)
@@ -569,8 +556,6 @@ private fun PendingSectionBox(
     section: Int,
     isDark: Boolean,
     cardCornerRadius: Float,
-    cardBlurRadius: Float,
-    cardRefraction: CardRefractionLevel,
     softGlassSurface: SoftGlassSurface? = null,
     hapticFeedback: HapticFeedback,
     onEmptyClick: (Int) -> Unit
@@ -578,8 +563,6 @@ private fun PendingSectionBox(
     PendingAddCard(
         isDark = isDark,
         cardCornerRadius = cardCornerRadius,
-        cardBlurRadius = cardBlurRadius,
-        cardRefraction = cardRefraction,
         softGlassSurface = softGlassSurface,
         modifier = Modifier.fillMaxSize(),
     ) {
@@ -593,8 +576,6 @@ private fun PendingSectionBox(
 internal fun PendingAddCard(
     isDark: Boolean,
     cardCornerRadius: Float,
-    cardBlurRadius: Float,
-    cardRefraction: CardRefractionLevel,
     softGlassSurface: SoftGlassSurface? = null,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
@@ -630,16 +611,8 @@ internal fun PendingAddCard(
                         .fillMaxSize()
                         .padding(horizontal = 2.dp, vertical = 2.dp)
                         .onGloballyPositioned { pendingSoftOrigin[0] = it.positionInWindow() }
-                        .then(
-                            if (pendingSoftModifier != null) {
-                                Modifier
-                                    .then(pendingSoftModifier)
-                                    .background(surfaceColor, backdropShape)
-                            } else {
-                                // 无壁纸 / 非 Android：直接铺表面色
-                                Modifier.background(surfaceColor, backdropShape)
-                            }
-                        )
+                        .then(pendingSoftModifier)
+                        .background(surfaceColor, backdropShape)
                 ) {
                     Card(
                         modifier = Modifier.fillMaxSize(),
@@ -817,10 +790,8 @@ fun SpecialBandOverlay(
     hasBlur: Boolean,
     isDark: Boolean,
     cardCornerRadius: Float,
-    cardBlurRadius: Float,
     cardAlpha: Float,
     cardSurfaceAlpha: Float = 0.40f,
-    cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     isTablet: Boolean = false,
     softGlassSurface: SoftGlassSurface? = null,
 
