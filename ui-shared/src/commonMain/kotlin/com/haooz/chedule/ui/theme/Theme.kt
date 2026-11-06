@@ -32,6 +32,7 @@ import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.chedule.ui.glass.ThemeFill
 import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.chedule.ui.utils.AppThemeSnapshot
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.installAppSettingDarkBridge
@@ -193,41 +194,66 @@ fun CourseScheduleTheme(
                 }
             // 柔光玻璃：shader 与 uniform 灌装注入给 :miuix（弹窗面板等直接复用）。
             // 实例必须随档位稳定，下游拿它当 remember key。
-            val softGlassDark = appDark ?: isSystemInDarkTheme()
+            // 样式按当前页面深浅在 draw 期选：壁纸可把主界面锁成浅色，而 theme_mode 仍是系统深色。
             val softGlassLayer: SoftGlassLayer? =
-                remember(AppMaterialSettings.level, softGlassDark) {
+                remember(AppMaterialSettings.level) {
                     if (!AppMaterialSettings.glassEffectsEnabled()) null
                     else {
-                        val style = AppMaterialSettings.chromeGlassStyle(
+                        val lightStyle = AppMaterialSettings.chromeGlassStyle(
                             base = ScheduleSoftGlassStyle,
-                            isDark = softGlassDark,
+                            isDark = false,
                             fill = ThemeFill,
                             tone = BrightTone,
                         )
-                        val largeStyle = AppMaterialSettings.chromeGlassStyle(
+                        val darkStyle = AppMaterialSettings.chromeGlassStyle(
                             base = ScheduleSoftGlassStyle,
-                            isDark = softGlassDark,
+                            isDark = true,
+                            fill = ThemeFill,
+                            tone = BrightTone,
+                        )
+                        val lightLargeStyle = AppMaterialSettings.chromeGlassStyle(
+                            base = ScheduleSoftGlassStyle,
+                            isDark = false,
                             fill = ThemeFill,
                             tone = BrightLargeTone,
                         )
-                        // 对话框面板（OverlayDialog / WindowDialog）：与底栏同走面板混合底色，
-                        // 材质档用悬浮大控件；单独一套，避免 ListPopup 跟着换成 BarFill。
-                        val dialogStyle = AppMaterialSettings.chromeGlassStyle(
+                        val darkLargeStyle = AppMaterialSettings.chromeGlassStyle(
                             base = ScheduleSoftGlassStyle,
-                            isDark = softGlassDark,
+                            isDark = true,
+                            fill = ThemeFill,
+                            tone = BrightLargeTone,
+                        )
+                        val lightDialogStyle = AppMaterialSettings.chromeGlassStyle(
+                            base = ScheduleSoftGlassStyle,
+                            isDark = false,
+                            fill = BarFill,
+                            tone = BrightLargeTone,
+                        )
+                        val darkDialogStyle = AppMaterialSettings.chromeGlassStyle(
+                            base = ScheduleSoftGlassStyle,
+                            isDark = true,
                             fill = BarFill,
                             tone = BrightLargeTone,
                         )
                         SoftGlassLayer(
                             shaderString = SOFT_GLASS_LIVE_SHADER,
                             applyUniforms = { w, h, r ->
-                                applyLiveGlass(style = style, width = w, height = h, radiusPx = r)
+                                applyLiveGlass(
+                                    style = if (AppThemeSnapshot.isDark.value) darkStyle else lightStyle,
+                                    width = w, height = h, radiusPx = r,
+                                )
                             },
                             applyLargeUniforms = { w, h, r ->
-                                applyLiveGlass(style = largeStyle, width = w, height = h, radiusPx = r)
+                                applyLiveGlass(
+                                    style = if (AppThemeSnapshot.isDark.value) darkLargeStyle else lightLargeStyle,
+                                    width = w, height = h, radiusPx = r,
+                                )
                             },
                             applyDialogUniforms = { w, h, r ->
-                                applyLiveGlass(style = dialogStyle, width = w, height = h, radiusPx = r)
+                                applyLiveGlass(
+                                    style = if (AppThemeSnapshot.isDark.value) darkDialogStyle else lightDialogStyle,
+                                    width = w, height = h, radiusPx = r,
+                                )
                             },
                         )
                     }

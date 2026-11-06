@@ -283,7 +283,11 @@ internal fun TrendSection(
             }
         }
         Spacer(Modifier.height(8.dp))
-        Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            insideMargin = PaddingValues(0.dp),
+            colors = weatherSheetCardColors(),
+        ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
                 content = content,

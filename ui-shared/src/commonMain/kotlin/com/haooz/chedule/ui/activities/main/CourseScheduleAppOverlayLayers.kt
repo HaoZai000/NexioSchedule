@@ -131,8 +131,9 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
             // 此时喂进去只会采到空像素 —— 直接退回纯色卡片。
             // 样式与网格卡片同一份，只压暗一档（大模糊底只能采自身矩形，压在亮卡片上会偏亮）。
             val overlayGlassStyle = rememberOverlayGlassStyle(scheduleGlassStyle)
+            // 无壁纸时网格卡片是普通半透明表面，浮层同档不挂玻璃。
             val overlayGlassBackdrop = if (
-                com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()
+                com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier() || wallpaperBitmap == null
             ) {
                 null
             } else {
@@ -506,43 +507,49 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         }
                     }
                 }
-                ShortcutMenu(
-                    show = shortcutMenuVisible,
-                    items = menuItems,
-                    modifier = Modifier.offset(
-                        // 菜单布局四周有 ShortcutMenuShadowPadding 的阴影留白，可见面板
-                        // 是布局四边各内收这么多之后的区域：间距与右缘对齐都要按它换算
-                        x = with(density) {
-                            shortcutMenuPosition.x.toDp() - ShortcutMenuShadowPadding
-                        },
-                        y = with(density) {
-                            // 普通课卡的锚点还含 2dp 格缝，可见间距 8dp 就够；自定义时间/时间轴
-                            // 的锚点是实测边界，8dp 看着像贴上去，要 16dp。
-                            // 卡片很长时会顶出屏幕，至少留在容器内
-                            val measuredAnchor = draggedCardCourse?.let {
-                                it.hasValidCustomTime() || scheduleViewMode == ScheduleViewMode.TIMELINE
-                            } == true
-                            val gap = if (measuredAnchor) 16.dp.toPx() else 8.dp.toPx()
-                            val visibleTop = shortcutMenuPosition.y - shortcutMenuSize.height +
-                                ShortcutMenuShadowPadding.toPx() - gap
-                            maxOf(visibleTop, 12.dp.toPx()).toDp()
-                        }
-                    ),
-                    backdrop = liquidGlassBackdrop,
-                    anchorRightPx = shortcutMenuPosition.x + shortcutMenuAnchorWidth,
-                    onMeasuredSize = { width, height ->
-                        shortcutMenuSize = IntSize(width, height)
-                    },
-                    onDismiss = {
-                        shortcutMenuVisible = false
-                        dismissFloatingCard()
-                        coroutineScope.launch {
-                            delay(220.milliseconds)
-                            shortcutMenuCourse = null
-                            emptyCellMenuTarget = null
-                        }
+                MiuixTheme(controller = overlayPageController) {
+                    CompositionLocalProvider(
+                        LocalForcedDarkTheme provides overlayEffectiveForcedDark,
+                    ) {
+                        ShortcutMenu(
+                            show = shortcutMenuVisible,
+                            items = menuItems,
+                            modifier = Modifier.offset(
+                                // 菜单布局四周有 ShortcutMenuShadowPadding 的阴影留白，可见面板
+                                // 是布局四边各内收这么多之后的区域：间距与右缘对齐都要按它换算
+                                x = with(density) {
+                                    shortcutMenuPosition.x.toDp() - ShortcutMenuShadowPadding
+                                },
+                                y = with(density) {
+                                    // 普通课卡的锚点还含 2dp 格缝，可见间距 8dp 就够；自定义时间/时间轴
+                                    // 的锚点是实测边界，8dp 看着像贴上去，要 16dp。
+                                    // 卡片很长时会顶出屏幕，至少留在容器内
+                                    val measuredAnchor = draggedCardCourse?.let {
+                                        it.hasValidCustomTime() || scheduleViewMode == ScheduleViewMode.TIMELINE
+                                    } == true
+                                    val gap = if (measuredAnchor) 16.dp.toPx() else 8.dp.toPx()
+                                    val visibleTop = shortcutMenuPosition.y - shortcutMenuSize.height +
+                                        ShortcutMenuShadowPadding.toPx() - gap
+                                    maxOf(visibleTop, 12.dp.toPx()).toDp()
+                                }
+                            ),
+                            backdrop = liquidGlassBackdrop,
+                            anchorRightPx = shortcutMenuPosition.x + shortcutMenuAnchorWidth,
+                            onMeasuredSize = { width, height ->
+                                shortcutMenuSize = IntSize(width, height)
+                            },
+                            onDismiss = {
+                                shortcutMenuVisible = false
+                                dismissFloatingCard()
+                                coroutineScope.launch {
+                                    delay(220.milliseconds)
+                                    shortcutMenuCourse = null
+                                    emptyCellMenuTarget = null
+                                }
+                            }
+                        )
                     }
-                )
+                }
             }
             if (showCustomizePage && customizeSnapshot != null) {
                 LaunchedEffect(true) {

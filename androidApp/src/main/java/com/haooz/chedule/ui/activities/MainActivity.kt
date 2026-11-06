@@ -135,6 +135,23 @@ class MainActivity : ComponentActivity() {
     var pendingRoute by mutableStateOf<com.haooz.chedule.ui.navigation.AppRoute?>(null)
         private set
 
+    // 主界面最近一次同步的系统栏深浅；子页退出后据此恢复
+    private var lastStatusDark = false
+    private var lastNavDark = false
+
+    fun syncSystemBars(statusDark: Boolean, navDark: Boolean) {
+        lastStatusDark = statusDark
+        lastNavDark = navDark
+        val statusFlag = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+        val navFlag = WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        var appearance = 0
+        if (!statusDark) appearance = appearance or statusFlag
+        if (!navDark) appearance = appearance or navFlag
+        window.decorView.post {
+            ApiCompat.setSystemBarsAppearance(window, appearance, statusFlag or navFlag)
+        }
+    }
+
     fun clearShareIntent() {
         shareIntentUri = null
         shareIntentAction = null
@@ -222,6 +239,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 CompositionLocalProvider(LocalAppRouter provides router) {
+                    // 子页盖住主界面时状态栏改跟应用主题，退出后恢复主界面深浅
+                    var systemBarsFirstPass by remember { mutableStateOf(true) }
+                    LaunchedEffect(router.hasOverlay) {
+                        if (systemBarsFirstPass) {
+                            systemBarsFirstPass = false
+                            return@LaunchedEffect
+                        }
+                        if (router.hasOverlay) applyThemeAwareSystemBars()
+                        else syncSystemBars(lastStatusDark, lastNavDark)
+                    }
                     Box(modifier = Modifier.fillMaxSize()) {
                         // ── 主界面常驻底座 ──
                         MainLayerTransition(mainTransition) {
@@ -563,17 +590,7 @@ fun AndroidCourseScheduleApp(privacyConsented: Boolean) {
         resumeCount = activity?.resumeCount ?: 0,
         isInFreeformWindow = activity?.isInFreeformWindow ?: false,
         onSystemBarsChanged = { statusDark, navDark ->
-            val window = activity?.window
-            if (window != null) {
-                val statusFlag = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                val navFlag = WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-                var appearance = 0
-                if (!statusDark) appearance = appearance or statusFlag
-                if (!navDark) appearance = appearance or navFlag
-                window.decorView.post {
-                    ApiCompat.setSystemBarsAppearance(window, appearance, statusFlag or navFlag)
-                }
-            }
+            activity?.syncSystemBars(statusDark, navDark)
         },
         onHolidayDataChanged = { CourseReminderHelper.onHolidayDataChanged(context) },
         onPickWallpaperImage = { onPicked ->

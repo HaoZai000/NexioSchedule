@@ -1,8 +1,6 @@
 /** AI 文本导入页面 - Screen */
 package com.haooz.chedule.ui.activities
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,8 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -31,11 +27,9 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -49,7 +43,6 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
-import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -57,11 +50,12 @@ import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
 import com.kyant.capsule.ContinuousCapsule
+import com.kyant.capsule.continuousBackground
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
@@ -169,206 +163,172 @@ fun AiImportScreen(
     Scaffold(
         topBar = {}
     ) { paddingValues ->
-        val listState = rememberLazyListState()
-        var listScrollY by remember { mutableIntStateOf(0) }
-        LaunchedEffect(listState) {
-            snapshotFlow { listState.firstVisibleItemScrollOffset }
-                .collect { offset -> listScrollY = offset }
-        }
-        LazyColumn(
-            state = listState,
+        Column(
             modifier = Modifier.fillMaxSize()
                 .overScrollVertical()
                 .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
                 .collapsibleTopInset(scrollBehavior)
                 .then(
                     scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
-                ),
-            contentPadding = PaddingValues(
-                start = tabletHorizontalPadding,
-                end = tabletHorizontalPadding,
-                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                    (if (isTablet) 12.dp else 0.dp),
-                bottom = 120.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                )
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = tabletHorizontalPadding,
+                    end = tabletHorizontalPadding,
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
+                        (if (isTablet) 12.dp else 0.dp),
+                    bottom = 120.dp
+                )
         ) {
-            item {
-                SmallTitle(
-                    text = ImportStr.scheduleData(),
-                )
-                NativeMiuixTextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    minLines = 1,
-                    maxLines = 12,
-                    label = ImportStr.pasteAiDataHint(),
-                    useLabelAsPlaceholder = true
-                )
-            }
+            SmallTitle(
+                text = ImportStr.scheduleData(),
+            )
+            NativeMiuixTextField(
+                value = inputText,
+                onValueChange = { inputText = it },
+                minLines = 1,
+                maxLines = 12,
+                label = ImportStr.pasteAiDataHint(),
+                useLabelAsPlaceholder = true
+            )
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 解析预览：标题 + 预览卡片 + 警告详情
-            item {
-                val previewVisible = parsedCourses.isNotEmpty() || parsedWarnings.isNotEmpty() || parsedSectionConfig != null
-                val previewScale = remember { Animatable(0.8f) }
-                val previewAlpha = remember { Animatable(0f) }
-                LaunchedEffect(previewVisible) {
-                    if (previewVisible) {
-                        launch { previewScale.animateTo(1f, animationSpec = tween(400)) }
-                        launch { previewAlpha.animateTo(1f, animationSpec = tween(400)) }
-                    } else {
-                        launch { previewScale.animateTo(0.8f, animationSpec = tween(300)) }
-                        launch { previewAlpha.animateTo(0f, animationSpec = tween(300)) }
-                    }
-                }
-                CardExpand(visible = previewVisible) {
+            val previewVisible = parsedCourses.isNotEmpty() || parsedWarnings.isNotEmpty() || parsedSectionConfig != null
+            if (previewVisible) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SmallTitle(
+                        text = ImportStr.parsePreview(),
+                    )
                     Column(
-                        modifier = Modifier.graphicsLayer {
-                            scaleX = previewScale.value
-                            scaleY = previewScale.value
-                            alpha = previewAlpha.value
-                        }
+                        modifier = Modifier.fillMaxWidth()
+                            .continuousBackground(CardDefaults.defaultColors().color, CardDefaults.CornerRadius)
                     ) {
-                        SmallTitle(
-                            text = ImportStr.parsePreview(),
+                        Text(
+                            text = ImportStr.identifiedCoursesN(parsedCourses.size),
+                            style = MiuixTheme.textStyles.title2,
+                            color = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 12.dp)
                         )
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            insideMargin = PaddingValues(0.dp)
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = ImportStr.identifiedCoursesN(parsedCourses.size),
-                                    style = MiuixTheme.textStyles.title2,
-                                    color = MiuixTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 12.dp)
-                                )
-                                parsedSectionConfig?.let { config ->
-                                    Text(
-                                        text = ImportStr.sectionConfigIdentified(config.morningCount, config.afternoonCount, config.eveningCount) +
-                                            if (config.morningTimes.isNotEmpty() || config.afternoonTimes.isNotEmpty() || config.eveningTimes.isNotEmpty())
-                                                ImportStr.withTimesSuffix() else ImportStr.autoApplySuffix(),
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-                                    )
+                        parsedSectionConfig?.let { config ->
+                            Text(
+                                text = ImportStr.sectionConfigIdentified(config.morningCount, config.afternoonCount, config.eveningCount) +
+                                    if (config.morningTimes.isNotEmpty() || config.afternoonTimes.isNotEmpty() || config.eveningTimes.isNotEmpty())
+                                        ImportStr.withTimesSuffix() else ImportStr.autoApplySuffix(),
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                            )
+                        }
+                        if (parsedWarnings.isNotEmpty()) {
+                            Text(
+                                text = ImportStr.warningsCountN(parsedWarnings.size),
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                            )
+                        }
+                        parsedCourses.forEachIndexed { index, course ->
+                            CoursePreviewRow(
+                                course = course,
+                                onClick = {
+                                    editingCourseIndex = index
+                                    editingCourseSnapshot = course
+                                    showEditDialog = true
                                 }
-                                CardExpand(visible = parsedWarnings.isNotEmpty()) {
-                                    Text(
-                                        text = ImportStr.warningsCountN(parsedWarnings.size),
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-                                    )
-                                }
-                                parsedCourses.forEachIndexed { index, course ->
-                                    CoursePreviewRow(
-                                        course = course,
-                                        onClick = {
-                                            editingCourseIndex = index
-                                            editingCourseSnapshot = course
-                                            showEditDialog = true
-                                        }
-                                    )
-                                    if (index < parsedCourses.lastIndex) {
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                    }
-                                }
-                                CardExpand(visible = parsedCourses.isNotEmpty()) {
-                                    TextButton(
-                                        text = ImportStr.confirmImportCard(),
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            showConfirmDialog = true
-                                        },
-                                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp)
-                                    )
-                                }
+                            )
+                            if (index < parsedCourses.lastIndex) {
+                                Spacer(modifier = Modifier.height(4.dp))
                             }
                         }
-                        CardExpand(visible = parsedWarnings.isNotEmpty()) {
-                            Column {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    insideMargin = PaddingValues(0.dp)
-                                ) {
-                                    Column(modifier = Modifier.fillMaxWidth()) {
-                                        Text(
-                                            text = ImportStr.warningDetails(),
-                                            style = MiuixTheme.textStyles.title2,
-                                            fontSize = 17.sp,
-                                            color = MiuixTheme.colorScheme.onSurface,
-                                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp)
-                                        )
-                                        parsedWarnings.forEachIndexed { idx, w ->
-                                            Text(
-                                                text = w,
-                                                style = MiuixTheme.textStyles.body2,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
-                                            )
-                                            if (idx < parsedWarnings.lastIndex) {
-                                                androidx.compose.material3.HorizontalDivider(
-                                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp),
-                                                    thickness = 0.5.dp,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.1f)
-                                                )
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                    }
+                        if (parsedCourses.isNotEmpty()) {
+                            TextButton(
+                                text = ImportStr.confirmImportCard(),
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    showConfirmDialog = true
+                                },
+                                colors = ButtonDefaults.textButtonColorsPrimary(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                            )
+                        }
+                    }
+                    if (parsedWarnings.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                                .continuousBackground(CardDefaults.defaultColors().color, CardDefaults.CornerRadius)
+                        ) {
+                            Text(
+                                text = ImportStr.warningDetails(),
+                                style = MiuixTheme.textStyles.title2,
+                                fontSize = 17.sp,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp)
+                            )
+                            parsedWarnings.forEachIndexed { idx, w ->
+                                Text(
+                                    text = w,
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
+                                )
+                                if (idx < parsedWarnings.lastIndex) {
+                                    androidx.compose.material3.HorizontalDivider(
+                                        modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+                                        thickness = 0.5.dp,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.1f)
+                                    )
                                 }
                             }
+                            Spacer(modifier = Modifier.height(12.dp))
                         }
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(12.dp))
 
-            item {
-                SmallTitle(
-                    text = ImportStr.usageGuide(),
-                )
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(16.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
+            SmallTitle(
+                text = ImportStr.usageGuide(),
+            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                insideMargin = PaddingValues(16.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = ImportStr.promptUsageHint(),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 220.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
                         Text(
-                            text = ImportStr.promptUsageHint(),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 220.dp)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            Text(
-                                text = promptText,
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        TextButton(
-                            text = ImportStr.copyPrompt(),
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                onCopyToClipboard(promptText)
-                                showToast(ImportStr.promptCopied())
-                            },
-                            modifier = Modifier.fillMaxWidth()
+                            text = promptText,
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(
+                        text = ImportStr.copyPrompt(),
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            onCopyToClipboard(promptText)
+                            showToast(ImportStr.promptCopied())
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }

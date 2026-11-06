@@ -37,6 +37,7 @@ import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.today.weatherIconRes
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.weather.AirQuality
 import com.haooz.chedule.weather.WeatherDay
@@ -46,6 +47,7 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.capsule.ContinuousCapsule
 import org.jetbrains.compose.resources.painterResource
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
@@ -153,6 +155,14 @@ internal fun WeatherSheetHost(
  */
 private val SHEET_PHONE_TOP_BAR = 76.dp
 private val SHEET_TABLET_TOP_BAR = 74.dp
+
+// sheet 内卡片底色与其它面板一致：莫奈取 surfaceContainerHigh，非莫奈沿用硬编码。
+@Composable
+internal fun weatherSheetCardColors() = CardDefaults.defaultColors(
+    color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh
+    else if (isAppDarkTheme()) Color(0xFF303030) else Color(0xFFFFFFFF),
+    contentColor = MiuixTheme.colorScheme.onSurface,
+)
 
 @Composable
 private fun WeatherSheetContent(
@@ -266,7 +276,11 @@ private fun AirSheetBody(snapshot: WeatherSnapshot) {
     // ② 六项浓度
     val cells = pollutantCells(air)
     if (cells.isNotEmpty()) {
-        Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            insideMargin = PaddingValues(0.dp),
+            colors = weatherSheetCardColors(),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 15.dp),
                 verticalAlignment = Alignment.Top,
@@ -429,7 +443,11 @@ private fun AllDaysBody(snapshot: WeatherSnapshot) {
     val minTemp = days.mapNotNull { it.low }.minOrNull() ?: 0.0
     val maxTemp = days.mapNotNull { it.high }.maxOrNull() ?: 1.0
     val divider = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        insideMargin = PaddingValues(0.dp),
+        colors = weatherSheetCardColors(),
+    ) {
         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
             days.forEachIndexed { index, day ->
                 if (index > 0) {
