@@ -3,6 +3,7 @@
 // 材质基调：以单例形式提供一组完整的渲染参数，供 [SoftGlassStyle.tone] 选择。
 //
 // 每种基调全量覆盖所负责的字段，因此调整某一材质无需改动样式默认值或调用点。
+// 例外：`lightDirection` 三档共引 [GlassLightDirection]，光方向是全局口径，只在那一处改。
 
 package com.haooz.chedule.ui.glass
 
@@ -85,7 +86,7 @@ object TokenTone : GlassTone {
         unshade = 0f,
         usePowGate = true,
         // ── 方向光 ───────────────────────────────────────────────────
-        lightDirection = Triple(-0.6f, 0.6f, -0.8f),
+        lightDirection = GlassLightDirection,
         lightAngleRange = 1f,
         lightIntensity = 1.6f,
         lightOppositeIntensity = 0.8f,
@@ -128,7 +129,7 @@ object BrightTone : GlassTone {
         unshade = 0f,
         usePowGate = true,
         // ── 方向光 ───────────────────────────────────────────────────
-        lightDirection = Triple(-0.6f, 0.6f, -0.8f),
+        lightDirection = GlassLightDirection,
         lightAngleRange = 1f,
         lightIntensity = 1.6f,
         lightOppositeIntensity = 0.8f,
@@ -171,7 +172,7 @@ object BrightLargeTone : GlassTone {
         unshade = 0f,
         usePowGate = true,
         // ── 方向光 ───────────────────────────────────────────────────
-        lightDirection = Triple(-0.6f, 0.6f, -0.8f),
+        lightDirection = GlassLightDirection,
         lightAngleRange = 1f,
         lightIntensity = 1.6f,
         lightOppositeIntensity = 0.8f,

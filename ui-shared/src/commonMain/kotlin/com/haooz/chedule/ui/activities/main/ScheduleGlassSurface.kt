@@ -19,6 +19,15 @@ import com.haooz.chedule.ui.glass.untransformGlassOrigin
 import com.haooz.chedule.ui.navigation.LocalMainLayerTranslation
 
 /**
+ * 卡片高光描边的一组口径
+ * 注意：只动光照，不动折射 / 反射 / 边缘厚度 —— 那些是「同一块材质」的部分。
+ */
+private const val CARD_LIGHT_INTENSITY = 0.8f
+private const val CARD_LIGHT_OPPOSITE = 0.45f
+private const val CARD_LIGHT_ANGLE_RANGE = 1.78f
+private const val CARD_LIGHT_FALLOFF = 0.86f
+
+/**
  * 课表卡片的柔光样式：外观里的折射 / 模糊 / 边缘厚度 / 高光描边折算成一份 [SoftGlassStyle]。
  *
  * 网格卡片（静态壁纸采样）与长按/交换浮层（实时录制采样）都从这里取值 —— 采样源不同，
@@ -37,6 +46,10 @@ internal fun rememberScheduleGlassStyle(displayAppearance: AppearanceConfig): So
             smallBlurRadius = glassBlurPx,
             edgeWidth = glassEdgePx,
             edgeHighlight = glassEdgeHighlight,
+            lightIntensity = CARD_LIGHT_INTENSITY,
+            lightOppositeIntensity = CARD_LIGHT_OPPOSITE,
+            lightAngleRange = CARD_LIGHT_ANGLE_RANGE,
+            edgeLightFalloff = CARD_LIGHT_FALLOFF,
         )
     }
 }

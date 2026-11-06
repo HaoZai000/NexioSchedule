@@ -273,6 +273,7 @@ private fun SoftGlassProgram.applyBodyUniforms(
     setFloat("uReflLighten", style.reflectionLighten)
     setFloat("uInnerBottom", style.innerBottom)
     setFloat("uEdgeHighlight", if (style.edgeHighlight) 1f else 0f)
+    setFloat("uLightFalloff", style.edgeLightFalloff.coerceIn(0f, 1f))
     setFloat("uUnshade", style.unshade)
     setFloat("uUsePowGate", if (style.usePowGate) 1f else 0f)
     // 抗锯齿阈值：参考实现为 smooth5_vertical(3/edge, 0.5) = smooth5Map(√(3/edge))。

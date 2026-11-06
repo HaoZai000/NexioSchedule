@@ -88,7 +88,7 @@ object AppearanceStyleCodec {
                 showTeacher = obj.boolOr("showTeacher", true),
                 cardRefraction = obj.enumOr("cardRefraction") { CardRefractionLevel.fromOrdinal(it) },
                 cardEdgeThickness = obj.enumOr("cardEdgeThickness") { CardEdgeThickness.fromOrdinal(it) },
-                cardRim = obj.boolOr("cardRim", false),
+                cardRim = obj.boolOr("cardRim", true),
                 wallpaperBlur = obj.boolOr("wallpaperBlur", false),
             )
         }.getOrNull()

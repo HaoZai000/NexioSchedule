@@ -35,8 +35,8 @@ data class AppearanceConfig(
     val cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     /** 玻璃边缘厚度档位（乘在 `SoftGlassStyle.edgeWidth` 上，不改文件里的默认值） */
     val cardEdgeThickness: CardEdgeThickness = CardEdgeThickness.DEFAULT,
-    /** 卡片玻璃的高光描边（倒角方向光）；课表页与今日页共用，出厂默认关 */
-    val cardRim: Boolean = false,
+    /** 卡片玻璃的高光描边（倒角方向光）；课表页与今日页共用，出厂默认开 */
+    val cardRim: Boolean = true,
     val wallpaperBlur: Boolean = false
 ) {
     companion object
@@ -147,8 +147,8 @@ data class AppearanceStyle(
     val cardRefraction: CardRefractionLevel? = null,
     /** 边缘厚度档位；null = 未设置，用默认 */
     val cardEdgeThickness: CardEdgeThickness? = null,
-    /** 卡片高光描边；缺键（老数据）按出厂默认关 */
-    val cardRim: Boolean = false,
+    /** 卡片高光描边；缺键（老数据）按出厂默认开 */
+    val cardRim: Boolean = true,
     val wallpaperBlur: Boolean = false
 ) {
     val safeAlignment: CardContentAlignment get() = cardContentAlignment ?: CardContentAlignment.CENTER_CENTER

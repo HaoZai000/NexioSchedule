@@ -134,6 +134,9 @@ uniform float  uHit;
 uniform float  uInnerBottom;
 // 高光描边开关：0 = 关（只切倒角上的方向光）
 uniform float  uEdgeHighlight;
+// 高光沿倒角带的衰减终点（x 归一化：0 = 轮廓边界，1 = 倒角带内沿）
+// 1 = 方向光覆盖整条倒角带（参考实现口径）；小于 1 时高光只留在最外这一段
+uniform float  uLightFalloff;
 uniform float3 uLightDir;
 uniform float  uAngleK;
 uniform float  uLightIntensity;
@@ -216,12 +219,16 @@ float calculateLighting(float3 normal, float3 lightDir, float intensity) {
     return max(d, 0.0) * intensity * angleFactor;
 }
 
-float4 processLighting(float4 color, float3 normal) {
+float4 processLighting(float4 color, float3 normal, float x, float falloffEnd) {
     float3 lightNormal = float3(normal.x, -normal.y, normal.z);
     float l1 = calculateLighting(lightNormal, uLightDir, uLightIntensity);
     float l2 = calculateLighting(lightNormal, uLightDir * float3(-1.0, -1.0, 1.0), uLightOpposite);
     float lightRatio = dynamicAdd(color.rgb);
-    float lightenParam = (l1 + l2) * 2.0 * lightRatio;
+    // 参考档口径：falloff 为 1 时整条倒角带全亮，与原实现逐项一致
+    float mask = (falloffEnd >= 0.999)
+        ? 1.0
+        : 1.0 - smoothstep(0.0, max(falloffEnd, 1e-3), x);
+    float lightenParam = (l1 + l2) * 2.0 * lightRatio * mask;
     return hsvv(color, lightenParam);
 }
 
@@ -317,7 +324,9 @@ half4 main(float2 fragCoord) {
     glassMaterial.rgb += tEdge * tEdge * uInnerBottom;
 
     // 高光描边开关仅控制此处：倒角带上的方向光（左上亮、右下暗、沿边起伏）
-    if (!inner && uEdgeHighlight > 0.5) { glassMaterial = processLighting(glassMaterial, normal); }
+    if (!inner && uEdgeHighlight > 0.5) {
+        glassMaterial = processLighting(glassMaterial, normal, x, uLightFalloff);
+    }
 
     if (uUsePowGate > 0.5) {
         glassMaterial = pow(glassMaterial, float4(uColorPow));
@@ -465,6 +474,8 @@ uniform float4 uGlassColor;
 uniform float  uAlpha;
 uniform float  uInnerBottom;
 uniform float  uEdgeHighlight;
+// 高光沿倒角带的衰减终点（x 归一化：0 = 轮廓边界，1 = 倒角带内沿）
+uniform float  uLightFalloff;
 uniform float3 uLightDir;
 uniform float  uAngleK;
 uniform float  uLightIntensity;
@@ -556,11 +567,15 @@ float calculateLighting(float3 normal, float3 lightDir, float intensity) {
     return max(d, 0.0) * intensity * angleFactor;
 }
 
-float4 processLighting(float4 color, float3 normal) {
+float4 processLighting(float4 color, float3 normal, float x, float falloffEnd) {
     float3 lightNormal = float3(normal.x, -normal.y, normal.z);
     float l1 = calculateLighting(lightNormal, uLightDir, uLightIntensity);
     float l2 = calculateLighting(lightNormal, uLightDir * float3(-1.0, -1.0, 1.0), uLightOpposite);
-    float lightenParam = (l1 + l2) * 2.0 * dynamicAdd(color.rgb);
+    // 与卡片侧同一条口径
+    float mask = (falloffEnd >= 0.999)
+        ? 1.0
+        : 1.0 - smoothstep(0.0, max(falloffEnd, 1e-3), x);
+    float lightenParam = (l1 + l2) * 2.0 * dynamicAdd(color.rgb) * mask;
     return hsvv(color, lightenParam);
 }
 """ + SOFT_GLASS_COLOR_PROCESS + """
@@ -632,7 +647,7 @@ half4 main(float2 fragCoord) {
     float tEdge = smoothstep(0.0, 1.0, fragCoord.y / max(uSize.y, 1.0));
     glassMaterial.rgb += tEdge * tEdge * uInnerBottom;
 
-    if (!inner && uEdgeHighlight > 0.5) { glassMaterial = processLighting(glassMaterial, normal); }
+    if (!inner && uEdgeHighlight > 0.5) { glassMaterial = processLighting(glassMaterial, normal, x, uLightFalloff); }
 
     if (uUsePowGate > 0.5) {
         glassMaterial = pow(glassMaterial, float4(uColorPow));

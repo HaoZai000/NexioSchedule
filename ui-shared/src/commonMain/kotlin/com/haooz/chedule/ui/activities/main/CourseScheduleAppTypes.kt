@@ -81,7 +81,7 @@ data class ScheduleCombination(
     var showTeacher: Boolean = true,
     var cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     var cardEdgeThickness: CardEdgeThickness = CardEdgeThickness.DEFAULT,
-    var cardRim: Boolean = false,
+    var cardRim: Boolean = true,
     var wallpaperIsLight: Boolean? = null,
     var wallpaperBlur: Boolean = false,
 )

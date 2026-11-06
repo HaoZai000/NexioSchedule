@@ -1533,7 +1533,7 @@ fun CustomizeScheduleScreen(
                                     SchedStr.wallpaperRequired()
                                 }
                             )
-                            // 高光描边：倒角带上的方向光，课表页与今日页同一开关（默认关）
+                            // 高光描边：倒角带上的方向光，课表页与今日页同一开关（出厂默认开）
                             // 每一档材质都有这圈光（无材质档只是模糊/折射归零），所以只按有无壁纸判可用
                             val rimEnabled = hasWallpaper
                             Row(

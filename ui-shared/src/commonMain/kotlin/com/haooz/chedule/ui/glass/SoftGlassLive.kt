@@ -79,6 +79,7 @@ internal fun RuntimeShader.applyLiveGlass(
     setFloatUniform("uAlpha", style.alpha)
     setFloatUniform("uInnerBottom", style.innerBottom)
     setFloatUniform("uEdgeHighlight", if (style.edgeHighlight) 1f else 0f)
+    setFloatUniform("uLightFalloff", style.edgeLightFalloff.coerceIn(0f, 1f))
     setFloatUniform("uUnshade", style.unshade)
     setFloatUniform("uUsePowGate", if (style.usePowGate) 1f else 0f)
 

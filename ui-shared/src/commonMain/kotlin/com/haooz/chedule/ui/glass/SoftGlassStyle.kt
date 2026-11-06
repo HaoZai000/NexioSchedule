@@ -12,6 +12,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
+ * 方向光方向向量，对应 uniform `uLightDir` —— **全项目唯一来源**。
+ * 调方位时保持 `√(x²+y²) ≈ 0.849` 不变，否则峰值亮度会跟着变：
+ * 135° = (-0.60, 0.60) / 120° = (-0.42, 0.74) / 105° = (-0.22, 0.82) / 90° = (0, 0.85)。
+ * 数学角度**递减** = 屏幕上顺时针。
+ */
+internal val GlassLightDirection: Triple<Float, Float, Float> = Triple(-0.42f, 0.74f, -1.15f)
+
+/**
  * 柔光玻璃的全部可调参数。
  *
  * 默认值对应参考实现的大面板档位 `Glass_Common_Large_Regular`。方向光取该档位的
@@ -77,8 +85,10 @@ data class SoftGlassStyle(
     val usePowGate: Boolean = true,
 
     // ── 方向光 ───────────────────────────────────────────────────────
-    /** 方向光方向向量，对应 `uDirectionalLightDirection`（大面板档位 `[-0.6, 0.6, -0.8]`）。 */
-    val lightDirection: Triple<Float, Float, Float> = Triple(-0.6f, 0.6f, -0.8f),
+    /**
+     * 方向光方向向量，对应 `uDirectionalLightDirection`，取值见 [GlassLightDirection]。
+     */
+    val lightDirection: Triple<Float, Float, Float> = GlassLightDirection,
     /**
      * 方向光角度范围，对应 `uDirectionalLightAngleRange`（大面板档位 1.0）。
      *
@@ -135,6 +145,11 @@ data class SoftGlassStyle(
 
     /** 高光描边开关：控制倒角带上的方向光（`processLighting`）。开启时边缘具有方向性明暗变化。 */
     val edgeHighlight: Boolean = true,
+    /**
+     * 高光沿倒角带的衰减终点，对应 uniform `uLightFalloff`
+     * 1.0 = 不额外衰减，整条倒角带都参与方向光
+     */
+    val edgeLightFalloff: Float = 1.0f,
 
     // ── 模糊 ─────────────────────────────────────────────────────────
     /** 折射采样源的轻模糊半径（px）。大面板档位 80，默认 32。 */
