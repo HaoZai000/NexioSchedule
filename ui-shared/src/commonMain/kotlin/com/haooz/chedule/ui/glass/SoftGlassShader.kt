@@ -37,6 +37,9 @@ float3 sampleCoarse(float2 texPx) {
 internal val SOFT_GLASS_WALLPAPER_LEVELS = """
 float3 sampleLevel(float2 texPx) {
     float3 a = uWallpaperA.eval(clamp(texPx * uLevelScaleA, float2(0.5), uTexSizeA - 0.5)).rgb;
+    // uBlendT = 0（含 a == b 的边界档）时 B 完全不参与，跳过这次取值：
+    // 一次纹理采样远比一次 mix 贵。
+    if (uBlendT <= 0.0) { return a; }
     float3 b = uWallpaperB.eval(clamp(texPx * uLevelScaleB, float2(0.5), uTexSizeB - 0.5)).rgb;
     return mix(a, b, uBlendT);
 }
@@ -169,16 +172,14 @@ float smooth5Map(float t) {
     return (t - 0.5) * 2.0;
 }
 
-// 参考实现固定 k = 0.5；此处同时给出解析导数。
-float circleOf(float x) {
-    return smooth5Map(sqrt(clamp(x, 0.0, 1.0)));
-}
-
-// d(circleOf)/dx = 15·u²(1-u)²/√x，u = 0.5 + 0.5√x
-float circleOfDx(float x) {
-    float s = sqrt(max(x, 1e-4));
-    float u = 0.5 + 0.5 * s;
-    return 15.0 * u * u * (1.0 - u) * (1.0 - u) / s;
+// 参考实现固定 k = 0.5。返回 (circle, d(circle)/dx)：
+// circle = smooth5_vertical(x, 0.5)，导数 = 15·u²(1-u)²/√x，u = 0.5 + 0.5√x。
+// 两者共用同一次 sqrt(x)，合并后每像素少开一次方；导数在 x→0 处发散，分母按原实现钳到 1e-2。
+float2 circleAt(float x) {
+    float s = sqrt(clamp(x, 0.0, 1.0));
+    float sr = max(s, 1e-2);
+    float u = 0.5 + 0.5 * sr;
+    return float2(smooth5Map(s), 15.0 * u * u * (1.0 - u) * (1.0 - u) / sr);
 }
 
 float luma(float3 c) { return dot(c, LUMA); }
@@ -235,25 +236,32 @@ half4 main(float2 fragCoord) {
     // x：0 = 轮廓边界，1 = 倒角带内沿（线性归一化距离）
     float x = clamp(-sd / max(uEdgePx, 1e-3), 0.0, 1.0);
     // circle = smooth5_vertical(x, 0.5)：系统 SDF 纹理里参与法线的那个剖面
-    float circle = circleOf(x);
+    float2 cd = circleAt(x);
+    float circle = cd.x;
+    float a = max(1.0 - circle, 1e-6);
     // w = 纹理 w 通道 = curve(x, edgePow)，x ≥ 0.85 处参考实现直接夹到 1。
     // 归一化 SDF：折射厚度、反射衰减与内区判定均使用该值，而非 circle。
-    float w = (x >= 0.85) ? 1.0 : 1.0 - pow(max(1.0 - circle, 1e-6), uEdgePow);
-    // nmlZ = 1 - (1-w)^(1/edgePow)：两次幂正好相抵，恒等于 circle。
-    float nmlZ = 1.0 - pow(max(1.0 - w, 0.0), max(uInvEdgePow, 1e-3));
+    // 各材质档位 edgePow 恒为 4，四次幂用两次乘法；其他取值回落通用幂，两者视觉等价。
+    float w = (x >= 0.85)
+        ? 1.0
+        : (uEdgePow == 4.0 ? 1.0 - (a * a) * (a * a) : 1.0 - pow(a, uEdgePow));
+    // nmlZ = 1 - (1-w)^(1/edgePow)：与 w 的幂正好相抵，恒等于 circle（x ≥ 0.85 处为 1）。
+    float nmlZ = (x >= 0.85) ? 1.0 : circle;
+
+    bool inner = (1.0 - w) <= 0.000001;
     // 法线斜率为 dw/dx。参考实现对弯曲后的 sdf 做中心差分，取导数而非曲线值，
-    // 该值决定折射带宽度。
-    float g = (x >= 0.85) ? 0.0 :
-        uEdgePow * pow(max(1.0 - circle, 1e-6), uEdgePow - 1.0) * circleOfDx(x);
+    // 该值决定折射带宽度。d/dx[1-a^p] = p·a^(p-1)·circle' = p·(1-w)/a·circle'：
+    // 复用已算出的 (1-w)，省掉第三次幂；内区不需要法线，也就不需要梯度。
+    float g = inner ? 0.0 : uEdgePow * ((1.0 - w) / a) * cd.y;
     g = min(g, 64.0);
 
     // 抗锯齿口径与参考实现一致：smoothstep(0, smooth5_vertical(3/edge, 0.5), nmlZ)，最外约 3px 软过渡。
-    float finalAlpha = smoothstep(0.0, uNmlZAAThreshold, nmlZ);
+    // 内区 nmlZ 恒为 1，AA 已饱和，直接给 1 省掉一次 smoothstep。
+    float finalAlpha = inner ? 1.0 : smoothstep(0.0, uNmlZAAThreshold, nmlZ);
 
-    bool inner = (1.0 - w) <= 0.000001;
     // 法线 = normalize(vec3(∇sd · g, 1))：方向取 SDF 梯度，z 由斜率归一化。
     // normal.z 与 nmlZ 为两个不同的量，不可互换。
-    float2 nxy = roundRectGrad(p, halfSize, cornerR) * g;
+    float2 nxy = inner ? float2(0.0) : roundRectGrad(p, halfSize, cornerR) * g;
     float3 normal = inner
         ? float3(0.0, 0.0, 1.0)
         : normalize(float3(nxy.x, nxy.y, 1.0));
@@ -490,10 +498,12 @@ float3 sampleContent(float2 p) {
  * 大模糊底（glassColor 的来源）。卡片侧直接采 500px 粗级纹理；这里只有一张
  * 「控件脚下内容」，用绕一圈的 5 点平均近似那一级。**只影响底色取样，
  * 后面的调色公式与卡片逐行相同**（同一个 processGlassColor）。
+ *
+ * [center] 是 `p` 处已采到的颜色：内区的折射色就在同一点，直接传进来可省一次取值。
  */
-float3 contentBig(float2 p) {
+float3 contentBig(float2 p, float3 center) {
     float r = min(uSize.x, uSize.y) * 0.42;
-    float3 sum = sampleContent(p);
+    float3 sum = center;
     for (int i = 0; i < 4; i++) {
         float a = float(i) * 1.5707963 + 0.6;
         sum += sampleContent(p + float2(cos(a), sin(a)) * r);
@@ -508,12 +518,12 @@ float smooth5Map(float t) {
     return (t - 0.5) * 2.0;
 }
 
-float circleOf(float x) { return smooth5Map(sqrt(clamp(x, 0.0, 1.0))); }
-
-float circleOfDx(float x) {
-    float s = sqrt(max(x, 1e-4));
-    float u = 0.5 + 0.5 * s;
-    return 15.0 * u * u * (1.0 - u) * (1.0 - u) / s;
+// (circle, d(circle)/dx) 共用一次 sqrt(x)，与卡片侧 [circleAt] 同口径。
+float2 circleAt(float x) {
+    float s = sqrt(clamp(x, 0.0, 1.0));
+    float sr = max(s, 1e-2);
+    float u = 0.5 + 0.5 * sr;
+    return float2(smooth5Map(s), 15.0 * u * u * (1.0 - u) * (1.0 - u) / sr);
 }
 
 float3 miRefract(float3 I, float3 N, float eta) {
@@ -566,17 +576,25 @@ half4 main(float2 fragCoord) {
     if (sd > 0.0) { return half4(0.0); }
 
     float x = clamp(-sd / max(uEdgePx, 1e-3), 0.0, 1.0);
-    float circle = circleOf(x);
-    float w = (x >= 0.85) ? 1.0 : 1.0 - pow(max(1.0 - circle, 1e-6), uEdgePow);
-    float nmlZ = 1.0 - pow(max(1.0 - w, 0.0), max(uInvEdgePow, 1e-3));
-    float g = (x >= 0.85) ? 0.0 :
-        uEdgePow * pow(max(1.0 - circle, 1e-6), uEdgePow - 1.0) * circleOfDx(x);
-    g = min(g, 64.0);
-
-    float finalAlpha = smoothstep(0.0, uNmlZAAThreshold, nmlZ);
+    float2 cd = circleAt(x);
+    float circle = cd.x;
+    float a = max(1.0 - circle, 1e-6);
+    // 同卡片侧：edgePow 各档位恒为 4 时用两次乘法替代 pow
+    float w = (x >= 0.85)
+        ? 1.0
+        : (uEdgePow == 4.0 ? 1.0 - (a * a) * (a * a) : 1.0 - pow(a, uEdgePow));
+    // nmlZ 与 w 的幂相抵，恒等于 circle（x ≥ 0.85 处为 1）
+    float nmlZ = (x >= 0.85) ? 1.0 : circle;
 
     bool inner = (1.0 - w) <= 0.000001;
-    float2 nxy = roundRectGrad(p, halfSize, cornerR) * g;
+    // d/dx[1-a^p] = p·(1-w)/a·circle'，复用 (1-w) 省一次幂；内区不需要法线
+    float g = inner ? 0.0 : uEdgePow * ((1.0 - w) / a) * cd.y;
+    g = min(g, 64.0);
+
+    // 内区 nmlZ 恒为 1，AA 已饱和
+    float finalAlpha = inner ? 1.0 : smoothstep(0.0, uNmlZAAThreshold, nmlZ);
+
+    float2 nxy = inner ? float2(0.0) : roundRectGrad(p, halfSize, cornerR) * g;
     float3 normal = inner
         ? float3(0.0, 0.0, 1.0)
         : normalize(float3(nxy.x, nxy.y, 1.0));
@@ -603,7 +621,11 @@ half4 main(float2 fragCoord) {
         materialRgb = addLight(materialRgb, reflectionCol, (1.0 - w) * uReflLighten);
     }
 
-    float3 bigCol = contentBig(fragCoord);
+    // 内区的折射色就取在 fragCoord 上，与 contentBig 的中心抽头重合，直接复用；
+    // 用 if 而不是三元，避免 select 语义把两条取值都算一遍。
+    float3 bigCenter;
+    if (inner) { bigCenter = refractionCol; } else { bigCenter = sampleContent(fragCoord); }
+    float3 bigCol = contentBig(fragCoord, bigCenter);
 
     float4 glassMaterial = processGlassColor(materialRgb, bigCol);
 
