@@ -61,6 +61,7 @@ import com.haooz.chedule.ui.glass.SoftGlassStyle
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.courseCardTextColor
 import com.haooz.chedule.ui.theme.rememberCourseColors
+import com.haooz.chedule.ui.utils.courseCardNoneTierBacking
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.capsule.ContinuousCapsule
@@ -159,13 +160,14 @@ fun CourseCard(
     // 无材质档（App 根部 provide）：一个玻璃节点都不挂，卡片退回普通半透明表面
     val materialsEnabled = !LocalMaterialNoneEnabled.current
     /**
-     * 是否用「一层底色 + 一层着色」的表面堆叠。
+     * 是否用「一层底色 + 一层着色」的**玻璃堆叠**（白/黑垫底 → 课程色 → 玻璃）。
      *
-     * 有材质档 = 玻璃可用时；**无材质档照样用同一套堆叠**，只是底下没有玻璃 ——
-     * 剩下的正好是「白/黑不透明底 + 课程色着色」的普通半透明卡片，比纯色模式多一层体积感。
-     * 有材质档但采样源缺失（无壁纸 / 非 Android）仍走纯色模式，保持原观感。
+     * 只由采样源决定：玻璃没得采（无材质档 / 无壁纸 / 非 Android）就走下面的纯色分支。
+     * ⚠ 无材质档**不要**并进来：纯色分支本身已经是「页底色 @0.92（[solidBackingColor]）
+     * + 课程色」两层，正好是需要的效果；再叠一档白/黑就成了三层底色，
+     * 课程色被稀释、文字还会因为 `hasBlur` 走玻璃分支被提亮成近白 —— 白底白字。
      */
-    val layeredSurface = glassSourceReady || !materialsEnabled
+    val layeredSurface = glassSourceReady
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
     val scope = rememberCoroutineScope()
     val localDensity = LocalDensity.current
@@ -232,8 +234,9 @@ fun CourseCard(
         }
     }
 
-    // 玻璃底自带壁纸色，会把课程色压淡，所以有壁纸时把着色再放大一档（15% → 19.5%）
-    val effectiveAlpha = (if (layeredSurface) cardAlpha * 1.3f else cardAlpha).coerceIn(0f, 1f)
+    // 玻璃底自带壁纸色，会把课程色压淡，所以**真有玻璃**时把着色再放大一档（15% → 19.5%）。
+    // 判据必须是 glassSourceReady 而不是 layeredSurface：无材质档没有玻璃可压，放大只会过浓。
+    val effectiveAlpha = (if (glassSourceReady) cardAlpha * 1.3f else cardAlpha).coerceIn(0f, 1f)
     val courseColors = rememberCourseColors(course, isDark)
     val useMonet = MiuixTheme.isDynamicColor
     val inactiveColor =
@@ -253,11 +256,15 @@ fun CourseCard(
         }
     }
     val themeBackground = MiuixTheme.colorScheme.background
+    // 垫底色：无壁纸时由宿主给（页底色 @0.92）；无材质档**有壁纸**时宿主给 null，
+    // 这一档没有玻璃替它挡壁纸，得自己补同值的一层，否则卡片只剩 15% 课程色、壁纸直接透上来。
+    val cardBacking = solidBackingColor
+        ?: if (!materialsEnabled) courseCardNoneTierBacking(isDark) else null
     val monetCardBackground =
-        remember(cardColor, solidBackingColor, themeBackground, layeredSurface, cardSurfaceAlpha, isDark) {
-            val backing = solidBackingColor?.compositeOver(themeBackground) ?: themeBackground
+        remember(cardColor, cardBacking, themeBackground, glassSourceReady, cardSurfaceAlpha, isDark) {
+            val backing = cardBacking?.compositeOver(themeBackground) ?: themeBackground
             val surface = cardColor.compositeOver(backing)
-            if (layeredSurface) {
+            if (glassSourceReady) {
                 (if (isDark) Color.Black else Color.White)
                     .copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f)).compositeOver(surface)
             } else surface
@@ -270,7 +277,7 @@ fun CourseCard(
         isCurrentWeek,
         isHoliday,
         isCourseCancelled,
-        layeredSurface,
+        glassSourceReady,
         isDark,
         cardTextColor,
     ) {
@@ -283,7 +290,9 @@ fun CourseCard(
             isCurrentWeek = isCurrentWeek,
             isHoliday = isHoliday,
             isCourseCancelled = isCourseCancelled,
-            hasBlur = layeredSurface,
+            // hasBlur 走的是「玻璃卡」口径（课程色提亮降饱和 / 非本周用半透明白黑）。
+            // 无材质档没有模糊，必须 false，否则字被提亮后落在近白底上几乎看不见。
+            hasBlur = glassSourceReady,
             isDark = isDark,
             cardTextColor = cardTextColor,
         )
@@ -447,8 +456,8 @@ fun CourseCard(
         // 仅按压/拖拽/落地涟漪动画时挂；松手即撤，缩放回弹让位给无层路径。
         val needTransformLayer = sinkPressed || sinkActive || isDragging || rippleAnimating
         // 垫底纯色 + 课程色两次填充压成一次（链条越靠前越先画，与 flattenStackedFills 同向）
-        val filledCardColor = remember(solidBackingColor, cardColor) {
-            if (solidBackingColor != null) flattenStackedFills(solidBackingColor, cardColor)
+        val filledCardColor = remember(cardBacking, cardColor) {
+            if (cardBacking != null) flattenStackedFills(cardBacking, cardColor)
             else cardColor
         }
         // 纯色模式（无壁纸）不画描边：底色本身就和页面背景分得开，那圈线只会显脏

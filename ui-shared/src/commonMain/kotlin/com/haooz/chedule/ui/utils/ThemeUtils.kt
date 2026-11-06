@@ -42,6 +42,14 @@ fun courseCardSolidBacking(isDark: Boolean, hasWallpaper: Boolean): Color? =
     else schedulePageBackgroundColor(isDark).copy(alpha = COURSE_CARD_BACKING_ALPHA)
 
 /**
+ * 无材质档的卡片垫底色：这一档没有玻璃替它挡住壁纸，卡片必须自带一层近不透明的底。
+ * 与 [courseCardSolidBacking] 同值，两种情况下卡片浓淡才一致（「一层底色 + 一层课程色」）。
+ */
+@Composable
+fun courseCardNoneTierBacking(isDark: Boolean): Color =
+    schedulePageBackgroundColor(isDark).copy(alpha = COURSE_CARD_BACKING_ALPHA)
+
+/**
  * 主题亮暗的全局快照，供 draw 阶段这类非组合上下文读取 ——
  * [isAppDarkTheme] 是 `@Composable`，绘制里调不了。由它每次组合后写入。
  * 别名指向 backdrop 的同一实例，保证写入的值就是那边读到的值。
