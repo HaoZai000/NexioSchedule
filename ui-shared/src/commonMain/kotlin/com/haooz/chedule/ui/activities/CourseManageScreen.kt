@@ -354,7 +354,7 @@ fun CourseManageScreen(
                                     isHidden = courseList.any { it.id in hiddenCourseIds },
                                     isSelected = courseName == selectedCourseName,
                                     onClick = { left, top, width, height, snapshot ->
-                                        onCourseClick(courseList, left, top, width, height, snapshot, courseColors.tint, 0.15f)
+                                        onCourseClick(courseList, left, top, width, height, snapshot, courseColors.tint, 0.12f)
                                     },
                                     onLongPress = { left, top, width, height, snapshot ->
                                         onCourseLongPressLayer?.invoke(courseList, left, top, width, height, snapshot)
@@ -765,7 +765,7 @@ private fun CourseManageCard(
     teacher: String,
     classroom: String,
     color: Color,
-    cardAlpha: Float = 0.15f,
+    cardAlpha: Float = 0.12f,
     daySections: List<String>,
     /** 同名课程聚合出的记录条数，>1 时在标题行末尾给一枚「N 节」标记 */
     sectionCount: Int = 1,

@@ -13,19 +13,18 @@ package com.haooz.chedule.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlurEffect
@@ -84,14 +83,16 @@ fun CardExpand(
     AnimatedVisibility(
         visible = visible,
         modifier = modifier,
+        // 淡入淡出不走 enter/exit：AnimatedVisibility 的 graphicsLayer 是常驻的，
+        // 超长内容被它罩住会踩 layer 尺寸上限，下半部分触摸失效。改由下面按动画态临时挂。
         enter = expandVertically(
             animationSpec = CardExpandSpec.HeightSpring,
             expandFrom = expandFrom,
-        ) + if (fade) fadeIn(tween(CardExpandSpec.FADE_MILLIS)) else EnterTransition.None,
+        ),
         exit = shrinkVertically(
             animationSpec = CardExpandSpec.HeightSpring,
             shrinkTowards = expandFrom,
-        ) + if (fade) fadeOut(tween(CardExpandSpec.FADE_MILLIS)) else ExitTransition.None,
+        ),
     ) {
         // 模糊随展开进度走：展开 12dp → 0（从糊到清），收起 0 → 12。
         // ⚠ 只在 `graphicsLayer` 绘制期读 `blurProgress.value`，组合期不读，整段动画零重组。
@@ -107,16 +108,27 @@ fun CardExpand(
             },
             label = "CardExpandBlur",
         ) { state -> if (state == EnterExitState.Visible) 1f else 0f }
+        val alphaProgress = transition.animateFloat(
+            transitionSpec = { tween(CardExpandSpec.FADE_MILLIS) },
+            label = "CardExpandAlpha",
+        ) { state -> if (state == EnterExitState.Visible) 1f else 0f }
+        // 只在动画期间挂 layer：稳定态留着会把超高内容罩进离屏层，下半部分点不到。
+        val animating by remember(transition) {
+            derivedStateOf { transition.currentState != transition.targetState }
+        }
         // ⚠ 必须包一层 Column：`AnimatedVisibility` 内部的 Layout 会把**每个子项都
         // place 在 (0,0)**（它按「只有一个子内容」设计）。直接放多行内容会全部叠在
         // 同一个位置上，看起来像「好几个选项挤成一行」。
         Column(
-            modifier = Modifier.graphicsLayer {
-                val px = CardExpandSpec.BLUR_DP.dp.toPx() * (1f - blurProgress.value)
-                renderEffect = if (px > 0.01f && isRenderEffectSupported()) {
-                    BlurEffect(px, px, TileMode.Decal)
-                } else null
-            }
+            modifier = if (animating) {
+                Modifier.graphicsLayer {
+                    if (fade) alpha = alphaProgress.value
+                    val px = CardExpandSpec.BLUR_DP.dp.toPx() * (1f - blurProgress.value)
+                    renderEffect = if (px > 0.01f && isRenderEffectSupported()) {
+                        BlurEffect(px, px, TileMode.Decal)
+                    } else null
+                }
+            } else Modifier
         ) {
             content()
         }

@@ -96,14 +96,15 @@ fun CourseTimeSettingsScreen(
     scrollBehavior: SharedScrollBehavior? = null,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     /**
-     * 正在 morph 进二级页的作息：源行必须隐藏。
-     * 与今日页（`hiddenCourseIds`）、课程管理页（`isHidden`）同一套做法：隐藏挂在录制层外面，
-     * 录制层继续留内容给二级页重放，否则会出现「源行还在原地 + 一张一样的卡飞上去」的双影。
+     * 二级编辑页是否打开。点作息行时页面**自己**立刻隐藏源行，宿主在退出动画播完后
+     * 把它置 false 才放开；传 null = 本入口没有二级页（桌面预览），不启用隐藏
      */
-    morphingRoutineId: Long? = null,
+    morphActive: Boolean? = null,
 ) {
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
     val repository = remember { CourseRepository() }
+    // 谁被点开就藏谁，不依赖宿主回传 id；可见性由 morphActive 同帧门控，关页即恢复（无异步清状态的一帧空窗）。
+    var hiddenRoutineId by remember { mutableStateOf<Long?>(null) }
     // Rows may disappear while their editor is closing; the page owns their drawing layers.
     val graphicsContext = LocalGraphicsContext.current
     val routineLayers = remember(graphicsContext) { mutableMapOf<Long, GraphicsLayer>() }
@@ -218,8 +219,12 @@ fun CourseTimeSettingsScreen(
                     // 2. 作息方案：点进去才进二级。按项目惯例收在一张 Card 里，行间自动分隔
                     item(key = "routines") {
                         SmallTitle(text = TimeCfgStr.routinesTitle())
+                        // morph 期间整张作息卡都不画，routineLayer 留住上一帧给二级页重放。
+                        val hideRoutinesCard = morphActive == true
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .drawWithContent { if (!hideRoutinesCard) drawContent() },
                             insideMargin = PaddingValues(0.dp)
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
@@ -231,7 +236,7 @@ fun CourseTimeSettingsScreen(
                                     // 都是一次分配 + 一次快照写，滚动期间每帧都会发生
                                     val cardCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
                                     val isActive = config.effectiveRoutineId() == routine.id
-                                    val isMorphing = morphingRoutineId == routine.id
+                                    val isMorphing = morphActive == true && hiddenRoutineId == routine.id
                                     ArrowPreference(
                                         title = routine.name.orDefaultName(TimeCfgStr.defaultRoutineName, TimeCfgStr.seededRoutineName, ImportStr.defaultRoutineName),
                                         // 只有一套作息时没有切换对象，显示「始终生效」而不是日期
@@ -268,6 +273,8 @@ fun CourseTimeSettingsScreen(
                                             hapticFeedback.performHapticFeedback(
                                                 HapticFeedbackType.Confirm
                                             )
+                                            // 先隐藏源行再交给宿主开二级页：同一帧生效，morph 首帧就干净。
+                                            if (morphActive != null) hiddenRoutineId = routine.id
                                             val coords = cardCoords[0]
                                             val bounds = if (coords != null && coords.isAttached) {
                                                 val pos = coords.positionInWindow()
@@ -288,11 +295,11 @@ fun CourseTimeSettingsScreen(
                                         modifier = Modifier
                                             .graphicsLayer { alpha = if (isMorphing) 0f else 1f }
                                             .drawWithContent {
-                                                if (!isMorphing) {
-                                                    routineLayer.record {
-                                                        drawRect(routineBackground)
-                                                        this@drawWithContent.drawContent()
-                                                    }
+                                                // 源行整笔不画（不只是 alpha=0）：连带 drawRect 底色都不留
+                                                if (isMorphing) return@drawWithContent
+                                                routineLayer.record {
+                                                    drawRect(routineBackground)
+                                                    this@drawWithContent.drawContent()
                                                 }
                                                 drawLayer(routineLayer)
                                             }

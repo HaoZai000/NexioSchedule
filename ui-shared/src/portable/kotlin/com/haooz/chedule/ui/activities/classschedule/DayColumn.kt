@@ -101,8 +101,8 @@ fun DayColumn(
     onPendingChange: (day: Int, section: Int) -> Unit = { _, _ -> },
     softGlassSurface: SoftGlassSurface? = null,
     solidBackingColor: Color? = null,
-    cardAlpha: Float = 0.15f,
-    cardSurfaceAlpha: Float = 0.40f,
+    cardAlpha: Float = 0.12f,
+    cardSurfaceAlpha: Float = 0.34f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     showBreakDividers: Boolean = true,
@@ -339,7 +339,7 @@ private fun CourseCardsLayer(
     cardHeightPerSection: Float,
     cardCornerRadius: Float,
     cardAlpha: Float,
-    cardSurfaceAlpha: Float = 0.40f,
+    cardSurfaceAlpha: Float = 0.34f,
     isTablet: Boolean,
     cardContentAlignment: CardContentAlignment,
     cardTextColor: CardTextColor,
@@ -791,7 +791,7 @@ fun SpecialBandOverlay(
     isDark: Boolean,
     cardCornerRadius: Float,
     cardAlpha: Float,
-    cardSurfaceAlpha: Float = 0.40f,
+    cardSurfaceAlpha: Float = 0.34f,
     isTablet: Boolean = false,
     softGlassSurface: SoftGlassSurface? = null,
 
@@ -802,8 +802,8 @@ fun SpecialBandOverlay(
     dayRange: List<Int> = emptyList()
 ) {
     val shownName = name.ifBlank { SchedStr.specialCourses() }
-    // 默认 cardAlpha=0.15 时因子为 1；仅保护最终 alpha
-    val alphaFactor = cardAlpha / 0.15f
+    // 默认 cardAlpha=0.12 时因子为 1；仅保护最终 alpha
+    val alphaFactor = cardAlpha / 0.12f
     val effectiveCornerRadius = if (isTablet) cardCornerRadius * 1.3f else cardCornerRadius
     val isOngoing = rememberIsOngoing(startTime, endTime)
     val bgColor = if (isOngoing) {

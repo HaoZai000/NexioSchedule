@@ -807,12 +807,18 @@ fun CustomizeScheduleScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(
-                        if (anySheetOpen ||
-                            com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()
-                        ) {
+                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) {
                             Modifier
                         } else {
-                            Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                            Modifier.liquidGlassLayerBackdrop(
+                                liquidGlassBackdrop,
+                                // 采样层内容恒为纯透明矩形（drawRect(Color.Transparent)），玻璃只借它的
+                                // 坐标与空图层，像素永不变化 ⇒ 恒定指纹：首帧录一次后每帧都跳过重录，
+                                // 弹窗期间也一样，不必再为省采样而摘节点。
+                                // 节点必须常驻：以前弹窗一开就摘掉，onDetach 把 layerCoordinates 置空，
+                                // drawBackdrop 整笔 return ⇒ 顶栏「取消 / 应用」的材质瞬间消失。
+                                recordKey = "customize-empty-backdrop"
+                            )
                         },
                     ),
                 contentAlignment = Alignment.Center
@@ -1463,7 +1469,7 @@ fun CustomizeScheduleScreen(
                                 label = SchedStr.cardTint(),
                                 value = cardAlphaValue,
                                 valueRange = 0f..1f,
-                                keyPoints = listOf(0.15f),
+                                keyPoints = listOf(0.12f),
                                 enabled = true,
                                 onValueChange = { cardAlphaValue = it },
                                 quantize = { (it * 100f).roundToInt() / 100f },
@@ -1475,7 +1481,7 @@ fun CustomizeScheduleScreen(
                                 label = SchedStr.cardOpacity(),
                                 value = cardSurfaceAlphaValue,
                                 valueRange = 0f..1f,
-                                keyPoints = listOf(0.40f),
+                                keyPoints = listOf(0.34f),
                                 enabled = hasWallpaper,
                                 onValueChange = { if (hasWallpaper) cardSurfaceAlphaValue = it },
                                 quantize = { (it * 100f).roundToInt() / 100f },
@@ -1513,9 +1519,9 @@ fun CustomizeScheduleScreen(
                                 value = cardRefractionValue,
                                 // 无材质档整体关（渲染侧同步强制 OFF），其余档都可调
                                 enabled = hasWallpaper &&
-                                    !com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier(),
+                                    !AppMaterialSettings.isNoneTier(),
                                 onValueChange = { if (hasWallpaper) cardRefractionValue = it },
-                                disabledText = if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) {
+                                disabledText = if (AppMaterialSettings.isNoneTier()) {
                                     SchedStr.noMaterial()
                                 } else {
                                     SchedStr.wallpaperRequired()
@@ -1740,6 +1746,8 @@ fun CustomizeScheduleScreen(
 
                 val sheetBottomPadding =
                     WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 60.dp
+                // 手机版两个弹窗的默认（半屏吸附）高度统一为屏幕 48%；
+                val defaultSheetContentHeight = screenHeightDp().dp * 0.52f
 
                 if (isTablet) {
                     BlurBottomSheetTablet(
@@ -1778,7 +1786,7 @@ fun CustomizeScheduleScreen(
                                 .fillMaxWidth()
                                 .then(
                                     if (LocalBlurBottomSheetContentExpanded.current) Modifier.fillMaxHeight()
-                                    else Modifier.heightIn(max = 580.dp)
+                                    else Modifier.height(defaultSheetContentHeight)
                                 )
                                 .overScrollVertical()
                                 .scrollEndHaptic(
@@ -1831,7 +1839,7 @@ fun CustomizeScheduleScreen(
                                 .fillMaxWidth()
                                 .then(
                                     if (LocalBlurBottomSheetContentExpanded.current) Modifier.fillMaxHeight()
-                                    else Modifier.heightIn(max = 580.dp)
+                                    else Modifier.height(defaultSheetContentHeight)
                                 )
                                 .overScrollVertical()
                                 .scrollEndHaptic(

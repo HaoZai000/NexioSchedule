@@ -43,6 +43,7 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -195,7 +196,7 @@ fun AiImportScreen(
 
             // 解析预览：标题 + 预览卡片 + 警告详情
             val previewVisible = parsedCourses.isNotEmpty() || parsedWarnings.isNotEmpty() || parsedSectionConfig != null
-            if (previewVisible) {
+            CardExpand(visible = previewVisible) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     SmallTitle(
                         text = ImportStr.parsePreview(),
@@ -220,7 +221,7 @@ fun AiImportScreen(
                                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
                             )
                         }
-                        if (parsedWarnings.isNotEmpty()) {
+                        CardExpand(visible = parsedWarnings.isNotEmpty()) {
                             Text(
                                 text = ImportStr.warningsCountN(parsedWarnings.size),
                                 style = MiuixTheme.textStyles.body2,
@@ -241,7 +242,7 @@ fun AiImportScreen(
                                 Spacer(modifier = Modifier.height(4.dp))
                             }
                         }
-                        if (parsedCourses.isNotEmpty()) {
+                        CardExpand(visible = parsedCourses.isNotEmpty()) {
                             TextButton(
                                 text = ImportStr.confirmImportCard(),
                                 onClick = {

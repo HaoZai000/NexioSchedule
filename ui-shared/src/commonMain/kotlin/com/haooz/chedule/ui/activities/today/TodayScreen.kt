@@ -361,7 +361,7 @@ fun TodayScreen(
     jumpToDateTrigger: Int = 0,
     onJumpToDateProcessed: () -> Unit = {},
     /** 有壁纸时白/黑底不透明度（卡片不透明度） */
-    cardSurfaceAlpha: Float = 0.40f,
+    cardSurfaceAlpha: Float = 0.34f,
     /** 柔光玻璃采样源（主内容层算一次，课表 / 今日共用；null = 无玻璃，卡片退回实色） */
     softGlassSurface: SoftGlassSurface? = null,
     /** 主 tab pager 的位置信号：切今日/课表时内容整体平移，必须让玻璃重绘 */
@@ -504,7 +504,7 @@ fun TodayScreen(
 
     // 卡片一律采主 pager 后的共享壁纸层（柔光自己采样），本页不自挂录制层。
     // 无材质档模糊/折射由 displayAppearance 钳 0，但卡片仍采壁纸（着色/不透明度照常生效）。
-    // 不透明度：设置值先按深色模式 ×0.8，再分发（默认亮色 40% / 深色 32%）。
+    // 不透明度：设置值先按深色模式 ×0.8，再分发（默认亮色 34% / 深色 27.2%）。
     // 今日页课程卡 = 基准值；高亮卡（摘要 / 格言）比它再亮 15pp。
     // 课表页相反，用基准值 −15pp，见 AppearanceConfig.scheduleSurfaceAlpha。
     val surfaceDark = isAppDarkTheme()

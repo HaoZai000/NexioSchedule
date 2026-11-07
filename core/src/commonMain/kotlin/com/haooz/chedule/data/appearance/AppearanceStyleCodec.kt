@@ -74,7 +74,7 @@ object AppearanceStyleCodec {
                 offsetRefW = obj.floatOr("offsetRefW", 0f),
                 offsetRefH = obj.floatOr("offsetRefH", 0f),
                 cardBlur = coerceBlurPx(obj.floatOr("cardBlur", 12f)),
-                cardAlpha = obj.floatOr("cardAlpha", 0.15f),
+                cardAlpha = obj.floatOr("cardAlpha", 0.12f),
                 cardSurfaceAlpha = obj.floatOrNull("cardSurfaceAlpha"),
                 cardHeight = obj.floatOr("cardHeight", 54f),
                 cardCornerRadius = obj.floatOr("cardCornerRadius", 10f),

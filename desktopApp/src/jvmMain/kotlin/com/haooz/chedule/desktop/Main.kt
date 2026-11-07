@@ -172,6 +172,7 @@ private fun DesktopShell() {
                             onAdapterSelected = { _, _ -> },
                         )
                         // 课程时间管理（onEditRoutine 指向宿主路由，桌面端给空实现）
+                        // 没有二级页 ⇒ morphActive 保持 null，点作息行不隐藏源行
                         DesktopPage.CourseTimeSettings -> CourseTimeSettingsScreen(
                             onEditRoutine = { _, _, _ -> },
                             scrollBehavior = scrollBehavior,

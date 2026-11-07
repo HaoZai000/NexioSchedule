@@ -703,6 +703,8 @@ fun TabletSettingsScreen(
                                     refreshTrigger = timeConfigRefreshTrigger,
                                     scrollBehavior = null,
                                     liquidGlassBackdrop = liquidGlassBackdrop,
+                                    // 右栏编辑屏打开期间隐藏源行，关掉动画播完才放开
+                                    morphActive = editingTimeConfig != null,
                                 )
 
                                 TabletSettingsDest.Reminder ->

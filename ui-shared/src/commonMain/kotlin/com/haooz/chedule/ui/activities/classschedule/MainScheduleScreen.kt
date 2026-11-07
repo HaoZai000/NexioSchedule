@@ -227,7 +227,7 @@ fun MainScheduleScreen(
     externalSelectedCourses: MutableState<List<Course>> = mutableStateOf(emptyList()),
 ) {
     val cardAlpha = appearance.cardAlpha
-    // 基准值（深色已 ×0.8）再低 15pp：亮色 40% ⇒ 25%，深色 32% ⇒ 17%。
+    // 基准值（深色已 ×0.8）再低 15pp：亮色 34% ⇒ 19%，深色 27.2% ⇒ 12.2%。
     // 分界带 / 时间轴 / 浮层都从这里取，同页同值。
     val cardSurfaceAlpha = appearance.scheduleSurfaceAlpha(isAppDarkTheme())
     val cardHeightPerSection = appearance.cardHeight

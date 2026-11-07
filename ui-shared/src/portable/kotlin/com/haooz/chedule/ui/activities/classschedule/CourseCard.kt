@@ -108,9 +108,9 @@ fun CourseCard(
     glassBackdrop: Backdrop? = null,
     /** 实时录制版的玻璃样式；必须与网格卡片同一份（见 `rememberScheduleGlassStyle`） */
     glassStyle: SoftGlassStyle? = null,
-    cardAlpha: Float = 0.15f,
+    cardAlpha: Float = 0.12f,
     /** 有壁纸时白/黑底不透明度（卡片不透明度） */
-    cardSurfaceAlpha: Float = 0.40f,
+    cardSurfaceAlpha: Float = 0.34f,
     /**
      * 垫在卡片**最底部**的纯色，通常由调用方传页面底色 @0.8f。
      *
@@ -234,7 +234,7 @@ fun CourseCard(
         }
     }
 
-    // 玻璃底自带壁纸色，会把课程色压淡，所以**真有玻璃**时把着色再放大一档（15% → 19.5%）。
+    // 玻璃底自带壁纸色，会把课程色压淡，所以**真有玻璃**时把着色再放大一档（12% → 15.6%）。
     // 判据必须是 glassSourceReady 而不是 layeredSurface：无材质档没有玻璃可压，放大只会过浓。
     val effectiveAlpha = (if (glassSourceReady) cardAlpha * 1.3f else cardAlpha).coerceIn(0f, 1f)
     val courseColors = rememberCourseColors(course, isDark)
@@ -257,7 +257,7 @@ fun CourseCard(
     }
     val themeBackground = MiuixTheme.colorScheme.background
     // 垫底色：无壁纸时由宿主给（页底色 @0.92）；无材质档**有壁纸**时宿主给 null，
-    // 这一档没有玻璃替它挡壁纸，得自己补同值的一层，否则卡片只剩 15% 课程色、壁纸直接透上来。
+    // 这一档没有玻璃替它挡壁纸，得自己补同值的一层，否则卡片只剩 12% 课程色、壁纸直接透上来。
     val cardBacking = solidBackingColor
         ?: if (!materialsEnabled) courseCardNoneTierBacking(isDark) else null
     val monetCardBackground =

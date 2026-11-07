@@ -13,15 +13,15 @@ data class AppearanceConfig(
      * 出厂默认 12px；与 [AppearanceStyle.cardBlur]、滑杆刻度、JSON 缺省值四处一致。
      */
     val cardBlurRadius: Float = 12f,
-    /** 课程色着色程度（有无壁纸都可调） */
-    val cardAlpha: Float = 0.15f,
+    /** 课程色着色程度（有无壁纸都可调）；出厂默认 12%，与 AppearanceStyle / codec / 滑杆刻度四处一致 */
+    val cardAlpha: Float = 0.12f,
     /**
      * 有壁纸时卡片白/黑底不透明度，即**基准值**。
      *
-     * 分发时深色模式先 ×0.8（默认 40% ⇒ 32%），再按页面加减：
+     * 分发时深色模式先 ×0.8（默认 34% ⇒ 27.2%），再按页面加减：
      * 今日页高亮卡 +0.15、课表页 −0.15。
      */
-    val cardSurfaceAlpha: Float = 0.40f,
+    val cardSurfaceAlpha: Float = 0.34f,
     val cardHeight: Float = 54f,
     val cardCornerRadius: Float = 10f,
     val wallpaperBrightness: Float = 0f,
@@ -46,14 +46,14 @@ data class AppearanceConfig(
  * 设置值 → 基准不透明度。**深色模式先 ×0.8**，之后才套各页面的 ±15pp。
  *
  * 顺序不能反：先加偏移再乘系数，深色下课表页会掉到 0.30×0.8 = 24%，
- * 而正确值是 (0.40×0.8) − 0.15 = 17%。
+ * 而正确值是 (0.34×0.8) − 0.15 = 12.2%。
  */
 fun AppearanceConfig.baseSurfaceAlpha(isDark: Boolean): Float =
     (cardSurfaceAlpha * if (isDark) CombinationDefaults.DARK_SURFACE_ALPHA_FACTOR else 1f)
         .coerceIn(0f, 1f)
 
 /**
- * 课表页专用不透明度：基准 −15pp（默认亮色 40% ⇒ 25%，深色 32% ⇒ 17%）。
+ * 课表页专用不透明度：基准 −15pp（默认亮色 34% ⇒ 19%，深色 27.2% ⇒ 12.2%）。
  *
  * 课程卡、分界带、时间轴卡、拖拽/交换浮层**全部**走这一个入口，
  * 少一处就会出现「拖起来的一瞬间卡片变亮」。
@@ -61,7 +61,7 @@ fun AppearanceConfig.baseSurfaceAlpha(isDark: Boolean): Float =
 fun AppearanceConfig.scheduleSurfaceAlpha(isDark: Boolean): Float =
     (baseSurfaceAlpha(isDark) + CombinationDefaults.SCHEDULE_SURFACE_ALPHA_OFFSET).coerceIn(0f, 1f)
 
-/** 今日页高亮卡：基准 +15pp（默认亮色 40% ⇒ 55%，深色 32% ⇒ 47%）。 */
+/** 今日页高亮卡：基准 +15pp（默认亮色 34% ⇒ 49%，深色 27.2% ⇒ 42.2%）。 */
 fun AppearanceConfig.highlightSurfaceAlpha(isDark: Boolean): Float =
     (baseSurfaceAlpha(isDark) + CombinationDefaults.HIGHLIGHT_SURFACE_ALPHA_BONUS).coerceIn(0f, 1f)
 
@@ -130,7 +130,7 @@ data class AppearanceStyle(
     val offsetRefH: Float = 0f,
     /** 课程卡片模糊半径（**px**，直接喂 `smallBlurRadius`，不乘 density）；出厂默认 12 */
     val cardBlur: Float = 12f,
-    val cardAlpha: Float = 0.15f,
+    val cardAlpha: Float = 0.12f,
     /** 有壁纸时白/黑底不透明度；null=未设置，用默认 */
     val cardSurfaceAlpha: Float? = null,
     val cardHeight: Float = 54f,
@@ -175,21 +175,21 @@ data class AppearanceStyle(
 /** 外观默认值 —— 与滑杆默认值、JSON 缺省值保持一致。 */
 object CombinationDefaults {
     const val CARD_HEIGHT_DEFAULT = 54f
-    const val CARD_SURFACE_ALPHA_DEFAULT = 0.40f
+    const val CARD_SURFACE_ALPHA_DEFAULT = 0.34f
 
     /**
      * 深色模式下白/黑底压得太实，设置值先乘这个系数再分发到各页面。
-     * 默认 40% ⇒ 深色 32%。
+     * 默认 34% ⇒ 深色 27.2%。
      */
     const val DARK_SURFACE_ALPHA_FACTOR = 0.8f
 
     /**
-     * 今日页高亮卡（摘要 / 格言）相对基准值的增量：默认 40% ⇒ 55%。
+     * 今日页高亮卡（摘要 / 格言）相对基准值的增量：默认 34% ⇒ 49%。
      */
     const val HIGHLIGHT_SURFACE_ALPHA_BONUS = 0.15f
 
     /**
-     * 课表页（课程卡 + 分界带）相对基准值的偏移：亮色 40% ⇒ 25%，深色 32% ⇒ 17%。
+     * 课表页（课程卡 + 分界带）相对基准值的偏移：亮色 34% ⇒ 19%，深色 27.2% ⇒ 12.2%。
      *
      * 三档因此是一条对称的梯子：课表 −15pp / 今日课程卡 0 / 今日高亮卡 +15pp。
      */

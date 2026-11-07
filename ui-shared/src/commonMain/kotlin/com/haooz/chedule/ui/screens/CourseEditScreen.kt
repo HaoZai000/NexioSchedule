@@ -164,7 +164,7 @@ fun CourseEditScreen(
     /** Retained source card drawing, owned by the underlying management page. */
     cardSnapshot: TransitionLayerSnapshot?,
     cardColor: Color = Color(0xFF4CAF50),
-    cardAlpha: Float = 0.15f,
+    cardAlpha: Float = 0.12f,
     onBackStart: () -> Unit,
     onBack: () -> Unit,
     onCourseUpdated: (Course) -> Unit = { _ -> },

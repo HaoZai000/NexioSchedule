@@ -943,8 +943,6 @@ fun CourseTimeSettingsRoute(
     var editingConfig by remember { mutableStateOf<TimeConfig?>(null) }
     var editingRoutineId by remember { mutableStateOf<Long?>(null) }
     var editingCardBounds by remember { mutableStateOf<TimeConfigCardBounds?>(null) }
-    // morph 进二级页期间要隐藏的源行（退出动画播完、回到列表时才放开）
-    var morphingRoutineId by remember { mutableStateOf<Long?>(null) }
     var listRefreshTrigger by remember { mutableIntStateOf(0) }
 
     // Retained source-card drawing; the list page owns the underlying layer.
@@ -981,7 +979,6 @@ fun CourseTimeSettingsRoute(
                             editingRoutineId = routine.id
                             editingCardBounds = bounds
                             cardSnapshot = bounds.snapshot
-                            morphingRoutineId = routine.id
                             coroutineScope.launch {
                                 if (editingExitStarted || currentPage != "edit") return@launch
                                 managePageBlurRadius.animateTo(
@@ -994,7 +991,7 @@ fun CourseTimeSettingsRoute(
                         refreshTrigger = listRefreshTrigger,
                         scrollBehavior = scrollBehavior,
                         liquidGlassBackdrop = liquidGlassBackdrop,
-                        morphingRoutineId = morphingRoutineId,
+                        morphActive = currentPage == "edit",
                     )
                 }
             }
@@ -1023,7 +1020,6 @@ fun CourseTimeSettingsRoute(
                             editingRoutineId = null
                             editingCardBounds = null
                             cardSnapshot = null
-                            morphingRoutineId = null
                         },
                         onSave = { savedConfig ->
                             // 只替换这一个作息；节次骨架由一级页面管理，这里不碰。
@@ -1090,7 +1086,7 @@ fun CourseManageRoute(
     var cardHeight by remember { mutableFloatStateOf(0f) }
     var cardSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
     var cardColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
-    var cardAlpha by remember { mutableFloatStateOf(0.15f) }
+    var cardAlpha by remember { mutableFloatStateOf(0.12f) }
     var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
     var shrinkingCourseIds by remember { mutableStateOf(setOf<String>()) }
     var pendingAutoExitDeleteIds by remember { mutableStateOf(setOf<String>()) }

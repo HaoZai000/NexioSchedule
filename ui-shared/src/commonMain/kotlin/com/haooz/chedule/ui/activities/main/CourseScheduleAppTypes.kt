@@ -68,7 +68,7 @@ data class ScheduleCombination(
     val scale: Float,
     var snapshot: ImageBitmap? = null,
     var cardBlurRadius: Float = 12f,
-    var cardAlpha: Float = 0.15f,
+    var cardAlpha: Float = 0.12f,
     var cardSurfaceAlpha: Float? = null,
     var cardHeight: Float = 54f,
     var cardCornerRadius: Float = 10f,
@@ -91,7 +91,7 @@ fun AppearanceConfig.Companion.fromCombination(c: ScheduleCombination): Appearan
     AppearanceConfig(
         cardBlurRadius = c.cardBlurRadius,
         cardAlpha = c.cardAlpha.coerceIn(0f, 1f),
-        cardSurfaceAlpha = (c.cardSurfaceAlpha ?: 0.40f).coerceIn(0f, 1f),
+        cardSurfaceAlpha = (c.cardSurfaceAlpha ?: 0.34f).coerceIn(0f, 1f),
         cardHeight = c.cardHeight,
         cardCornerRadius = c.cardCornerRadius,
         wallpaperBrightness = c.wallpaperBrightness,

@@ -45,7 +45,7 @@ data class CombinationStyle(
     val offsetRefH: Float = 0f,
     /** 课程卡片模糊半径（dp） */
     val cardBlur: Float = 4f,
-    val cardAlpha: Float = 0.15f,
+    val cardAlpha: Float = 0.12f,
     /** 有壁纸时白/黑底不透明度；null=未设置，用默认 */
     val cardSurfaceAlpha: Float? = null,
     val cardHeight: Float = 54f,
