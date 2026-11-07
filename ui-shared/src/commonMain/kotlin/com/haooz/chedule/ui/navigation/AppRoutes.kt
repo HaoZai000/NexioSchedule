@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -135,6 +136,7 @@ import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.scheduleViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
 import com.haooz.chedule.viewmodel.shiftViewModel
+import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.isRenderEffectSupported
 import kotlin.time.Duration.Companion.milliseconds
@@ -1151,9 +1153,10 @@ fun CourseManageRoute(
     // 圆角：Android 读系统真实圆角（自由小窗固定 20dp）；iOS/桌面返回 0 = 不裁切
     val screenCornerRadius = rememberScreenCornerRadiiPx()
 
-    // 二级编辑页 / 快捷菜单各自独立的玻璃采样源
+    // 二级编辑页独立采样源；快捷菜单采课程管理页的内容层（空层渲染不出材质）
     val editLiquidGlassBackdrop = rememberLayerBackdrop()
     val shortcutMenuBackdrop = rememberLayerBackdrop()
+    var managePageBackdrop by remember { mutableStateOf<Backdrop?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 主内容（模糊 + 快捷菜单页面缩放）
@@ -1179,6 +1182,7 @@ fun CourseManageRoute(
                     title = ChromeStr.courseManage(),
                     onBack = { router.popBack() },
                 ) { scrollBehavior, liquidGlassBackdrop ->
+                    SideEffect { managePageBackdrop = liquidGlassBackdrop }
                     CourseManageScreen(
                         scrollBehavior = scrollBehavior,
                         hiddenCourseIds = hiddenCourseIds,
@@ -1405,7 +1409,7 @@ fun CourseManageRoute(
                 x = with(density) { shortcutMenuPosition.x.toDp() - 14.dp },
                 y = with(density) { shortcutMenuPosition.y.toDp() - shortcutMenuHeight.toDp() + 4.dp }
             ),
-            backdrop = shortcutMenuBackdrop,
+            backdrop = managePageBackdrop ?: shortcutMenuBackdrop,
             onDismiss = { showShortcutMenu = false },
             onMeasuredSize = { _, height ->
                 shortcutMenuHeight = height.toFloat()

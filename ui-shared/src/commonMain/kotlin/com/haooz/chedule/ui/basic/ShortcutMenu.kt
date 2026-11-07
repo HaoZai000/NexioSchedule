@@ -54,14 +54,15 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.interactive.DragSelectAxis
+import top.yukonga.miuix.kmp.interactive.DropdownMaskMode
 import top.yukonga.miuix.kmp.interactive.DropdownPanelDragSelectState
 import top.yukonga.miuix.kmp.interactive.computeDragTransform
 import top.yukonga.miuix.kmp.interactive.dropdownPanelDragSelect
 import top.yukonga.miuix.kmp.interactive.dropdownPanelEntry
+import top.yukonga.miuix.kmp.interactive.dropdownPanelSlidingMask
 import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -115,7 +116,7 @@ fun ShortcutMenu(
     val cornerRadiusPx = with(density) { 18.dp.toPx() }
     // drawBackdrop 按引用比较 shape / effects / onDrawSurface；lambda 每帧新建会让节点
     // 每帧 invalidateDraw、重新录制采样层并重跑采样。
-    val shortcutShapeBlock: () -> Shape = remember { { ContinuousRoundedRectangle(18.dp) } }
+    val shortcutShapeBlock: () -> Shape = remember { { ContinuousRoundedRectangle(20.dp) } }
     val glassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
         remember(glassBlur, glassEffectsOn, shortcutGlassStyle, cornerRadiusPx) {
             {
@@ -146,7 +147,12 @@ fun ShortcutMenu(
     val hapticFeedback = LocalHapticFeedback.current
     // 跟手滑选：横排按 X 轴命中，与下拉菜单共用同一套状态 / 遮罩 / 手势
     // （DropdownPanelDragSelect：按下命中 → 逐帧改命中 → 松手执行）
-    val dragSelectState = remember { DropdownPanelDragSelectState(DragSelectAxis.Horizontal) }
+    val dragSelectState = remember {
+        DropdownPanelDragSelectState(
+            axis = DragSelectAxis.Horizontal,
+            maskMode = DropdownMaskMode.Sliding,
+        )
+    }
     // 点按高光与形变共用一个实例：gestureModifier 驱动，modifier 画光，
     // pressProgress / offset 喂给 computeDragTransform 做按压缩放与跟手位移
     val dragScope = rememberCoroutineScope()
@@ -196,10 +202,10 @@ fun ShortcutMenu(
 
     if (alpha.value <= 0f && !show) return
 
-    val itemSize = 36.dp
-    val horizontalPadding = 16.dp
-    val verticalPadding = 8.dp
-    val spacing = 16.dp
+    val itemWidth = 58.dp
+    val itemHeight = 45.dp
+    val contentPadding = 6.dp
+    val itemShape = remember { ContinuousRoundedRectangle(14.dp) }
 
     Box(
         modifier = modifier
@@ -307,8 +313,8 @@ fun ShortcutMenu(
         ) {
             Row(
                 modifier = Modifier
-                    .padding(horizontal = horizontalPadding, vertical = verticalPadding),
-                horizontalArrangement = Arrangement.spacedBy(spacing),
+                    .padding(contentPadding)
+                    .dropdownPanelSlidingMask(dragSelectState, shape = itemShape),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 items.forEach { item ->
@@ -319,13 +325,13 @@ fun ShortcutMenu(
                     }
                     Box(
                         modifier = Modifier
-                            .size(itemSize)
-                            .clip(ContinuousCapsule())
+                            .size(width = itemWidth, height = itemHeight)
+                            .clip(itemShape)
                             // 登记横向区间 + 命中高亮（遮罩色与 150ms 淡变都取菜单同一套）
                             .dropdownPanelEntry(
                                 enabled = true,
                                 state = dragSelectState,
-                                highlightShape = ContinuousCapsule(),
+                                highlightShape = itemShape,
                                 action = activate,
                             )
                             // 面板手势层没有语义动作，读屏/键盘仍要能触发

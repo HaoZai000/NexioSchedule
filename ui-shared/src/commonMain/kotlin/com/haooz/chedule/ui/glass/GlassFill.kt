@@ -56,7 +56,7 @@ data class CustomizeFill(val color: Color) : GlassFill {
     override fun apply(style: SoftGlassStyle, isDark: Boolean): SoftGlassStyle =
         style.filledWith(
             color = color,
-            mix = if (isDark) 0.45f else 0.55f,
+            mix = if (isDark) 0.55f else 0.65f,
         )
 }
 

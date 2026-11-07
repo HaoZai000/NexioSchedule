@@ -240,6 +240,7 @@ fun Modifier.dropdownPanelDragSelect(
  * 几何弹簧与透明度是两条独立 flow，组合期不订阅命中态。 */
 fun Modifier.dropdownPanelSlidingMask(
     state: DropdownPanelDragSelectState,
+    shape: Shape? = null,
 ): Modifier = composed {
     if (state.maskMode != DropdownMaskMode.Sliding) return@composed Modifier
 
@@ -281,7 +282,7 @@ fun Modifier.dropdownPanelSlidingMask(
     // 遮罩画在内容之上：DropdownImpl 的项自带不透明白底，画下面会被吞。
     val appDark = LocalForcedDarkTheme.current ?: rememberAppSettingDark()
     val maskColor = dropdownPanelEntryHighlightColor(appDark)
-    val maskShape = remember { ContinuousRoundedRectangle(17.dp) }
+    val maskShape = remember(shape) { shape ?: ContinuousRoundedRectangle(17.dp) }
     Modifier
         .onGloballyPositioned { state.updateMaskContainer(it) }
         .drawWithContent {
