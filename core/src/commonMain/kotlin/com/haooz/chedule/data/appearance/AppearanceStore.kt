@@ -127,6 +127,9 @@ object AppearanceStore {
     fun getShowBreakDividers(): Boolean = currentStyle().showBreakDividers
     fun saveShowBreakDividers(show: Boolean) = updateStyle { it.copy(showBreakDividers = show) }
 
+    fun getShowWeekGridLines(): Boolean = currentStyle().showWeekGridLines
+    fun saveShowWeekGridLines(show: Boolean) = updateStyle { it.copy(showWeekGridLines = show) }
+
     fun getCardContentAlignment(): CardContentAlignment = currentStyle().safeAlignment
     fun saveCardContentAlignment(alignment: CardContentAlignment) =
         updateStyle { it.copy(cardContentAlignment = alignment) }

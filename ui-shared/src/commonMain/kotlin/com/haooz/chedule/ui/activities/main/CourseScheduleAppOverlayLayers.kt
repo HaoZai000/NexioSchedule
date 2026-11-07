@@ -630,6 +630,9 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 AppearanceStore.saveShowBreakDividers(
                                     appearanceToSave.showBreakDividers
                                 )
+                                AppearanceStore.saveShowWeekGridLines(
+                                    appearanceToSave.showWeekGridLines
+                                )
                                 AppearanceStore.saveCardContentAlignment(
                                     appearanceToSave.cardContentAlignment
                                 )

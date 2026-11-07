@@ -416,8 +416,9 @@ internal fun TimelineAxis(
 ) {
     val accent = scheduleAccentColor()
     val density = LocalDensity.current
-    val hourLineColor = MiuixTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.07f else 0.05f)
-    val railColor = MiuixTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.18f else 0.12f)
+    // 与周视图网格线同一口径（深色比亮色略白一档），两处改动必须同步
+    val hourLineColor = MiuixTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.09f else 0.05f)
+    val railColor = MiuixTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.16f else 0.12f)
     val tickColor = MiuixTheme.colorScheme.onSurfaceVariantActions
     val sectionWidthPx = with(density) { sectionColumnWidth.toPx() }
     val gapPx = with(density) { 2.dp.toPx() }
@@ -429,10 +430,17 @@ internal fun TimelineAxis(
             .height(gridHeight)
             // 每小时一条极淡横线 + 时间列右缘的主轴，卡片压在它们之上
             .drawBehind {
+                // 最上方封边：窗口起点那条 hourLine 落在 y=0，下面的循环会跳过，单独补一条
+                drawLine(
+                    color = hourLineColor,
+                    start = Offset(sectionWidthPx + gapPx, hairlinePx / 2f),
+                    end = Offset(size.width, hairlinePx / 2f),
+                    strokeWidth = hairlinePx,
+                )
                 var hour = layout.windowStart / 60
                 while (hour <= layout.windowEnd / 60) {
                     val y = (hour * 60 - layout.windowStart) * MinuteHeight.toPx()
-                    if (y > 0f) {
+                    if (y > hairlinePx) {
                         drawLine(
                             color = hourLineColor,
                             start = Offset(sectionWidthPx + gapPx, y),

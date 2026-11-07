@@ -381,6 +381,11 @@ fun CustomizeScheduleScreen(
             appearance.showBreakDividers
         )
     }
+    var showWeekGridLinesValue by remember(currentCombinationIndex, sheetResetKey) {
+        mutableStateOf(
+            appearance.showWeekGridLines
+        )
+    }
     var cardContentAlignmentValue by remember(
         currentCombinationIndex,
         sheetResetKey
@@ -445,6 +450,7 @@ fun CustomizeScheduleScreen(
         cardCornerRadius = cardCornerRadiusValue,
         wallpaperBrightness = wallpaperBrightnessValue,
         showBreakDividers = showBreakDividersValue,
+        showWeekGridLines = showWeekGridLinesValue,
         cardContentAlignment = cardContentAlignmentValue,
         cardTextColor = cardTextColorValue,
         cardTextScale = cardTextScaleValue,
@@ -462,6 +468,9 @@ fun CustomizeScheduleScreen(
         onAppearanceChange(buildAppearance())
     }
     LaunchedEffect(showBreakDividersValue) {
+        onAppearanceChange(buildAppearance())
+    }
+    LaunchedEffect(showWeekGridLinesValue) {
         onAppearanceChange(buildAppearance())
     }
     LaunchedEffect(cardContentAlignmentValue) {
@@ -1716,8 +1725,30 @@ fun CustomizeScheduleScreen(
                                     ?: liquidGlassBackdrop,
                                 dropdownColors = liquidGlassDropdownColors,
                             )
-                            // 时间轴没有节次分界线（纵轴是连续时间），开关置灰
-                            val dividersEnabled = scheduleViewMode != ScheduleViewMode.TIMELINE
+                            // 时间轴没有节次网格（纵轴是连续时间），下面两个开关都置灰
+                            val weekGridEnabled = scheduleViewMode == ScheduleViewMode.WEEK
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = SchedStr.weekGridLines(),
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 17.sp,
+                                    color = MiuixTheme.colorScheme.onSurface.copy(
+                                        alpha = if (weekGridEnabled) 1f else 0.4f
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Switch(
+                                    checked = showWeekGridLinesValue,
+                                    onCheckedChange = { showWeekGridLinesValue = it },
+                                    enabled = weekGridEnabled
+                                )
+                            }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1730,14 +1761,14 @@ fun CustomizeScheduleScreen(
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 17.sp,
                                     color = MiuixTheme.colorScheme.onSurface.copy(
-                                        alpha = if (dividersEnabled) 1f else 0.4f
+                                        alpha = if (weekGridEnabled) 1f else 0.4f
                                     ),
                                     modifier = Modifier.weight(1f)
                                 )
                                 Switch(
                                     checked = showBreakDividersValue,
                                     onCheckedChange = { showBreakDividersValue = it },
-                                    enabled = dividersEnabled
+                                    enabled = weekGridEnabled
                                 )
                             }
                         }

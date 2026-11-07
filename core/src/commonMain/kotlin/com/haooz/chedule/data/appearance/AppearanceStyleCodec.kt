@@ -22,7 +22,7 @@ object AppearanceStyleCodec {
         "cardBlur", "cardAlpha", "cardSurfaceAlpha",
         "cardHeight",
         "cardCornerRadius", "wallpaperBrightness", "wallpaperIsLight",
-        "showBreakDividers", "cardContentAlignment", "cardTextColor",
+        "showBreakDividers", "showWeekGridLines", "cardContentAlignment", "cardTextColor",
         "cardTextScale", "showClassroom", "showTeacher", "cardRefraction",
         "cardEdgeThickness", "cardRim", "wallpaperBlur"
     )
@@ -43,6 +43,7 @@ object AppearanceStyleCodec {
                 put("wallpaperBrightness", JsonPrimitive(style.wallpaperBrightness))
                 style.wallpaperIsLight?.let { put("wallpaperIsLight", JsonPrimitive(it)) }
                 put("showBreakDividers", JsonPrimitive(style.showBreakDividers))
+                put("showWeekGridLines", JsonPrimitive(style.showWeekGridLines))
                 style.cardContentAlignment?.let { put("cardContentAlignment", JsonPrimitive(it.ordinal)) }
                 style.cardTextColor?.let { put("cardTextColor", JsonPrimitive(it.ordinal)) }
                 put("cardTextScale", JsonPrimitive(style.cardTextScale))
@@ -81,6 +82,7 @@ object AppearanceStyleCodec {
                 wallpaperBrightness = obj.floatOr("wallpaperBrightness", 0f),
                 wallpaperIsLight = obj["wallpaperIsLight"]?.let { it as? JsonPrimitive }?.booleanOrNull,
                 showBreakDividers = obj.boolOr("showBreakDividers", true),
+                showWeekGridLines = obj.boolOr("showWeekGridLines", false),
                 cardContentAlignment = obj.enumOr("cardContentAlignment") { CardContentAlignment.fromOrdinal(it) },
                 cardTextColor = obj.enumOr("cardTextColor") { CardTextColor.fromOrdinal(it) },
                 cardTextScale = obj.floatOr("cardTextScale", 1f),

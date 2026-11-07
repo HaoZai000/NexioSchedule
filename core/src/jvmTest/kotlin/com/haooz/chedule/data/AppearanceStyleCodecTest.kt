@@ -61,6 +61,8 @@ class AppearanceStyleCodecTest {
         assertEquals(-0.1f, decoded.wallpaperBrightness)
         assertEquals(true, decoded.wallpaperIsLight)
         assertEquals(false, decoded.showBreakDividers)
+        // 新加的网格线开关：老快照缺键必须回落「关」，不能凭默认把线画出来
+        assertEquals(false, decoded.showWeekGridLines)
         assertEquals(1.2f, decoded.cardTextScale)
         assertEquals(false, decoded.showClassroom)
         assertEquals(true, decoded.showTeacher)
@@ -96,6 +98,7 @@ class AppearanceStyleCodecTest {
             cardHeight = 45f, cardCornerRadius = 16f,
             wallpaperBrightness = 0.25f, wallpaperIsLight = false,
             showBreakDividers = false,
+            showWeekGridLines = true,
             cardContentAlignment = CardContentAlignment.CENTER_START,
             cardTextColor = CardTextColor.SOLID,
             cardTextScale = 0.85f, showClassroom = false, showTeacher = false,

@@ -61,6 +61,7 @@ object SchedStr {
     val showClassroom = L("显示地点", "Show classroom")
     val showTeacher = L("显示教师", "Show teacher")
     val breakDividers = L("午休晚休分界线", "Lunch/dinner break dividers")
+    val weekGridLines = L("周视图网格线", "Week view grid lines")
 
     // ── 网页导入（WebView） ──
     val importDone = L("导入完成", "Import completed")

@@ -54,6 +54,8 @@ data class CombinationStyle(
     /** null=无壁纸/未测光 */
     val wallpaperIsLight: Boolean? = null,
     val showBreakDividers: Boolean = true,
+    /** 周视图网格分割线；出厂默认关（老数据缺键 = false） */
+    val showWeekGridLines: Boolean = false,
     val cardContentAlignment: CardContentAlignment? = null,
     val cardTextColor: CardTextColor? = null,
     val cardTextScale: Float = 1f,
@@ -69,7 +71,7 @@ data class CombinationStyle(
             "cardBlur", "cardAlpha", "cardSurfaceAlpha",
             "cardHeight",
             "cardCornerRadius", "wallpaperBrightness", "wallpaperIsLight",
-            "showBreakDividers", "cardContentAlignment", "cardTextColor",
+            "showBreakDividers", "showWeekGridLines", "cardContentAlignment", "cardTextColor",
             "cardTextScale", "showClassroom", "showTeacher", "cardRefraction",
             "wallpaperBlur"
         )

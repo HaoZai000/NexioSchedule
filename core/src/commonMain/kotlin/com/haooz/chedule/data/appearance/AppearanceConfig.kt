@@ -26,6 +26,8 @@ data class AppearanceConfig(
     val cardCornerRadius: Float = 10f,
     val wallpaperBrightness: Float = 0f,
     val showBreakDividers: Boolean = true,
+    /** 周视图网格分割线（节次横线 + 天列竖线） */
+    val showWeekGridLines: Boolean = false,
     val cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
     val cardTextColor: CardTextColor = CardTextColor.COLORFUL,
     /** 卡片文字缩放比例：作用于课程名称、教室、教师，0.5~2.0 */
@@ -79,6 +81,7 @@ fun AppearanceConfig.Companion.fromStyle(style: AppearanceStyle): AppearanceConf
     cardCornerRadius = style.cardCornerRadius,
     wallpaperBrightness = style.wallpaperBrightness,
     showBreakDividers = style.showBreakDividers,
+    showWeekGridLines = style.showWeekGridLines,
     cardContentAlignment = style.safeAlignment,
     cardTextColor = style.safeTextColor,
     cardTextScale = style.safeCardTextScale,
@@ -139,6 +142,8 @@ data class AppearanceStyle(
     /** null=无壁纸/未测光 */
     val wallpaperIsLight: Boolean? = null,
     val showBreakDividers: Boolean = true,
+    /** 周视图网格分割线（节次横线 + 天列竖线）*/
+    val showWeekGridLines: Boolean = false,
     val cardContentAlignment: CardContentAlignment? = null,
     val cardTextColor: CardTextColor? = null,
     val cardTextScale: Float = 1f,

@@ -233,6 +233,7 @@ fun MainScheduleScreen(
     val cardHeightPerSection = appearance.cardHeight
     val cardCornerRadius = appearance.cardCornerRadius
     val showBreakDividers = appearance.showBreakDividers
+    val showWeekGridLines = appearance.showWeekGridLines
     val cardContentAlignment = appearance.cardContentAlignment
     val cardTextColor = appearance.cardTextColor
     val cardTextScale = appearance.cardTextScale
@@ -1128,6 +1129,95 @@ fun MainScheduleScreen(
                                                 if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier.padding(
                                                     end = 2.dp
                                                 )
+                                            )
+                                            .then(
+                                                if (showWeekGridLines) {
+                                                    val lineColor = MiuixTheme.colorScheme.onSurface.copy(
+                                                        alpha = if (scheduleIsDark) 0.09f else 0.05f
+                                                    )
+                                                    val railColor = MiuixTheme.colorScheme.onSurface.copy(
+                                                        alpha = if (scheduleIsDark) 0.16f else 0.12f
+                                                    )
+                                                    val sectionWidthDp = scheduleSectionColumnWidth(isTablet)
+                                                    val breakBandsPx = if (showBreakDividers) {
+                                                        val bandHeightPx = with(density) { 24.dp.toPx() }
+                                                        specialGrid.dividerY.map { topDp ->
+                                                            val topPx = with(density) { topDp.dp.toPx() }
+                                                            topPx to topPx + bandHeightPx
+                                                        }
+                                                    } else emptyList<Pair<Float, Float>>()
+                                                    Modifier.drawBehind {
+                                                        val hairline = with(density) { 1.dp.toPx() }
+                                                            .coerceAtLeast(1f)
+                                                        val sectionWidthPx = with(density) {
+                                                            sectionWidthDp.toPx()
+                                                        }
+                                                        val columnCount = pageDayRange.size
+                                                        val dayWidthPx = if (columnCount > 0) {
+                                                            (size.width - sectionWidthPx) / columnCount
+                                                        } else 0f
+                                                        // 带子中间不画，不贯穿午/晚休分界线。
+                                                        val rowYs = mutableListOf<Float>()
+                                                        for (s in 1..totalSections) {
+                                                            val yDp = specialGrid.sectionTop[s] ?: continue
+                                                            rowYs += with(density) { yDp.dp.toPx() }
+                                                        }
+                                                        breakBandsPx.forEach { (top, bottom) ->
+                                                            rowYs += top
+                                                            rowYs += bottom
+                                                        }
+                                                        val topEdgeY = hairline / 2f
+                                                        val bottomEdgeY = size.height - hairline / 2f
+                                                        rowYs += topEdgeY
+                                                        rowYs += bottomEdgeY
+                                                        var lastY = Float.NEGATIVE_INFINITY
+                                                        for (y in rowYs.sorted()) {
+                                                            val lineY = y.coerceIn(topEdgeY, bottomEdgeY)
+                                                            if (lineY <= lastY + 1f) continue
+                                                            lastY = lineY
+                                                            drawLine(
+                                                                color = lineColor,
+                                                                start = Offset(sectionWidthPx, lineY),
+                                                                end = Offset(size.width, lineY),
+                                                                strokeWidth = hairline,
+                                                            )
+                                                        }
+                                                        if (dayWidthPx > 0f) {
+                                                            for (i in 0..columnCount) {
+                                                                val x = if (i == columnCount) {
+                                                                    // 内缩半个线宽，右封边才不会被裁掉一半
+                                                                    size.width - hairline / 2f
+                                                                } else sectionWidthPx + dayWidthPx * i
+                                                                val color = if (i == 0) railColor else lineColor
+                                                                var segStart = 0f
+                                                                for ((bandTop, bandBottom) in breakBandsPx) {
+                                                                    val segEnd = bandTop
+                                                                        .coerceIn(0f, size.height)
+                                                                        .coerceAtLeast(segStart)
+                                                                    if (segEnd > segStart) {
+                                                                        drawLine(
+                                                                            color = color,
+                                                                            start = Offset(x, segStart),
+                                                                            end = Offset(x, segEnd),
+                                                                            strokeWidth = hairline,
+                                                                        )
+                                                                    }
+                                                                    segStart = bandBottom
+                                                                        .coerceIn(0f, size.height)
+                                                                        .coerceAtLeast(segStart)
+                                                                }
+                                                                if (segStart < size.height) {
+                                                                    drawLine(
+                                                                        color = color,
+                                                                        start = Offset(x, segStart),
+                                                                        end = Offset(x, size.height),
+                                                                        strokeWidth = hairline,
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                } else Modifier
                                             )
                                     ) {
                                         SectionColumn(
