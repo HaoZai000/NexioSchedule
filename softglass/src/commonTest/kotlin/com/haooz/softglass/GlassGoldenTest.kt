@@ -11,7 +11,7 @@ class GlassGoldenTest {
 
     @Test
     fun nexioPresetLocksCurrentDefaults() {
-        val s = GlassPreset.Nexio.style
+        val s = GlassPreset.Default.style
         assertEquals(28f, s.cornerRadius.value)
         assertEquals(60f, s.edgeWidth)
         assertEquals(4f, s.edgePow)
@@ -127,19 +127,19 @@ class GlassGoldenTest {
     }
 
     @Test
-    fun tokenPresetsAreIndependentFromNexio() {
+    fun tokenPresetsAreIndependentFromDefault() {
         val large = GlassPreset.of(GlassToken.COMMON_LARGE_REGULAR).style
         assertEquals(50f, large.edgeWidth)
         assertEquals(80f, large.thickness)
         assertEquals(2.2f, large.saturation)
-        assertNotEquals(GlassPreset.Nexio.style.edgeWidth, large.edgeWidth)
+        assertNotEquals(GlassPreset.Default.style.edgeWidth, large.edgeWidth)
         assertEquals(GlassToken.COMMON_LARGE_REGULAR.spec, GlassPreset.of(GlassToken.COMMON_LARGE_REGULAR))
     }
 
     @Test
     fun chromeStyleFollowsMaterialLevel() {
-        val soft = GlassPreset.Nexio.chromeStyle(GlassMaterialLevel.SOFT, isDark = false)
-        val frosted = GlassPreset.Nexio.chromeStyle(GlassMaterialLevel.FROSTED, isDark = false)
+        val soft = GlassPreset.Default.chromeStyle(GlassMaterialLevel.SOFT, isDark = false)
+        val frosted = GlassPreset.Default.chromeStyle(GlassMaterialLevel.FROSTED, isDark = false)
         assertEquals(1f, soft.refractionScale)
         assertTrue(soft.edgeHighlight)
         assertEquals(0f, frosted.refractionScale)

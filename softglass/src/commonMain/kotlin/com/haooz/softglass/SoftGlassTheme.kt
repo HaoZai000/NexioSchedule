@@ -26,7 +26,7 @@ object GlassEnvironment {
     }
 }
 
-val LocalGlassSpec = compositionLocalOf { GlassPreset.Nexio }
+val LocalGlassSpec = compositionLocalOf { GlassPreset.Default }
 val LocalGlassMaterialLevel = compositionLocalOf { GlassMaterialLevel.SOFT }
 val LocalGlassTuning = compositionLocalOf { GlassMaterialLevel.SOFT.tuning() }
 val LocalGlassIsDark = compositionLocalOf { false }
@@ -43,7 +43,7 @@ val LocalGlassRedrawSignal = staticCompositionLocalOf<() -> Unit> { {} }
 /** 一次注入档位、色调与全部降级口径。 */
 @Composable
 fun SoftGlassTheme(
-    preset: GlassSpec = GlassPreset.Nexio,
+    preset: GlassSpec = GlassPreset.Default,
     level: GlassMaterialLevel = GlassMaterialLevel.SOFT,
     isDark: Boolean,
     hasWallpaper: Boolean = true,

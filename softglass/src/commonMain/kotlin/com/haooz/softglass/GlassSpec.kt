@@ -32,7 +32,8 @@ fun GlassSpec.chromeStyle(
 
 object GlassPreset {
     /** 当前应用口径：与既有默认样式逐字段一致。 */
-    val Nexio: GlassSpec = GlassSpec(SoftGlassStyle())
+    /** 库默认档：HyperOS 大面板档位的完整参数。 */
+    val Default: GlassSpec = GlassSpec(SoftGlassStyle())
 
     fun of(token: GlassToken): GlassSpec = token.spec
 }
