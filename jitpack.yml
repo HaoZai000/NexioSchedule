@@ -1,9 +1,0 @@
-# JitPack 构建配置
-#
-# 只发布 :softglass，不构建整个 Android 宿主工程 ——
-# 宿主侧编译依赖 keystore、assets 索引等发布环境里没有的东西，全量 build 会失败。
-jdk:
-  - openjdk17
-
-install:
-  - ./gradlew :softglass:publishToMavenLocal

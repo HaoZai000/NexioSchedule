@@ -138,7 +138,7 @@ abstract class CheckKmpPurityTask : DefaultTask() {
 }
 
 val puritySourceSets = listOf("commonMain", "skikoMain")
-val purityModules = listOf("core", "softglass", "miuix", "ui-shared")
+val purityModules = listOf("core", "miuix", "ui-shared")
 
 tasks.register<CheckKmpPurityTask>("checkKmpPurity") {
     group = "verification"
