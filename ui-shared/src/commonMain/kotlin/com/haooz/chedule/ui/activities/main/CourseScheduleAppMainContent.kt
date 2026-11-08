@@ -220,8 +220,14 @@ internal fun CourseScheduleAppMainContent(
             todayPagerState,
             mainPagerState,
         ) {
+            var lastRailMorph = Float.NaN
             {
-                scheduleScrollState.isScrollInProgress ||
+                // 侧栏 ↔ 顶栏变形会把整页内容横移，这两层的采样源也跟着变
+                val railMorph = TabletNavSideState.morphProgress.floatValue
+                val morphMoving = railMorph != lastRailMorph
+                lastRailMorph = railMorph
+                morphMoving ||
+                        scheduleScrollState.isScrollInProgress ||
                         todayListScrollInProgress.value ||
                         pagerState.isScrollInProgress ||
                         todayPagerState.isScrollInProgress ||

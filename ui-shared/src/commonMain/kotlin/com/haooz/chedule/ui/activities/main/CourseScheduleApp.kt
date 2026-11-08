@@ -832,6 +832,8 @@ fun CourseScheduleApp(
                 mainPagerState
             ) {
                 var lastRailExpand = Float.NaN
+                // 侧栏 ↔ 顶栏变形也会把整页内容横移，采样源跟着变
+                var lastRailMorph = Float.NaN
                 var lastBlurEpoch = -1
                 // 今日页上一次落定的页号：只在落页后补录一次。
                 // 用 settledPage 而不是 currentPage —— currentPage 在翻到一半就变了，
@@ -844,6 +846,9 @@ fun CourseScheduleApp(
                     val expand = TabletNavSideState.expandProgress.floatValue
                     val expandMoving = expand != lastRailExpand
                     lastRailExpand = expand
+                    val railMorph = TabletNavSideState.morphProgress.floatValue
+                    val morphMoving = railMorph != lastRailMorph
+                    lastRailMorph = railMorph
                     val epochBumped = railBlurResampleEpoch.intValue != lastBlurEpoch
                     lastBlurEpoch = railBlurResampleEpoch.intValue
                     val forceRail = railForceRecordFrames[0] > 0
@@ -858,12 +863,12 @@ fun CourseScheduleApp(
                             todayPageChanged ||
                             mainPagerState.isScrollInProgress ||
                             expandMoving ||
+                            morphMoving ||
                             forceRail ||
                             epochBumped ||
                             // 开洞编辑时主内容持续缩放，绝不能停录
                             latestIsWindowCutout ||
                             (latestShowCustomize && latestIsCustomizeExiting) ||
-                            // Morph progress does not change the source backdrop.
                             shortcutMenuBlurRadius.value > 0.01f ||
                             managePageBlurRadius.value > 0.01f ||
                             // 非静止端点视为动画进行中

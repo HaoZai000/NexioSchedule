@@ -55,7 +55,7 @@ private class TabletNavChromeTitleSlotElement(
         measurable: Measurable,
         constraints: Constraints,
     ): MeasureResult {
-        val sidePad = if (lockCollapsed) {
+        val rawSidePad = if (lockCollapsed) {
             collapsedTotalPx
         } else {
             lerp(
@@ -64,6 +64,10 @@ private class TabletNavChromeTitleSlotElement(
                 TabletNavSideState.expandProgress.floatValue,
             )
         }
+        // 收成顶栏后侧栏不再占位，标题必须跟着回位 —— 与内容区 tabletNavRailStartPadding
+        // 读同一个 morphProgress，两边同一帧、同一个数，不会各走各的。
+        val morph = tabletNavSlideProgress()
+        val sidePad = rawSidePad * (1f - morph).coerceAtLeast(0f)
         val basePad = startInsetPx + sidePad
         val contentW = (maxWPx - basePad).coerceAtLeast(0f)
         // 左栏标题槽与分栏同步：固定屏宽 0.39（maxWPx 即全屏宽）

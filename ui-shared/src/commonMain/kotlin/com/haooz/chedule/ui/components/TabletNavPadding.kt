@@ -2,8 +2,9 @@ package com.haooz.chedule.ui.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
@@ -54,14 +55,36 @@ fun tabletNavRailStartPadding(): Modifier {
     // 竖屏叠层：内容 start padding 恒为折叠轨，展开不改变布局
     if (isPortrait) {
         return TabletNavRailTargetPaddingElement(collapsedTotalPx, collapsedTotalPx)
+            // 用真实布局偏移而不是 graphicsLayer 平移：玻璃采样层只在节点窗口坐标
+            // 变化时才重录，纯绘制变换会让课程卡片里的玻璃一直停在变形前的画面。
+            .offset {
+                // 用横移曲线（含过冲）；过冲段内容已经贴左，不再继续往左推
+                val morph = tabletNavSlideProgress()
+                val layoutPad = if (TabletNavSideState.topBarMode) 0f else collapsedTotalPx
+                // 期望视觉左缘 = basePad*(1-morph)；补掉 layout pad 切换造成的跳变（正反都成立）
+                IntOffset(
+                    (collapsedTotalPx * (1f - morph).coerceAtLeast(0f) - layoutPad).roundToInt(),
+                    0,
+                )
+            }
     }
     return TabletNavRailTargetPaddingElement(collapsedTotalPx, expandedWidthPx)
-        .graphicsLayer {
+        // 同上：真实偏移，玻璃才有机会跟着重采样
+        .offset {
             val p = TabletNavSideState.expandProgress.floatValue
-            val targetPad =
+            val basePad =
                 if (TabletNavSideState.expanded) expandedWidthPx else collapsedTotalPx
-            translationX =
-                lerp(collapsedTotalPx, expandedWidthPx, p) - targetPad
+            val layoutPad = if (TabletNavSideState.topBarMode) 0f else basePad
+            val morph = tabletNavSlideProgress()
+            // 期望视觉左缘随 morph 连续从 basePad 走到 0；减去当前 layout pad，
+            // 无论收起还是展开都补掉状态切换那一帧的跳变。
+            IntOffset(
+                (
+                    (lerp(collapsedTotalPx, expandedWidthPx, p) - basePad) +
+                        (basePad * (1f - morph).coerceAtLeast(0f) - layoutPad)
+                    ).roundToInt(),
+                0,
+            )
         }
 }
 
@@ -74,8 +97,14 @@ private class TabletNavRailTargetPaddingElement(
         measurable: Measurable,
         constraints: Constraints,
     ): MeasureResult {
-        /** 只跟展开布尔、不跟进度：一次伸缩只在这里重排一次 */
-        val padPx = if (TabletNavSideState.expanded) expandedWidthPx else collapsedTotalPx
+        /** 只跟展开/顶栏布尔、不跟进度：一次伸缩只在这里重排一次 */
+        val padPx = if (TabletNavSideState.topBarMode) {
+            0f
+        } else if (TabletNavSideState.expanded) {
+            expandedWidthPx
+        } else {
+            collapsedTotalPx
+        }
         val padInt = padPx.roundToInt().coerceAtLeast(0)
         // 与 Modifier.padding(start=) 同语义：只收窄子约束横向，高度跟内容，不撑满
         val placeable = measurable.measure(
