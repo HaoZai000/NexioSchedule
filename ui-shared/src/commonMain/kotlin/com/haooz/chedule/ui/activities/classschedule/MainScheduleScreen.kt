@@ -34,9 +34,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -82,8 +84,10 @@ import com.haooz.chedule.data.model.TeachingWeekReorganization
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.repo.DayScheduleResolver
+import com.haooz.chedule.data.util.coursePeriodOngoing
 import com.haooz.chedule.data.util.minusDays
 import com.haooz.chedule.data.util.nowLocalTime
+import com.haooz.chedule.data.util.parseHourMinute
 import com.haooz.chedule.data.util.plusDays
 import com.haooz.chedule.data.util.plusWeeks
 import com.haooz.chedule.data.util.todayLocalDate
@@ -95,6 +99,9 @@ import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
 import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.components.LocalSoftGlassSurface
 import com.haooz.chedule.ui.components.SoftGlassSurface
+import com.haooz.chedule.ui.components.rememberRevealPresence
+import com.haooz.chedule.ui.components.rememberScheduleRevealState
+import com.haooz.chedule.ui.components.scheduleRevealLayer
 import com.haooz.chedule.ui.components.text.LocalTextMotionInstant
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.utils.LocalHostNavigation
@@ -227,6 +234,9 @@ fun MainScheduleScreen(
     externalSelectedCourses: MutableState<List<Course>> = mutableStateOf(emptyList()),
 ) {
     val cardAlpha = appearance.cardAlpha
+    // 周页 lambda 只捕获稳定容器；update 必须在组合期同步写
+    val draggingSlotsState = remember { DraggingSlotsState() }
+    draggingSlotsState.update(draggingCourseSlots)
     // 基准值（深色已 ×0.8）再低 15pp：亮色 34% ⇒ 19%，深色 27.2% ⇒ 12.2%。
     // 分界带 / 时间轴 / 浮层都从这里取，同页同值。
     val cardSurfaceAlpha = appearance.scheduleSurfaceAlpha(isAppDarkTheme())
@@ -352,15 +362,14 @@ fun MainScheduleScreen(
     // backdrop 在弹窗作用域读 LocalSheetContentBackdrop，不提升到本页 State
     var selectedCourse by externalSelectedCourse
     var selectedCourses by externalSelectedCourses
-    var pendingDay by remember { mutableIntStateOf(-1) }
-    var pendingSection by remember { mutableIntStateOf(-1) }
+    // 待添加槽位收敛成稳定容器，两个 Int state 不再进周页 content lambda
+    val pendingSlot = remember { PendingSlotState() }
     var viewingWeek by remember { mutableIntStateOf(currentWeek) }
 
     LaunchedEffect(showAddDialog) {
-        if (showAddDialog && pendingDay != -1) {
+        if (showAddDialog && pendingSlot.slot.first != -1) {
             delay(300.milliseconds)
-            pendingDay = -1
-            pendingSection = -1
+            pendingSlot.slot = -1 to -1
         }
     }
 
@@ -750,11 +759,48 @@ fun MainScheduleScreen(
         }
     }
 
+    // 当前上课课程：取「今天这一列实际显示的课」按真实起止时间判定，30 秒一拍且结果变化才写容器
+    val ongoingCourseIdsState = remember { OngoingCourseIdsState() }
+    // 全周表每次写回都换引用，用稳定 lambda 包住数据源，协程才不会被反复取消重启
+    val computeOngoingIds by rememberUpdatedState {
+        val now = nowLocalTime()
+        val today = todayLocalDate().dayOfWeek.isoDayNumber
+        val page = currentWeek - 1
+        val todayIsHoliday = weekDayFlags[page]?.get(today)?.first ?: false
+        val exemptIds = weekHolidayExemptCourseIds[page]?.get(today).orEmpty()
+        val cancelledIds = weekHolidayCancelledCourseIds[page]?.get(today).orEmpty()
+        val candidates = weekFilteredCourses[page]?.get(today)?.third.orEmpty()
+        candidates.mapNotNull { course ->
+            if (todayIsHoliday && course.id !in exemptIds) return@mapNotNull null
+            if (course.id in cancelledIds) return@mapNotNull null
+            val start = course.getEffectiveStartTime(sectionTimes)?.let(::parseHourMinute)
+                ?: return@mapNotNull null
+            val end = course.getEffectiveEndTime(sectionTimes)?.let(::parseHourMinute)
+                ?: return@mapNotNull null
+            if (!coursePeriodOngoing(start, end, now)) return@mapNotNull null
+            course.id
+        }.toSet()
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val next = computeOngoingIds()
+            if (next != ongoingCourseIdsState.ids) ongoingCourseIdsState.ids = next
+            delay(30_000L)
+        }
+    }
+    // 数据或周次一变（调课落地、导入、翻周）立刻重算，不等节拍；键取自表本身，变了才换引用
+    LaunchedEffect(
+        weekFilteredCourses, weekDayFlags, weekHolidayExemptCourseIds,
+        weekHolidayCancelledCourseIds, sectionTimes, currentWeek,
+    ) {
+        val next = computeOngoingIds()
+        if (next != ongoingCourseIdsState.ids) ongoingCourseIdsState.ids = next
+    }
+
     @Suppress("RedundantInitializer")
     val onPendingChange: (Int, Int) -> Unit = remember {
         { day, section ->
-            pendingDay = day
-            pendingSection = section
+            pendingSlot.slot = day to section
         }
     }
 
@@ -790,24 +836,9 @@ fun MainScheduleScreen(
             val latestScreenWidthPx by rememberUpdatedState(screenWidthPx)
             val latestScreenHeightPx by rememberUpdatedState(screenHeightPx)
 
-            // 指针作用域内无法直接 animate，经状态触发回弹
-            var bounceBackTrigger by remember { mutableIntStateOf(0) }
-            var gestureEndScale by remember { mutableFloatStateOf(1f) }
-            LaunchedEffect(bounceBackTrigger) {
-                if (bounceBackTrigger > 0 && gestureEndScale < latestMinWallpaperScale) {
-                    animate(
-                        initialValue = gestureEndScale,
-                        targetValue = latestMinWallpaperScale,
-                        animationSpec = tween(
-                            durationMillis = 350,
-                            easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f)
-                        )
-                    ) { value, _ ->
-                        onWallpaperScaleChange(value)
-                    }
-                }
-            }
-
+            // 回弹状态由独立 composable 订阅，不能在本 content 直读（会重建周页 lambda）
+            val bounceState = remember { WallpaperBounceState() }
+            WallpaperBounceBack(bounceState, minWallpaperScale, onWallpaperScaleChange)
 
             // 预组合策略全在 WeekPagerHost 内（滚动收拢到 1 / 停稳 2 / 边缘驻留 3），
             // beyond 翻转只重组 Host，不重建页内容 lambda。
@@ -874,6 +905,10 @@ fun MainScheduleScreen(
                             LocalSoftGlassSurface provides softGlassSurface,
                             LocalGlassRedrawSignal provides glassRedrawSignal,
                             LocalOverScrollState provides overScrollState,
+                            // 只有当前周这一页发光；翻到别的周不该把历史课点亮
+                            LocalOngoingCourseIds provides if (week == currentWeek) {
+                                ongoingCourseIdsState
+                            } else EmptyOngoingCourseIds,
                         ) {
                             // 时间轴视图：同一个 pager 页，把「节次」纵轴换成真实时间纵轴。
                             // 早退而不是 if/else 包住下面整段网格：条件分支的 group 处理与 if/else 等价。
@@ -957,7 +992,7 @@ fun MainScheduleScreen(
                                         onCourseLongPress(course, cx, cy, w, h, displayWeek)
                                     },
                                     // 浮层期间隐藏原卡
-                                    hiddenSlots = draggingCourseSlots,
+                                    hiddenSlotsState = draggingSlotsState,
                                     // 与网格卡片同一入口：调休列用该列映射后的周次查槽位
                                     onCourseClick = { course, displayWeek ->
                                         val coursesAtSlot = viewModel.getCoursesAtSlot(
@@ -1017,10 +1052,12 @@ fun MainScheduleScreen(
                                 Box(modifier = Modifier.fillMaxWidth()) {
                                     val dayBoundsArray = remember { arrayOfNulls<FloatArray>(8) }
                                     var lastDayBoundsVersion by remember { mutableIntStateOf(0) }
-                                    val isScheduleScrolling by scheduleScrollInProgress
-                                    LaunchedEffect(isScheduleScrolling) {
-                                        // 停滑后冲刷：滑动中 onGloballyPositioned 只写数组不递增版本号
-                                        if (!isScheduleScrolling) lastDayBoundsVersion++
+                                    // 在协程里订阅滚动状态，不能在此 content 直读（会重建周页 lambda）
+                                    LaunchedEffect(Unit) {
+                                        snapshotFlow { scheduleScrollInProgress.value }
+                                            .collect { scrolling ->
+                                                if (!scrolling) lastDayBoundsVersion++
+                                            }
                                     }
                                     // 用当前（始终实时写入的）dayBounds 数组拼几何。
                                     // 长按瞬间同步推一次，避免“停滑冲刷”晚于长按导致上层拿到旧页 dayBounds（菜单错位/浮层消失）
@@ -1072,39 +1109,58 @@ fun MainScheduleScreen(
                                             isTablet
                                         )
                                     val bandEndPadding = if (isTablet) 24.dp else 2.dp
-                                    // 特殊课程横带：作为 Row 下层背景条带，起止时间由左侧时间列标注
-                                    specialGrid.specialBands.forEach { band ->
-                                        val bandItems = remember(specialBlocks, band.blockId) {
-                                            specialBlocks.firstOrNull { it.id == band.blockId }?.safeItems
-                                                ?: emptyList()
-                                        }
-                                        // 只覆盖周一~周日列，不盖左侧时间轴
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(band.height.dp)
-                                                .offset(y = band.top.dp)
-                                                // end 与下方 Row 的 end padding 一致，子块才能与 DayColumn 逐列对齐
-                                                .padding(
-                                                    start = bandStartPadding,
-                                                    end = bandEndPadding
-                                                )
-                                        ) {
-                                            SpecialBandOverlay(
-                                                name = band.name,
-                                                startTime = band.startTime,
-                                                endTime = band.endTime,
-                                                hasBlur = wallpaperBitmap != null,
-                                                isDark = scheduleIsDark,
-                                                cardCornerRadius = cardCornerRadius,
-                                                cardAlpha = cardAlpha,
-                                                cardSurfaceAlpha = cardSurfaceAlpha,
-                                                isTablet = isTablet,
-                                                softGlassSurface = softGlassSurface,
-
-                                                items = bandItems,
-                                                dayRange = pageColumnDays
+                                    // 横带贴节次几何，增删时只淡入淡出
+                                    val bandPresence = rememberRevealPresence(specialGrid.specialBands) {
+                                        // 起止时间一起进 key：Gson 旁路可能让多个块 id 都落成 0
+                                        "${it.blockId}|${it.startTime}|${it.endTime}"
+                                    }
+                                    bandPresence.forEach { presence ->
+                                        val band = presence.value
+                                        key(presence.key) {
+                                            val bandReveal = rememberScheduleRevealState(
+                                                visible = presence.visible,
+                                                animateEnter = presence.animateEnter,
                                             )
+                                            val bandRevealModifier = if (bandReveal.isAnimating) {
+                                                Modifier.scheduleRevealLayer(
+                                                    bandReveal,
+                                                    blur = false,
+                                                    transform = false,
+                                                )
+                                            } else Modifier
+                                            val bandItems = remember(specialBlocks, band.blockId) {
+                                                specialBlocks.firstOrNull { it.id == band.blockId }?.safeItems
+                                                    ?: emptyList()
+                                            }
+                                            // 只覆盖周一~周日列，不盖左侧时间轴
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(band.height.dp)
+                                                    .offset(y = band.top.dp)
+                                                    .then(bandRevealModifier)
+                                                    // end 与下方 Row 的 end padding 一致，子块才能与 DayColumn 逐列对齐
+                                                    .padding(
+                                                        start = bandStartPadding,
+                                                        end = bandEndPadding
+                                                    )
+                                            ) {
+                                                SpecialBandOverlay(
+                                                    name = band.name,
+                                                    startTime = band.startTime,
+                                                    endTime = band.endTime,
+                                                    hasBlur = wallpaperBitmap != null,
+                                                    isDark = scheduleIsDark,
+                                                    cardCornerRadius = cardCornerRadius,
+                                                    cardAlpha = cardAlpha,
+                                                    cardSurfaceAlpha = cardSurfaceAlpha,
+                                                    isTablet = isTablet,
+                                                    softGlassSurface = softGlassSurface,
+
+                                                    items = bandItems,
+                                                    dayRange = pageColumnDays
+                                                )
+                                            }
                                         }
                                     }
 
@@ -1122,6 +1178,47 @@ fun MainScheduleScreen(
                                         hasWallpaper = wallpaperBitmap != null,
                                     )
 
+                                    // 进度乘进颜色 alpha；几何量必须在组合期算（drawBehind 里不能调 @Composable）
+                                    val gridReveal = rememberScheduleRevealState(showWeekGridLines)
+                                    val lineColor = MiuixTheme.colorScheme.onSurface.copy(
+                                        alpha = if (scheduleIsDark) 0.09f else 0.05f
+                                    )
+                                    val railColor = MiuixTheme.colorScheme.onSurface.copy(
+                                        alpha = if (scheduleIsDark) 0.16f else 0.12f
+                                    )
+                                    val sectionWidthDp = scheduleSectionColumnWidth(isTablet)
+                                    // drawBehind 每帧都跑：几何全部预计算 + 排序，绘制期只做 drawLine
+                                    val hairlinePx = remember(density) {
+                                        with(density) { 1.dp.toPx() }.coerceAtLeast(1f)
+                                    }
+                                    val sectionWidthPx = remember(sectionWidthDp, density) {
+                                        with(density) { sectionWidthDp.toPx() }
+                                    }
+                                    val breakBandsPx: List<Pair<Float, Float>> =
+                                        remember(showBreakDividers, specialGrid, density) {
+                                            if (showBreakDividers) {
+                                                val bandHeightPx = with(density) { 24.dp.toPx() }
+                                                specialGrid.dividerY.map { topDp ->
+                                                    val topPx = with(density) { topDp.dp.toPx() }
+                                                    topPx to topPx + bandHeightPx
+                                                }
+                                            } else emptyList()
+                                        }
+                                    val gridRowYsPx = remember(
+                                        specialGrid, breakBandsPx, density, totalSections
+                                    ) {
+                                        buildList {
+                                            for (s in 1..totalSections) {
+                                                val yDp = specialGrid.sectionTop[s] ?: continue
+                                                add(with(density) { yDp.dp.toPx() })
+                                            }
+                                            breakBandsPx.forEach { (top, bottom) ->
+                                                add(top)
+                                                add(bottom)
+                                            }
+                                        }.sorted().toFloatArray()
+                                    }
+
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -1130,96 +1227,88 @@ fun MainScheduleScreen(
                                                     end = 2.dp
                                                 )
                                             )
-                                            .then(
-                                                if (showWeekGridLines) {
-                                                    val lineColor = MiuixTheme.colorScheme.onSurface.copy(
-                                                        alpha = if (scheduleIsDark) 0.09f else 0.05f
+                                            .drawBehind {
+                                                val p = gridReveal.value
+                                                // 关闭时整条绘制直接跳过，稳态不产生任何线段
+                                                if (p <= 0f) return@drawBehind
+                                                val line = lineColor.copy(alpha = lineColor.alpha * p)
+                                                val rail = railColor.copy(alpha = railColor.alpha * p)
+                                                val hairline = hairlinePx
+                                                val columnCount = pageDayRange.size
+                                                val dayWidthPx = if (columnCount > 0) {
+                                                    (size.width - sectionWidthPx) / columnCount
+                                                } else 0f
+                                                // 带子中间不画，不贯穿午/晚休分界线。
+                                                val topEdgeY = hairline / 2f
+                                                val bottomEdgeY = size.height - hairline / 2f
+                                                // 上封边
+                                                drawLine(
+                                                    color = line,
+                                                    start = Offset(sectionWidthPx, topEdgeY),
+                                                    end = Offset(size.width, topEdgeY),
+                                                    strokeWidth = hairline,
+                                                )
+                                                var lastY = topEdgeY
+                                                for (y in gridRowYsPx) {
+                                                    val lineY = y.coerceIn(topEdgeY, bottomEdgeY)
+                                                    if (lineY <= lastY + 1f) continue
+                                                    lastY = lineY
+                                                    drawLine(
+                                                        color = line,
+                                                        start = Offset(sectionWidthPx, lineY),
+                                                        end = Offset(size.width, lineY),
+                                                        strokeWidth = hairline,
                                                     )
-                                                    val railColor = MiuixTheme.colorScheme.onSurface.copy(
-                                                        alpha = if (scheduleIsDark) 0.16f else 0.12f
+                                                }
+                                                // 下封边（与最后一条横线 1px 内则去重）
+                                                if (bottomEdgeY > lastY + 1f) {
+                                                    drawLine(
+                                                        color = line,
+                                                        start = Offset(sectionWidthPx, bottomEdgeY),
+                                                        end = Offset(size.width, bottomEdgeY),
+                                                        strokeWidth = hairline,
                                                     )
-                                                    val sectionWidthDp = scheduleSectionColumnWidth(isTablet)
-                                                    val breakBandsPx = if (showBreakDividers) {
-                                                        val bandHeightPx = with(density) { 24.dp.toPx() }
-                                                        specialGrid.dividerY.map { topDp ->
-                                                            val topPx = with(density) { topDp.dp.toPx() }
-                                                            topPx to topPx + bandHeightPx
+                                                }
+                                                if (dayWidthPx > 0f) {
+                                                    for (i in 0..columnCount) {
+                                                        val x = if (i == columnCount) {
+                                                            // 内缩半个线宽，右封边才不会被裁掉一半
+                                                            size.width - hairline / 2f
+                                                        } else sectionWidthPx + dayWidthPx * i
+                                                        val color = if (i == 0) rail else line
+                                                        var segStart = 0f
+                                                        for ((bandTop, bandBottom) in breakBandsPx) {
+                                                            val segEnd = bandTop
+                                                                .coerceIn(0f, size.height)
+                                                                .coerceAtLeast(segStart)
+                                                            if (segEnd > segStart) {
+                                                                drawLine(
+                                                                    color = color,
+                                                                    start = Offset(x, segStart),
+                                                                    end = Offset(x, segEnd),
+                                                                    strokeWidth = hairline,
+                                                                )
+                                                            }
+                                                            segStart = bandBottom
+                                                                .coerceIn(0f, size.height)
+                                                                .coerceAtLeast(segStart)
                                                         }
-                                                    } else emptyList<Pair<Float, Float>>()
-                                                    Modifier.drawBehind {
-                                                        val hairline = with(density) { 1.dp.toPx() }
-                                                            .coerceAtLeast(1f)
-                                                        val sectionWidthPx = with(density) {
-                                                            sectionWidthDp.toPx()
-                                                        }
-                                                        val columnCount = pageDayRange.size
-                                                        val dayWidthPx = if (columnCount > 0) {
-                                                            (size.width - sectionWidthPx) / columnCount
-                                                        } else 0f
-                                                        // 带子中间不画，不贯穿午/晚休分界线。
-                                                        val rowYs = mutableListOf<Float>()
-                                                        for (s in 1..totalSections) {
-                                                            val yDp = specialGrid.sectionTop[s] ?: continue
-                                                            rowYs += with(density) { yDp.dp.toPx() }
-                                                        }
-                                                        breakBandsPx.forEach { (top, bottom) ->
-                                                            rowYs += top
-                                                            rowYs += bottom
-                                                        }
-                                                        val topEdgeY = hairline / 2f
-                                                        val bottomEdgeY = size.height - hairline / 2f
-                                                        rowYs += topEdgeY
-                                                        rowYs += bottomEdgeY
-                                                        var lastY = Float.NEGATIVE_INFINITY
-                                                        for (y in rowYs.sorted()) {
-                                                            val lineY = y.coerceIn(topEdgeY, bottomEdgeY)
-                                                            if (lineY <= lastY + 1f) continue
-                                                            lastY = lineY
+                                                        if (segStart < size.height) {
                                                             drawLine(
-                                                                color = lineColor,
-                                                                start = Offset(sectionWidthPx, lineY),
-                                                                end = Offset(size.width, lineY),
+                                                                color = color,
+                                                                start = Offset(x, segStart),
+                                                                end = Offset(x, size.height),
                                                                 strokeWidth = hairline,
                                                             )
                                                         }
-                                                        if (dayWidthPx > 0f) {
-                                                            for (i in 0..columnCount) {
-                                                                val x = if (i == columnCount) {
-                                                                    // 内缩半个线宽，右封边才不会被裁掉一半
-                                                                    size.width - hairline / 2f
-                                                                } else sectionWidthPx + dayWidthPx * i
-                                                                val color = if (i == 0) railColor else lineColor
-                                                                var segStart = 0f
-                                                                for ((bandTop, bandBottom) in breakBandsPx) {
-                                                                    val segEnd = bandTop
-                                                                        .coerceIn(0f, size.height)
-                                                                        .coerceAtLeast(segStart)
-                                                                    if (segEnd > segStart) {
-                                                                        drawLine(
-                                                                            color = color,
-                                                                            start = Offset(x, segStart),
-                                                                            end = Offset(x, segEnd),
-                                                                            strokeWidth = hairline,
-                                                                        )
-                                                                    }
-                                                                    segStart = bandBottom
-                                                                        .coerceIn(0f, size.height)
-                                                                        .coerceAtLeast(segStart)
-                                                                }
-                                                                if (segStart < size.height) {
-                                                                    drawLine(
-                                                                        color = color,
-                                                                        start = Offset(x, segStart),
-                                                                        end = Offset(x, size.height),
-                                                                        strokeWidth = hairline,
-                                                                    )
-                                                                }
-                                                            }
-                                                        }
                                                     }
-                                                } else Modifier
-                                            )
+                                                }
+                                            }
                                     ) {
+                                        // provider 实例要稳定，订阅才落在时间列自身而不带整页重组
+                                        val currentSectionProvider = remember(week, currentWeek) {
+                                            { if (week == currentWeek) currentSection else -1 }
+                                        }
                                         SectionColumn(
                                             totalSections = totalSections,
                                             morningSections = morningSections,
@@ -1231,7 +1320,7 @@ fun MainScheduleScreen(
                                             grid = specialGrid,
                                             cardHeightPerSection = cardHeightPerSection,
                                             showBreakDividers = showBreakDividers,
-                                            currentSection = if (week == currentWeek) currentSection else -1,
+                                            currentSectionProvider = currentSectionProvider,
                                             isTablet = isTablet
                                         )
 
@@ -1312,8 +1401,7 @@ fun MainScheduleScreen(
                                                     { section, centerX, cellTopY, width, height ->
                                                         if (!pausedColumn) {
                                                             // 长按进菜单时清掉 pending，避免两层交互叠加
-                                                            pendingDay = -1
-                                                            pendingSection = -1
+                                                            pendingSlot.slot = -1 to -1
                                                             onEmptyLongPress(
                                                                 dayOfWeek,
                                                                 section,
@@ -1361,8 +1449,7 @@ fun MainScheduleScreen(
                                                 holidayExemptCourseIds = holidayExemptCourseIds,
                                                 holidayCancelledCourseIds = holidayCancelledCourseIds,
                                                 isWorkSwap = isWorkSwap,
-                                                pendingDay = pendingDay,
-                                                pendingSection = pendingSection,
+                                                pendingSlot = pendingSlot,
                                                 onPendingChange = onPendingChange,
                                                 softGlassSurface = softGlassSurface,
 
@@ -1378,7 +1465,7 @@ fun MainScheduleScreen(
                                                 cardTextScale = cardTextScale,
                                                 showClassroom = showClassroom,
                                                 showTeacher = showTeacher,
-                                                draggingCourseSlots = draggingCourseSlots,
+                                                draggingSlotsState = draggingSlotsState,
                                                 onCourseDragStart = onCourseDragStart,
                                                 onCourseDrag = onCourseDrag,
                                                 onCourseDragEnd = onCourseDragEnd,
@@ -1511,7 +1598,8 @@ fun MainScheduleScreen(
                                     val dinnerBreakY = specialGrid.dividerY.getOrNull(1)?.toInt()
                                         ?: (morningHeight + dividerOffset + afternoonHeight)
 
-                                    if (showBreakDividers) {
+                                    // 两条分界带贴着节次几何画，直接显隐：淡入淡出那 200ms 会和网格线错位
+                                    if (showBreakDividers) Box(modifier = Modifier.matchParentSize()) {
                                         // 分界带净高 20dp（24dp − 上下各 2dp padding）：圆角必须 ≤ 10dp，
                                         // 否则 ContinuousRoundedRectangle 在短边超限后会解出尖角。
                                         val dividerCornerRadius = 10.dp
@@ -1670,8 +1758,8 @@ fun MainScheduleScreen(
                                         }
                                         event.changes.forEach { it.consume() }
                                     } while (event.changes.any { it.pressed })
-                                    gestureEndScale = lastDisplayScale
-                                    bounceBackTrigger++
+                                                    bounceState.endScale.floatValue = lastDisplayScale
+                                                    bounceState.trigger.intValue++
                                 }
                             }
                     )
@@ -1834,6 +1922,35 @@ private data class DropMaskBox(
     val width: Float,
     val height: Float,
 )
+
+/** 壁纸缩放回弹的触发状态：只有 [WallpaperBounceBack] 订阅，不泄漏到课表页 content。 */
+@Stable
+private class WallpaperBounceState {
+    val trigger = mutableIntStateOf(0)
+    val endScale = mutableFloatStateOf(1f)
+}
+
+@Composable
+private fun WallpaperBounceBack(
+    state: WallpaperBounceState,
+    minScale: Float,
+    onScaleChange: (Float) -> Unit,
+) {
+    val trigger = state.trigger.intValue
+    LaunchedEffect(trigger) {
+        val endScale = state.endScale.floatValue
+        if (trigger > 0 && endScale < minScale) {
+            animate(
+                initialValue = endScale,
+                targetValue = minScale,
+                animationSpec = tween(
+                    durationMillis = 350,
+                    easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f)
+                )
+            ) { value, _ -> onScaleChange(value) }
+        }
+    }
+}
 
 /**
  * 周 pager 宿主：beyond 预组合策略全部收在本函数作用域内。

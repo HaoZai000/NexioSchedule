@@ -15,11 +15,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,15 +32,12 @@ import com.haooz.chedule.ui.activities.classschedule.TimelineDay
 import com.haooz.chedule.ui.activities.classschedule.TimelineSlot
 import com.haooz.chedule.ui.activities.classschedule.TimelineWeek
 import com.haooz.chedule.ui.activities.classschedule.buildTimelineWeek
-import com.haooz.chedule.ui.activities.classschedule.millisUntilNextMinute
 import com.haooz.chedule.ui.activities.classschedule.minuteText
-import com.haooz.chedule.ui.activities.classschedule.nowMinuteOfDay
 import com.haooz.chedule.ui.activities.classschedule.parseHmMinutes
+import com.haooz.chedule.ui.activities.classschedule.rememberAppMinuteClock
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.theme.rememberCourseColors
 import com.kyant.capsule.ContinuousCapsule
-import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 今日页时间轴的刻度列宽：与课表页手机端一致，两页观感对齐。 */
@@ -90,22 +84,15 @@ internal fun TodayTimelineSection(
     val slots = layout.byDay[0].orEmpty()
     val gridHeight = MinuteHeight * layout.windowMinutes.toFloat()
 
-    var nowMinute by remember { mutableIntStateOf(nowMinuteOfDay()) }
-    if (isToday) {
-        LaunchedEffect(Unit) {
-            while (true) {
-                nowMinute = nowMinuteOfDay()
-                delay(millisUntilNextMinute().milliseconds)
-            }
-        }
-    }
+    // 与课表时间轴共用宿主的分钟时钟，本页不再单独起 tick
+    val appMinuteClock = rememberAppMinuteClock()
 
     TimelineAxis(
         layout = layout,
         gridHeight = gridHeight,
         sectionColumnWidth = TodayTimelineAxisWidth,
         isShowNowLine = isToday,
-        nowMinute = nowMinute,
+        nowMinuteState = appMinuteClock.minute,
         isDark = style.isDark,
         modifier = modifier,
     ) {

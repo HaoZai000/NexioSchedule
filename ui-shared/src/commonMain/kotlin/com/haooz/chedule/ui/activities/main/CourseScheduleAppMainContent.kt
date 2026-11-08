@@ -86,11 +86,15 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.ui.activities.classschedule.AppMinuteClock
 import com.haooz.chedule.ui.activities.classschedule.LandRippleSpec
+import com.haooz.chedule.ui.activities.classschedule.LocalAppMinuteClock
 import com.haooz.chedule.ui.activities.classschedule.LocalLandRipple
 import com.haooz.chedule.ui.activities.classschedule.MainScheduleScreen
 import com.haooz.chedule.ui.activities.classschedule.ScheduleTopBar
 import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
+import com.haooz.chedule.ui.activities.classschedule.millisUntilNextMinute
+import com.haooz.chedule.ui.activities.classschedule.nowMinuteOfDay
 import com.haooz.chedule.ui.activities.today.TodayScreen
 import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.BackToNowFloatingButton
@@ -1653,8 +1657,19 @@ internal fun CourseScheduleAppMainContent(
                                     }
                                 }
                             }
+                            // 今日页与课表时间轴共用同一个分钟时钟，全 App 只起一个 tick
+                            val appMinuteClock = remember { AppMinuteClock() }
+                            LaunchedEffect(Unit) {
+                                while (true) {
+                                    appMinuteClock.minute.intValue = nowMinuteOfDay()
+                                    delay(millisUntilNextMinute().milliseconds)
+                                }
+                            }
                             val mainPagerPageContent: @Composable (Int) -> Unit = { page ->
-                                CompositionLocalProvider(LocalPageStartPadding provides pageStartModifier) {
+                                CompositionLocalProvider(
+                                    LocalPageStartPadding provides pageStartModifier,
+                                    LocalAppMinuteClock provides appMinuteClock,
+                                ) {
                                     // 今日/课表页内部还有横向 pager，留白交给它们自己的滚动内容
                                     val outerPadding =
                                         if (!isShiftMode && page in 0..1) Modifier else pageStartModifier

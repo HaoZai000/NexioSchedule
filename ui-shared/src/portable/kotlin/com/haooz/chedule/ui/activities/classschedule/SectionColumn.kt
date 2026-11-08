@@ -45,10 +45,12 @@ fun SectionColumn(
     grid: SpecialGridLayout? = null,
     cardHeightPerSection: Float = 54f,
     showBreakDividers: Boolean = true,
-    currentSection: Int = -1,
+    // 传 provider：让「当前节次」在列内订阅，避免整页网格重组
+    currentSectionProvider: (() -> Int)? = null,
     isTablet: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val resolvedCurrentSection = currentSectionProvider?.invoke() ?: -1
     val timePairs = remember(sectionTimes, totalSections) {
         (1..totalSections).map { section ->
             val timeStr = sectionTimes[section] ?: Course.defaultSectionTimes[section] ?: ""
@@ -89,7 +91,7 @@ fun SectionColumn(
                     timePairs = timePairs,
                     grid = effectiveGrid,
                     cardHeightPerSection = cardHeightPerSection,
-                    currentSection = currentSection,
+                    currentSection = resolvedCurrentSection,
                     sectionNames = sectionNames,
                 )
             }

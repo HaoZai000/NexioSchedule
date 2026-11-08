@@ -17,6 +17,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,7 +49,12 @@ import com.haooz.chedule.data.holiday.HolidayCourseExclusion
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.model.pickNonCurrentWeekCourse
 import com.haooz.chedule.data.util.nowLocalTime
+import com.haooz.chedule.ui.components.ScheduleReveal
 import com.haooz.chedule.ui.components.SoftGlassSurface
+import com.haooz.chedule.ui.components.rememberRevealPresence
+import com.haooz.chedule.ui.components.rememberScheduleRevealReplay
+import com.haooz.chedule.ui.components.rememberScheduleRevealState
+import com.haooz.chedule.ui.components.scheduleRevealLayer
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.theme.scheduleAccentColor
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -301,8 +310,8 @@ internal fun TimelineWeekGrid(
     onCourseLongPress: (Course, Float, Float, Float, Float, Int) -> Unit = { _, _, _, _, _, _ -> },
     /** 点空白时段：[TimelineDay] + 落点的当天分钟 */
     onEmptyTap: (TimelineDay, Int) -> Unit = { _, _ -> },
-    /** 长按起浮层时要隐藏的原卡（课程 id 到教学周），与网格 `draggingCourseSlots` 同源 */
-    hiddenSlots: Set<Pair<String, Int>> = emptySet(),
+    /** 长按起浮层时要隐藏的原卡（课程 id 到教学周），与网格同源 */
+    hiddenSlotsState: DraggingSlotsState? = null,
     /** 加号卡片被点：[TimelineDay] + 卡片实际起始分钟 + 时长 */
     onPendingAddClick: (TimelineDay, Int, Int) -> Unit = { _, _, _ -> },
     pendingAdd: TimelinePendingAdd? = null,
@@ -312,17 +321,10 @@ internal fun TimelineWeekGrid(
 ) {
     val density = LocalDensity.current
     val sectionColumnWidth = scheduleSectionColumnWidth(isTablet)
-
-    // 当前时间：跨列横穿一条线，只在本周显示。每跨一分钟刷新一次。
-    var nowMinute by remember { mutableIntStateOf(nowMinuteOfDay()) }
-    if (isCurrentWeekView) {
-        LaunchedEffect(Unit) {
-            while (true) {
-                nowMinute = nowMinuteOfDay()
-                delay(millisUntilNextMinute().milliseconds)
-            }
-        }
-    }
+    // 周页 lambda 只传容器，拖拽集合的变化在本 composable 内订阅
+    val activeHiddenSlots = hiddenSlotsState?.slots.orEmpty()
+    // 当前时间：与今日页共用宿主的分钟 tick，此处只拿稳定 State 不读 .intValue
+    val appMinuteClock = rememberAppMinuteClock()
 
     // 键取数据本身而不是 lambda：调用方的 lambda 每次重组都是新实例
     val layout = remember(days, sectionTimes) { buildTimelineWeek(days, sectionTimes) }
@@ -332,7 +334,7 @@ internal fun TimelineWeekGrid(
     // 等一帧再滚：测量前 maxValue 还是 0，scrollTo 会被钳回顶部。
     LaunchedEffect(Unit) {
         if (!isCurrentWeekView) return@LaunchedEffect
-        val minutesAboveNow = nowMinute - layout.windowStart - 60
+        val minutesAboveNow = appMinuteClock.minute.intValue - layout.windowStart - 60
         if (minutesAboveNow <= 0) return@LaunchedEffect
         val targetPx = with(density) { (MinuteHeight * minutesAboveNow.toFloat()).roundToPx() }
         withFrameNanos { }
@@ -371,7 +373,7 @@ internal fun TimelineWeekGrid(
             gridHeight = gridHeight,
             sectionColumnWidth = sectionColumnWidth,
             isShowNowLine = isCurrentWeekView,
-            nowMinute = nowMinute,
+            nowMinuteState = appMinuteClock.minute,
             isDark = style.isDark,
             glassBehindCards = glassBehindCards,
         ) {
@@ -388,7 +390,7 @@ internal fun TimelineWeekGrid(
                     onCourseLongPress = onCourseLongPress,
                     onEmptyTap = onEmptyTap,
                     onPendingAddClick = onPendingAddClick,
-                    isCourseHidden = { (it.id to day.displayWeek) in hiddenSlots },
+                    isCourseHidden = { (it.id to day.displayWeek) in activeHiddenSlots },
                     pendingAdd = pendingAdd?.takeIf { it.day == day.day },
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
@@ -408,7 +410,8 @@ internal fun TimelineAxis(
     gridHeight: Dp,
     sectionColumnWidth: Dp,
     isShowNowLine: Boolean,
-    nowMinute: Int,
+    /** 稳定 State：每分钟 tick 只重组当前时间线那个小 content */
+    nowMinuteState: MutableIntState,
     isDark: Boolean,
     modifier: Modifier = Modifier,
     glassBehindCards: @Composable (Modifier) -> Unit = {},
@@ -416,6 +419,14 @@ internal fun TimelineAxis(
 ) {
     val accent = scheduleAccentColor()
     val density = LocalDensity.current
+    // 每分钟的 intValue 由派生状态吃掉，只重组当前时间线那个小 content
+    val showNowLine by remember(
+        isShowNowLine, layout.windowStart, layout.windowEnd, nowMinuteState
+    ) {
+        derivedStateOf {
+            isShowNowLine && nowMinuteState.intValue in layout.windowStart..layout.windowEnd
+        }
+    }
     // 与周视图网格线同一口径（深色比亮色略白一档），两处改动必须同步
     val hourLineColor = MiuixTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.09f else 0.05f)
     val railColor = MiuixTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.16f else 0.12f)
@@ -486,8 +497,16 @@ internal fun TimelineAxis(
         }
 
         // 当前时间线：气泡右缘贴主轴，横线从主轴起画
-        if (isShowNowLine && nowMinute in layout.windowStart..layout.windowEnd) {
-            val nowTop = MinuteHeight * ((nowMinute - layout.windowStart).toFloat())
+        ScheduleReveal(
+            visible = showNowLine,
+            modifier = Modifier.matchParentSize(),
+            // 细线只淡入淡出，不模糊不位移
+            blur = false,
+            transform = false,
+        ) {
+            // .intValue 只在这个小作用域读，tick 不重组整条时间轴
+            val minute = nowMinuteState.intValue
+            val nowTop = MinuteHeight * ((minute - layout.windowStart).toFloat())
             val bubbleInset = 3.dp
             Box(
                 modifier = Modifier
@@ -499,7 +518,7 @@ internal fun TimelineAxis(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = minuteText(nowMinute),
+                    text = minuteText(minute),
                     fontSize = 11.sp,
                     color = Color.White,
                     maxLines = 1,
@@ -554,28 +573,28 @@ private fun TimelineDayLane(
                     }
                 }
         )
-        if (slots.isNotEmpty()) {
-            TimelineCardsLayer(
-                slots = slots,
-                windowStart = windowStart,
-                style = style,
-                isTablet = isTablet,
-                isCourseActive = { it.isActiveInWeek(day.displayWeek) },
-                isCourseHoliday = { day.isHoliday && it.id !in day.exemptIds },
-                isCourseCancelled = { it.id in day.cancelledIds },
-                isWorkSwap = day.isWorkSwap,
-                isCourseHidden = isCourseHidden,
-                onCourseClick = { course -> onCourseClick(course, day.displayWeek) },
-                onCourseLongPress = { course, cx, cy, w, h ->
-                    onCourseLongPress(course, cx, cy, w, h, day.displayWeek)
-                },
-            )
-        }
-        // 加号卡片：上下中心落在点下的那一分钟，高度按一节课的时长
-        if (pendingAdd != null) {
-            val startMinute = pendingAdd.startMinuteIn(windowStart, windowEnd)
+        // 卡片层始终组合，slots 清空时由 presence 留住旧卡播完退场
+        TimelineCardsLayer(
+            slots = slots,
+            windowStart = windowStart,
+            displayWeek = day.displayWeek,
+            style = style,
+            isTablet = isTablet,
+            isCourseActive = { it.isActiveInWeek(day.displayWeek) },
+            isCourseHoliday = { day.isHoliday && it.id !in day.exemptIds },
+            isCourseCancelled = { it.id in day.cancelledIds },
+            isWorkSwap = day.isWorkSwap,
+            isCourseHidden = isCourseHidden,
+            onCourseClick = { course -> onCourseClick(course, day.displayWeek) },
+            onCourseLongPress = { course, cx, cy, w, h ->
+                onCourseLongPress(course, cx, cy, w, h, day.displayWeek)
+            },
+        )
+        // 加号卡片：上下中心落在点下的那一分钟，高度按一节课的时长。直接显隐，不播动效
+        pendingAdd?.let { add ->
+            val startMinute = add.startMinuteIn(windowStart, windowEnd)
             val top = MinuteHeight * ((startMinute - windowStart).toFloat())
-            val height = (MinuteHeight * pendingAdd.durationMinutes.toFloat())
+            val height = (MinuteHeight * add.durationMinutes.toFloat())
                 .value.coerceAtLeast(MIN_CARD_HEIGHT_DP)
             Box(
                 modifier = Modifier
@@ -589,7 +608,7 @@ private fun TimelineDayLane(
                     softGlassSurface = style.softGlassSurface,
                     modifier = Modifier.fillMaxSize(),
                     onClick = {
-                        onPendingAddClick(day, startMinute, pendingAdd.durationMinutes)
+                        onPendingAddClick(day, startMinute, add.durationMinutes)
                     },
                 )
             }
@@ -607,6 +626,7 @@ private fun TimelineDayLane(
 internal fun TimelineCardsLayer(
     slots: List<TimelineSlot>,
     windowStart: Int,
+    displayWeek: Int,
     style: TimelineCardStyle,
     isTablet: Boolean,
     isCourseActive: (Course) -> Boolean,
@@ -617,52 +637,93 @@ internal fun TimelineCardsLayer(
     onCourseClick: (Course) -> Unit,
     onCourseLongPress: (Course, Float, Float, Float, Float) -> Unit = { _, _, _, _, _ -> },
 ) {
-    slots.forEach { slot ->
+    // 身份只按 course.id；状态翻转不算增删，交给 replay
+    val cardPresence = rememberRevealPresence(slots) { it.course.id }
+    cardPresence.forEach { presence ->
+        val slot = presence.value
         val top = MinuteHeight * ((slot.startMinute - windowStart).toFloat())
         val heightDp = (MinuteHeight * ((slot.endMinute - slot.startMinute).toFloat()))
             .value.coerceAtLeast(MIN_CARD_HEIGHT_DP)
-        // key 绑在课程上：列表增删时不会把「状态 + 位置」错配到隔壁卡（内容整体串位）
-        key(slot.course.id) {
-        CourseCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset(y = top),
-            course = slot.course,
-            // 浮层顶起这张卡时原位隐形（与网格同机制：alpha=0 + 撤掉玻璃矩形）。
-            // 从组合里整张摘掉会让后面的卡在槽位匹配里整体错位（内容串到下一张上）
-            isDragging = isCourseHidden(slot.course),
-            // 卡片按 customCardHeightDp 定高，与网格里自定义时间课同一路径
-            customCardHeightDp = heightDp,
-            isDark = style.isDark,
-            isCurrentWeek = isCourseActive(slot.course),
-            isHoliday = isCourseHoliday(slot.course),
-            isCourseCancelled = isCourseCancelled(slot.course),
-            isWorkSwap = isWorkSwap,
-            hasMultipleCourses = slot.hasMultiple,
-            softGlassSurface = style.softGlassSurface,
-            cardAlpha = style.cardAlpha,
-            cardSurfaceAlpha = style.cardSurfaceAlpha,
-            solidBackingColor = style.solidBacking,
-            cardHeightPerSection = style.cardHeightPerSection,
-            cardCornerRadius = style.cardCornerRadius,
-            isTablet = isTablet,
-            cardContentAlignment = style.cardContentAlignment,
-            cardTextColor = style.cardTextColor,
-            cardTextScale = style.cardTextScale,
-            showClassroom = style.showClassroom,
-            showTeacher = style.showTeacher,
-            // 时间轴是阅读视图：调课落点依赖节次几何，这里不做拖拽
-            dragEnabled = false,
-            onClick = { onCourseClick(slot.course) },
-            onLongPressStart = { cx, cy, w, h ->
-                onCourseLongPress(slot.course, cx, cy, w, h)
-            },
-        )
+        key(presence.key) {
+            val isActive = isCourseActive(slot.course)
+            val cardReveal = rememberScheduleRevealState(
+                visible = presence.visible,
+                animateEnter = presence.animateEnter,
+            )
+            // 调课落地只让新状态淡入，翻周换基线不播
+            val stateReveal = rememberScheduleRevealReplay(
+                epoch = displayWeek,
+                state = isActive,
+            )
+            val revealModifier = when {
+                cardReveal.isAnimating -> Modifier.scheduleRevealLayer(cardReveal)
+                stateReveal.isAnimating -> Modifier.scheduleRevealLayer(stateReveal)
+                else -> Modifier
+            }
+            CourseCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset(y = top)
+                    .then(revealModifier),
+                course = slot.course,
+                // 原位隐形而非摘掉整卡，否则后续卡会串位
+                isDragging = isCourseHidden(slot.course),
+                // 按 customCardHeightDp 定高，与网格自定义时间课同一路径
+                customCardHeightDp = heightDp,
+                isDark = style.isDark,
+                isCurrentWeek = isActive,
+                isHoliday = isCourseHoliday(slot.course),
+                isCourseCancelled = isCourseCancelled(slot.course),
+                isWorkSwap = isWorkSwap,
+                hasMultipleCourses = slot.hasMultiple,
+                softGlassSurface = style.softGlassSurface,
+                cardAlpha = style.cardAlpha,
+                cardSurfaceAlpha = style.cardSurfaceAlpha,
+                solidBackingColor = style.solidBacking,
+                cardHeightPerSection = style.cardHeightPerSection,
+                cardCornerRadius = style.cardCornerRadius,
+                isTablet = isTablet,
+                cardContentAlignment = style.cardContentAlignment,
+                cardTextColor = style.cardTextColor,
+                cardTextScale = style.cardTextScale,
+                showClassroom = style.showClassroom,
+                showTeacher = style.showTeacher,
+                // 阅读视图不做拖拽
+                dragEnabled = false,
+                onClick = { onCourseClick(slot.course) },
+                onLongPressStart = { cx, cy, w, h ->
+                    onCourseLongPress(slot.course, cx, cy, w, h)
+                },
+            )
         }
     }
 }
 
 // ── 小工具 ───────────────────────────────────────────────────────────
+
+/** 今日页与课表时间轴共用的分钟时钟，宿主只起一个 tick。 */
+@Stable
+class AppMinuteClock {
+    val minute = mutableIntStateOf(nowMinuteOfDay())
+}
+
+/** 宿主（主 pager 外层）提供；没有宿主的预览 / 独立调用自动回退到本地时钟。 */
+val LocalAppMinuteClock = compositionLocalOf<AppMinuteClock?> { null }
+
+@Composable
+internal fun rememberAppMinuteClock(): AppMinuteClock {
+    val provided = LocalAppMinuteClock.current
+    val fallback = remember { AppMinuteClock() }
+    if (provided == null) {
+        LaunchedEffect(Unit) {
+            while (true) {
+                fallback.minute.intValue = nowMinuteOfDay()
+                delay(millisUntilNextMinute().milliseconds)
+            }
+        }
+    }
+    return provided ?: fallback
+}
 
 internal fun nowMinuteOfDay(): Int {
     val now = nowLocalTime()

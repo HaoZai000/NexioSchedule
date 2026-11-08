@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -32,8 +34,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -56,11 +60,13 @@ import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
 import com.haooz.chedule.ui.components.SoftGlassSurface
+import com.haooz.chedule.ui.components.rememberScheduleRevealState
 import com.haooz.chedule.ui.components.softGlassBackdrop
 import com.haooz.chedule.ui.glass.SoftGlassStyle
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.courseCardTextColor
 import com.haooz.chedule.ui.theme.rememberCourseColors
+import com.haooz.chedule.ui.theme.scheduleAccentColor
 import com.haooz.chedule.ui.utils.courseCardNoneTierBacking
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
@@ -88,6 +94,23 @@ private class CardAnims {
 }
 
 val LocalLandRipple = compositionLocalOf { LandRippleSpec() }
+
+/** 正在上课的课程 id 稳定容器：周页 provider 只持有不变对象，写 [ids] 只让读过的卡片重组。 */
+@Stable
+class OngoingCourseIdsState {
+    var ids: Set<String> by mutableStateOf(emptySet())
+}
+
+private val DefaultOngoingCourseIds = OngoingCourseIdsState()
+
+/** 非当前周页共用：ids 恒空且引用稳定。 */
+val EmptyOngoingCourseIds = OngoingCourseIdsState()
+
+/** 当前正在上课的课程 id，由课表页统一下发；无计时器的宿主默认不高亮。 */
+val LocalOngoingCourseIds = compositionLocalOf { DefaultOngoingCourseIds }
+
+/** 描边画在卡片外沿，内缘贴卡片边界。 */
+private val OngoingOutlineWidth = 2.dp
 
 @Composable
 fun CourseCard(
@@ -238,6 +261,30 @@ fun CourseCard(
     // 判据必须是 glassSourceReady 而不是 layeredSurface：无材质档没有玻璃可压，放大只会过浓。
     val effectiveAlpha = (if (glassSourceReady) cardAlpha * 1.3f else cardAlpha).coerceIn(0f, 1f)
     val courseColors = rememberCourseColors(course, isDark)
+    // 只订阅「本卡是否正在上课」，30 秒节拍换集合时其余卡完全 skip
+    val ongoingIdsState = LocalOngoingCourseIds.current
+    val isOngoing by remember(course.id, ongoingIdsState) {
+        derivedStateOf { course.id in ongoingIdsState.ids }
+    }
+    val ongoingReveal = rememberScheduleRevealState(isOngoing)
+    val outlineCache = remember { OutlineCache() }
+    // 圆角外扩半个线宽，角部描边才不会压进卡片
+    val outlineCornerRadius = effectiveCornerRadius.dp + OngoingOutlineWidth / 2f
+    val accentColor = scheduleAccentColor()
+    val ongoingOutlineModifier = if (isOngoing || ongoingReveal.isActive) {
+        Modifier.drawWithContent {
+            val p = ongoingReveal.value
+            if (p <= 0f) {
+                drawContent()
+                return@drawWithContent
+            }
+            drawOngoingOutline(
+                outlineCache,
+                outlineCornerRadius,
+                accentColor.copy(alpha = accentColor.alpha * p),
+            )
+        }
+    } else Modifier
     val useMonet = MiuixTheme.isDynamicColor
     val inactiveColor =
         if (useMonet) MiuixTheme.colorScheme.onSurfaceVariantActions else Color(0xFF9E9E9E)
@@ -379,6 +426,8 @@ fun CourseCard(
                             Modifier
                         }
                     )
+                    // 描边挂在变换层内侧，缩放/alpha 一起跟随
+                    .then(ongoingOutlineModifier)
                     // 只存坐标：布局期不再逐卡 localToRoot，消费点自己 refreshCardBounds
                     .onGloballyPositioned { cardCoords[0] = it }
                     // 垫底纯色画在采样层之前（更靠外=更早画），被玻璃采样盖住属预期
@@ -478,13 +527,14 @@ fun CourseCard(
                             scaleX = s
                             scaleY = s
                             alpha = if (isDragging) 0f else 1f
-                            shape = cardShape
-                            clip = true
                         }
                     } else {
                         Modifier
                     }
                 )
+                // 描边跟随缩放，圆角裁剪只裁内容、不裁外框
+                .then(ongoingOutlineModifier)
+                .then(if (needTransformLayer) Modifier.clip(cardShape) else Modifier)
                 .background(filledCardColor, cardShape)
                 // 与柔光表面分支一致：只存坐标，root 位置按需现算
                 .onGloballyPositioned { cardCoords[0] = it }
@@ -994,4 +1044,40 @@ internal fun DrawScope.drawScheduleOutline(
         cache.layoutDirection = layoutDirection
     }
     drawOutline(outline = cache.outline!!, color = color, style = Stroke(strokeWidthPx))
+}
+
+/** 卡片外沿的主题色描边：outline 外扩一个线宽再平移回负半线宽，内缘贴住卡片边界。 */
+private fun ContentDrawScope.drawOngoingOutline(
+    cache: OutlineCache,
+    cornerRadius: Dp,
+    color: Color,
+) {
+    val strokeWidthPx = OngoingOutlineWidth.toPx()
+    val half = strokeWidthPx / 2f
+    if (cache.width != size.width ||
+        cache.height != size.height ||
+        cache.radius != cornerRadius.value ||
+        cache.layoutDirection != layoutDirection
+    ) {
+        cache.outline = ContinuousRoundedRectangle(cornerRadius)
+            .createOutline(
+                size.copy(
+                    width = size.width + strokeWidthPx,
+                    height = size.height + strokeWidthPx,
+                ),
+                layoutDirection,
+                this,
+            )
+        cache.width = size.width
+        cache.height = size.height
+        cache.radius = cornerRadius.value
+        cache.layoutDirection = layoutDirection
+    }
+    drawContent()
+    // 形状没解出来也照常显示卡片内容，只是不描边
+    cache.outline?.let {
+        translate(left = -half, top = -half) {
+            drawOutline(outline = it, color = color, style = Stroke(strokeWidthPx))
+        }
+    }
 }

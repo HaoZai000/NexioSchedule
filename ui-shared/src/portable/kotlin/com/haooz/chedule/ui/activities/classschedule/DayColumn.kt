@@ -16,11 +16,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +57,10 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
 import com.haooz.chedule.ui.components.SoftGlassSurface
+import com.haooz.chedule.ui.components.rememberRevealPresence
+import com.haooz.chedule.ui.components.rememberScheduleRevealReplay
+import com.haooz.chedule.ui.components.rememberScheduleRevealState
+import com.haooz.chedule.ui.components.scheduleRevealLayer
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.scheduleAccentColor
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -74,6 +81,25 @@ private data class CourseRenderData(
     val hasHiddenCourses: Boolean,
     val segments: List<Pair<Int, Int>>
 )
+
+/** 待添加槽位的稳定容器：周页只持有不变对象，值变化只让本列重组。 */
+@Stable
+class PendingSlotState {
+    var slot: Pair<Int, Int> by mutableStateOf(-1 to -1)
+}
+
+/** 拖拽中要隐藏的原卡集合的稳定容器；[update] 必须在组合期同步调用。 */
+@Stable
+class DraggingSlotsState {
+    private var _slots by mutableStateOf(emptySet<Pair<String, Int>>())
+    val slots: Set<Pair<String, Int>> get() = _slots
+
+    fun update(next: Set<Pair<String, Int>>) {
+        Snapshot.withoutReadObservation {
+            if (_slots !== next) _slots = next
+        }
+    }
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -96,8 +122,7 @@ fun DayColumn(
     holidayExemptCourseIds: Set<String> = emptySet(),
     holidayCancelledCourseIds: Set<String> = emptySet(),
     isWorkSwap: Boolean = false,
-    pendingDay: Int = -1,
-    pendingSection: Int = -1,
+    pendingSlot: PendingSlotState? = null,
     onPendingChange: (day: Int, section: Int) -> Unit = { _, _ -> },
     softGlassSurface: SoftGlassSurface? = null,
     solidBackingColor: Color? = null,
@@ -112,7 +137,7 @@ fun DayColumn(
     cardTextScale: Float = 1f,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
-    draggingCourseSlots: Set<Pair<String, Int>> = emptySet(),
+    draggingSlotsState: DraggingSlotsState? = null,
     onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, currentWeek: Int) -> Unit = { _, _, _, _, _, _, -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
@@ -127,7 +152,12 @@ fun DayColumn(
 ) {
     val totalSectionsGrid = morningSections + afternoonSections + eveningSections
     val totalHeight = grid.totalHeight.toInt()
-    val isPendingDay = pendingDay == dayOfWeek
+    // 只订阅本列的待添加节次，点空格子只有目标两列重跑
+    val pendingSectionNow by remember(dayOfWeek, pendingSlot) {
+        derivedStateOf { pendingSlot?.slot?.takeIf { it.first == dayOfWeek }?.second ?: -1 }
+    }
+    val isPendingDay = pendingSectionNow != -1
+    val activeDraggingSlots = draggingSlotsState?.slots.orEmpty()
     val hapticFeedback = LocalHapticFeedback.current
 
     // 普通课按节次范围，自定义时间课按时间区间反查覆盖的节次
@@ -261,15 +291,20 @@ fun DayColumn(
                     }
             )
 
-            if (isPendingDay && pendingSection in 1..totalSectionsGrid && pendingSection !in occupiedSections) {
+            // 加号卡直接显隐，不播动效（点空格子要立刻响应）
+            if (
+                isPendingDay &&
+                pendingSectionNow in 1..totalSectionsGrid &&
+                pendingSectionNow !in occupiedSections
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(cardHeightPerSection.dp)
-                        .offset(y = sectionTopDp(pendingSection).dp)
+                        .offset(y = sectionTopDp(pendingSectionNow).dp)
                 ) {
                     PendingSectionBox(
-                        section = pendingSection,
+                        section = pendingSectionNow,
                         isDark = isDark,
                         cardCornerRadius = cardCornerRadius,
                         softGlassSurface = softGlassSurface,
@@ -305,7 +340,7 @@ fun DayColumn(
                 showTeacher = showTeacher,
                 softGlassSurface = softGlassSurface,
                 solidBackingColor = solidBackingColor,
-                draggingCourseSlots = draggingCourseSlots,
+                draggingCourseSlots = activeDraggingSlots,
                 touchState = touchState,
                 isDark = isDark,
 
@@ -427,126 +462,156 @@ private fun CourseCardsLayer(
         .sortedBy { if (it.isCurrentWeekCourse) 1 else 0 }
     }
 
-    courseRenderDataList.forEach { renderData ->
+    // 身份只按 course.id：无 key 时挪走一节课会让整列按位置串位、TextMotion 误判换字。
+    // 状态翻转不算增删（交给 replay）；拖拽浮层已接管的卡静默移除，落地后不再显形。
+    val draggedIds = remember { HashSet<String>() }
+    val cardPresence = rememberRevealPresence(
+        courseRenderDataList,
+        silentRemoval = { it.course.id in draggedIds },
+    ) { it.course.id }
+    if (draggingCourseSlots.isNotEmpty()) {
+        draggedIds.clear()
+        draggedIds.addAll(draggingCourseSlots.map { it.first })
+    } else if (cardPresence.none { !it.visible }) {
+        draggedIds.clear()
+    }
+    cardPresence.forEach { presence ->
+        val renderData = presence.value
         val course = renderData.course
-        val isCurrentWeekCourse = renderData.isCurrentWeekCourse
-        val isDragging = (course.id to currentWeek) in draggingCourseSlots && isCurrentWeekCourse
-
-        // 自定义时间课按时间轴插值定位/定高，不按节次分段
-        if (course.hasValidCustomTime()) {
-            val layout = computeCustomTimeLayout(
-                customStart = course.customStartTime,
-                customEnd = course.customEndTime,
-                morningSections = morningSections,
-                afternoonSections = afternoonSections,
-                eveningSections = eveningSections,
-                cardHeightPerSection = cardHeightPerSection,
-                sectionTimes = sectionTimes,
-                grid = grid
+        key(presence.key) {
+            val cardReveal = rememberScheduleRevealState(
+                visible = presence.visible,
+                animateEnter = presence.animateEnter,
             )
-            if (layout != null) {
-                // offset 落到课卡自身节点，省掉每卡一个 Box 包装层
-                CourseCard(
-                    modifier = Modifier.offset(y = layout.topDp.dp),
-                    course = course,
-                    touchState = touchState,
-                    isDark = isDark,
-                    isCurrentWeek = isCurrentWeekCourse,
-                    isHoliday = isHoliday && course.id !in holidayExemptCourseIds,
-                    isCourseCancelled = course.id in holidayCancelledCourseIds,
-                    isWorkSwap = isWorkSwap,
-                    hasMultipleCourses = renderData.hasHiddenCourses,
-                    softGlassSurface = softGlassSurface,
-                    cardAlpha = cardAlpha,
-                    cardSurfaceAlpha = cardSurfaceAlpha,
-                    solidBackingColor = solidBackingColor,
+            val isCurrentWeekCourse = renderData.isCurrentWeekCourse
+            // 调课落地只让新状态淡入；翻周换基线不播
+            val stateReveal = rememberScheduleRevealReplay(
+                epoch = currentWeek,
+                state = isCurrentWeekCourse,
+            )
+            val revealModifier = when {
+                cardReveal.isAnimating -> Modifier.scheduleRevealLayer(cardReveal)
+                stateReveal.isAnimating -> Modifier.scheduleRevealLayer(stateReveal)
+                else -> Modifier
+            }
+            val isDragging = (course.id to currentWeek) in draggingCourseSlots && isCurrentWeekCourse
+
+            // 自定义时间课按时间轴插值定位/定高，不按节次分段
+            if (course.hasValidCustomTime()) {
+                val layout = computeCustomTimeLayout(
+                    customStart = course.customStartTime,
+                    customEnd = course.customEndTime,
+                    morningSections = morningSections,
+                    afternoonSections = afternoonSections,
+                    eveningSections = eveningSections,
                     cardHeightPerSection = cardHeightPerSection,
-                    customCardHeightDp = layout.heightDp,
-                    cardCornerRadius = cardCornerRadius,
-                    isTablet = isTablet,
-                    cardContentAlignment = cardContentAlignment,
-                    cardTextColor = cardTextColor,
-                    cardTextScale = cardTextScale,
-                    showClassroom = showClassroom,
-                    showTeacher = showTeacher,
-                    isDragging = isDragging,
-                    // 自定义时间课不支持拖动调课（按时间轴定位，没有「挪到第几节」的落点），
-                    // 长按只弹「编辑 / 删除」菜单
-                    dragEnabled = false,
-                    onClick = {
-                        onPendingChange(-1, -1)
-                        onCourseClick(course)
-                    },
-                    onLongPressStart = { left, top, width, height ->
-                        if (isCurrentWeekCourse) {
-                            onCourseLongPress(course, left, top, width, height, currentWeek)
-                        }
-                    },
-                    onMenuDismiss = {
-                        onCourseMenuDismiss()
-                    },
+                    sectionTimes = sectionTimes,
+                    grid = grid
                 )
-            }
-            return@forEach
-        }
-
-        renderData.segments.forEachIndexed { idx, (segStartSection, segEndSection) ->
-            // 键必须带 course 本身：只记 id/节次时，改课程颜色/名称/教室后课程对象变了但键没变，
-            // 分段副本会被缓存成旧值，卡片要等到重新进入/滑走才刷新
-            val displayCourse = remember(course, segStartSection, segEndSection) {
-                course.copy(startSection = segStartSection, endSection = segEndSection)
-            }
-            val segOffset = (grid.sectionTop[segStartSection] ?: 0f).toInt()
-
-            // 同上：offset 落在课卡自身节点
-            CourseCard(
-                modifier = Modifier.offset(y = segOffset.dp),
-                course = displayCourse,
-                touchState = touchState,
-                isDark = isDark,
-                isCurrentWeek = isCurrentWeekCourse,
-                isHoliday = isHoliday && course.id !in holidayExemptCourseIds,
-                isCourseCancelled = course.id in holidayCancelledCourseIds,
-                isWorkSwap = isWorkSwap,
-                hasMultipleCourses = idx == 0 && renderData.hasHiddenCourses,
-                softGlassSurface = softGlassSurface,
-                cardAlpha = cardAlpha,
-                cardSurfaceAlpha = cardSurfaceAlpha,
-                solidBackingColor = solidBackingColor,
-                cardHeightPerSection = cardHeightPerSection,
-                cardCornerRadius = cardCornerRadius,
-                isTablet = isTablet,
-                cardContentAlignment = cardContentAlignment,
-                cardTextColor = cardTextColor,
-                cardTextScale = cardTextScale,
-                showClassroom = showClassroom,
-                showTeacher = showTeacher,
-                isDragging = isDragging,
-                onClick = {
-                    onPendingChange(-1, -1)
-                    onCourseClick(course)
-                },
-                onLongPressStart = { left, top, width, height ->
-                    if (isCurrentWeekCourse) {
-                        onCourseLongPress(course, left, top, width, height, currentWeek)
-                    }
-                },
-                onDragStart = {
-                    onCourseDragStart(course.id)
-                },
-                onDrag = { offsetX, offsetY ->
-                    onCourseDrag(course.id, offsetX, offsetY)
-                },
-                onDragEnd = {
-                    onCourseDragEnd(course.id)
-                },
-                onDragCancel = {
-                    onCourseDragCancel(course.id)
-                },
-                onMenuDismiss = {
-                    onCourseMenuDismiss()
+                if (layout != null) {
+                    // offset 落到课卡自身节点，省掉每卡一个 Box 包装层
+                    CourseCard(
+                        modifier = Modifier.offset(y = layout.topDp.dp).then(revealModifier),
+                        course = course,
+                        touchState = touchState,
+                        isDark = isDark,
+                        isCurrentWeek = isCurrentWeekCourse,
+                        isHoliday = isHoliday && course.id !in holidayExemptCourseIds,
+                        isCourseCancelled = course.id in holidayCancelledCourseIds,
+                        isWorkSwap = isWorkSwap,
+                        hasMultipleCourses = renderData.hasHiddenCourses,
+                        softGlassSurface = softGlassSurface,
+                        cardAlpha = cardAlpha,
+                        cardSurfaceAlpha = cardSurfaceAlpha,
+                        solidBackingColor = solidBackingColor,
+                        cardHeightPerSection = cardHeightPerSection,
+                        customCardHeightDp = layout.heightDp,
+                        cardCornerRadius = cardCornerRadius,
+                        isTablet = isTablet,
+                        cardContentAlignment = cardContentAlignment,
+                        cardTextColor = cardTextColor,
+                        cardTextScale = cardTextScale,
+                        showClassroom = showClassroom,
+                        showTeacher = showTeacher,
+                        isDragging = isDragging,
+                        // 自定义时间课按时间轴定位，没有「挪到第几节」的落点，不支持拖动调课
+                        dragEnabled = false,
+                        onClick = {
+                            onPendingChange(-1, -1)
+                            onCourseClick(course)
+                        },
+                        onLongPressStart = { left, top, width, height ->
+                            if (isCurrentWeekCourse) {
+                                onCourseLongPress(course, left, top, width, height, currentWeek)
+                            }
+                        },
+                        onMenuDismiss = {
+                            onCourseMenuDismiss()
+                        },
+                    )
                 }
-            )
+            } else {
+                renderData.segments.forEachIndexed { idx, (segStartSection, segEndSection) ->
+                    // 外层已按 course.id 隔离，这里只区分同一门课被分界带切出的各段
+                    key(segStartSection, segEndSection) {
+                        // 分段副本要带 course 本身，改颜色/名称后才会刷新
+                        val displayCourse = remember(course, segStartSection, segEndSection) {
+                            course.copy(startSection = segStartSection, endSection = segEndSection)
+                        }
+                        val segOffset = (grid.sectionTop[segStartSection] ?: 0f).toInt()
+
+                        // 同上：offset 落在课卡自身节点
+                        CourseCard(
+                            modifier = Modifier.offset(y = segOffset.dp).then(revealModifier),
+                            course = displayCourse,
+                            touchState = touchState,
+                            isDark = isDark,
+                            isCurrentWeek = isCurrentWeekCourse,
+                            isHoliday = isHoliday && course.id !in holidayExemptCourseIds,
+                            isCourseCancelled = course.id in holidayCancelledCourseIds,
+                            isWorkSwap = isWorkSwap,
+                            hasMultipleCourses = idx == 0 && renderData.hasHiddenCourses,
+                            softGlassSurface = softGlassSurface,
+                            cardAlpha = cardAlpha,
+                            cardSurfaceAlpha = cardSurfaceAlpha,
+                            solidBackingColor = solidBackingColor,
+                            cardHeightPerSection = cardHeightPerSection,
+                            cardCornerRadius = cardCornerRadius,
+                            isTablet = isTablet,
+                            cardContentAlignment = cardContentAlignment,
+                            cardTextColor = cardTextColor,
+                            cardTextScale = cardTextScale,
+                            showClassroom = showClassroom,
+                            showTeacher = showTeacher,
+                            isDragging = isDragging,
+                            onClick = {
+                                onPendingChange(-1, -1)
+                                onCourseClick(course)
+                            },
+                            onLongPressStart = { left, top, width, height ->
+                                if (isCurrentWeekCourse) {
+                                    onCourseLongPress(course, left, top, width, height, currentWeek)
+                                }
+                            },
+                            onDragStart = {
+                                onCourseDragStart(course.id)
+                            },
+                            onDrag = { offsetX, offsetY ->
+                                onCourseDrag(course.id, offsetX, offsetY)
+                            },
+                            onDragEnd = {
+                                onCourseDragEnd(course.id)
+                            },
+                            onDragCancel = {
+                                onCourseDragCancel(course.id)
+                            },
+                            onMenuDismiss = {
+                                onCourseMenuDismiss()
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }
