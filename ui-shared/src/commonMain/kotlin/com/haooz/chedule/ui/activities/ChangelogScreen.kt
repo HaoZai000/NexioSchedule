@@ -33,7 +33,7 @@ import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.utils.screenWidthDp
-import com.kyant.capsule.continuousBackground
+import com.haooz.softglass.shape.continuousBackground
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold

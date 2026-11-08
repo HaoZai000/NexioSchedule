@@ -5,6 +5,8 @@
 package com.haooz.chedule.ui.glass
 
 import androidx.compose.ui.geometry.Offset
+import com.haooz.softglass.glass.untransformGlassOrigin
+import com.haooz.softglass.glass.wallpaperTexMap
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertTrue

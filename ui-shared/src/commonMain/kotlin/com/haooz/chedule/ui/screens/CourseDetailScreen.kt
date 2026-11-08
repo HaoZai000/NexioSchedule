@@ -61,9 +61,9 @@ import com.haooz.chedule.ui.utils.blockTouchPassThrough
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay

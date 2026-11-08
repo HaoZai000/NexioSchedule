@@ -23,7 +23,7 @@ import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.isRenderEffectSupported
+import com.haooz.softglass.platform.isRenderEffectSupported
 import kotlinx.coroutines.delay
 
 /** 课表元素的显隐进度。[value] 只能在绘制期读。 */

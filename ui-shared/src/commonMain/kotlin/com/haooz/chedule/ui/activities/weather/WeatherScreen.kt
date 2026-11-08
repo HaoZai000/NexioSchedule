@@ -69,8 +69,8 @@ import com.haooz.chedule.weather.splitAlertSource
 import com.haooz.chedule.weather.localHourMinute
 import com.haooz.chedule.weather.weekdayIndex
 import com.haooz.chedule.weather.windPowerFromKmh
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.sqrt
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock

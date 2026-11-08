@@ -51,9 +51,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import kotlin.math.roundToInt
-import com.kyant.capsule.continuousBackground
-import com.kyant.capsule.continuousBorder
-import com.kyant.capsule.continuousClip
+import com.haooz.softglass.shape.continuousBackground
+import com.haooz.softglass.shape.continuousBorder
+import com.haooz.softglass.shape.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**

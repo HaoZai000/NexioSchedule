@@ -95,11 +95,11 @@ import com.haooz.chedule.ui.components.cardRevealLayer
 import com.haooz.chedule.ui.components.rememberCardRevealState
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.glass.BarFill
-import com.haooz.chedule.ui.glass.BrightLargeTone
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.BarFill
+import com.haooz.softglass.glass.BrightLargeTone
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
@@ -111,12 +111,12 @@ import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.backdrop.isRenderEffectSupported
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.platform.isRenderEffectSupported
+import com.haooz.softglass.shape.ContinuousCapsule
 import kotlin.math.abs
 import kotlin.math.sign
 import kotlin.time.Duration.Companion.milliseconds
@@ -438,7 +438,7 @@ fun SwitchScheduleScreen(
     val editFocusRequester = remember { FocusRequester() }
     // 注意：这里不要再挂一个未被消费的 layerBackdrop —— 它会把整页内容每帧额外离屏录制一遍，
     // 而录制结果没有任何 drawBackdrop 使用，等于白烧一整条渲染管线。
-    val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    val liquidGlassBackdrop = com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop()
     val isTablet = isTabletWidth()
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
@@ -660,7 +660,7 @@ fun SwitchScheduleScreen(
                         tone = BrightLargeTone,
                     )
                     val bottomBarShapeBlock: () -> Shape = remember { { ContinuousCapsule() } }
-                    val bottomBarEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+                    val bottomBarEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
                         remember(bottomBarGlassBlur, bottomBarGlassOn, bottomBarGlassStyle) {
                             {
                                 if (bottomBarGlassOn) {
@@ -670,7 +670,7 @@ fun SwitchScheduleScreen(
                                         shaderString = SOFT_GLASS_LIVE_SHADER,
                                         uniformShaderName = "content",
                                     ) {
-                                        applyLiveGlass(
+                                        applySoftGlass(
                                             style = bottomBarGlassStyle,
                                             width = size.width,
                                             height = size.height,
@@ -735,7 +735,6 @@ fun SwitchScheduleScreen(
                                     backdrop = liquidGlassBackdrop,
                                     shape = bottomBarShapeBlock,
                                     effects = bottomBarEffects,
-                                    highlight = null,
                                     // 柔光自己画玻璃色与方向光；无材质档不跑 shader，必须留容器色
                                     onDrawSurface = if (bottomBarGlassOn) null else bottomBarOnDrawSurface,
                                 )

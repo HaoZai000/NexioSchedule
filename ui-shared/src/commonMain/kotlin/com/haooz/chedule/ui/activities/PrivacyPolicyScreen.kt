@@ -29,7 +29,7 @@ import com.haooz.chedule.i18n.L
 import com.haooz.chedule.i18n.L10n
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.haooz.chedule.ui.utils.screenWidthDp
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
@@ -601,7 +601,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                     .fillMaxWidth()
                     .background(
                         MiuixTheme.colorScheme.primary.copy(alpha = 0.08f),
-                        com.kyant.capsule.ContinuousRoundedRectangle(12.dp)
+                        com.haooz.softglass.shape.ContinuousRoundedRectangle(12.dp)
                     )
                     .padding(16.dp)
             ) {
@@ -630,7 +630,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                     .fillMaxWidth()
                     .background(
                         MiuixTheme.colorScheme.primary.copy(alpha = 0.08f),
-                        com.kyant.capsule.ContinuousRoundedRectangle(12.dp)
+                        com.haooz.softglass.shape.ContinuousRoundedRectangle(12.dp)
                     )
                     .padding(14.dp)
             )

@@ -29,7 +29,7 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastFirst
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousCapsule
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.LocalTextStyles
 import top.yukonga.miuix.kmp.theme.MiuixTheme

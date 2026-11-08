@@ -44,8 +44,8 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.color.api.toHsv
 import top.yukonga.miuix.kmp.color.space.Hsv
-import com.kyant.capsule.continuousBackground
-import com.kyant.capsule.continuousClip
+import com.haooz.softglass.shape.continuousBackground
+import com.haooz.softglass.shape.continuousClip
 
 /** Color palette for selecting a color from a grid of HSV values. */
 @Composable

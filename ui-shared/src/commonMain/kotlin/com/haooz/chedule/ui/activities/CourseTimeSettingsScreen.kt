@@ -53,7 +53,7 @@ import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -94,7 +94,7 @@ fun CourseTimeSettingsScreen(
     onEditRoutine: (TimeRoutine, TimeConfig, TimeConfigCardBounds) -> Unit,
     refreshTrigger: Int = 0,
     scrollBehavior: SharedScrollBehavior? = null,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /**
      * 二级编辑页是否打开。点作息行时页面**自己**立刻隐藏源行，宿主在退出动画播完后
      * 把它置 false 才放开；传 null = 本入口没有二级页（桌面预览），不启用隐藏

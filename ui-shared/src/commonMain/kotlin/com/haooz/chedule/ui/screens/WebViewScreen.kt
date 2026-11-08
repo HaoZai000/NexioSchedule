@@ -66,11 +66,11 @@ import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.glass.BarFill
-import com.haooz.chedule.ui.glass.BrightLargeTone
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.BarFill
+import com.haooz.softglass.glass.BrightLargeTone
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentBottomBar
@@ -84,14 +84,14 @@ import com.haooz.chedule.ui.web.WebHostConfig
 import com.haooz.chedule.ui.web.WebHostEvents
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.ic_phone_pc
-import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassEffectScope
+import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.jetbrains.compose.resources.painterResource
@@ -195,7 +195,7 @@ fun WebViewScreen(
         fill = BarFill,
         tone = BrightLargeTone,
     )
-    val webDockEffects: BackdropEffectScope.() -> Unit =
+    val webDockEffects: GlassEffectScope.() -> Unit =
         remember(webDockGlassBlur, webDockGlassOn, webDockGlassStyle) {
             {
                 if (webDockGlassOn) {
@@ -205,7 +205,7 @@ fun WebViewScreen(
                         shaderString = SOFT_GLASS_LIVE_SHADER,
                         uniformShaderName = "content",
                     ) {
-                        applyLiveGlass(
+                        applySoftGlass(
                             style = webDockGlassStyle,
                             width = size.width,
                             height = size.height,
@@ -496,7 +496,6 @@ fun WebViewScreen(
                         backdrop = webContentBackdrop,
                         shape = webDockShapeBlock,
                         effects = webDockEffects,
-                        highlight = null,
                         // 柔光自己画玻璃色与方向光；无材质档不跑 shader，必须留容器色
                         onDrawSurface = if (webDockGlassOn) null else webDockOnDrawSurface
                     )

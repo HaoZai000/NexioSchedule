@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -28,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -44,15 +47,16 @@ import com.haooz.chedule.ui.activities.CourseManageScreen
 import com.haooz.chedule.ui.basic.ShortcutMenu
 import com.haooz.chedule.ui.basic.ShortcutMenuItem
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.utils.CourseSorting
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
@@ -65,7 +69,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun TabletCourseManagePane(
     viewModel: CourseViewModel,
     settingsViewModel: SettingsViewModel,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
 ) {
     val courses by viewModel.courses.collectAsState()
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
@@ -95,7 +99,14 @@ fun TabletCourseManagePane(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var pendingDeleteCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    // 页面底色铺到屏幕边缘（含侧栏下），内容整体避让 —— background 在 padding 之前。
+    val paneSurface = MiuixTheme.colorScheme.surface
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(paneSurface)
+            .then(LocalPageStartPadding.current)
+    ) {
         val density = LocalDensity.current
         // 左栏固定为屏宽 0.39，不随侧栏展开/收起变化；剩余宽度全给右栏
         val listWidth = screenWidthDp().dp * 0.39f
@@ -125,6 +136,7 @@ fun TabletCourseManagePane(
                     .width(listWidth)
                     .fillMaxHeight()
                     .onGloballyPositioned { paneOrigin = it.localToRoot(Offset.Zero) }
+                    .background(surfaceColor)
             ) {
                 Box(
                     modifier = Modifier
@@ -188,14 +200,6 @@ fun TabletCourseManagePane(
                 }
             }
 
-            // 分栏线：与设置页一致（1dp，白 0.1 / 黑 0.06）
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .fillMaxHeight()
-                    .background(dividerColor)
-            )
-
             // —— 右栏：原课程编辑页（自带课程标题、添加按钮与顶栏模糊） ——
             Box(
                 modifier = Modifier
@@ -256,6 +260,15 @@ fun TabletCourseManagePane(
                 }
             }
         }
+        // 分界线画在 Row 之上：左栏内部有顶栏/底栏模糊层，画在栏内会被糊掉
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = listWidth)
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(dividerColor)
+        )
 
         // 长按菜单：编辑 / 删除。菜单与左栏同为分栏根节点的子节点，
         // 位置由卡片 root 坐标减去分栏根坐标得到，与手机端一致；
@@ -308,7 +321,7 @@ fun TabletCourseManagePane(
 /** 顶栏常驻表面色渐变遮罩 + 常驻渐变模糊：与设置页 TabletPaneTopChrome 一致 */
 @Composable
 private fun TabletPaneTopChrome(
-    backdrop: Backdrop?,
+    backdrop: GlassBackdrop?,
     maskHeight: Dp,
     modifier: Modifier = Modifier,
 ) {

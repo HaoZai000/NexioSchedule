@@ -56,7 +56,7 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberImeDismiss
 import com.haooz.chedule.ui.utils.rememberOpenKey
-import com.kyant.backdrop.Backdrop
+import com.haooz.softglass.backdrop.GlassBackdrop
 import kotlinx.datetime.Clock
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -77,7 +77,7 @@ import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import com.kyant.capsule.continuousClip
+import com.haooz.softglass.shape.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -86,7 +86,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 fun AddEditCourseBottomSheet(
     show: Boolean,
     courses: List<Course>,
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     onDismissRequest: () -> Unit,
     onConfirm: (Course) -> Unit,
     editCourse: Course? = null,

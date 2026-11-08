@@ -18,7 +18,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.interfaces.HoldDownObserver
-import com.kyant.capsule.continuousSurface
+import com.haooz.softglass.shape.continuousSurface
 
 /**
  * A [IconButton] component with Miuix style.

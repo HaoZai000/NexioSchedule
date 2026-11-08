@@ -73,8 +73,8 @@ import com.haooz.chedule.ui.web.rememberIosWebHost
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.about_app_icon
 import com.haooz.chedule.viewmodel.settingsViewModel
-import com.kyant.capsule.ContinuousRoundedRectangle
-import com.kyant.capsule.continuities.G2Continuity
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.G2Continuity
 import org.jetbrains.compose.resources.imageResource
 import platform.Foundation.NSBundle
 import platform.Foundation.NSData

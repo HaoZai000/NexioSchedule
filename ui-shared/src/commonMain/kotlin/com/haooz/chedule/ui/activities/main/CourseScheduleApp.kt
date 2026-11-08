@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.activities.main
 
+import com.haooz.softglass.GlassEnvironment
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -62,7 +63,6 @@ import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.LocalNativeBottomBarHost
-import com.haooz.chedule.ui.utils.PageBackdropSnapshot
 import com.haooz.chedule.ui.utils.ShiftModeRequest
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
@@ -78,14 +78,13 @@ import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.scheduleViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
 import com.haooz.chedule.viewmodel.shiftViewModel
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.isRenderEffectSupported
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberCombinedBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.platform.isRenderEffectSupported
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
@@ -321,11 +320,8 @@ fun CourseScheduleApp(
                                 backdrop = liquidGlassBackdrop,
                                 shape = { ContinuousRoundedRectangle(36.dp) },
                                 effects = {
-                                    vibrancy()
                                     blur(warmupBlurPx)
-                                },
-                                highlight = null
-                            )
+                                },)
                         } else Modifier
                     )
             )
@@ -507,7 +503,7 @@ fun CourseScheduleApp(
 
         // 当前可见页背后是不是壁纸，决定高光亮度（见 InteractiveHighlight 的 peak）。
         // 必须在组合期算再交给 SideEffect：只在 SideEffect 里读 currentPage 不会订阅，切页不更新。
-        SideEffect { PageBackdropSnapshot.hasWallpaper.value = pageBehindHasWallpaper }
+        SideEffect { GlassEnvironment.update(hasWallpaper = pageBehindHasWallpaper) }
 
         // 二级页侧栏点选主 tab（无转场回来后处理）
         LaunchedEffect(TabletNavSideState.pendingMainTab) {
@@ -757,7 +753,7 @@ fun CourseScheduleApp(
                 }
             }
             // 顶栏/底栏必须采主内容 liquidGlass，否则玻璃退化成纯色
-            val chromeBackdrop: Backdrop = liquidGlassBackdrop
+            val chromeBackdrop: GlassBackdrop = liquidGlassBackdrop
             val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
             // The source remains rendered underneath the morph, including across controller frames.
             val mainContentAlpha = 1f

@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 
 /** 顶栏按钮背景的出现阈值：内容滚过 10dp（与 CollapsibleTopAppBar 内部同一判据） */
 private val MaterialScrollThreshold = 10.dp
@@ -25,10 +26,16 @@ private val MaterialScrollThreshold = 10.dp
 @Composable
 fun rememberTopBarMaterialAlpha(scrollBehavior: SharedScrollBehavior?): () -> Float {
     val thresholdPx = with(LocalDensity.current) { MaterialScrollThreshold.toPx() }
-    val scrolled by remember(scrollBehavior, thresholdPx) {
+    // 只作身份键：offset 在 derivedStateOf 内部读，本身就会被订阅
+    val overScrollState = LocalOverScrollState.current
+    val scrolled by remember(scrollBehavior, thresholdPx, overScrollState) {
         derivedStateOf {
-            val offset = scrollBehavior?.state?.contentOffset ?: 0f
-            offset < -thresholdPx
+            // contentOffset 是累计滚动量：只有回到顶部时才会自然归零（不再被 fling 清零），
+            // 所以触底回弹不会把材质抖掉。
+            val contentOffset = scrollBehavior?.state?.contentOffset ?: 0f
+            // 与 CollapsibleTopAppBar 的按钮背景同源：① 滚过阈值；② 顶部向下回弹
+            if (contentOffset < -thresholdPx) true
+            else contentOffset >= 0f && overScrollState.offset < 0f
         }
     }
     return rememberTopBarMaterialAlpha(scrolled)

@@ -56,8 +56,8 @@ import com.haooz.chedule.ui.utils.NativeTopBarHost
 import com.haooz.chedule.ui.utils.NativeTopBarMenuItem
 import com.haooz.chedule.ui.utils.NativeTopBarState
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.isRenderEffectSupported
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.platform.isRenderEffectSupported
 import kotlin.math.roundToInt
 import kotlinx.datetime.LocalDate
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -119,7 +119,7 @@ fun ScheduleTopBar(
     onCourseManage: () -> Unit = {},
     isTablet: Boolean = false,
     isShiftMode: Boolean = false,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     scrollBehavior: SharedScrollBehavior? = null,
     blurResampleKey: Int = 0,
     blurSampleTrack: () -> Float = { 0f },

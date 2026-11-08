@@ -69,8 +69,8 @@ import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import com.kyant.capsule.continuousBorder
-import com.kyant.capsule.continuousClip
+import com.haooz.softglass.shape.continuousBorder
+import com.haooz.softglass.shape.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -78,7 +78,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 @Composable
 fun PreferenceSettingsScreen(
     scrollBehavior: SharedScrollBehavior? = null,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /** 是否已授予定位权限（Android 宿主注入权限检查；桌面/iOS 恒 false） */
     hasLocationPermission: () -> Boolean = { false },
     /** 清空天气缓存（Android 宿主注入；桌面/iOS 空实现） */
@@ -154,7 +154,7 @@ fun PreferenceSettingsScreen(
         )
     }
     // 统一限制：模糊能力不可用（Android API < 31）一律锁进无材质档；桌面 / iOS 恒支持不锁
-    val materialLocked = !com.kyant.backdrop.isRenderEffectSupported()
+    val materialLocked = !com.haooz.softglass.platform.isRenderEffectSupported()
     val effectiveMaterialLevel = if (materialLocked) {
         AppMaterialSettings.NONE
     } else {

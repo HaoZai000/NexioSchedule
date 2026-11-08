@@ -45,7 +45,7 @@ import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.TransitionLayerImage
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.toShape
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator

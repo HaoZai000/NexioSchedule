@@ -31,7 +31,8 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.material3)
             // 液态玻璃：绘制路径与能力探测
-            api(project(":backdrop"))
+            // 连续圆角形状
+            api(project(":softglass"))
             // Monet 取色
             api(libs.materialKolor.utilities)
             // AGSL/SkSL 运行时的编译期注解
@@ -46,7 +47,7 @@ kotlin {
                 exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui")
             }
             // miuix-preference 已 fork 进本模块：官方版 ABI 与本 fork 对不上，iOS 链接报 Undefined symbols。
-            // 排除 miuix-squircle：圆角已统一到 :backdrop 的 com.kyant.capsule。
+            // 排除 miuix-squircle：圆角已统一到 :softglass 的 shape 包。
             implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:${libs.versions.miuixNavigation3.get()}") {
                 exclude(group = "top.yukonga.miuix.kmp", module = "miuix-squircle")
             }

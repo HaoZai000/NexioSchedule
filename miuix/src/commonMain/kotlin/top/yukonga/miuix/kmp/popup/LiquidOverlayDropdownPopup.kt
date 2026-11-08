@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.Backdrop
+import com.haooz.softglass.backdrop.GlassBackdrop
 import top.yukonga.miuix.kmp.basic.DropdownColors
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
@@ -51,7 +51,7 @@ fun OverlayDropdownPopup(
     dropdownColors: DropdownColors,
     renderInRootScaffold: Boolean,
     collapseOnSelection: Boolean = true,
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     onFractionProgress: ((Float) -> Unit)? = null,
     collapseSize: IntSize? = null,
     collapseExtra: DpSize = DpSize.Zero,
@@ -101,7 +101,7 @@ fun OverlayDropdownPopup(
     dropdownColors: DropdownColors,
     renderInRootScaffold: Boolean,
     collapseOnSelection: Boolean = entries.size <= 1,
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     onFractionProgress: ((Float) -> Unit)? = null,
     collapseSize: IntSize? = null,
     collapseExtra: DpSize = DpSize.Zero,
@@ -179,7 +179,7 @@ fun OverlayDropdownDialog(
     popupModifier: Modifier = Modifier,
     renderInRootScaffold: Boolean = true,
     collapseOnSelection: Boolean = true,
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
 ) {
     val entries = remember(entry) { listOf(entry) }
     OverlayDropdownDialog(
@@ -224,7 +224,7 @@ fun OverlayDropdownDialog(
     popupModifier: Modifier = Modifier,
     renderInRootScaffold: Boolean = true,
     collapseOnSelection: Boolean = entries.size <= 1,
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val currentEntries by rememberUpdatedState(entries)

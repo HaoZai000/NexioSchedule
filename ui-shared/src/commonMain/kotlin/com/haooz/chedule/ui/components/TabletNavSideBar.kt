@@ -64,21 +64,21 @@ import top.yukonga.miuix.kmp.interactive.dropdownPanelDragSelect
 import top.yukonga.miuix.kmp.interactive.dropdownPanelEntry
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.glass.BarFill
-import com.haooz.chedule.ui.glass.BrightLargeTone
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.BarFill
+import com.haooz.softglass.glass.BrightLargeTone
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Album
@@ -214,7 +214,7 @@ private fun rememberTabletNavMaskCorner(screenCornerRadiusPx: Float): Dp {
  */
 @Composable
 fun TabletNavSideBar(
-    backdrop: Backdrop?,
+    backdrop: GlassBackdrop?,
     /** 屏幕圆角（px）；宿主注入，0 = 取不到（退回 28.dp 基准） */
     screenCornerRadiusPx: Float = 0f,
     selectedTab: Int,
@@ -278,7 +278,7 @@ fun TabletNavSideBar(
     val sideShapeBlock: () -> Shape = remember(sideCorner) {
         { ContinuousRoundedRectangle(sideCorner) }
     }
-    val sideGlassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val sideGlassEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(sideGlassBlurDp, sideGlassOn, sideGlassStyle, sideCornerPx) {
             {
                 if (sideGlassOn) {
@@ -288,7 +288,7 @@ fun TabletNavSideBar(
                         shaderString = SOFT_GLASS_LIVE_SHADER,
                         uniformShaderName = "content",
                     ) {
-                        applyLiveGlass(
+                        applySoftGlass(
                             style = sideGlassStyle,
                             width = size.width,
                             height = size.height,
@@ -372,7 +372,6 @@ fun TabletNavSideBar(
                                 backdrop = backdrop,
                                 shape = sideShapeBlock,
                                 effects = sideGlassEffects,
-                                highlight = null,
                                 // 柔光自己画玻璃色与方向光；无材质档不跑 shader，必须留实色底。
                                 onDrawSurface = if (sideGlassOn) null else sideSurface,
                             )
@@ -636,7 +635,7 @@ private fun TabletNavSideItem(
 fun LiquidNavigationRail(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
-    backdrop: Backdrop,
+    backdrop: GlassBackdrop,
     isShiftMode: Boolean,
     /** 屏幕圆角（px）；宿主注入，0 = 取不到（退回 28.dp 基准） */
     screenCornerRadiusPx: Float = 0f,

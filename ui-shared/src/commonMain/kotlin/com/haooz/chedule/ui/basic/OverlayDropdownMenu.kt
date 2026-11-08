@@ -108,7 +108,7 @@ fun OverlayDropdownMenu(
     renderInRootScaffold: Boolean = true,
     collapseOnSelection: Boolean = true,
     onExpandedChange: ((Boolean) -> Unit)? = null,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     collapseExtra: DpSize = DefaultCollapseExtra,
 ) {
     val entries = remember(entry) { listOf(entry) }
@@ -153,7 +153,7 @@ fun OverlayDropdownMenu(
     renderInRootScaffold: Boolean = true,
     collapseOnSelection: Boolean = entries.size <= 1,
     onExpandedChange: ((Boolean) -> Unit)? = null,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     collapseExtra: DpSize = DefaultCollapseExtra,
 ) {
     val interactionSource = remember { MutableInteractionSource() }

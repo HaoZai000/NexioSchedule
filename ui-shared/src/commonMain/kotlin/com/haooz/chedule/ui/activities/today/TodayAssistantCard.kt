@@ -89,8 +89,8 @@ import com.haooz.chedule.uishared.resources.icon_sunny
 import com.haooz.chedule.uishared.resources.icon_sunny_night
 import com.haooz.chedule.uishared.resources.icon_t_storm
 import com.haooz.chedule.ui.components.LocalSoftGlassSurface
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.PI
 import kotlin.math.acos
 import kotlin.math.atan2

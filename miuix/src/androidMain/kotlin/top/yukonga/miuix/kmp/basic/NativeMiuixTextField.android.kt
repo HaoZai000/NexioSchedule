@@ -46,8 +46,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
-import com.kyant.capsule.continuousBackground
-import com.kyant.capsule.continuousBorder
+import com.haooz.softglass.shape.continuousBackground
+import com.haooz.softglass.shape.continuousBorder
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable

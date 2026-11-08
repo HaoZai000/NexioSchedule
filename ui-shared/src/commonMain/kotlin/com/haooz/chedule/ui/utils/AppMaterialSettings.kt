@@ -3,17 +3,17 @@ package com.haooz.chedule.ui.utils
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.i18n.MiscStr
-import com.haooz.chedule.ui.glass.BrightTone
-import com.haooz.chedule.ui.glass.GlassFill
-import com.haooz.chedule.ui.glass.GlassTone
-import com.haooz.chedule.ui.glass.SoftGlassStyle
-import com.haooz.chedule.ui.glass.ThemeFill
-import com.kyant.backdrop.isRenderEffectSupported
+import com.haooz.softglass.glass.BrightTone
+import com.haooz.softglass.glass.GlassFill
+import com.haooz.softglass.glass.GlassTone
+import com.haooz.softglass.glass.SoftGlassStyle
+import com.haooz.softglass.glass.ThemeFill
+import com.haooz.softglass.GlassMaterialLevel
+import com.haooz.softglass.surfaceAlpha
+import com.haooz.softglass.tuning
+import com.haooz.softglass.platform.isRenderEffectSupported
 
 /**
  * 应用材质质量档（柔光玻璃 / 清透磨砂 / 无材质），玻璃模糊、折射、边光都读它；默认清透磨砂。
@@ -33,18 +33,11 @@ object AppMaterialSettings {
     const val BALANCED = "balanced"
     const val NONE = "none"
 
-    /** 降级描边同色系提亮幅度（向白混合比例） */
-    private const val STROKE_LIGHTEN = 0.2f
-
-    /** 玻璃件采样模糊（dp）：全档位统一（无材质档为 0） */
-    private const val GLASS_BLUR_DP = 6f
-    /** 下拉面板展开态模糊（dp）：全档位统一，不随展开渐变 */
-    private const val GLASS_PANEL_BLUR_DP = 12f
-    /** 柔光玻璃档玻璃底色 alpha 降幅：深色降得多一点，浅色降少一点（浅底本身已亮） */
-    private const val GLASS_SURFACE_ALPHA_DROP_DARK = 0.32f
-    private const val GLASS_SURFACE_ALPHA_DROP_LIGHT = 0.2f
-    /** 对话框 / 贴底弹窗玻璃的采样模糊（dp）：全档位统一 */
-    private const val GLASS_DIALOG_BLUR_DP = 12f
+    private fun materialLevel(): GlassMaterialLevel = when (level) {
+        BEST -> GlassMaterialLevel.SOFT
+        NONE -> GlassMaterialLevel.NONE
+        else -> GlassMaterialLevel.FROSTED
+    }
 
     // Pair.first 是持久化数据键（BEST/BALANCED/...），Pair.second 是展示名；按当前语言取值，不缓存
     val entries: List<Pair<String, String>>
@@ -113,40 +106,26 @@ object AppMaterialSettings {
     /** 玻璃材质总开关（无材质档 false）：玻璃件的 vibrancy / 硬编码模糊与折射一并关闭。 */
     fun glassEffectsEnabled(): Boolean = level != NONE
 
-    /**
-     * 玻璃件采样模糊半径（dp）。**所有档位统一 6**：档位差异交给折射与描边，
-     * 不再靠模糊量区分（4/8 两档在小控件上几乎看不出差别，反而让参数多一套）。
-     */
-    fun glassBlurDp(): Float = if (level == NONE) 0f else GLASS_BLUR_DP
+    /** 玻璃件采样模糊半径（dp），档位口径由 :softglass 提供。 */
+    fun glassBlurDp(): Float = materialLevel().tuning().blurDp
 
-    /**
-     * 弹出面板（下拉菜单）展开态采样模糊半径（dp）：全档位统一 12，不随展开渐变；无材质档 0。
-     */
-    fun glassPanelBlurDp(): Float = if (level == NONE) 0f else GLASS_PANEL_BLUR_DP
+    /** 弹出面板展开态采样模糊半径（dp）。 */
+    fun glassPanelBlurDp(): Float = materialLevel().tuning().panelBlurDp
 
-    /** 对话框 / 贴底弹窗玻璃的采样模糊半径（dp）：全档位统一 12，无材质档 0（玻璃整体关）。 */
-    fun glassDialogBlurDp(): Float = if (level == NONE) 0f else GLASS_DIALOG_BLUR_DP
+    /** 对话框 / 贴底弹窗玻璃的采样模糊半径（dp）。 */
+    fun glassDialogBlurDp(): Float = materialLevel().tuning().dialogBlurDp
 
-    /**
-     * 玻璃底色 alpha：无材质档返回 1f（玻璃面改实色），柔光玻璃档比常态低一档让折射和背后的内容
-     * 透出来；清透磨砂档原值返回。
-     *
-     * @param milledAlpha 清透磨砂档原本使用的 alpha
-     */
+    /** 玻璃底色 alpha，无材质档改实色。 */
     fun glassSurfaceAlpha(milledAlpha: Float, isLight: Boolean): Float =
-        if (level == NONE) 1f else (milledAlpha - glassSurfaceAlphaDrop(isLight)).coerceAtLeast(0f)
+        materialLevel().surfaceAlpha(milledAlpha, isLight)
 
     /** 无材质档玻璃面实色化：半透明底色换成不透明（[baseAlpha] 其余档原样返回）。 */
     fun solidSurfaceAlpha(baseAlpha: Float): Float = if (level == NONE) 1f else baseAlpha
 
-    /**
-     * 柔光玻璃档的底色 alpha 降幅（浅色 / 深色各一档）；清透磨砂 / 无材质档 0。
-     * [glassSurfaceAlpha] 与 :miuix 下发都用它。
-     */
-    fun glassSurfaceAlphaDrop(isLight: Boolean): Float = when {
-        level != BEST -> 0f
-        isLight -> GLASS_SURFACE_ALPHA_DROP_LIGHT
-        else -> GLASS_SURFACE_ALPHA_DROP_DARK
+    /** 柔光玻璃档的底色 alpha 降幅，[glassSurfaceAlpha] 与 :miuix 下发都用它。 */
+    fun glassSurfaceAlphaDrop(isLight: Boolean): Float {
+        val tuning = materialLevel().tuning()
+        return if (isLight) tuning.surfaceAlphaDropLight else tuning.surfaceAlphaDropDark
     }
 
     /**
@@ -155,39 +134,7 @@ object AppMaterialSettings {
      */
     fun progressiveBlurUseFake(): Boolean = !trueProgressiveBlur
 
-    /**
-     * 无材质档把高光描边降级为普通纯色描边（无模糊、SrcOver）；[baseColor] 非空时按同色系
-     * 提亮一档作描边，否则按主题回退（浅色白 / 深色灰）。柔光玻璃 / 清透磨砂保留原高光。
-     */
-    fun resolveEdgeLight(
-        source: com.kyant.backdrop.edgelight.EdgeLight,
-        isLightTheme: Boolean,
-        baseColor: Color? = null,
-    ): com.kyant.backdrop.edgelight.EdgeLight {
-        if (level != NONE) return source
-        val stroke = baseColor?.let(::lightenSameHue)
-            ?: if (isLightTheme) Color.White else Color(0xFF333333)
-        return com.kyant.backdrop.edgelight.EdgeLight(
-            width = 0.8.dp,
-            blurRadius = 0.dp,
-            intensity = source.intensity,
-            style = com.kyant.backdrop.edgelight.EdgeLightStyle.Uniform(
-                color = stroke,
-                blendMode = BlendMode.SrcOver,
-            ),
-        )
-    }
 
-    /** 同色系提亮一档：丢弃原 alpha 按不透明底色向白混合 [STROKE_LIGHTEN]，白底仍是白 */
-    private fun lightenSameHue(color: Color): Color {
-        val t = STROKE_LIGHTEN
-        return Color(
-            red = color.red + (1f - color.red) * t,
-            green = color.green + (1f - color.green) * t,
-            blue = color.blue + (1f - color.blue) * t,
-            alpha = 1f,
-        )
-    }
 
     fun apply(level: String) {
         this.level = normalize(level)

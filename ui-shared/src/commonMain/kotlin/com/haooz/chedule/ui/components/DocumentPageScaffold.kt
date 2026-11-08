@@ -23,8 +23,8 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
@@ -52,11 +52,11 @@ fun DocumentPageScaffold(
     // 第三个参数是**页面采样层本身**：顶栏玻璃按钮要拿它当 backdrop，才能真的折射内容。
     // 以前调用方各自 `rememberLayerBackdrop()` 造一个空层，渲染出来是一颗纯色圆 ——
     // 看着"没有玻璃效果"就是这个原因。
-    endAction: (@Composable (backdropAlpha: Float, shadowAlpha: Float, backdrop: com.kyant.backdrop.Backdrop) -> Unit)? = null,
-    overlay: (@Composable BoxScope.(liquidGlassBackdrop: com.kyant.backdrop.Backdrop) -> Unit)? = null,
+    endAction: (@Composable (backdropAlpha: Float, shadowAlpha: Float, backdrop: com.haooz.softglass.backdrop.GlassBackdrop) -> Unit)? = null,
+    overlay: (@Composable BoxScope.(liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop) -> Unit)? = null,
     content: @Composable (
         scrollBehavior: SharedScrollBehavior,
-        liquidGlassBackdrop: com.kyant.backdrop.Backdrop,
+        liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop,
     ) -> Unit,
 ) {
     val nativeChrome = LocalNativeDocumentChrome.current

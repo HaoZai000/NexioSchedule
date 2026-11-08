@@ -66,8 +66,8 @@ import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.time.Duration.Companion.milliseconds
@@ -121,7 +121,7 @@ class CourseScheduleAppState {
      * 画在弹窗层的东西（「更多」下拉菜单、OverlayDialog）采它，玻璃里才看得到顶栏/底栏。
      * 顶栏/底栏自己**不能**采它（会采到自己，见 LayerBackdropModifier 的循环采样问题）。
      */
-    lateinit var overlayGlassBackdrop: Backdrop
+    lateinit var overlayGlassBackdrop: GlassBackdrop
     lateinit var windowInfo: WindowInfo
     lateinit var densityProvider: Density
     lateinit var detailLayerLayoutDirection: LayoutDirection
@@ -277,7 +277,7 @@ class CourseScheduleAppState {
 
     // 速度/采样时间只在 spring 起始读；offset 走 floatingOffset* 的 graphicsLayer，不进组合
     val dragMotion = DragMotionHolder()
-    var draggedCardBackdrop by mutableStateOf<Backdrop?>(null)
+    var draggedCardBackdrop by mutableStateOf<GlassBackdrop?>(null)
     var draggedWeek by mutableIntStateOf(1)
 
     // 源卡片所在的**列**星期（几何坐标）。调课日列的数据星期 ≠ 列星期，
@@ -369,7 +369,7 @@ class CourseScheduleAppState {
     var shortcutMenuVisible by mutableStateOf(false)
     var shortcutMenuPosition by mutableStateOf(Offset.Zero)
     var shortcutMenuSize by mutableStateOf(IntSize.Zero)
-    var shortcutMenuBackdrop by mutableStateOf<Backdrop?>(null)
+    var shortcutMenuBackdrop by mutableStateOf<GlassBackdrop?>(null)
 
     // 左移时菜单右边缘对齐卡片右边缘
     var shortcutMenuAnchorWidth by mutableFloatStateOf(0f)

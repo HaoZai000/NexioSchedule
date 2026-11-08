@@ -80,7 +80,7 @@ import androidx.compose.ui.util.lerp
 // 预测性返回走本模块的 expect 封装（utils/NavigationBack.kt）——上游这里直接 import
 // androidx.navigationevent（AndroidX 库，CMP 的 iOS/Desktop artifact 里没有）。
 // 2026-10-11 补全 fork 时按 fork 既有写法（ListPopupLayout / DialogContentLayout）改写。
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.utils.LocalPredictiveBackEnabled
 import top.yukonga.miuix.kmp.utils.rememberNavigationBack
 import kotlinx.coroutines.CoroutineScope
@@ -91,7 +91,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
-import com.kyant.capsule.continuousSurface
+import com.haooz.softglass.shape.continuousSurface
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.LocalScreenTopCornerRadii
 import top.yukonga.miuix.kmp.theme.MiuixTheme

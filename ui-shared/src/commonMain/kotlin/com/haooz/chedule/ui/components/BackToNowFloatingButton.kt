@@ -36,17 +36,17 @@ import com.haooz.chedule.ui.components.GlassDragStretchRatio
 import com.haooz.chedule.ui.components.GlassDragTranslationDamping
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.glass.BrightTone
-import com.haooz.chedule.ui.glass.CustomizeFill
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.BrightTone
+import com.haooz.softglass.glass.CustomizeFill
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.shape.ContinuousCapsule
 import kotlin.math.roundToInt
 import kotlin.math.tanh
 import top.yukonga.miuix.kmp.interactive.computeDragTransform
@@ -64,7 +64,7 @@ private const val LIVE_BACK_TO_NOW_GLASS_KEY = "NexioSoftGlassLiveBackToNow"
 @Composable
 fun BackToNowFloatingButton(
     onClick: () -> Unit,
-    backdrop: Backdrop,
+    backdrop: GlassBackdrop,
     label: String,
     modifier: Modifier = Modifier,
     /** 玻璃内文字左右内边距；侧栏折叠轨用紧凑值，避免被面板裁切 */
@@ -104,7 +104,7 @@ fun BackToNowFloatingButton(
         tone = BrightTone,
     )
     // drawBackdrop 按引用比较 shape / effects / onDrawSurface，lambda 每帧新建会重录采样层。
-    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val buttonEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(glassBlur, glassEffectsOn, buttonGlassStyle) {
             {
                 if (glassEffectsOn) {
@@ -114,7 +114,7 @@ fun BackToNowFloatingButton(
                         shaderString = SOFT_GLASS_LIVE_SHADER,
                         uniformShaderName = "content",
                     ) {
-                        applyLiveGlass(
+                        applySoftGlass(
                             style = buttonGlassStyle,
                             width = size.width,
                             height = size.height,
@@ -193,10 +193,9 @@ fun BackToNowFloatingButton(
                 )
                 .drawBackdrop(
                     backdrop = backdrop,
+                    shadow = null,
                     shape = buttonShapeBlock,
                     effects = buttonEffects,
-                    highlight = null,
-                    shadow = null,
                     layerBlock = {
                         // 与 LiquidGlassTextButton 同一套玻璃档手感
                         val drag = computeDragTransform(

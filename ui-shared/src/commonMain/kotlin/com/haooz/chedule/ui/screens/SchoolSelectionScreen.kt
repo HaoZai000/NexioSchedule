@@ -49,7 +49,7 @@ import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.ExtractedShareTools
 import com.haooz.chedule.ui.utils.screenWidthDp
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
@@ -67,7 +67,7 @@ fun SchoolSelectionScreen(
     searchQuery: String = "",
     selectedTab: Int = 0,
     topContentPadding: Dp = 0.dp,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     onAdapterSelected: (SchoolData, AdapterData) -> Unit
 ) {
     val hapticFeedback = LocalHapticFeedback.current

@@ -13,9 +13,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import com.kyant.backdrop.edgelight.EdgeLight
 import top.yukonga.miuix.kmp.material.GlassSurfaceAlphaDrop
-import top.yukonga.miuix.kmp.material.LocalEdgeLightResolver
 import top.yukonga.miuix.kmp.material.LocalGlassBlurDp
 import top.yukonga.miuix.kmp.material.LocalGlassDialogBlurDp
 import top.yukonga.miuix.kmp.material.LocalGlassPanelBlurDp
@@ -118,7 +116,6 @@ internal data class MiuixOverlayTheme(
     /** 玻璃底色 alpha 降幅快照（柔光玻璃档 >0，其余 0），同上。 */
     val glassSurfaceAlphaDrop: GlassSurfaceAlphaDrop,
     /** 描边降级解析器快照，同上：弹窗描边在 root host 算，读不到声明页面的 CompositionLocal。 */
-    val edgeLightResolver: (EdgeLight, Boolean, Color?) -> EdgeLight,
     /** 柔光玻璃注入快照，同上：弹窗面板在 root host 渲染。 */
     val softGlassLayer: SoftGlassLayer?,
     /**
@@ -147,7 +144,6 @@ internal data class MiuixOverlayTheme(
             LocalGlassPanelBlurDp provides glassPanelBlurDp,
             LocalGlassDialogBlurDp provides glassDialogBlurDp,
             LocalGlassSurfaceAlphaDrop provides glassSurfaceAlphaDrop,
-            LocalEdgeLightResolver provides edgeLightResolver,
             LocalSoftGlassLayer provides softGlassLayer,
             LocalMiuixTextMotion provides textMotion,
             LocalPredictiveBackEnabled provides predictiveBackEnabled,
@@ -174,7 +170,6 @@ internal fun currentMiuixOverlayTheme(): MiuixOverlayTheme = MiuixOverlayTheme(
     glassPanelBlurDp = LocalGlassPanelBlurDp.current,
     glassDialogBlurDp = LocalGlassDialogBlurDp.current,
     glassSurfaceAlphaDrop = LocalGlassSurfaceAlphaDrop.current,
-    edgeLightResolver = LocalEdgeLightResolver.current,
     softGlassLayer = LocalSoftGlassLayer.current,
     textMotion = LocalMiuixTextMotion.current,
     predictiveBackEnabled = LocalPredictiveBackEnabled.current,

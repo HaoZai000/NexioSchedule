@@ -134,11 +134,11 @@ import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.haooz.chedule.ui.utils.rememberPagerTakeoverGestureState
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.colorControls
-import com.kyant.backdrop.isRenderEffectSupported
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.colorControls
+import com.haooz.softglass.platform.isRenderEffectSupported
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
@@ -173,7 +173,7 @@ private const val OVERLAY_GLASS_RELEASE_DELAY_MS = 420L
 internal fun CourseScheduleAppMainContent(
     state: CourseScheduleAppState,
     displayAppearance: AppearanceConfig,
-    chromeBackdrop: Backdrop,
+    chromeBackdrop: GlassBackdrop,
     liquidGlassRecordKey: List<Any?>,
     liquidGlassMustRecord: () -> Boolean,
     mainContentAlpha: Float,
@@ -835,10 +835,11 @@ internal fun CourseScheduleAppMainContent(
                                 }
                                 val page = mainPagerState.currentPage
                                 val off = abs(mainPagerState.currentPageOffsetFraction)
-                                // pad 只有今日/课表页铺壁纸；切回主页面时随滑动提前铺上
+                                // 平板：壁纸层全程可见。侧栏常驻且玻璃采的就是这一层，
+                                // 只要有一页不铺壁纸，侧栏就会采到空白（表现成深色块）。
+                                // 手机：今日/课表页铺壁纸，切回主页面时随滑动提前铺上。
                                 val onMainPage = if (navBarStyle == "rail") {
-                                    page in 0..1 ||
-                                        (page == 2 && off > 0.01f && selectedTab in 0..1)
+                                    true
                                 } else {
                                     page != 2 || off > 0.01f
                                 }
@@ -1529,18 +1530,14 @@ internal fun CourseScheduleAppMainContent(
                                             val settingsDark = appSettingDark
                                             val settingsThemeController =
                                                 rememberAppThemeController(isDark = settingsDark)
-                                            // 卡片面铺满整屏（含右侧栏下方），列表内容再避让右侧栏。
-                                            // 只内缩内容的话，屏幕圆角裁切会在屏内 ~84pt 处收口 ——
-                                            // 圆角跑到屏幕里侧、右边露一条壁纸，与顶部渐变糊带的沉浸口径不一致。
-                                            Box(modifier = settingsPageClipModifier) {
+                                            // 与今日/课表同一套壳：整页不再自己铺 surface，
+                                            // 背景交给壳层（共享壁纸），右侧栏才采得到与页面一致的底色。
+                                            Box(modifier = Modifier.fillMaxSize().then(settingsPageClipModifier)) {
                                                 MiuixTheme(controller = settingsThemeController) {
                                                     CompositionLocalProvider(LocalForcedDarkTheme provides settingsPageForcedDark) {
                                                         Box(
                                                             modifier = Modifier
                                                                 .fillMaxSize()
-                                                                // ⚠ 顺序不能反：background 必须在 padding 之前 ——
-                                                                // 卡片面要铺到屏幕边缘（右侧栏下方），只有内容内缩
-                                                                .background(MiuixTheme.colorScheme.surface)
                                                                 .then(pageInsetModifier)
                                                         ) {
                                                             RenderSettingsPane(
@@ -1670,10 +1667,8 @@ internal fun CourseScheduleAppMainContent(
                                     LocalPageStartPadding provides pageStartModifier,
                                     LocalAppMinuteClock provides appMinuteClock,
                                 ) {
-                                    // 今日/课表页内部还有横向 pager，留白交给它们自己的滚动内容
-                                    val outerPadding =
-                                        if (!isShiftMode && page in 0..1) Modifier else pageStartModifier
-                                    Box(Modifier.fillMaxSize().then(outerPadding)) {
+                                    // 页面容器一律铺满，避让只发生在内容层
+                                    Box(Modifier.fillMaxSize()) {
                                         mainPagerPageBody(page)
                                     }
                                 }
@@ -2193,10 +2188,9 @@ internal fun CourseScheduleAppMainContent(
                             }
                             .drawBackdrop(
                                 backdrop = liquidGlassBackdrop,
+                                shadow = null,
                                 shape = { RectangleShape },
                                 effects = { colorControls(saturation = 1.5f) },
-                                highlight = null,
-                                shadow = null,
                             )
                     )
                 }

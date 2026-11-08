@@ -62,16 +62,16 @@ import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
 import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.rememberScheduleRevealState
 import com.haooz.chedule.ui.components.softGlassBackdrop
-import com.haooz.chedule.ui.glass.SoftGlassStyle
+import com.haooz.softglass.glass.SoftGlassStyle
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.courseCardTextColor
 import com.haooz.chedule.ui.theme.rememberCourseColors
 import com.haooz.chedule.ui.theme.scheduleAccentColor
 import com.haooz.chedule.ui.utils.courseCardNoneTierBacking
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.Backdrop
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.time.Duration.Companion.milliseconds
@@ -128,7 +128,7 @@ fun CourseCard(
      * 传 [softGlassSurface] 的话采的是壁纸，卡片底下有什么完全看不见。
      * 与 [glassStyle] 配对使用，两个都非空才生效；[softGlassSurface] 优先。
      */
-    glassBackdrop: Backdrop? = null,
+    glassBackdrop: GlassBackdrop? = null,
     /** 实时录制版的玻璃样式；必须与网格卡片同一份（见 `rememberScheduleGlassStyle`） */
     glassStyle: SoftGlassStyle? = null,
     cardAlpha: Float = 0.12f,

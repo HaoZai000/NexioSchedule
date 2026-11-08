@@ -51,7 +51,7 @@ import com.haooz.chedule.ui.web.WebHostEvents
 import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.scheduleViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
-import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
@@ -90,7 +90,7 @@ fun WebImportScreen(
     // iOS 原生文档页：顶栏整个交给系统（原生导航栏标题 + 材质 + 关闭/刷新按钮）
     NativeDocumentSystemHeaderEffect(nativeChrome != null)
 
-    val liquidGlassBackdrop: LayerBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    val liquidGlassBackdrop: LayerBackdrop = com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop()
     val hapticFeedback = LocalHapticFeedback.current
     val webViewScrollBehavior = rememberSharedScrollBehavior()
 
@@ -138,7 +138,7 @@ fun WebImportScreen(
             top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight + 40.dp
         val contentTopInset = paddingValues.calculateTopPadding() + nativeBarInset
         // 顶栏与底部胶囊共用：录的是 WebView Offscreen 层
-        val webContentBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+        val webContentBackdrop = com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop()
 
         Box(modifier = Modifier.fillMaxSize()) {
             com.haooz.chedule.ui.screens.WebViewScreen(

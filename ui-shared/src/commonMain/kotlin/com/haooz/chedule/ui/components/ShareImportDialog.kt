@@ -51,7 +51,7 @@ fun ShareImportDialog(
     courseViewModel: CourseViewModel,
     scheduleViewModel: ScheduleViewModel,
     settingsViewModel: SettingsViewModel,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
 ) {
     var showShareImportDialog by remember { mutableStateOf(false) }
     var shareImportData by remember { mutableStateOf<Map<String, Any>?>(null) }

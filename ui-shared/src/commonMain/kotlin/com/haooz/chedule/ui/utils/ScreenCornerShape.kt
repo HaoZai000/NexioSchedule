@@ -8,7 +8,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 
 /** Keeps hardware corners attached to physical edges, including in RTL layouts. */
 fun ScreenCornerRadiiPx.toShape(density: Density): Shape = PhysicalScreenCornerShape(

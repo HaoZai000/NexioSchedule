@@ -94,9 +94,9 @@ import com.haooz.chedule.ui.utils.pagerAxisTakeoverGesture
 import com.haooz.chedule.ui.utils.rememberPagerTakeoverGestureState
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
-import com.kyant.backdrop.Backdrop
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
@@ -368,7 +368,7 @@ fun TodayScreen(
     tabRedraw: () -> Unit = {},
     // true：壁纸由主 pager 后共享层绘制，本页透明叠上，切 tab 时不随页平移
     useSharedWallpaper: Boolean = false,
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
     /** 主界面 resume/节假日版本变化时递增，强制今日页重读 HolidayManager */

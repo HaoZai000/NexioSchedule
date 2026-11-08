@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.effects.liquidglass
 
+import com.haooz.softglass.GlassEnvironment
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.VisibilityThreshold
@@ -20,11 +21,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceIn
-import com.haooz.chedule.ui.utils.AppThemeSnapshot
-import com.haooz.chedule.ui.utils.PageBackdropSnapshot
-import com.kyant.backdrop.RuntimeShader
-import com.kyant.backdrop.asComposeShader
-import com.kyant.backdrop.isRuntimeShaderSupported
+import com.haooz.softglass.platform.GlassRuntimeShader
+import com.haooz.softglass.platform.createGlassRuntimeShader
+import com.haooz.softglass.platform.asComposeShader
+import com.haooz.softglass.platform.isRuntimeShaderSupported
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -93,7 +93,7 @@ class InteractiveHighlight(
 
     private val shader =
         if (isRuntimeShaderSupported()) {
-            RuntimeShader(
+            createGlassRuntimeShader(
                 """
 uniform float2 size;
 layout(color) uniform half4 color;
@@ -128,9 +128,9 @@ half4 main(float2 coord) {
                 )
                 // 深色恒 0.15；浅色默认 0.05（有壁纸的今日/课程表页 0.1）
                 val peak = (
-                    if (AppThemeSnapshot.isDark.value) 0.15f
+                    if (GlassEnvironment.isDark) 0.15f
                     else lightPeakAlpha
-                        ?: if (PageBackdropSnapshot.hasWallpaper.value) 0.1f else 0.05f
+                        ?: if (GlassEnvironment.hasWallpaper) 0.1f else 0.05f
                     ) * progress
                 if (drawFlatOverlay) {
                     drawRect(
@@ -158,7 +158,7 @@ half4 main(float2 coord) {
                         )
                     }
                 } else {
-                    // 无 RuntimeShader（API<33）：改画径向渐变而非整块平铺 —— 平铺没有圆形
+                    // 无 GlassRuntimeShader（API<33）：改画径向渐变而非整块平铺 —— 平铺没有圆形
                     // 边界，在「只要圆形光晕」的场景就是一整屏白。收边比 shader 宽，观感略散。
                     clipRect(
                         left = haloCenter.x - radius,

@@ -37,7 +37,7 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import com.kyant.capsule.continuousClip
+import com.haooz.softglass.shape.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**

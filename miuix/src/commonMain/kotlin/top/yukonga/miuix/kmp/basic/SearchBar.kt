@@ -63,13 +63,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.edgelight.isSystemLightTheme
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.GlassEnvironment
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -111,7 +111,7 @@ fun SearchBar(
     actionIcon: ImageVector? = null,
     actionIconSize: Dp = 23.dp,
     onActionClick: (() -> Unit)? = null,
-    backdrop: Backdrop? = null,
+    backdrop: GlassBackdrop? = null,
     backdropAlpha: Float = 0f,
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
@@ -172,7 +172,7 @@ fun SearchBar(
                     ) {
                         if (backdrop != null) {
                             // 记得住引用：drawBackdrop 按引用比较 effects，每帧新建会导致重新录制采样层
-                            val actionEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+                            val actionEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
                                 remember(glassBlur, materialNone, softGlass) {
                                     {
                                         if (!materialNone && softGlass != null) {
@@ -194,10 +194,9 @@ fun SearchBar(
                                     .matchParentSize()
                                     .drawBackdrop(
                                         backdrop = backdrop,
+                                        shadow = null,
                                         shape = { ContinuousCapsule() },
                                         effects = actionEffects,
-                                        highlight = null,
-                                        shadow = null,
                                         layerBlock = { alpha = backdropAlpha },
                                         onDrawSurface = {}
                                     )
@@ -286,7 +285,7 @@ fun InputField(
     leadingIcon: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
     interactionSource: MutableInteractionSource? = null,
-    backdrop: Backdrop? = null,
+    backdrop: GlassBackdrop? = null,
     backdropAlpha: Float = 1f,
     shadowAlpha: Float = 0f,
     /**
@@ -300,7 +299,7 @@ fun InputField(
     isLightTheme: (() -> Boolean)? = null,
 ) {
     // 系统主题要在组合期取一次（isSystemLightTheme 是 @Composable，不能塞进 lambda）
-    val systemIsLightTheme = isSystemLightTheme()
+    val systemIsLightTheme = !GlassEnvironment.isDark
     val resolveIsLightTheme: () -> Boolean = isLightTheme ?: { systemIsLightTheme }
     val currentOnQueryChange by rememberUpdatedState(onQueryChange)
     val currentOnSearch by rememberUpdatedState(onSearch)
@@ -401,7 +400,7 @@ fun InputField(
             // 与原 android.graphics.Color.parseColor("#12000000"/"#20000000") 等价（同 ARGB 值）
             val shadowColor = if (isLightTheme) Color(0x12000000) else Color(0x20000000)
             // 记得住引用：drawBackdrop 按引用比较 effects，每帧新建会导致重新录制采样层
-            val containerEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+            val containerEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
                 remember(glassBlur, materialNone, softGlass) {
                     {
                         if (!materialNone && softGlass != null) {
@@ -453,10 +452,9 @@ fun InputField(
                             .matchParentSize()
                             .drawBackdrop(
                                 backdrop = backdrop,
+                                shadow = null,
                                 shape = { capsuleShape },
                                 effects = containerEffects,
-                                highlight = null,
-                                shadow = null,
                                 layerBlock = {
                                     alpha = backdropAlpha
                                 },

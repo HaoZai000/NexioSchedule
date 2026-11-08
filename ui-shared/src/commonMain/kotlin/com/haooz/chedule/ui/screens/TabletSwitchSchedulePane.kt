@@ -36,6 +36,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -55,15 +58,16 @@ import com.haooz.chedule.i18n.SwitchStr
 import com.haooz.chedule.ui.activities.SwitchScheduleScreen
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -87,7 +91,7 @@ fun TabletSwitchSchedulePane(
     viewModel: CourseViewModel,
     scheduleViewModel: ScheduleViewModel,
     settingsViewModel: SettingsViewModel,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     /** 分享执行：由 Android 宿主注入（ScheduleExport.performScheduleShare 是 Android 专有）；
      *  内嵌编辑模式的底栏「分享」按钮会渲染，须转发给左栏 SwitchScheduleScreen */
     onShareSchedule: (scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit = { _, _ -> },
@@ -128,7 +132,14 @@ fun TabletSwitchSchedulePane(
         }
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    // 页面底色铺到屏幕边缘（含侧栏下），内容整体避让 —— background 在 padding 之前。
+    val paneSurface = MiuixTheme.colorScheme.surface
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(paneSurface)
+            .then(LocalPageStartPadding.current)
+    ) {
         // 左栏固定为屏宽 0.39，与课程管理/设置分栏一致
         val listWidth = screenWidthDp().dp * 0.39f
         val rightWidth = maxWidth - listWidth
@@ -154,6 +165,7 @@ fun TabletSwitchSchedulePane(
                 modifier = Modifier
                     .width(listWidth)
                     .fillMaxHeight()
+                    .background(surfaceColor)
             ) {
                 Box(
                     modifier = Modifier
@@ -258,14 +270,6 @@ fun TabletSwitchSchedulePane(
                 }
             }
 
-            // 分栏线：与设置/课程管理分栏一致
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .fillMaxHeight()
-                    .background(dividerColor)
-            )
-
             // —— 右栏：选中课表的学期课表预览 ——
             Box(
                 modifier = Modifier
@@ -305,6 +309,15 @@ fun TabletSwitchSchedulePane(
                 )
             }
         }
+        // 分界线画在 Row 之上：左栏内部有顶栏/底栏模糊层，画在栏内会被糊掉
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = listWidth)
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(dividerColor)
+        )
     }
 }
 
@@ -337,7 +350,7 @@ private fun rememberPaneMaskAlpha(contentOffset: Float): Float {
 /** 顶栏常驻表面色渐变遮罩 + 常驻渐变模糊：与设置页 TabletPaneTopChrome 一致 */
 @Composable
 private fun TabletPaneTopChrome(
-    backdrop: Backdrop?,
+    backdrop: GlassBackdrop?,
     maskHeight: Dp,
     modifier: Modifier = Modifier,
 ) {

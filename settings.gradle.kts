@@ -24,7 +24,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "Nexio课程表"
 include(":androidApp")
-include(":backdrop")
+include(":softglass")
 include(":core")
 include(":miuix")
 include(":ui-shared")

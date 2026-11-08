@@ -94,7 +94,7 @@ composeCompiler {
 // miuix-ui 已 fork 到 :miuix，排除传递依赖里的那份避免 R8 重复定义
 configurations.all {
     exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui-android")
-    // 圆角已统一到 com.kyant.capsule，squircle 只被 navigation3 传递进来
+    // 圆角已统一到 :softglass，squircle 只被 navigation3 传递进来
     exclude(group = "top.yukonga.miuix.kmp", module = "miuix-squircle")
 }
 
@@ -103,7 +103,7 @@ dependencies {
 
     implementation(project(":ui-shared"))
 
-    implementation(project(":backdrop"))
+    implementation(project(":softglass"))
 
     implementation(project(":miuix"))
 

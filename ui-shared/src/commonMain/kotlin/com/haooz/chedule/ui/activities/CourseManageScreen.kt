@@ -72,7 +72,7 @@ import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.courseViewModel
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -93,8 +93,8 @@ import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import com.kyant.capsule.continuousBorder
-import com.kyant.capsule.continuousClip
+import com.haooz.softglass.shape.continuousBorder
+import com.haooz.softglass.shape.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -125,7 +125,7 @@ fun CourseManageScreen(
     deleteConfirmShow: Boolean = false,
     deleteConfirmCourses: List<Course> = emptyList(),
     onDeleteConfirmDismiss: () -> Unit = {},
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /** 内嵌（平板左栏）时由外部指定内容顶距，替代按整屏状态栏+折叠标题推算 */
     contentTopPadding: androidx.compose.ui.unit.Dp? = null,
     /** 内嵌时指定列数，替代平板固定 4 列 */

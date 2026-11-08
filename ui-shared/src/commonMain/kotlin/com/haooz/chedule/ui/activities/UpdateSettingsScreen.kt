@@ -80,7 +80,7 @@ private fun todayIsoDate(): String {
 @Composable
 fun UpdateSettingsScreen(
     scrollBehavior: SharedScrollBehavior? = null,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /** 更新能力控制器（Android 注入 `AndroidUpdateController`；桌面/iOS 用 [NoopUpdateController]）。 */
     updateController: UpdateController = NoopUpdateController,
 ) {

@@ -68,7 +68,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.haooz.chedule.ui.utils.rememberImeDismiss
 import com.haooz.chedule.ui.utils.rememberOpenKey
-import com.kyant.backdrop.Backdrop
+import com.haooz.softglass.backdrop.GlassBackdrop
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -92,8 +92,8 @@ import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import com.kyant.capsule.continuousBorder
-import com.kyant.capsule.continuousClip
+import com.haooz.softglass.shape.continuousBorder
+import com.haooz.softglass.shape.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -163,7 +163,7 @@ fun AddCourseDialog(
     show: Boolean,
     course: Course?,
     selectedDay: Int,
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     totalWeeks: Int = 20,
     totalSections: Int = 12,
     defaultStartSection: Int = 1,

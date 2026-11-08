@@ -54,7 +54,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 /** @param updateController 更新能力；桌面/iOS 用 [NoopUpdateController] */
 fun UpdateDialog(
     updateController: UpdateController = NoopUpdateController,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /**
      * 显隐回传：主界面据此决定要不要挂顶栏/底栏那两层采样层（本弹窗自己管 show，
      * 外面读不到）。晚一帧无所谓——弹窗是淡入的，第一帧采样层还没就位看不出来。

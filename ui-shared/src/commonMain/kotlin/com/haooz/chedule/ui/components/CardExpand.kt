@@ -32,7 +32,7 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.isRenderEffectSupported
+import com.haooz.softglass.platform.isRenderEffectSupported
 import top.yukonga.miuix.kmp.basic.CardDefaults
 
 /** 卡内高度变化的统一参数，改这里即全站生效。 */

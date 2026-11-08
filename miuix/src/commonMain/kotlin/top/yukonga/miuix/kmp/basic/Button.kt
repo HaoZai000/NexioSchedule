@@ -31,8 +31,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.kyant.capsule.ContinuousRoundedRectangle
-import com.kyant.capsule.continuousSurface
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.continuousSurface
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 

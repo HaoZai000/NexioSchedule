@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import com.haooz.chedule.data.platform.createHttpService
+import com.haooz.chedule.data.util.optInt
 import com.haooz.chedule.data.util.optString
 import com.haooz.chedule.data.platform.HttpService
 import com.haooz.chedule.data.platform.HttpTimeouts

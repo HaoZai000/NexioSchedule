@@ -107,7 +107,7 @@ private fun countFullBackupSchedules(data: Map<String, Any>): Int =
 @Composable
 fun LocalBackupScreen(
     scrollBehavior: SharedScrollBehavior? = null,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /** 备份文件能力控制器（Android 注入 `AndroidBackupFileController`；桌面/iOS 用 [NoopBackupFileController]）。 */
     backupFileController: BackupFileController = NoopBackupFileController,
     // 全量恢复成功后的平台副作用（重排提醒），由 Android 宿主注入。
@@ -471,7 +471,7 @@ fun LocalBackupScreen(
                                 Row {
                                     Box(
                                         modifier = Modifier
-                                            .clip(com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                                            .clip(com.haooz.softglass.shape.ContinuousRoundedRectangle(20.dp))
                                             .background(MiuixTheme.colorScheme.primary)
                                             .clickable {
                                                 hapticFeedback.performHapticFeedback(
@@ -492,7 +492,7 @@ fun LocalBackupScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Box(
                                         modifier = Modifier
-                                            .clip(com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                                            .clip(com.haooz.softglass.shape.ContinuousRoundedRectangle(20.dp))
                                             .background(
                                                 if (isAppDarkTheme()) Color(0xFF363636)
                                                 else Color(0xFFF0F0F0)

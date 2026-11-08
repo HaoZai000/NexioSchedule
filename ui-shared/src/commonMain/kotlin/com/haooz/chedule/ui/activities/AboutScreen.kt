@@ -83,9 +83,9 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.ic_gitee
 import com.haooz.chedule.uishared.resources.ic_github
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.painterResource
@@ -128,10 +128,10 @@ private val LogoSpacerHeight = 340.dp
 @Composable
 fun AboutScreen(
     onBack: () -> Unit,
-    liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.backdrops.LayerBackdrop,
     embedded: Boolean = false,
     /** 弹窗的玻璃采样层：内嵌时传全屏层，使弹窗能采样到左侧内容 */
-    dialogBackdrop: Backdrop? = null,
+    dialogBackdrop: GlassBackdrop? = null,
     /**
      * 打开子页面（更新日志 / 开源协议 / 隐私政策）。
      *
@@ -166,7 +166,7 @@ fun AboutScreen(
     }
 
     // 弹窗默认跟随自身玻璃层；内嵌时由外层指定全屏层
-    val dialogGlass: Backdrop = dialogBackdrop ?: liquidGlassBackdrop
+    val dialogGlass: GlassBackdrop = dialogBackdrop ?: liquidGlassBackdrop
     val hapticFeedback = LocalHapticFeedback.current
     val scrollBehavior = rememberSharedScrollBehavior()
     val uriHandler = LocalUriHandler.current
@@ -852,7 +852,7 @@ fun AboutScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
-                                                    text = "Backdrop",
+                                                    text = "GlassBackdrop",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
                                                     color = MiuixTheme.colorScheme.primary,

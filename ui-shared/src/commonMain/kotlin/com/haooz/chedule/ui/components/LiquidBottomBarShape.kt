@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import com.kyant.capsule.Continuity
+import com.haooz.softglass.shape.Continuity
 import kotlin.math.PI
 import kotlin.math.asin
 import kotlin.math.atan2

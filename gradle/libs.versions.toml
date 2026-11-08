@@ -4,7 +4,6 @@
 # 构建工具
 agp = "9.2.1"                        # Android Gradle Plugin
 composeMultiplatform = "1.12.0"     # Compose Multiplatform（backdrop 模块用；Android 上映射回 AndroidX Compose）
-kyantShapes = "1.2.1"              # io.github.kyant0:shapes，backdrop 的依赖，本项目 ui/effects/shapes 同源
 kotlin = "2.4.10"                     # Kotlin 编译器（含 Compose 编译插件）
 sqldelight = "2.3.2"                  # SQLDelight：SQL-first 的 KMP 数据库，编译期校验 SQL + 显式迁移文件
 
@@ -82,7 +81,7 @@ sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", versi
 sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqldelight" }
 
 # ===== 跨平台 =====
-kyant-shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "kyantShapes" }
+
 kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinxDatetime" } # java.time 的 KMP 替代
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" } # StateFlow 等（跨平台）
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" } # runTest（suspend 函数的单元测试）
@@ -95,7 +94,6 @@ shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref
 # NavigationEvent
 navigationevent-compose = { group = "androidx.navigationevent", name = "navigationevent-compose", version.ref = "navigationevent" }  # SearchBar 返回处理
 
-# Backdrop（已 fork 到本地源码 app/src/main/java/com/kyant/backdrop，移除远程 jar 依赖）
 materialKolor-utilities = { group = "com.materialkolor", name = "material-color-utilities", version.ref = "materialKolor" } # Material Color（miuix theme 依赖）
 
 [plugins]

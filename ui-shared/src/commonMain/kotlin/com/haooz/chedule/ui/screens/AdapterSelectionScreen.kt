@@ -48,8 +48,8 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.ExtractedShareTools
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
-import com.kyant.backdrop.Backdrop
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -81,7 +81,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 fun AdapterSelectionBottomSheet(
     show: Boolean,
     school: SchoolData?,
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     onDismissRequest: () -> Unit,
     onAdapterSelected: (SchoolData, AdapterData) -> Unit
 ) {

@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.Backdrop
+import com.haooz.softglass.backdrop.GlassBackdrop
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.interactive.DropdownPanelDragSelectState
 import top.yukonga.miuix.kmp.layout.ListPopupLayout
@@ -50,7 +50,7 @@ fun OverlayListPopup(
     maxHeight: Dp? = null,
     minWidth: Dp = LocalMinWidth,
     renderInRootScaffold: Boolean = true,
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     onFractionProgress: ((Float) -> Unit)? = null,
     collapseSize: IntSize? = null,
     collapseExtra: DpSize = DpSize.Zero,

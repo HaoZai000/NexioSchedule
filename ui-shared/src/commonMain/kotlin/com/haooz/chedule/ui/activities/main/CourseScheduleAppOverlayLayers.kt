@@ -65,7 +65,7 @@ import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
-import com.haooz.chedule.ui.glass.SoftGlassStyle
+import com.haooz.softglass.glass.SoftGlassStyle
 import com.haooz.chedule.ui.screens.CombinationThumbnail
 import com.haooz.chedule.ui.screens.CourseDetailScreen
 import com.haooz.chedule.ui.screens.CustomizeScheduleScreen

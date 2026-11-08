@@ -16,7 +16,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousCapsule
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**

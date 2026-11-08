@@ -74,11 +74,11 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.backdrop.isRenderEffectSupported
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.platform.isRenderEffectSupported
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -861,7 +861,7 @@ fun ListPopupContent(
     // localTransformOrigin 早一帧生效。见 [PopupAnchors]。
     anchors: PopupAnchors? = null,
     modifier: Modifier = Modifier,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     collapseSize: IntSize? = null,
     collapseExtra: DpSize = DpSize.Zero,
     isEntering: Boolean = true,
@@ -893,7 +893,7 @@ fun ListPopupContent(
 
     val softGlass = LocalSoftGlassLayer.current
     val cornerRadiusPx = with(localDensity) { cornerRadius.toPx() }
-    val glassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val glassEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(panelBlur, materialNone, softGlass) {
             {
                 if (!materialNone && softGlass != null) {
@@ -1085,8 +1085,8 @@ private class PopupPanelStyle(
     val overshootRoomPx: Float,
     val collapseW: Float,
     val collapseH: Float,
-    val liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
-    val glassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit,
+    val liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop?,
+    val glassEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit,
     val softGlass: SoftGlassLayer?,
     val frame: Int,
     val fractionProgress: () -> Float,
@@ -1322,10 +1322,9 @@ private fun BoxScope.PopupMaterialLayer(
                 if (style.liquidGlassBackdrop != null && isRenderEffectSupported()) {
                     Modifier.drawBackdrop(
                         backdrop = style.liquidGlassBackdrop,
+                        shadow = null,
                         shape = { panelShape },
                         effects = style.glassEffects,
-                        highlight = null,
-                        shadow = null,
                         // 柔光自己画玻璃色与方向光；其余档留容器色
                         onDrawSurface = if (style.softGlass != null) null else {
                             { drawRect(color = style.backgroundColor.copy(alpha = surfaceAlpha)) }
@@ -1432,7 +1431,7 @@ fun Modifier.popupClipReveal(
         }
 
         path.rewind()
-        // 使用kyant库的RoundedRectangle创建圆角矩形路径
+        // 用自研连续圆角创建圆角矩形路径
         // 圆角在动画过程中保持不变：当弹窗缩小时，圆角需要放大以抵消缩放
         val fraction = fractionProgress().coerceIn(0f, 1f)
         val scaleXL = 0.24f + 0.76f * fraction

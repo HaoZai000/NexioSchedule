@@ -24,7 +24,7 @@ import com.haooz.chedule.ui.utils.NativeBottomBarHost
 import com.haooz.chedule.ui.utils.NativeBottomBarState
 import com.haooz.chedule.ui.utils.argbValue
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
-import com.kyant.backdrop.Backdrop
+import com.haooz.softglass.backdrop.GlassBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Album
 import top.yukonga.miuix.kmp.icon.extended.Months
@@ -58,7 +58,7 @@ fun ScheduleBottomBar(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     onOpenSettings: () -> Unit = {},
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
 ) {
     if (navBarStyle == "rail") return
 

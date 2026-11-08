@@ -5,9 +5,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.key
 import androidx.compose.ui.graphics.Color
-import com.kyant.backdrop.RuntimeShader
-import com.kyant.backdrop.edgelight.EdgeLight
-import com.kyant.backdrop.edgelight.isSystemLightTheme
+import com.haooz.softglass.platform.GlassRuntimeShader
 
 /**
  * 材质档位能力的注入点。
@@ -51,19 +49,19 @@ val LocalGlassSurfaceAlphaDrop = compositionLocalOf { GlassSurfaceAlphaDrop() }
 
 /**
  * 柔光玻璃注入：shader 源码 + uniform 灌装（尺寸 / 圆角逐帧传入）。
- * App 在根部 provide；null = 不启用，玻璃件只留实色底（不再回落 kyant 效果）。
+ * App 在根部 provide；null = 不启用，玻璃件只留实色底（不再回落旧效果）。
  */
 @Immutable
 class SoftGlassLayer(
     val shaderString: String,
     /** radiusPx = null 表示胶囊（取短边一半）。 */
-    val applyUniforms: RuntimeShader.(width: Float, height: Float, radiusPx: Float?) -> Unit,
+    val applyUniforms: GlassRuntimeShader.(width: Float, height: Float, radiusPx: Float?) -> Unit,
     /**
      * 悬浮大控件（展开的下拉面板）的 uniform 灌装，参数同 [applyUniforms]。
      * 默认回落到小控件材质；App 根部下发两套 style，这样只给大玻璃件换材质，
      * 搜索框仍是小控件材质。对话框面板另走 [applyDialogUniforms]。
      */
-    val applyLargeUniforms: RuntimeShader.(width: Float, height: Float, radiusPx: Float?) -> Unit =
+    val applyLargeUniforms: GlassRuntimeShader.(width: Float, height: Float, radiusPx: Float?) -> Unit =
         applyUniforms,
     /**
      * 对话框面板（[top.yukonga.miuix.kmp.overlay.OverlayDialog] /
@@ -72,40 +70,9 @@ class SoftGlassLayer(
      * 面板与底栏/下拉同属大控件，但底色单独按「面板混合」调，不能让 ListPopup 跟着换。
      * 默认回落到 [applyLargeUniforms]。
      */
-    val applyDialogUniforms: RuntimeShader.(width: Float, height: Float, radiusPx: Float?) -> Unit =
+    val applyDialogUniforms: GlassRuntimeShader.(width: Float, height: Float, radiusPx: Float?) -> Unit =
         applyLargeUniforms,
 )
 
 val LocalSoftGlassLayer = compositionLocalOf<SoftGlassLayer?> { null }
 
-/**
- * 描边光降级解析器：材质档策略在 App 侧，:miuix 不能反向依赖，只能注入。
- *
- * 入参是 backdrop 生成的高光描边、当前是否浅色、以及调用点传入的底色（降级时按它提亮）。
- * 默认原样返回，与不注入时行为一致。App 侧必须让实例身份随材质档变化
- * （`remember(level) { ... }`），否则调用点按它做 key 时切档不会重算。
- */
-val LocalEdgeLightResolver =
-    compositionLocalOf<(EdgeLight, Boolean, Color?) -> EdgeLight> { { base, _, _ -> base } }
-
-/**
- * 模块内统一取描边光。
- *
- * backdrop 的 `rememberDefaultEdgeLight` 只按亮暗 / 底色缓存，不知道 App 材质档，
- * 切到无材质档后仍会返回旧的高光描边。这里把注入的解析器放进 `key`：
- * 解析器身份随档位变，切档时整组重算，降级当场生效。
- */
-@Composable
-fun rememberMaterialEdgeLight(
-    baseColor: Color? = null,
-    isLightTheme: Boolean = isSystemLightTheme(),
-): EdgeLight {
-    val resolver = LocalEdgeLightResolver.current
-    return key(resolver) {
-        com.kyant.backdrop.edgelight.rememberDefaultEdgeLight(
-            baseColor = baseColor,
-            isLightTheme = isLightTheme,
-            resolveMaterial = resolver,
-        )
-    }
-}

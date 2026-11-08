@@ -19,11 +19,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceIn
-import com.kyant.backdrop.AppThemeSnapshot
-import com.kyant.backdrop.PageBackdropSnapshot
-import com.kyant.backdrop.RuntimeShader
-import com.kyant.backdrop.asComposeShader
-import com.kyant.backdrop.isRuntimeShaderSupported
+import com.haooz.softglass.GlassEnvironment
+import com.haooz.softglass.platform.GlassRuntimeShader
+import com.haooz.softglass.platform.createGlassRuntimeShader
+import com.haooz.softglass.platform.asComposeShader
+import com.haooz.softglass.platform.isRuntimeShaderSupported
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -112,7 +112,7 @@ class InteractiveHighlight(
 
     private val shader =
         if (isRuntimeShaderSupported()) {
-            RuntimeShader(
+            createGlassRuntimeShader(
                 """
 uniform float2 size;
 layout(color) uniform half4 color;
@@ -149,9 +149,9 @@ half4 main(float2 coord) {
                 // 深色恒 0.15；浅色默认 0.05（有壁纸的页面 0.1），调用方可用
                 // lightPeakAlpha 覆盖整个浅色档；主题与页面信号均为 draw 阶段可读的全局快照。
                 val peak = (
-                    if (AppThemeSnapshot.isDark.value) 0.15f
+                    if (GlassEnvironment.isDark) 0.15f
                     else lightPeakAlpha
-                        ?: if (PageBackdropSnapshot.hasWallpaper.value) 0.1f else 0.05f
+                        ?: if (GlassEnvironment.hasWallpaper) 0.1f else 0.05f
                     ) * progress
                 if (drawFlatOverlay) {
                     drawRect(
@@ -171,7 +171,7 @@ half4 main(float2 coord) {
                         blendMode = BlendMode.Plus
                     )
                 } else {
-                    // 无 RuntimeShader（API<33）：平铺无圆形边界，「只要圆形光晕」
+                    // 无 GlassRuntimeShader（API<33）：平铺无圆形边界，「只要圆形光晕」
                     // 的场景会成一整屏白，故改画径向渐变；半径与 shader 分支同源，
                     // 但整段渐隐收边更宽，观感略散。
                     drawRect(

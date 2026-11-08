@@ -57,12 +57,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.backdrop.isRenderEffectSupported
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.platform.isRenderEffectSupported
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.DecelerateEasing
 import top.yukonga.miuix.kmp.anim.folmeSpring
@@ -72,7 +72,7 @@ import top.yukonga.miuix.kmp.material.LocalGlassDialogBlurDp
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
 import top.yukonga.miuix.kmp.material.LocalSoftGlassLayer
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import com.kyant.capsule.continuousSurface
+import com.haooz.softglass.shape.continuousSurface
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.LocalScreenCornerRadius
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -131,7 +131,7 @@ internal fun DialogContentLayout(
      * App 侧 71 处 [top.yukonga.miuix.kmp.overlay.OverlayDialog] 调用点都在传它，
      * 迁移时一度被漏掉，导致对话框的模糊整体消失 —— 现已恢复。
      */
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     /** 背景色是否需要压暗/压浅到半透明（配合玻璃背景使用）。由调用方按当前主题算。 */
     isDark: Boolean = false,
     /**
@@ -311,7 +311,7 @@ internal fun DialogContent(
     modifier: Modifier = Modifier,
     screenCornerRadius: Dp,
     topInset: Dp? = null,
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     isDark: Boolean = false,
     content: @Composable () -> Unit,
 ) {
@@ -364,7 +364,7 @@ internal fun DialogContent(
     val dialogBlur = LocalGlassDialogBlurDp.current
     val cornerRadiusPx = with(density) { bottomCornerRadius.toPx() }
     // drawBackdrop 按引用比较 effects；lambda 每帧新建会让节点每帧重新录制采样层
-    val dialogEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val dialogEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(dialogBlur, softGlass, cornerRadiusPx) {
             {
                 if (softGlass != null) {
@@ -416,7 +416,6 @@ internal fun DialogContent(
                     backdrop = liquidGlassBackdrop,
                     shape = dialogShapeBlock,
                     effects = dialogEffects,
-                    highlight = null,
                 )
             } else Modifier
         )

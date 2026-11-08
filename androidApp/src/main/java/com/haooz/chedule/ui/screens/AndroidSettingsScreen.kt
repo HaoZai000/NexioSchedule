@@ -87,7 +87,7 @@ fun AndroidSettingsScreen(
     onEnterShiftMode: () -> Unit = {},
     navBarStyle: String = "standard",
     settingsScrollBehavior: SharedScrollBehavior? = null,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /** 是否显示「更新设置」入口（Android 恒 true；iOS 走 App Store 传 false） */
     showUpdateSettings: Boolean = true,
 ) {
@@ -242,7 +242,7 @@ fun AndroidSettingsScreen(
 
                 TabletSettingsDest.About -> {
                     val aboutBackdrop =
-                        com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+                        com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop()
                     // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
                     val appRouter = LocalAppRouter.current
                     // 宿主能力注入：版本号 / 应用名 / 图标（drawable→Bitmap→裁透明边→ImageBitmap）/ 退出 / 诊断录制

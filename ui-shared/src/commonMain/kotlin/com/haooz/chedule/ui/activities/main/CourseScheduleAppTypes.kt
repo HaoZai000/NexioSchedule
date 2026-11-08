@@ -24,7 +24,7 @@ import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
-import com.kyant.backdrop.Backdrop
+import com.haooz.softglass.backdrop.GlassBackdrop
 import kotlin.concurrent.Volatile
 import kotlin.math.abs
 import kotlin.time.TimeSource
@@ -120,7 +120,7 @@ data class SettingsPaneArgs(
     val onEnterShiftMode: () -> Unit,
     val navBarStyle: String,
     val settingsScrollBehavior: SharedScrollBehavior?,
-    val liquidGlassBackdrop: Backdrop?,
+    val liquidGlassBackdrop: GlassBackdrop?,
     /** 是否显示「更新设置」入口（iOS 走 App Store → false） */
     val showUpdateSettings: Boolean = true,
 )

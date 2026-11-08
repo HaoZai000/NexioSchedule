@@ -70,12 +70,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberCanvasBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -83,7 +82,6 @@ import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.layout.rememberCollapsibleTopAppBarState
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
-import top.yukonga.miuix.kmp.material.rememberMaterialEdgeLight
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.LocalForcedDarkTheme
 import top.yukonga.miuix.kmp.theme.LocalMonetColorEnabled
@@ -119,7 +117,7 @@ val LocalSheetTopBarMaterial = compositionLocalOf {
  * 玻璃组件应从此读取，而非提升为屏幕级 State：回写外层 State 会让页面在进入动画最吃紧时重组，是掉帧主因；
  * CompositionLocal 下发不触碰外层作用域，零重组成本。
  */
-val LocalSheetContentBackdrop = compositionLocalOf<Backdrop?> { null }
+val LocalSheetContentBackdrop = compositionLocalOf<GlassBackdrop?> { null }
 
 /**
  * 非快照 backdrop 持有者，配合 onSheetContentBackdropCreated 使用，
@@ -127,7 +125,7 @@ val LocalSheetContentBackdrop = compositionLocalOf<Backdrop?> { null }
  * 用普通对象而非 State：写 State 会让宿主页面在挂载后重组（掉帧主因），且二级弹窗交互后才组合、backdrop 早已就绪。
  */
 class BackdropHolder {
-    var value: Backdrop? = null
+    var value: GlassBackdrop? = null
 }
 
 /**
@@ -156,7 +154,7 @@ fun BlurBottomSheet(
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
-    onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
+    onSheetContentBackdropCreated: ((GlassBackdrop?) -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val visibleState = remember { mutableStateOf(show) }
@@ -203,7 +201,7 @@ private fun BlurBottomSheetContent(
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
-    onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
+    onSheetContentBackdropCreated: ((GlassBackdrop?) -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     // 弹窗跟随应用主题，不受壁纸强制主题影响。
@@ -362,7 +360,6 @@ private fun BlurBottomSheetContent(
                 .imePadding()
                 .clip(sheetShape)
                 // 弹窗本体不做壁纸玻璃模糊，纯实色
-                .edgeLight(shape = sheetShape, edgeLight = rememberMaterialEdgeLight(baseColor = sheetBgColor))
                 .background(sheetBgColor)
                 .consumeWindowInsets(PaddingValues(horizontal = horizontalGap))
                 .pointerInput(Unit) {

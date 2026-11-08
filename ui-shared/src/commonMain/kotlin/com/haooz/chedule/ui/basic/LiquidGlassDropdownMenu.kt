@@ -60,24 +60,24 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.components.GlassDragStretchRatio
 import com.haooz.chedule.ui.components.GlassDragTranslationDamping
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.glass.BrightLargeTone
-import com.haooz.chedule.ui.glass.BrightTone
-import com.haooz.chedule.ui.glass.GlassFill
-import com.haooz.chedule.ui.glass.GlassTone
-import com.haooz.chedule.ui.glass.ThemeFill
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.BrightLargeTone
+import com.haooz.softglass.glass.BrightTone
+import com.haooz.softglass.glass.GlassFill
+import com.haooz.softglass.glass.GlassTone
+import com.haooz.softglass.glass.ThemeFill
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -128,7 +128,7 @@ private const val ShadowAlphaGain = 3.2f
 @Composable
 fun LiquidGlassDropdownMenu(
     show: Boolean,
-    backdrop: Backdrop,
+    backdrop: GlassBackdrop,
     modifier: Modifier = Modifier,
     fraction: Animatable<Float, *> = remember { Animatable(0f) },
     onDismiss: (() -> Unit)? = null,
@@ -411,7 +411,7 @@ fun LiquidGlassDropdownMenu(
                 }
         ) {
             // 与顶栏液态玻璃按钮同一套采样效果；blur 随展开档位过渡（8dp → 24dp）；无材质档整体关
-            val glassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+            val glassEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
                 remember(blurStep, blurDp, panelGlassStyle, collapsedGlassStyle, useSoftGlass) {
                     {
                         if (useSoftGlass) {
@@ -430,7 +430,7 @@ fun LiquidGlassDropdownMenu(
                                 } else {
                                     panelGlassStyle
                                 }
-                                applyLiveGlass(
+                                applySoftGlass(
                                     style = activeStyle,
                                     width = size.width,
                                     height = size.height,
@@ -447,10 +447,9 @@ fun LiquidGlassDropdownMenu(
                     .graphicsLayer { alpha = materialVisible }
                     .drawBackdrop(
                         backdrop = backdrop,
+                        shadow = null,
                         shape = { ContinuousRoundedRectangle(PanelCornerRadius) },
                         effects = glassEffects,
-                        highlight = null,
-                        shadow = null,
                         layerBlock = glassLayerBlock,
                         // 柔光自己画玻璃色与方向光；无材质档不跑 shader，必须留容器色
                         onDrawSurface = if (useSoftGlass) null else {

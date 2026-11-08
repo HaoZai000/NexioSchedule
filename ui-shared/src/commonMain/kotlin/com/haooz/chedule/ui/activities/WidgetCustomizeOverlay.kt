@@ -1,6 +1,22 @@
 /** 桌面小部件自定义浮层 - 小部件从原位连贯移到屏幕中心，其余区域压成深灰 */
 package com.haooz.chedule.ui.activities
 
+import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.softglass.glass.BrightTone
+import com.haooz.softglass.glass.CustomizeFill
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.applySoftGlass
+import com.haooz.softglass.GlassEnvironment
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.GlassEffectScope
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop
+import top.yukonga.miuix.kmp.material.LocalSoftGlassLayer
+import top.yukonga.miuix.kmp.material.LocalGlassBlurDp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -73,9 +89,7 @@ import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
 import com.haooz.chedule.ui.screens.SliderItem
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberDefaultEdgeLight
-import com.kyant.backdrop.edgelight.edgeLight
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousCapsule
 import kotlin.math.roundToInt
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -350,6 +364,8 @@ fun WidgetCustomizeOverlay(
         source.translate(-overlayOrigin.x, -overlayOrigin.y)
     }
     val primaryColor = MiuixTheme.colorScheme.primary
+    // 顶栏胶囊采它下面的 scrim + 预览；录制层必须在胶囊之外，避免采到自己
+    val glassBackdrop = rememberLayerBackdrop()
 
     BoxWithConstraints(
         modifier = Modifier
@@ -366,6 +382,7 @@ fun WidgetCustomizeOverlay(
         val targetLeft = (screenW - sourceW) / 2f
         val targetTop = (screenH - sourceH) / 2f
 
+        Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
         // 压屏：draw 阶段读 alpha，避免每帧重组整层
         Box(
             modifier = Modifier
@@ -431,6 +448,8 @@ fun WidgetCustomizeOverlay(
             )
         }
 
+        }
+
         // 顶栏：取消 / 应用
         Row(
             modifier = Modifier
@@ -443,17 +462,15 @@ fun WidgetCustomizeOverlay(
         ) {
             WidgetChromeCapsule(
                 text = CommonStr.cancel(),
-                containerColor = WidgetCustomizeToolColor
-                    .copy(AppMaterialSettings.solidSurfaceAlpha(0.8f)),
-                edgeLightColor = WidgetCustomizeToolColor,
+                containerColor = Color(0xFF5C5C5C),
+                backdrop = glassBackdrop,
                 // 取消：先原地还原，再飞回去
                 onClick = { cancel() }
             )
             WidgetChromeCapsule(
                 text = SchedStr.applyChanges(),
-                containerColor = primaryColor
-                    .copy(AppMaterialSettings.solidSurfaceAlpha(0.8f)),
-                edgeLightColor = primaryColor,
+                containerColor = primaryColor,
+                backdrop = glassBackdrop,
                 onClick = { apply() }
             )
         }
@@ -555,19 +572,55 @@ fun WidgetCustomizeOverlay(
 private fun WidgetChromeCapsule(
     text: String,
     containerColor: Color,
-    edgeLightColor: Color,
+    backdrop: GlassBackdrop,
     onClick: () -> Unit,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
+    val animationScope = rememberCoroutineScope()
+    val highlight = remember(animationScope) { InteractiveHighlight(animationScope) }
+    val glassEffectsOn = AppMaterialSettings.glassEffectsEnabled()
+    val glassBlur = AppMaterialSettings.glassBlurDp()
+    val capsuleShape = remember { ContinuousCapsule() }
+    val glassStyle = AppMaterialSettings.chromeGlassStyle(
+        base = ScheduleSoftGlassStyle,
+        isDark = GlassEnvironment.isDark,
+        fill = CustomizeFill(containerColor),
+        tone = BrightTone,
+    )
+    val capsuleEffects: GlassEffectScope.() -> Unit = remember(glassEffectsOn, glassBlur, glassStyle) {
+        {
+            if (glassEffectsOn) {
+                blur(glassBlur.dp.toPx())
+                runtimeShaderEffect(
+                    key = "WidgetChromeCapsule_" + text,
+                    shaderString = SOFT_GLASS_LIVE_SHADER,
+                    uniformShaderName = "content",
+                ) {
+                    applySoftGlass(style = glassStyle, width = size.width, height = size.height)
+                }
+            }
+        }
+    }
+    val capsuleSurface: (androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit)? =
+        if (glassEffectsOn) null else ({ drawRect(containerColor.copy(AppMaterialSettings.solidSurfaceAlpha(0.8f))) })
     Box(
         modifier = Modifier
             .width(84.dp)
             .height(40.dp)
-            .clip(ContinuousCapsule())
-            .background(containerColor)
-            .edgeLight(
-                shape = ContinuousCapsule(),
-                edgeLight = rememberDefaultEdgeLight(degradedBaseColor = edgeLightColor),
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { capsuleShape },
+                effects = capsuleEffects,
+                layerBlock = {
+                    val progress = highlight.pressProgress
+                    val scale = 1f + 2f.dp.toPx() / 40.dp.toPx() * progress
+                    scaleX = scale
+                    scaleY = scale
+                    val offset = highlight.offset
+                    translationX = size.minDimension * 0.05f * offset.x / size.maxDimension
+                    translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
+                },
+                onDrawSurface = capsuleSurface,
             )
             .clickable(
                 interactionSource = null,
@@ -577,7 +630,9 @@ private fun WidgetChromeCapsule(
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                     onClick()
                 }
-            ),
+            )
+            .then(highlight.modifier)
+            .then(highlight.gestureModifier),
         contentAlignment = Alignment.Center
     ) {
         Text(

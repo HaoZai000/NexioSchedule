@@ -62,12 +62,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.edgelight.edgeLight
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberCanvasBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -75,7 +74,6 @@ import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.layout.rememberCollapsibleTopAppBarState
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
-import top.yukonga.miuix.kmp.material.rememberMaterialEdgeLight
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.LocalForcedDarkTheme
 import top.yukonga.miuix.kmp.theme.LocalMonetColorEnabled
@@ -113,7 +111,7 @@ fun BlurBottomSheetTablet(
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
-    onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
+    onSheetContentBackdropCreated: ((GlassBackdrop?) -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val visibleState = remember { mutableStateOf(show) }
@@ -164,7 +162,7 @@ private fun BlurBottomSheetTabletContent(
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
-    onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
+    onSheetContentBackdropCreated: ((GlassBackdrop?) -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     // 弹窗跟随应用主题，不受壁纸强制主题影响。
@@ -294,7 +292,6 @@ private fun BlurBottomSheetTabletContent(
                 .then(if (isBottomAligned) Modifier.padding(bottom = 20.dp) else Modifier)
                 .clip(sheetShape)
                 // 弹窗本体不做壁纸玻璃模糊，纯实色
-                .edgeLight(shape = sheetShape, edgeLight = rememberMaterialEdgeLight(baseColor = sheetBgColor))
                 .background(sheetBgColor)
                 // A centered sheet already clears the window edges by this distance.
                 .consumeWindowInsets(PaddingValues(horizontal = horizontalGap))

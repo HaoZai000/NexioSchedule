@@ -37,7 +37,9 @@ import com.haooz.chedule.ui.activities.classschedule.parseHmMinutes
 import com.haooz.chedule.ui.activities.classschedule.rememberAppMinuteClock
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.theme.rememberCourseColors
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousCapsule
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 今日页时间轴的刻度列宽：与课表页手机端一致，两页观感对齐。 */

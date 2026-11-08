@@ -55,8 +55,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.sp
-import com.kyant.capsule.ContinuousRoundedRectangle
-import com.kyant.capsule.continuousBackground
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.continuousBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.Platform
 import top.yukonga.miuix.kmp.utils.platform

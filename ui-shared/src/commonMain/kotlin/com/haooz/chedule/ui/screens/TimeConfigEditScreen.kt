@@ -82,9 +82,9 @@ import com.haooz.chedule.ui.utils.TransitionLayerImage
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.datetime.Clock
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -107,7 +107,7 @@ import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import com.kyant.capsule.continuousSurface
+import com.haooz.softglass.shape.continuousSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic

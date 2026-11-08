@@ -20,7 +20,7 @@ kotlin {
             implementation(project(":ui-shared"))
             implementation(project(":core"))
             implementation(project(":miuix"))
-            implementation(project(":backdrop"))
+            implementation(project(":softglass"))
             // Window / application
             implementation(compose.desktop.currentOs)
             // 桌面端没有 ViewModelStoreOwner，宿主必须自己补

@@ -46,15 +46,15 @@ import androidx.compose.ui.unit.dp
 import com.haooz.chedule.ui.components.GlassDragStretchRatio
 import com.haooz.chedule.ui.components.GlassDragTranslationDamping
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.interactive.DragSelectAxis
 import top.yukonga.miuix.kmp.interactive.DropdownMaskMode
@@ -88,7 +88,7 @@ fun ShortcutMenu(
     show: Boolean,
     items: List<ShortcutMenuItem>,
     modifier: Modifier = Modifier,
-    backdrop: Backdrop,
+    backdrop: GlassBackdrop,
     anchorRightPx: Float = Float.MAX_VALUE,
     onDismiss: () -> Unit = {},
     onMeasuredSize: (width: Int, height: Int) -> Unit = { _, _ -> }
@@ -117,7 +117,7 @@ fun ShortcutMenu(
     // drawBackdrop 按引用比较 shape / effects / onDrawSurface；lambda 每帧新建会让节点
     // 每帧 invalidateDraw、重新录制采样层并重跑采样。
     val shortcutShapeBlock: () -> Shape = remember { { ContinuousRoundedRectangle(20.dp) } }
-    val glassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val glassEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(glassBlur, glassEffectsOn, shortcutGlassStyle, cornerRadiusPx) {
             {
                 if (glassEffectsOn) {
@@ -127,7 +127,7 @@ fun ShortcutMenu(
                         shaderString = SOFT_GLASS_LIVE_SHADER,
                         uniformShaderName = "content",
                     ) {
-                        applyLiveGlass(
+                        applySoftGlass(
                             style = shortcutGlassStyle,
                             width = size.width,
                             height = size.height,
@@ -285,10 +285,9 @@ fun ShortcutMenu(
                 .then(interactiveHighlight.gestureModifier)
                 .drawBackdrop(
                     backdrop = backdrop,
+                    shadow = null,
                     shape = shortcutShapeBlock,
                     effects = glassEffects,
-                    highlight = null,
-                    shadow = null,
                     layerBlock = {
                         val drag = computeDragTransform(
                             width = size.width,

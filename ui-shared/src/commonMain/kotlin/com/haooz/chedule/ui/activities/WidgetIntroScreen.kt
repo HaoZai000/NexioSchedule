@@ -89,8 +89,8 @@ import com.haooz.chedule.ui.utils.isIosPlatform
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.ic_widget_clock
 import com.haooz.chedule.uishared.resources.ic_widget_location
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -138,7 +138,7 @@ private val WidgetPreviewBlurBleed = 8.dp
 @Composable
 fun WidgetIntroScreen(
     scrollBehavior: SharedScrollBehavior? = null,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     onRequestWidgetRefresh: () -> Unit = {},
     /** 点「自定义」：把当前页小部件的屏幕矩形交给宿主，浮层从原位起步 */
     onCustomizeRequest: (WidgetCustomizeRequest) -> Unit = {},
@@ -689,7 +689,7 @@ private fun WidgetPreviewToday(
 
     Card(
         cornerRadius = 22.dp,
-        modifier = modifier.fillMaxWidth().aspectRatio(WidgetPreviewRatio4x2).border(1.dp, borderColor, com.kyant.capsule.ContinuousRoundedRectangle(22.dp)),
+        modifier = modifier.fillMaxWidth().aspectRatio(WidgetPreviewRatio4x2).border(1.dp, borderColor, com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp)),
         insideMargin = PaddingValues(0.dp)
     ) {
         WidgetGlassHost(
@@ -747,8 +747,8 @@ private fun WidgetPreviewSmall2x2(
         WidgetGlassHost(
             wallpaper = wallpaper,
             modifier = squareModifier
-                .border(1.dp, borderColor, com.kyant.capsule.ContinuousRoundedRectangle(22.dp))
-                .clip(com.kyant.capsule.ContinuousRoundedRectangle(22.dp)),
+                .border(1.dp, borderColor, com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp))
+                .clip(com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp)),
             background = {
                 WidgetPreviewBackground(
                     bgColor = bgColor,
@@ -891,7 +891,7 @@ private fun WidgetPreviewTodayTomorrow(
 
     Card(
         cornerRadius = 22.dp,
-        modifier = modifier.fillMaxWidth().aspectRatio(WidgetPreviewRatio4x2).border(1.dp, borderColor, com.kyant.capsule.ContinuousRoundedRectangle(22.dp)),
+        modifier = modifier.fillMaxWidth().aspectRatio(WidgetPreviewRatio4x2).border(1.dp, borderColor, com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp)),
         insideMargin = PaddingValues(0.dp)
     ) {
         WidgetGlassHost(
@@ -980,7 +980,7 @@ private fun TodayTomorrowCardPreview(
                     .fillMaxHeight()
                     .padding(vertical = 6.dp)
                     .width(4.dp)
-                    .background(barColor, com.kyant.capsule.ContinuousRoundedRectangle(2.dp))
+                    .background(barColor, com.haooz.softglass.shape.ContinuousRoundedRectangle(2.dp))
             )
             Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
                 Text(name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = nameColor, maxLines = 1)
@@ -1029,7 +1029,7 @@ private fun CourseCardPreview(
                 Text(endTime, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = timeEndColor, fontFamily = FontFamily.SansSerif)
             }
             Spacer(modifier = Modifier.width(10.dp))
-            Box(modifier = Modifier.width(4.dp).height(32.dp).background(barColor, com.kyant.capsule.ContinuousRoundedRectangle(2.dp)))
+            Box(modifier = Modifier.width(4.dp).height(32.dp).background(barColor, com.haooz.softglass.shape.ContinuousRoundedRectangle(2.dp)))
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = nameColor, maxLines = 1)
@@ -1047,7 +1047,7 @@ private fun CourseCardPreview(
 @Composable
 private fun FeatureItem(title: String, description: String) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Box(modifier = Modifier.size(8.dp).padding(top = 7.dp).background(MiuixTheme.colorScheme.primary, com.kyant.capsule.ContinuousRoundedRectangle(4.dp)))
+        Box(modifier = Modifier.size(8.dp).padding(top = 7.dp).background(MiuixTheme.colorScheme.primary, com.haooz.softglass.shape.ContinuousRoundedRectangle(4.dp)))
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)
@@ -1060,7 +1060,7 @@ private fun FeatureItem(title: String, description: String) {
 @Composable
 private fun WidgetPaddingSelector(
     selectedMode: Int,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop?,
     onSelect: (Int) -> Unit
 ) {
     val entry = DropdownEntry(

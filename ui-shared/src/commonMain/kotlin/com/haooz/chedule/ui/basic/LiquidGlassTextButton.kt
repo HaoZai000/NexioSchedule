@@ -30,18 +30,18 @@ import com.haooz.chedule.ui.components.GlassDragStretchRatio
 import com.haooz.chedule.ui.components.GlassDragTranslationDamping
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.glass.BrightTone
-import com.haooz.chedule.ui.glass.CustomizeFill
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.BrightTone
+import com.haooz.softglass.glass.CustomizeFill
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.ThemeFill
-import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.softglass.glass.ThemeFill
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.shape.ContinuousCapsule
 import top.yukonga.miuix.kmp.interactive.computeDragTransform
 import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -57,7 +57,7 @@ private const val LIVE_TEXT_BUTTON_GLASS_KEY = "NexioSoftGlassLiveTextButton"
 fun LiquidGlassTextButton(
     text: String,
     onClick: () -> Unit,
-    backdrop: Backdrop,
+    backdrop: GlassBackdrop,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     minHeight: Dp = 48.dp,
@@ -110,7 +110,7 @@ fun LiquidGlassTextButton(
         tone = BrightTone,
     )
     // drawBackdrop 按引用比较 shape / effects / onDrawSurface，lambda 每帧新建会重录采样层。
-    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val buttonEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(glassBlur, glassEffectsOn, buttonGlassStyle) {
             {
                 if (glassEffectsOn) {
@@ -120,7 +120,7 @@ fun LiquidGlassTextButton(
                         shaderString = SOFT_GLASS_LIVE_SHADER,
                         uniformShaderName = "content",
                     ) {
-                        applyLiveGlass(
+                        applySoftGlass(
                             style = buttonGlassStyle,
                             width = size.width,
                             height = size.height,
@@ -194,10 +194,9 @@ fun LiquidGlassTextButton(
                 )
                 .drawBackdrop(
                     backdrop = backdrop,
+                    shadow = null,
                     shape = buttonShapeBlock,
                     effects = buttonEffects,
-                    highlight = null,
-                    shadow = null,
                     layerBlock = {
                         val drag = computeDragTransform(
                             width = size.width,

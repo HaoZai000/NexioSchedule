@@ -57,7 +57,7 @@ import com.haooz.chedule.ui.components.rememberScheduleRevealState
 import com.haooz.chedule.ui.components.scheduleRevealLayer
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.theme.scheduleAccentColor
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior

@@ -218,9 +218,9 @@ class SharedScrollBehavior(
                         consumed: Velocity,
                         available: Velocity
                     ): Velocity {
-                        if (available.y > 0) {
-                            state.contentOffset = 0f
-                        }
+                        // 不要在这里清零 contentOffset：它是「累计滚动量」，触底回弹同样会走这支，
+                        // 一清零顶栏材质（按钮背景 / 渐变遮罩）就在触底瞬间整块消失。
+                        // 回到顶部时 onPostScroll 会把它自然累加回 0，无需手动重置。
                         return settleAppBar(
                             state,
                             available.y,
@@ -417,6 +417,8 @@ fun CollapsibleTopAppBar(
     val showButtonShadow = remember(scrollBehavior, showShadow, effectiveShowLargeTitle, overScrollState) {
         derivedStateOf {
             if (showShadow != null) return@derivedStateOf showShadow
+            // contentOffset 是累计滚动量，回到顶部才自然归零（onPostFling 不再清零），
+            // 触底回弹不会让按钮材质消失。
             val contentOffset = scrollBehavior?.state?.contentOffset ?: 0f
             val overscrollOffset = overScrollState.offset
             // 正常滚动检测：内容滚动超过 10dp 即触发（阈值调低，更易触发）

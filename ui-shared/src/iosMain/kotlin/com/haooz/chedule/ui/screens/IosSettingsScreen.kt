@@ -32,9 +32,9 @@ import com.haooz.chedule.ui.utils.ShareCodeImport
 import com.haooz.chedule.ui.utils.rememberIosShareAction
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.about_app_icon
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.capsule.ContinuousRoundedRectangle
-import com.kyant.capsule.continuities.G2Continuity
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
+import com.haooz.softglass.shape.G2Continuity
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.imageResource
 import platform.Foundation.NSBundle

@@ -36,8 +36,8 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kyant.capsule.continuousBackground
-import com.kyant.capsule.continuousBorder
+import com.haooz.softglass.shape.continuousBackground
+import com.haooz.softglass.shape.continuousBorder
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private enum class LabelAnimState { Hidden, Placeholder, Normal, Floating }

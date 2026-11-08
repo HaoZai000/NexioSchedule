@@ -11,7 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
-import com.kyant.backdrop.Backdrop
+import com.haooz.softglass.backdrop.GlassBackdrop
 import top.yukonga.miuix.kmp.layout.DialogContentLayout
 import top.yukonga.miuix.kmp.layout.DialogDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -27,7 +27,7 @@ import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
  * @param summary The summary of the [OverlayDialog].
  * @param summaryColor The color of the summary.
  * @param backgroundColor The background color of the [OverlayDialog].
- * @param liquidGlassBackdrop The [Backdrop] for liquidGlass blur effect. When non-null, enables blur + edge light.
+ * @param liquidGlassBackdrop The [GlassBackdrop] for liquidGlass blur effect. When non-null, enables blur + edge light.
  * @param enableWindowDim Whether to enable window dimming when the [OverlayDialog] is shown.
  * @param onDismissRequest Will called when the user tries to dismiss the Dialog by clicking outside or pressing the back button.
  * @param onDismissFinished The callback when the [OverlayDialog] is completely dismissed.
@@ -51,7 +51,7 @@ fun OverlayDialog(
     summary: String? = null,
     summaryColor: Color = DialogDefaults.summaryColor(),
     backgroundColor: Color = DialogDefaults.backgroundColor(),
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     enableWindowDim: Boolean = true,
     onDismissRequest: (() -> Unit)? = null,
     onDismissFinished: (() -> Unit)? = null,

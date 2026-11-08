@@ -50,8 +50,8 @@ import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.continuousBackground
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.continuousBackground
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -80,7 +80,7 @@ fun AiImportScreen(
     scrollBehavior: SharedScrollBehavior? = null,
     viewModel: CourseViewModel = courseViewModel(),
     settingsViewModel: SettingsViewModel = settingsViewModel(),
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     // 平台宿主注入：复制提示词到系统剪切板（由宿主实现，桌面/iOS 默认空实现）
     onCopyToClipboard: (String) -> Unit = {}
 ) {

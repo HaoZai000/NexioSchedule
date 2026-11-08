@@ -8,10 +8,10 @@ package com.haooz.chedule.ui.glass
 
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
-import com.kyant.capsule.Continuity
-import com.kyant.capsule.SdfG2Corner
-import com.kyant.capsule.continuities.G2Continuity
-import com.kyant.capsule.path.PathSegment
+import com.haooz.softglass.shape.Continuity
+import com.haooz.softglass.shape.SdfG2Corner
+import com.haooz.softglass.shape.G2Continuity
+import com.haooz.softglass.shape.PathSegment
 import kotlin.math.abs
 import kotlin.math.sqrt
 import kotlin.test.Test
@@ -26,7 +26,7 @@ import kotlin.test.assertTrue
  */
 class G2CornerParityTest {
 
-    /** 默认形状为 kyant 原版 G2（圆弧 + 两段三次贝塞尔，曲率 G2 连续）。 */
+    /** 默认形状为 G2 连续曲率（圆弧 + 两段三次贝塞尔）。 */
     @Test
     fun defaultShapeIsOriginalG2Continuity() {
         assertTrue(Continuity.Default is G2Continuity)
@@ -35,17 +35,17 @@ class G2CornerParityTest {
     /** 几何 SDF 只允许标准圆弧，不含超椭圆 / p 范数实现。 */
     @Test
     fun shaderDefinesNoShapeOnlyOptics() {
-        assertTrue(SOFT_GLASS_SDF.contains("float sdRoundRect("))
-        assertTrue(SOFT_GLASS_SDF.contains("float2 roundRectGrad("))
+        assertTrue(SdfG2Corner.shaderSource.contains("float sdRoundRect("))
+        assertTrue(SdfG2Corner.shaderSource.contains("float2 roundRectGrad("))
         for (forbidden in listOf("g2Pnorm", "g2Ratio", "uCornerExt", "uCornerPow", "G2_EXT", "G2_POW_BONUS")) {
-            assertTrue(!SOFT_GLASS_SDF.contains(forbidden), "shader 里又冒出第二套圆角：$forbidden")
+            assertTrue(!SdfG2Corner.shaderSource.contains(forbidden), "shader 里又冒出第二套圆角：$forbidden")
         }
     }
 
     /**
      * 玻璃圆弧边界恒不比 G2 更圆（`y_glass ≤ y_g2`）：
      * 玻璃铺满整个 G2 形状，多出部分被裁剪，角上不会露出底色缝。
-     * 参考点取自 kyant G2 路径的逐点采样。
+     * 参考点取自 G2 路径的逐点采样。
      */
     @Test
     fun glassArcNeverCutsInsideG2Shape() {
@@ -72,7 +72,7 @@ class G2CornerParityTest {
     fun highlightDiagonalStaysAtG2Position() {
         val r = 20.0
         val diagonal = r * (1.0 - 1.0 / sqrt(2.0))
-        val g2Diagonal = 5.857864  // kyant G2 真实路径在 45° 上的采样值
+        val g2Diagonal = 5.857864  // G2 真实路径在 45° 上的采样值
         assertTrue(abs(SdfG2Corner.boundaryY(diagonal, r) - g2Diagonal) < 0.05)
     }
 

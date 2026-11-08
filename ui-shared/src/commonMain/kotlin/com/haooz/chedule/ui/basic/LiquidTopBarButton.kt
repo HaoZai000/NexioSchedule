@@ -30,15 +30,15 @@ import com.haooz.chedule.ui.components.GlassDragStretchRatio
 import com.haooz.chedule.ui.components.GlassDragTranslationDamping
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.applyLiveGlass
-import com.haooz.chedule.ui.glass.SoftGlassStyle
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.glass.applySoftGlass
+import com.haooz.softglass.glass.SoftGlassStyle
+import com.haooz.softglass.shape.ContinuousCapsule
 import top.yukonga.miuix.kmp.interactive.computeDragTransform
 import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -50,7 +50,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun LiquidTopBarButton(
     onClick: () -> Unit,
-    backdrop: Backdrop,
+    backdrop: GlassBackdrop,
     icon: ImageVector,
     contentDescription: String,
     modifier: Modifier = Modifier,
@@ -64,15 +64,15 @@ fun LiquidTopBarButton(
     performHapticFeedback: Boolean = true,
     enabled: Boolean = true,
     /**
-     * 材质填充策略。默认 [com.haooz.chedule.ui.glass.ThemeFill]（浅色白 / 深色黑 0.4）；
-     * 传 [com.haooz.chedule.ui.glass.NoneFill] 则透出原本的玻璃色。
+     * 材质填充策略。默认 [com.haooz.softglass.glass.ThemeFill]（浅色白 / 深色黑 0.4）；
+     * 传 [com.haooz.softglass.glass.NoneFill] 则透出原本的玻璃色。
      */
-    fill: com.haooz.chedule.ui.glass.GlassFill = com.haooz.chedule.ui.glass.ThemeFill,
+    fill: com.haooz.softglass.glass.GlassFill = com.haooz.softglass.glass.ThemeFill,
     /**
-     * 材质基调。默认 [com.haooz.chedule.ui.glass.BrightTone]（不压暗）：按钮里只有图标，
+     * 材质基调。默认 [com.haooz.softglass.glass.BrightTone]（不压暗）：按钮里只有图标，
      * 没有需要在玻璃内保证可读性的文字，压暗只会让它在浅色页面上变成一块灰。
      */
-    tone: com.haooz.chedule.ui.glass.GlassTone = com.haooz.chedule.ui.glass.BrightTone,
+    tone: com.haooz.softglass.glass.GlassTone = com.haooz.softglass.glass.BrightTone,
 ) {
     val animationScope = rememberCoroutineScope()
     val interactiveHighlight = remember(animationScope) {
@@ -104,7 +104,7 @@ fun LiquidTopBarButton(
             fill = fill,
             tone = tone,
         )
-    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val buttonEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(glassBlur, glassEffectsOn, buttonGlassStyle) {
             {
                 if (glassEffectsOn) {
@@ -114,7 +114,7 @@ fun LiquidTopBarButton(
                         shaderString = SOFT_GLASS_LIVE_SHADER,
                         uniformShaderName = "content",
                     ) {
-                        applyLiveGlass(
+                        applySoftGlass(
                             style = buttonGlassStyle,
                             width = size.width,
                             height = size.height,
@@ -196,10 +196,9 @@ fun LiquidTopBarButton(
                 .size(buttonHeight)
                 .drawBackdrop(
                     backdrop = backdrop,
+                    shadow = null,
                     shape = buttonShapeBlock,
                     effects = buttonEffects,
-                    highlight = null,
-                    shadow = null,
                     layerBlock = { alpha = backdropAlpha },
                     // 柔光自己会画玻璃色与方向光，再叠容器色会把折射盖住。
                     // 但「无材质档」不跑 shader，必须留容器色，否则按钮变成透空圆孔。

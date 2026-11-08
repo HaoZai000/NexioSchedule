@@ -5,7 +5,7 @@
  * AGSL/SkSL 字符串字面量加 IDE 语法提示（`@Language("AGSL")` 共 8 处）。
  * 注解不参与运行时行为，同名同形状即可。
  *
- * 与 `kyant-shapes/` 不同：这里不是「上游源码副本」，而是**我们写的空实现**，
+ * 与形状 vendoring 不同：这里不是「上游源码副本」，而是**我们写的空实现**，
  * 因为上游本来就没有 native 变体可拿。
  */
 package org.intellij.lang.annotations

@@ -43,8 +43,8 @@ import com.haooz.chedule.weather.AirQuality
 import com.haooz.chedule.weather.WeatherDay
 import com.haooz.chedule.weather.WeatherSnapshot
 import com.haooz.chedule.weather.localHourMinute
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.shape.ContinuousCapsule
 import org.jetbrains.compose.resources.painterResource
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults

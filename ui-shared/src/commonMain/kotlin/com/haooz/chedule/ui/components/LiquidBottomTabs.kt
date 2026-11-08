@@ -54,19 +54,19 @@ import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import com.haooz.chedule.ui.effects.liquidglass.DampedDragAnimation
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.glass.BarFill
-import com.haooz.chedule.ui.glass.BrightLargeTone
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.BarFill
+import com.haooz.softglass.glass.BrightLargeTone
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.GlassEffectScope
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.shape.ContinuousCapsule
 import top.yukonga.miuix.kmp.interactive.computeDragTransform
 import kotlin.math.abs
 import kotlin.math.floor
@@ -127,7 +127,7 @@ fun RowScope.LiquidBottomTab(
  *
  * 手势统一由最上层的手势节点处理：按下 tab 选中、拖胶囊 1:1 跟手、松手吸附最近 tab 并提交。
  * 滑块只是胶囊内的纯色指示，不再叠一层采样玻璃 —— 融球形状、bleed 余量、离屏捕获层、
- * 自研折射与 kyant `lens` 全部去掉。
+ * 自研折射与旧 `lens` 全部去掉。
  *
  * 按压手感没有跟着融球一起删：胶囊与圆按钮**各一份** [InteractiveHighlight]，
  * 形变走 `computeDragTransform`（按压缩放 + 沿拖动方向拉伸 + 阻尼跟手），高光单独一层并裁到形状；
@@ -138,7 +138,7 @@ fun RowScope.LiquidBottomTab(
 fun LiquidBottomTabs(
     selectedTabIndex: () -> Int,
     onTabSelected: (Int) -> Unit,
-    backdrop: Backdrop,
+    backdrop: GlassBackdrop,
     tabsCount: Int,
     modifier: Modifier = Modifier,
     containerHeight: Dp = 56.dp,
@@ -158,7 +158,7 @@ fun LiquidBottomTabs(
     )
     // 两块玻璃都是胶囊；节点尺寸不同，uniform 必须各自一份
     val capsuleShape: () -> Shape = remember { { ContinuousCapsule() } }
-    val pillEffects: BackdropEffectScope.() -> Unit = remember(
+    val pillEffects: GlassEffectScope.() -> Unit = remember(
         glassBlur, glassEffectsOn, barGlassStyle
     ) {
         {
@@ -171,7 +171,7 @@ fun LiquidBottomTabs(
                     shaderString = SOFT_GLASS_LIVE_SHADER,
                     uniformShaderName = "content",
                 ) {
-                    applyLiveGlass(
+                    applySoftGlass(
                         style = barGlassStyle,
                         width = size.width,
                         height = size.height,
@@ -180,7 +180,7 @@ fun LiquidBottomTabs(
             }
         }
     }
-    val buttonEffects: BackdropEffectScope.() -> Unit = remember(
+    val buttonEffects: GlassEffectScope.() -> Unit = remember(
         glassBlur, glassEffectsOn, barGlassStyle
     ) {
         {
@@ -192,7 +192,7 @@ fun LiquidBottomTabs(
                     shaderString = SOFT_GLASS_LIVE_SHADER,
                     uniformShaderName = "content",
                 ) {
-                    applyLiveGlass(
+                    applySoftGlass(
                         style = barGlassStyle,
                         width = size.width,
                         height = size.height,
@@ -311,7 +311,6 @@ fun LiquidBottomTabs(
                     backdrop = backdrop,
                     shape = capsuleShape,
                     effects = pillEffects,
-                    highlight = null,
                     onDrawSurface = if (glassEffectsOn) null else surface,
                 )
         ) {
@@ -378,7 +377,6 @@ fun LiquidBottomTabs(
                         backdrop = backdrop,
                         shape = capsuleShape,
                         effects = buttonEffects,
-                        highlight = null,
                         onDrawSurface = if (glassEffectsOn) null else surface,
                     )
                     // 纯观察、不消费，clickable 照常收到点击

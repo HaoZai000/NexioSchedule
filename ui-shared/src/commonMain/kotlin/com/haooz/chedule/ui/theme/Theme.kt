@@ -1,6 +1,7 @@
 /** 应用主题 - 定义 Material3 主题配色方案 */
 package com.haooz.chedule.ui.theme
 
+import com.haooz.softglass.GlassEnvironment
 import androidx.compose.foundation.Indication
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -25,22 +26,19 @@ import com.haooz.chedule.data.platform.currentDeviceInfo
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.KEY_CHANGED_ANYWHERE
 import com.haooz.chedule.ui.components.text.TextMotionBox
-import com.haooz.chedule.ui.glass.BarFill
-import com.haooz.chedule.ui.glass.BrightLargeTone
-import com.haooz.chedule.ui.glass.BrightTone
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.BarFill
+import com.haooz.softglass.glass.BrightLargeTone
+import com.haooz.softglass.glass.BrightTone
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.ThemeFill
-import com.haooz.chedule.ui.glass.applyLiveGlass
-import com.haooz.chedule.ui.utils.AppThemeSnapshot
+import com.haooz.softglass.glass.ThemeFill
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.installAppSettingDarkBridge
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
-import com.kyant.backdrop.edgelight.EdgeLight
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.material.GlassSurfaceAlphaDrop
-import top.yukonga.miuix.kmp.material.LocalEdgeLightResolver
 import top.yukonga.miuix.kmp.material.LocalGlassBlurDp
 import top.yukonga.miuix.kmp.material.LocalGlassDialogBlurDp
 import top.yukonga.miuix.kmp.material.LocalGlassPanelBlurDp
@@ -186,12 +184,6 @@ fun CourseScheduleTheme(
             val outerTextStyle: TextStyle = LocalTextStyle.current
             // :miuix 内部弹窗 / 搜索栏的描边降级解析器。实例身份必须随材质档变化：
             // miuix 那边拿它当 remember key，身份不变就会一直复用切档前的旧描边。
-            val edgeLightResolver: (EdgeLight, Boolean, Color?) -> EdgeLight =
-                remember(AppMaterialSettings.level) {
-                    { source, isLightTheme, baseColor ->
-                        AppMaterialSettings.resolveEdgeLight(source, isLightTheme, baseColor)
-                    }
-                }
             // 柔光玻璃：shader 与 uniform 灌装注入给 :miuix（弹窗面板等直接复用）。
             // 实例必须随档位稳定，下游拿它当 remember key。
             // 样式按当前页面深浅在 draw 期选：壁纸可把主界面锁成浅色，而 theme_mode 仍是系统深色。
@@ -238,20 +230,20 @@ fun CourseScheduleTheme(
                         SoftGlassLayer(
                             shaderString = SOFT_GLASS_LIVE_SHADER,
                             applyUniforms = { w, h, r ->
-                                applyLiveGlass(
-                                    style = if (AppThemeSnapshot.isDark.value) darkStyle else lightStyle,
+                                applySoftGlass(
+                                    style = if (GlassEnvironment.isDark) darkStyle else lightStyle,
                                     width = w, height = h, radiusPx = r,
                                 )
                             },
                             applyLargeUniforms = { w, h, r ->
-                                applyLiveGlass(
-                                    style = if (AppThemeSnapshot.isDark.value) darkLargeStyle else lightLargeStyle,
+                                applySoftGlass(
+                                    style = if (GlassEnvironment.isDark) darkLargeStyle else lightLargeStyle,
                                     width = w, height = h, radiusPx = r,
                                 )
                             },
                             applyDialogUniforms = { w, h, r ->
-                                applyLiveGlass(
-                                    style = if (AppThemeSnapshot.isDark.value) darkDialogStyle else lightDialogStyle,
+                                applySoftGlass(
+                                    style = if (GlassEnvironment.isDark) darkDialogStyle else lightDialogStyle,
                                     width = w, height = h, radiusPx = r,
                                 )
                             },
@@ -280,7 +272,6 @@ fun CourseScheduleTheme(
                     light = AppMaterialSettings.glassSurfaceAlphaDrop(isLight = true),
                     dark = AppMaterialSettings.glassSurfaceAlphaDrop(isLight = false),
                 ),
-                LocalEdgeLightResolver provides edgeLightResolver,
                 LocalSoftGlassLayer provides softGlassLayer,
                 LocalPredictiveBackEnabled provides PredictiveBackSettings.enabled,
                 // :miuix 内部绘制的展示文字（偏好项标题/副标题、下拉菜单当前值、

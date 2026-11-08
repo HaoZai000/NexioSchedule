@@ -48,7 +48,7 @@ import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.LocalNativeTopBarHost
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
-import com.kyant.backdrop.Backdrop
+import com.haooz.softglass.backdrop.GlassBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.FastForward
 import top.yukonga.miuix.kmp.icon.extended.Background
@@ -79,7 +79,7 @@ internal fun MorePopupMenus(
     moreSlotTopPx: MutableFloatState = mutableFloatStateOf(0f),
     scheduleMaterialAlpha: Float = 0f,
     todayMaterialAlpha: Float = 0f,
-    liquidGlassBackdrop: Backdrop,
+    liquidGlassBackdrop: GlassBackdrop,
     isShiftMode: Boolean = false,
     onJumpWeek: () -> Unit,
     onCourseManage: () -> Unit,
@@ -303,7 +303,7 @@ internal fun PageLockedTopBarTheme(
 
 @Composable
 internal fun SettingsTopBar(
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     navBarStyle: String,
     scrollBehavior: SharedScrollBehavior? = null,
     blurResampleKey: Int = 0,
@@ -350,7 +350,7 @@ internal fun SettingsTopBar(
 
 @Composable
 internal fun TodayTopBar(
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     navBarStyle: String,
     currentDayOfWeek: Int,
     isToday: Boolean = true,

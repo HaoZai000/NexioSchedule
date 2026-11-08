@@ -13,9 +13,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import com.haooz.chedule.data.appearance.AppearanceConfig
 import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.rememberSoftGlassSurface
-import com.haooz.chedule.ui.glass.SoftGlassStyle
+import com.haooz.softglass.glass.SoftGlassStyle
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.untransformGlassOrigin
+import com.haooz.softglass.glass.untransformGlassOrigin
 import com.haooz.chedule.ui.navigation.LocalMainLayerTranslation
 
 /**

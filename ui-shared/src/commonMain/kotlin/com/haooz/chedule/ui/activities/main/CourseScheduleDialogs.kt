@@ -24,7 +24,7 @@ import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.viewmodel.CourseViewModel
-import com.kyant.backdrop.Backdrop
+import com.haooz.softglass.backdrop.GlassBackdrop
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -41,7 +41,7 @@ internal fun DeleteWeekCourseDialog(
     course: Course?,
     week: Int,
     viewModel: CourseViewModel,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     hapticFeedback: HapticFeedback,
     onDismiss: () -> Unit,
 ) {
@@ -120,7 +120,7 @@ internal fun DeleteWeekCourseDialog(
 internal fun PasteRangeDialog(
     show: Boolean,
     courseName: String,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     hapticFeedback: HapticFeedback,
     onPaste: (allWeeks: Boolean) -> Unit,
     onDismiss: () -> Unit,
@@ -171,7 +171,7 @@ enum class ConflictResolution { OVERWRITE, SWAP }
 @Composable
 internal fun RescheduleConflictDialog(
     show: Boolean,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     hapticFeedback: HapticFeedback,
     onCancel: () -> Unit,
     onChooseOverwrite: () -> Unit,
@@ -239,7 +239,7 @@ internal fun RescheduleConflictConfirmDialog(
     dropTargetWeek: Int,
     draggedWeek: Int,
     viewModel: CourseViewModel,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     hapticFeedback: HapticFeedback,
     onCancel: () -> Unit,
     onOverwriteResolved: () -> Unit,

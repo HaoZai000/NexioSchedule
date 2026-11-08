@@ -84,9 +84,9 @@ import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.blockTouchPassThrough
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
@@ -108,8 +108,8 @@ import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import com.kyant.capsule.continuousBorder
-import com.kyant.capsule.continuousClip
+import com.haooz.softglass.shape.continuousBorder
+import com.haooz.softglass.shape.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -172,17 +172,17 @@ fun CourseEditScreen(
     onDeleteCourse: (String) -> Unit = { _ -> },
     onColorChanged: (Long) -> Unit = { _ -> },
     getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>, startTime: String?, endTime: String?) -> Set<Int> = { _, _, _, _, _, _ -> emptySet() },
-    liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.backdrops.LayerBackdrop? = null,
     sectionTimes: Map<Int, String> = emptyMap(),
     /** 平板右栏内嵌：不做展开/返回形变，也不拦截返回手势，直接以全尺寸静态呈现 */
     embedded: Boolean = false,
     /** 弹窗/底部抽屉的玻璃采样层：内嵌时传全屏层，使弹窗能采样到左栏内容 */
-    dialogBackdrop: Backdrop? = null,
+    dialogBackdrop: GlassBackdrop? = null,
     /** 内嵌时由外部指定内容顶距（与左栏 chromeTop 对齐），替代按顶栏高度推算 */
     contentTopPadding: androidx.compose.ui.unit.Dp? = null,
 ) {
     // 弹窗默认跟随自身玻璃层；内嵌时由外层指定全屏层
-    val dialogGlass: Backdrop? = dialogBackdrop ?: liquidGlassBackdrop
+    val dialogGlass: GlassBackdrop? = dialogBackdrop ?: liquidGlassBackdrop
     val courseName = courses.firstOrNull()?.name ?: ""
     // 所有同名课程共享颜色，仅保存时生效
     var selectedColor by remember {

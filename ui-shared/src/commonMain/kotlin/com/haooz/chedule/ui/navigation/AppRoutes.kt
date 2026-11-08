@@ -136,9 +136,9 @@ import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.scheduleViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
 import com.haooz.chedule.viewmodel.shiftViewModel
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.isRenderEffectSupported
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.platform.isRenderEffectSupported
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -154,7 +154,7 @@ import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import com.kyant.capsule.addContinuousRoundRect
+import com.haooz.softglass.shape.addContinuousRoundRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 
@@ -1152,7 +1152,7 @@ fun CourseManageRoute(
     // 二级编辑页独立采样源；快捷菜单采课程管理页的内容层（空层渲染不出材质）
     val editLiquidGlassBackdrop = rememberLayerBackdrop()
     val shortcutMenuBackdrop = rememberLayerBackdrop()
-    var managePageBackdrop by remember { mutableStateOf<Backdrop?>(null) }
+    var managePageBackdrop by remember { mutableStateOf<GlassBackdrop?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 主内容（模糊 + 快捷菜单页面缩放）

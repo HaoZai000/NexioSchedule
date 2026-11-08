@@ -66,12 +66,13 @@ kotlin {
             implementation(compose.material3)
             // 必须 api：Res / painterResource 被 :androidApp 直接引用
             api(compose.components.resources)
+            // 柔光玻璃档位与材质口径
+            api(project(":softglass"))
             // 数据层与跨平台抽象
             api(project(":core"))
             // 页面骨架与组件
             api(project(":miuix"))
             // 液态玻璃采样
-            api(project(":backdrop"))
 
             // miuix 子库用不带 -android 的根坐标（写死会让 jvm 编不过），
             // 且必须 exclude 官方 miuix-ui：与 :miuix 的同名 fork 一起进 iOS 链接会 already bound。

@@ -31,9 +31,9 @@ import com.haooz.chedule.data.model.SpecialItem
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.CourseEditStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.kyant.backdrop.Backdrop
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -163,7 +163,7 @@ fun SpecialItemEditDialog(
     name: String,
     selectedDays: Set<Int>,
     occupiedDays: Set<Int>,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     onNameChange: (String) -> Unit,
     onDayToggle: (Int) -> Unit,
     onDismiss: () -> Unit,
@@ -273,7 +273,7 @@ private fun SpecialItemIconButton(
 fun SpecialItemsEditorSection(
     items: List<SpecialItem>,
     onItemsChange: (List<SpecialItem>) -> Unit,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     modifier: Modifier = Modifier
 ) {
     val hapticFeedback = LocalHapticFeedback.current

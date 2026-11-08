@@ -117,8 +117,8 @@ import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
-import com.kyant.backdrop.Backdrop
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -208,7 +208,7 @@ fun MainScheduleScreen(
     appearance: AppearanceConfig = AppearanceConfig(),
     /** 周页呈现方式：网格（可编辑）或时间轴（按真实时间比例、只读） */
     scheduleViewMode: ScheduleViewMode = ScheduleViewMode.WEEK,
-    liquidGlassBackdrop: Backdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     /** 柔光玻璃采样源（主内容层算一次；null = 无玻璃） */
     softGlassSurface: SoftGlassSurface? = null,
     /** 主 tab pager 的位置信号：切今日/课表时内容整体平移，必须让玻璃重绘 */

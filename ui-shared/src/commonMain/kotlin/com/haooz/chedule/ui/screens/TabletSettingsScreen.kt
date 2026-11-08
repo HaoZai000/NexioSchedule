@@ -41,7 +41,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -79,6 +81,7 @@ import com.haooz.chedule.ui.activities.WidgetIntroScreen
 import com.haooz.chedule.ui.basic.LiquidGlassTextButton
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.components.tabletNavChromeTitleSlot
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.navigation.AppRoute
@@ -88,8 +91,8 @@ import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -305,7 +308,7 @@ private fun rememberPaneMaskAlpha(contentOffset: Float): Float {
  */
 @Composable
 private fun TabletPaneTopChrome(
-    backdrop: com.kyant.backdrop.Backdrop?,
+    backdrop: com.haooz.softglass.backdrop.GlassBackdrop?,
     modifier: Modifier = Modifier,
 ) {
     val maskHeight = TabletPaneBlurHeight
@@ -381,7 +384,7 @@ fun TabletSettingsScreen(
     onExitShiftMode: () -> Unit,
     onEnterShiftMode: () -> Unit = {},
     /** 是否显示「排班模式」入口（iOS 不支持 → false，入口整个不渲染） */
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /** 平台专有设置面板（下述 8 个 dest）由宿主渲染；null 显示占位 */
     androidPane: (@Composable (TabletSettingsDest) -> Unit)? = null,
     /** 提醒页「测试通知」动作（Android 发超级岛/实时活动） */
@@ -446,13 +449,19 @@ fun TabletSettingsScreen(
     // 右栏专属 overscroll：与全局 CompositionLocal 分离，避免左右栏越界状态串扰
     val rightOverScroll = remember { OverScrollState() }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    // 页面底色铺到屏幕边缘（含侧栏下），内容整体避让 —— background 在 padding 之前，
+    // 所以铺满的是底色、收窄的只有内容。
+    val paneSurface = MiuixTheme.colorScheme.surface
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(paneSurface)
+            .then(LocalPageStartPadding.current)
+    ) {
         val density = LocalDensity.current
         // 左栏固定为屏宽 0.39，不随侧栏展开/收起变化；剩余宽度全给右栏
         val leftWidth = screenWidthDp().dp * 0.39f
         val rightWidth = maxWidth - leftWidth
-        // screen 层内容已位于导航栏之外（pager 已按 railPadding 前移），分界就在左栏宽度处
-        val dividerX = leftWidth
         val dividerColor =
             if (com.haooz.chedule.ui.utils.isAppDarkTheme()) {
                 Color.White.copy(alpha = 0.1f)
@@ -1050,11 +1059,11 @@ fun TabletSettingsScreen(
                 }
             }
         }
-        // 左右栏分割线：画在 screen 层、Row 之后——位于顶栏糊层之上不被模糊，且与弹窗同层可被覆盖
+        // 分界线画在 Row 之上：左栏内部有顶栏/底栏模糊层，画在栏内会被糊掉
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .offset { IntOffset(with(density) { dividerX.toPx().toInt() }, 0) }
+                .offset(x = leftWidth)
                 .width(1.dp)
                 .fillMaxHeight()
                 .background(dividerColor)
@@ -1157,7 +1166,7 @@ private fun TabletSemesterPane(
     settingsViewModel: SettingsViewModel,
     shiftViewModel: ShiftViewModel,
     isShiftMode: Boolean,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop?,
     scrollBehavior: top.yukonga.miuix.kmp.layout.SharedScrollBehavior? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
@@ -1587,7 +1596,7 @@ private fun TabletSemesterPane(
 @Composable
 private fun TabletHolidayPane(
     scrollBehavior: SharedScrollBehavior?,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop?,
     onUpdateReady: (() -> Unit) -> Unit = {},
     onLoadingChange: (Boolean) -> Unit = {},
     onTeachingWeekReorganizationsChanged: () -> Unit = {},

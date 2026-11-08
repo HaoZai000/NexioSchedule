@@ -109,7 +109,7 @@ fun BackupAndMigrationScreen(
     courseViewModel: CourseViewModel = courseViewModel(),
     scheduleViewModel: ScheduleViewModel = scheduleViewModel(),
     settingsViewModel: SettingsViewModel = settingsViewModel(),
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     mode: ScheduleDataManageMode = ScheduleDataManageMode.Import,
     /** pad 设置右栏：导入页去掉「导入方式」，并把口令/文件拆成两个小标题 */
     compactImport: Boolean = false,

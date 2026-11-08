@@ -76,9 +76,9 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
-import com.kyant.backdrop.Backdrop
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.floor
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
@@ -118,7 +118,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import com.kyant.capsule.continuousClip
+import com.haooz.softglass.shape.continuousClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -135,7 +135,7 @@ private fun isoDate(year: Int, month: Int, day: Int): String =
 @Composable
 fun HolidaySettingsScreen(
     scrollBehavior: SharedScrollBehavior?,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     year: Int,
     entries: List<HolidayEntry>,
     onYearChange: (Int) -> Unit,
@@ -995,7 +995,7 @@ private fun TeachingWeekRuleEditDialog(
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
-    onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
+    onSheetContentBackdropCreated: ((GlassBackdrop?) -> Unit)? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val isTablet = isTabletWidth()
@@ -1479,7 +1479,7 @@ private fun TeachingWeekNumberPickerDialog(
     value: Int,
     maxWeek: Int,
     dateRangeSummary: String,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     onValueChange: (Int) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
@@ -1592,7 +1592,7 @@ private fun expandDirectionOffsetProvider(
 private fun SectionTitleRow(
     text: String,
     description: String,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1612,7 +1612,7 @@ private fun SectionTitleRow(
 @Composable
 private fun SectionRangeDialog(
     show: Boolean,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     sectionCount: Int,
     startSection: Int,
     endSection: Int,
@@ -1715,7 +1715,7 @@ private val InfoPopupOffsetX = (-15).dp
 @Composable
 private fun InfoDropdown(
     description: String,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
 ) {
     var expanded by remember { mutableStateOf(false) }
     // 弹窗展开/退场期间硬切隐藏图标（不做过渡），与课表页「更多」菜单同一套语言。
@@ -1809,7 +1809,7 @@ private fun InfoDropdown(
 @Composable
 private fun DataManagementCard(
     year: Int,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: GlassBackdrop?,
     onYearChange: (Int) -> Unit,
 ) {
     val dropdownColors = DropdownDefaults.dropdownColors(

@@ -33,14 +33,14 @@ import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.isRenderEffectSupported
-import com.kyant.backdrop.isRuntimeShaderSupported
-import com.kyant.backdrop.effects.blur
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.platform.isRenderEffectSupported
+import com.haooz.softglass.platform.isRuntimeShaderSupported
+import com.haooz.softglass.backdrop.effects.blur
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
 import top.yukonga.miuix.kmp.material.LocalUseFakeProgressiveBlur
-import com.kyant.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.concurrent.atomics.AtomicInt
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
@@ -136,7 +136,7 @@ private class InvalidateDrawOnStateNode(
  */
 @Composable
 fun ProgressiveBlurTopBar(
-    backdrop: Backdrop,
+    backdrop: GlassBackdrop,
     modifier: Modifier = Modifier,
     height: Dp = Dp.Unspecified,
     /**
@@ -200,12 +200,12 @@ fun ProgressiveBlurTopBar(
     }
 
     val blurShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { RectangleShape } }
-    // ShaderRegistry 按 key 共享 RuntimeShader；多顶栏同时挂载时必须各用独立 key，
+    // ShaderRegistry 按 key 共享 GlassRuntimeShader；多顶栏同时挂载时必须各用独立 key，
     val shaderKey = remember(resampleKey) {
         "ProgressiveBlurRadial_${progressiveBlurShaderSeq.addAndFetch(1)}"
     }
     val denoiseKey = remember(shaderKey) { "${shaderKey}_denoise" }
-    val blurEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val blurEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(shaderKey, denoiseKey, tintColor, tintIntensity, edgeFadeStart) {
             {
                 val maxRadiusPx = BlurMaxRadius.toPx()
@@ -230,7 +230,7 @@ fun ProgressiveBlurTopBar(
             }
         }
 
-    // 假渐进淡出 pass 的 shader key 必须独立：RuntimeShader 缓存按名字索引，
+    // 假渐进淡出 pass 的 shader key 必须独立：GlassRuntimeShader 缓存按名字索引，
     // 与真渐进共名会取到 32 tap 那份（或反过来），表现为糊带全黑 / 不淡出。
     val fadeShaderKey = remember(resampleKey) {
         "ProgressiveBlurFade_${progressiveBlurShaderSeq.addAndFetch(1)}"
@@ -242,7 +242,7 @@ fun ProgressiveBlurTopBar(
      * 并多画一遍渐变矩形）；折进链里后，录制 backdrop 的那一个离屏 layer 就够。
      * 淡出 shader 只有 1 次 `content.eval`、零循环，与真渐进的 32 tap 不是一个量级。
      */
-    val fakeBlurEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val fakeBlurEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(fadeShaderKey, edgeFadeStart) {
             {
                 // Mirror：`TileMode.Clamp`（blur 的默认）会把顶边的采样钳到第一行，
@@ -282,11 +282,9 @@ fun ProgressiveBlurTopBar(
                             .invalidateDrawOnSampleTrack(sampleTrack)
                             .drawBackdrop(
                                 backdrop = backdrop,
+                                shadow = null,
                                 shape = blurShapeBlock,
-                                effects = blurEffects,
-                                highlight = null,
-                                shadow = null
-                            )
+                                effects = blurEffects,)
                     )
                 }
                 // 假渐进：「真·渐进模糊」开关关闭，或 AGSL 不可用但 RenderEffect 可用（API 31–32）
@@ -301,10 +299,9 @@ fun ProgressiveBlurTopBar(
                                 .invalidateDrawOnSampleTrack(sampleTrack)
                                 .drawBackdrop(
                                     backdrop = backdrop,
+                                    shadow = null,
                                     shape = blurShapeBlock,
                                     effects = fakeBlurEffects,
-                                    highlight = null,
-                                    shadow = null,
                                 )
                         )
                     } else {
@@ -339,7 +336,7 @@ fun ProgressiveBlurTopBar(
  */
 @Composable
 private fun LegacyFakeProgressiveBlur(
-    backdrop: Backdrop,
+    backdrop: GlassBackdrop,
     blurShapeBlock: () -> Shape,
     totalHeight: Dp,
     blurAlpha: Float,
@@ -373,13 +370,12 @@ private fun LegacyFakeProgressiveBlur(
             }
             .drawBackdrop(
                 backdrop = backdrop,
+                shadow = null,
                 shape = blurShapeBlock,
                 effects = {
                     blur(BlurMaxRadius.toPx(), TileMode.Mirror)
                     padding = 0f
                 },
-                highlight = null,
-                shadow = null,
             )
     )
 }

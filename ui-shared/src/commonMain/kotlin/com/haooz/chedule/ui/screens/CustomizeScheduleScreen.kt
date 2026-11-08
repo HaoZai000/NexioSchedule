@@ -60,6 +60,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
@@ -98,11 +99,11 @@ import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
-import com.haooz.chedule.ui.glass.BrightTone
-import com.haooz.chedule.ui.glass.CustomizeFill
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.BrightTone
+import com.haooz.softglass.glass.CustomizeFill
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.addScreenCornerRect
@@ -110,12 +111,12 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.ui.utils.toShape
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur as backdropBlur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.backdrop.shadow.Shadow
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur as backdropBlur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.backdrop.shadow.Shadow
+import com.haooz.softglass.shape.ContinuousCapsule
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.coroutineScope
@@ -273,7 +274,7 @@ fun CustomizeScheduleScreen(
     }
 
 
-    val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop {
+    val liquidGlassBackdrop = com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop {
         drawRect(Color.Transparent)
     }
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
@@ -305,7 +306,7 @@ fun CustomizeScheduleScreen(
         tone = BrightTone,
     )
     val capsuleShapeBlock: () -> Shape = remember { { ContinuousCapsule() } }
-    val cancelGlassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val cancelGlassEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(capsuleBlurDp, capsuleGlassOn, cancelGlassStyle) {
             {
                 if (capsuleGlassOn) {
@@ -315,12 +316,12 @@ fun CustomizeScheduleScreen(
                         shaderString = SOFT_GLASS_LIVE_SHADER,
                         uniformShaderName = "content",
                     ) {
-                        applyLiveGlass(style = cancelGlassStyle, width = size.width, height = size.height)
+                        applySoftGlass(style = cancelGlassStyle, width = size.width, height = size.height)
                     }
                 }
             }
         }
-    val applyGlassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val applyGlassEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(capsuleBlurDp, capsuleGlassOn, applyGlassStyle) {
             {
                 if (capsuleGlassOn) {
@@ -330,7 +331,7 @@ fun CustomizeScheduleScreen(
                         shaderString = SOFT_GLASS_LIVE_SHADER,
                         uniformShaderName = "content",
                     ) {
-                        applyLiveGlass(style = applyGlassStyle, width = size.width, height = size.height)
+                        applySoftGlass(style = applyGlassStyle, width = size.width, height = size.height)
                     }
                 }
             }
@@ -999,6 +1000,7 @@ fun CustomizeScheduleScreen(
                             scaleX = buttonScale
                             scaleY = buttonScale
                             transformOrigin = TransformOrigin(0.5f, 0.5f)
+                            compositingStrategy = CompositingStrategy.ModulateAlpha
                         },
                     contentAlignment = Alignment.TopCenter
                 ) {
@@ -1052,8 +1054,6 @@ fun CustomizeScheduleScreen(
                                     backdrop = liquidGlassBackdrop,
                                     shape = capsuleShapeBlock,
                                     effects = cancelGlassEffects,
-                                    highlight = null,
-                                    shadow = { Shadow(alpha = 0.3f) },
                                     layerBlock = {
                                         val progress = exitHighlight.pressProgress
                                         val scale = 1f + 2f.dp.toPx() / 40.dp.toPx() * progress
@@ -1169,8 +1169,6 @@ fun CustomizeScheduleScreen(
                                     backdrop = liquidGlassBackdrop,
                                     shape = capsuleShapeBlock,
                                     effects = applyGlassEffects,
-                                    highlight = null,
-                                    shadow = { Shadow(alpha = 0.3f) },
                                     layerBlock = {
                                         val progress = applyHighlight.pressProgress
                                         val scale = 1f + 2f.dp.toPx() / 40.dp.toPx() * progress

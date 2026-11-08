@@ -109,7 +109,7 @@ fun SettingsScreen(
     onEnterShiftMode: () -> Unit = {},
     navBarStyle: String = "standard",
     settingsScrollBehavior: SharedScrollBehavior? = null,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     // ── 平台注入（宿主提供；桌面/iOS 用默认空实现）──
     // 平板两栏外壳的 8 个平台专有 dest 接线留在宿主，本页只负责转交槽位。
     /** 平台专有设置面板（8 个 dest）由宿主渲染；null 显示占位 */

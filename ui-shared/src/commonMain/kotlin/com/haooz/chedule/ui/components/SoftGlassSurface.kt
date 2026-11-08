@@ -16,20 +16,20 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.unit.Density
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
-import com.haooz.chedule.ui.glass.SoftGlassBackdrop
-import com.haooz.chedule.ui.glass.SoftGlassStyle
-import com.haooz.chedule.ui.glass.applyLiveGlass
-import com.haooz.chedule.ui.glass.glassBlurRadiusForSigma
-import com.haooz.chedule.ui.glass.isSoftGlassShaderAvailable
-import com.haooz.chedule.ui.glass.prepareSoftGlassBackdrop
-import com.haooz.chedule.ui.glass.softGlass
-import com.haooz.chedule.ui.glass.wallpaperTexMap
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.SoftGlassBackdrop
+import com.haooz.softglass.glass.SoftGlassStyle
+import com.haooz.softglass.glass.applySoftGlass
+import com.haooz.softglass.glass.glassBlurRadiusForSigma
+import com.haooz.softglass.platform.isSoftGlassShaderAvailable
+import com.haooz.softglass.glass.prepareSoftGlassBackdrop
+import com.haooz.softglass.glass.softGlass
+import com.haooz.softglass.glass.wallpaperTexMap
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.GlassEffectScope
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
 
 /**
  * 玻璃控件的拖动手感常量。值统一定义在 miuix（玻璃档位），这里只做本模块别名；
@@ -41,7 +41,7 @@ internal const val GlassDragTranslationDamping = top.yukonga.miuix.kmp.interacti
 /**
  * 柔光玻璃的绘制能力，供 `commonMain` 的卡片调用。
  *
- * 需要这层抽象：卡片背景由平台画（AGSL / SkSL + 纹理采样），`commonMain` 引不到 `RuntimeShader`，
+ * 需要这层抽象：卡片背景由平台画（AGSL / SkSL + 纹理采样），`commonMain` 引不到 `GlassRuntimeShader`，
  * 所以这里只暴露「给我一个 Modifier」。shader 实例由 `SoftGlassProgramCache` 按尺寸 / 圆角共享。
  */
 interface SoftGlassSurface {
@@ -93,7 +93,7 @@ val LocalGlassRedrawSignal = staticCompositionLocalOf<() -> Unit> { {} }
  */
 @Composable
 fun Modifier.softGlassBackdrop(
-    backdrop: Backdrop,
+    backdrop: GlassBackdrop,
     shape: Shape,
     style: SoftGlassStyle,
     radiusPx: Float,
@@ -105,7 +105,7 @@ fun Modifier.softGlassBackdrop(
     val blurSigmaState = rememberUpdatedState(blurSigmaPx)
     // lambda 引用必须稳定：drawBackdrop 按引用比较 shape，每次重组新建会让节点重录采样层
     val shapeProvider: () -> Shape = remember(shape) { { shape } }
-    val effects: BackdropEffectScope.() -> Unit = remember(radiusPx) {
+    val effects: GlassEffectScope.() -> Unit = remember(radiusPx) {
         {
             redrawState.value()
             val s = styleState.value
@@ -123,7 +123,7 @@ fun Modifier.softGlassBackdrop(
                 shaderString = SOFT_GLASS_LIVE_SHADER,
                 uniformShaderName = "content",
             ) {
-                applyLiveGlass(
+                applySoftGlass(
                     style = s,
                     width = size.width,
                     height = size.height,
@@ -134,11 +134,10 @@ fun Modifier.softGlassBackdrop(
     }
     return drawBackdrop(
         backdrop = backdrop,
+        shadow = null,
         shape = shapeProvider,
         effects = effects,
-        highlight = null,
         // 网格卡片那条静态路径没有投影，浮层要当同一块材质就不能自带一层默认阴影
-        shadow = null,
         onDrawSurface = null,
     )
 }

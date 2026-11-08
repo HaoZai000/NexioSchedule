@@ -28,18 +28,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.glass.BrightTone
-import com.haooz.chedule.ui.glass.CustomizeFill
-import com.haooz.chedule.ui.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.BrightTone
+import com.haooz.softglass.glass.CustomizeFill
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.glass.applyLiveGlass
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.kyant.capsule.ContinuousCapsule
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.drawBackdrop
+import com.haooz.softglass.backdrop.effects.blur
+import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.shape.ContinuousCapsule
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
@@ -57,7 +57,7 @@ private const val LIVE_CROSS_WEEK_GLASS_KEY = "NexioSoftGlassLiveCrossWeekHint"
 fun CrossWeekDropHint(
     fromWeek: Int,
     toWeek: Int,
-    backdrop: Backdrop,
+    backdrop: GlassBackdrop,
     modifier: Modifier = Modifier,
 ) {
     val crossWeek = fromWeek > 0 && toWeek > 0 && fromWeek != toWeek
@@ -77,7 +77,7 @@ fun CrossWeekDropHint(
         tone = BrightTone,
     )
     // drawBackdrop 按引用比较 shape / effects / onDrawSurface，lambda 每帧新建会重录采样层。
-    val glassEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+    val glassEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(glassBlur, glassEffectsOn, hintGlassStyle) {
             {
                 if (glassEffectsOn) {
@@ -87,7 +87,7 @@ fun CrossWeekDropHint(
                         shaderString = SOFT_GLASS_LIVE_SHADER,
                         uniformShaderName = "content",
                     ) {
-                        applyLiveGlass(
+                        applySoftGlass(
                             style = hintGlassStyle,
                             width = size.width,
                             height = size.height,
@@ -106,10 +106,9 @@ fun CrossWeekDropHint(
             modifier = Modifier
                 .drawBackdrop(
                     backdrop = backdrop,
+                    shadow = null,
                     shape = hintShapeBlock,
                     effects = glassEffects,
-                    highlight = null,
-                    shadow = null,
                     // 柔光自己画玻璃色与方向光；无材质档不跑 shader，必须留容器色。
                     onDrawSurface = if (glassEffectsOn) null else onDrawSurface,
                 )

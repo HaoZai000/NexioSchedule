@@ -50,7 +50,7 @@ import com.haooz.chedule.ui.screens.SchoolSelectionScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import java.io.File
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Scaffold

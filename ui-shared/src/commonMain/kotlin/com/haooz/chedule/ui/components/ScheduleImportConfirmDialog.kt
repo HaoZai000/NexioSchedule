@@ -44,7 +44,7 @@ fun ScheduleImportConfirmDialog(
     onScheduleNameChange: (String) -> Unit,
     existingNames: List<String>,
     newScheduleSummary: (String) -> String = { BackupStr.importScheduleConfirmSummaryN(it) },
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     onDismiss: () -> Unit = {},
     onConfirm: (scheduleName: String, overwrite: Boolean) -> Unit = { _, _ -> },
 ) {
