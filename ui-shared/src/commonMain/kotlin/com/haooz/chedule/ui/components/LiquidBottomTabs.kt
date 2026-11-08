@@ -78,6 +78,12 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 private const val LIVE_BOTTOM_BAR_PILL_GLASS_KEY = "NexioSoftGlassLiveBottomBarPill"
 private const val LIVE_BOTTOM_BAR_BUTTON_GLASS_KEY = "NexioSoftGlassLiveBottomBarButton"
 
+/** 拖尾增益：原版 miuix `OverlayView` 是 `min(4 × 单帧位移, 60px)`，60px ≈ 20dp @3x。 */
+private const val TRAIL_GAIN = 4f
+
+/** 拖尾速度的一阶低通系数：越大越跟手，越小越平滑（直接用每帧 dx 会一直哆嗦）。 */
+private const val TRAIL_SMOOTHING = 0.55f
+
 /** 底栏胶囊底色。tab 胶囊与圆按钮共用同一块材质，颜色必须同源，所以只在这里定义一次。 */
 @Composable
 internal fun bottomBarSurfaceColor(): Color {
@@ -263,17 +269,55 @@ fun LiquidBottomTabs(
         // 不能用 selectedTabIndex 做 remember key：每次重组都是新实例，currentIndex 会被冲掉
         var currentIndex by remember { mutableIntStateOf(selectedTabIndex()) }
         val latestSelectedTabIndex by rememberUpdatedState(selectedTabIndex)
+
+        val selectorWidthPx = tabWidthPx - selectorInsetPx * 2f
+        // 槽位左边界：RTL 下 index 0 在最右，几何位置与逻辑 index 反向
+        val slotLeft: (Float) -> Float = { index ->
+            if (isLtr) {
+                padPx + index * tabWidthPx + selectorInsetPx
+            } else {
+                pillPx - padPx - (index + 1f) * tabWidthPx + selectorInsetPx
+            }
+        }
+        val capsule = remember(
+            animationScope, tabsCount, tabWidthPx, pillPx, padPx, selectorInsetPx, isLtr
+        ) {
+            CapsuleSelector(
+                scope = animationScope,
+                widthPx = selectorWidthPx,
+                startLeftPx = slotLeft(currentIndex.toFloat()),
+                // trail 到边就不再延伸（原版同款夹限），也不许滑出胶囊的 4dp 内边
+                leftLimit = { padPx..(pillPx - padPx - selectorWidthPx) },
+            )
+        }
+        val selectorHeightPx = with(density) { selectorHeight.roundToPx() }
+        val trailMaxPx = with(density) { 20.dp.toPx() }
+        // 松手 / 点别的 tab 时，目标槽位落在胶囊当前所在位置的哪一侧（几何方向，RTL 自动成立）
+        val settleToSlot: (Int) -> Unit = { index ->
+            val target = slotLeft(index.toFloat())
+            capsule.settleTo(target, forward = target > capsule.leftPx)
+        }
+        // 胶囊视觉中心落在哪个槽位。比逻辑 index 准，且天然支持 RTL 与半格拖拽。
+        val indexAtCapsule: () -> Int = {
+            val raw = if (isLtr) {
+                (capsule.centerPx - padPx) / tabWidthPx - 0.5f
+            } else {
+                (pillPx - padPx - capsule.centerPx) / tabWidthPx - 0.5f
+            }
+            raw.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
+        }
         LaunchedEffect(dampedDragAnimation) {
             snapshotFlow { latestSelectedTabIndex() }
                 .collectLatest { index ->
                     if (index != currentIndex) currentIndex = index
                 }
         }
-        LaunchedEffect(dampedDragAnimation) {
+        LaunchedEffect(dampedDragAnimation, capsule) {
             snapshotFlow { currentIndex }
                 .drop(1)
                 .collectLatest { index ->
                     dampedDragAnimation.animateToValue(index.toFloat())
+                    settleToSlot(index)
                     onTabSelected(index)
                 }
         }
@@ -323,19 +367,24 @@ fun LiquidBottomTabs(
                     // clip 放链尾：它建立的 layer 才能把高光的整幅提亮一起裁成胶囊
                     .clip(ContinuousCapsule())
             )
-            // 选中滑块：纯色指示，位置在 draw 期读动画值，拖动 1:1 跟手；
-            // 只平移，按压时不再额外放大（放大由整块胶囊的 computeDragTransform 负责）
+            // 选中滑块：抄 miuix OverlayView —— 左右两条边各自一条弹簧，
+            // 位移途中宽度先撑开再收回，所以平移带橡皮筋感。
+            // 位置与宽度都在 layout 期读（[capsuleBounds]），组合期不读任何高频值。
             Box(
                 Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(horizontal = 4f.dp)
+                    .capsuleBounds(capsule, selectorHeightPx)
+                    // 按压缩放（四周各 2dp，且夹在 0.5 以上）
+                    // 走 graphicsLayer，draw 期读一次按压进度，不进组合、不触发 layout。
                     .graphicsLayer {
-                        translationX =
-                            if (isLtr) dampedDragAnimation.value * tabWidthPx + selectorInsetPx
-                            else (tabsCount - 1f - dampedDragAnimation.value) * tabWidthPx + selectorInsetPx
+                        val progress = pillHighlight.pressProgress
+                        if (progress > 0f && size.width > 0f && size.height > 0f) {
+                            val shrink = 2.dp.toPx() * 2f
+                            val targetX = ((size.width - shrink) / size.width).coerceAtLeast(0.5f)
+                            val targetY = ((size.height - shrink) / size.height).coerceAtLeast(0.5f)
+                            scaleX = 1f - (1f - targetX) * progress
+                            scaleY = 1f - (1f - targetY) * progress
+                        }
                     }
-                    .width(with(density) { (tabWidthPx - selectorInsetPx * 2f).toDp() })
-                    .height(selectorHeight)
                     .clip(ContinuousCapsule())
                     .background(selectorColor)
             )
@@ -421,7 +470,7 @@ fun LiquidBottomTabs(
                 // 胶囊的高光/拉伸进度由这一层手势观察：下面的 pointerInput 会 consume，
                 // inspectDragGestures 带 observeConsumed=true，照样能跟手
                 .then(pillHighlight.gestureModifier)
-                .pointerInput(tabsCount, tabWidthPx, isLtr, padPx, pillPx) {
+                .pointerInput(capsule, tabsCount, tabWidthPx, isLtr, padPx, pillPx, trailMaxPx) {
                     val touchSlop = viewConfiguration.touchSlop
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -429,14 +478,15 @@ fun LiquidBottomTabs(
                         // 圆按钮那一侧交给它自己的点击
                         if (downX > pillPx) return@awaitEachGesture
 
-                        val capsuleCenterX = if (isLtr) {
-                            padPx + (dampedDragAnimation.value + 0.5f) * tabWidthPx
-                        } else {
-                            size.width - padPx - (dampedDragAnimation.value + 0.5f) * tabWidthPx
-                        }
+                        // 按在滑块上才是拖；按在别的 tab 上直接选中（同原版：胶囊就是拖动把手）
                         val capsuleHalf = tabWidthPx * 0.55f
-                        var dragging = abs(downX - capsuleCenterX) <= capsuleHalf
+                        var dragging = abs(downX - capsule.centerPx) <= capsuleHalf
                         var pressedTab = -1
+                        // 以「按下那一刻胶囊在哪」为锚，不用逻辑 index：
+                        // 从飞行中途接手也不会先跳一格
+                        var dragAnchorLeft = capsule.leftPx
+                        var dragAnchorX = downX
+                        var trailVelocity = 0f
 
                         if (dragging) {
                             dampedDragAnimation.press()
@@ -447,6 +497,7 @@ fun LiquidBottomTabs(
                                 floor((size.width - padPx - downX) / tabWidthPx).toInt()
                             }.fastCoerceIn(0, tabsCount - 1)
                             dampedDragAnimation.animateToValueKeepingPress(pressedTab.toFloat())
+                            settleToSlot(pressedTab)
                         }
 
                         var lastX = downX
@@ -454,15 +505,15 @@ fun LiquidBottomTabs(
                             val event = awaitPointerEvent(PointerEventPass.Main)
                             val change = event.changes.firstOrNull { it.id == down.id }
                             if (change == null || !change.pressed) {
+                                // 松手吸附按胶囊的实际位置判，不用逻辑 value
                                 val target = if (dragging) {
-                                    dampedDragAnimation.targetValue
-                                        .fastRoundToInt()
-                                        .fastCoerceIn(0, tabsCount - 1)
+                                    indexAtCapsule()
                                 } else {
                                     pressedTab.fastCoerceIn(0, tabsCount - 1)
                                 }
                                 currentIndex = target
                                 dampedDragAnimation.animateToValue(target.toFloat())
+                                settleToSlot(target)
                                 dampedDragAnimation.release()
                                 // 立即通知宿主，不等 snapshotFlow 下一拍，减少与 pager 错帧
                                 onTabSelected(target)
@@ -472,22 +523,43 @@ fun LiquidBottomTabs(
                             val dx = change.position.x - lastX
                             val totalDx = change.position.x - downX
 
-                            // 点 tab 后继续滑，接管为拖动
+                            // 点 tab 后继续滑，接管为拖动；锚点直接取当前手指位置，
+                            // 把滑出 touchSlop 的那一小段吃掉，胶囊不会突然跳一下
                             if (!dragging && abs(totalDx) > touchSlop) {
                                 dragging = true
+                                dampedDragAnimation.press()
+                                dragAnchorLeft = capsule.leftPx
+                                dragAnchorX = change.position.x
+                                trailVelocity = 0f
                                 lastX = change.position.x
                             }
 
-                            if (dragging && abs(dx) > 0.01f) {
-                                lastX = change.position.x
-                                dampedDragAnimation.updateValue(
-                                    (dampedDragAnimation.targetValue + dx / tabWidthPx * ltrSign)
-                                        .fastCoerceIn(0f, maxIndex)
+                            if (dragging) {
+                                // 拖尾：原版是 min(4 × 单帧位移, 60px)，这里先做一阶低通，
+                                // 否则每帧 dx 抖动会让尾巴一直哆嗦
+                                trailVelocity = trailVelocity * TRAIL_SMOOTHING +
+                                    dx * (1f - TRAIL_SMOOTHING)
+                                val trail = (abs(trailVelocity) * TRAIL_GAIN).coerceAtMost(trailMaxPx)
+                                val dir = when {
+                                    trailVelocity > 0.5f -> 1
+                                    trailVelocity < -0.5f -> -1
+                                    else -> 0
+                                }
+                                capsule.onDrag(
+                                    leftPx = dragAnchorLeft + (change.position.x - dragAnchorX),
+                                    trailPx = trail,
+                                    dir = dir,
                                 )
-                            } else {
-                                lastX = change.position.x
+                                // 手指没动就别反复重启 value 的弹簧
+                                if (abs(dx) > 0.01f) {
+                                    dampedDragAnimation.updateValue(
+                                        (dampedDragAnimation.targetValue + dx / tabWidthPx * ltrSign)
+                                            .fastCoerceIn(0f, maxIndex)
+                                    )
+                                }
                             }
 
+                            lastX = change.position.x
                             change.consume()
                         }
                     }

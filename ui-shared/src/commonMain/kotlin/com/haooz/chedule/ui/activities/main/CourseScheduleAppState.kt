@@ -753,9 +753,6 @@ class CourseScheduleAppState {
         if (index in 0 until mainPagerPageCount &&
             (index != selectedTab || mainPagerState.currentPage != index)
         ) {
-            if (index != selectedTab) {
-                hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            }
             val generation = ++mainTabGeneration[0]
             mainTabAnimation[0]?.cancel()
             mainTabProgrammatic = true
