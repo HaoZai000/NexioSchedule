@@ -156,12 +156,18 @@ object WidgetTextSizes {
         context: Context,
         dark: Boolean,
         courseReminder: Boolean,
+        monet: WidgetMonetColors.Palette? = null,
     ) {
         val ids = if (courseReminder) COURSE_REMINDER_TEXTS else TODAY_COURSE_TEXTS
-        val forced = forcedNightContext(context, dark)
+        val forced = if (monet == null) forcedNightContext(context, dark) else context
         ids.forEach { (id, _) ->
             val entry = context.resources.getResourceEntryName(id)
-            views.setTextColor(id, ContextCompat.getColor(forced, colorResFor(entry)))
+            val color = if (monet != null) {
+                WidgetMonetColors.textColor(monet, entry)
+            } else {
+                ContextCompat.getColor(forced, colorResFor(entry))
+            }
+            views.setTextColor(id, color)
         }
     }
 

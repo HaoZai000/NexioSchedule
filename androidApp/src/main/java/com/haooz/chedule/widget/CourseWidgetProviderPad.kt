@@ -66,6 +66,7 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
         val repository = CourseRepository()
         val appearance = WidgetWallpaperStore.loadAppearance(WidgetWallpaperStore.KEY_TODAY)
         val dark = WidgetWallpaperRender.resolveDark(context, WidgetWallpaperStore.KEY_TODAY)
+        val monet = WidgetMonetColors.palette(context, dark)
 
         val currentWeek = repository.getLiveTeachingWeek()
         val todayCourses = CourseReminderHelper.getTodayCourses(context)
@@ -140,7 +141,7 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
             }
         } else ""
         val signature = "${dark}|${repository.getWidgetPaddingMode()}|$titleText|$weekText|$slotSig|$emptyText|" +
-            WidgetWallpaperRender.signaturePart(WidgetWallpaperStore.KEY_TODAY)
+            WidgetWallpaperRender.signaturePart(WidgetWallpaperStore.KEY_TODAY) + "|" + WidgetMonetColors.signature(monet)
         if (WidgetUpdateCache.shouldSkip("course_pad_$appWidgetId", signature)) return
 
         val views = RemoteViews(context.packageName, R.layout.widget_course_reminder_standard)
@@ -152,10 +153,11 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
             imageId = R.id.widget_wallpaper,
             containerId = R.id.widget_container,
             normalBackgroundRes = R.drawable.widget_background,
+            monet = monet,
         )
         WidgetTextSizes.applyCourseReminder(views, appearance.textScale)
-        if (WidgetWallpaperRender.hasWallpaper(WidgetWallpaperStore.KEY_TODAY)) {
-            WidgetTextSizes.applyTextColors(views, context, dark, courseReminder = true)
+        if (WidgetWallpaperRender.hasWallpaper(WidgetWallpaperStore.KEY_TODAY) || monet != null) {
+            WidgetTextSizes.applyTextColors(views, context, dark, courseReminder = true, monet = monet)
         }
         views.setTextViewText(R.id.widget_title, titleText)
         views.setTextViewText(R.id.widget_week, weekText)
@@ -183,10 +185,10 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
                 createColorBarBitmap(context, c1.colorRes.toInt()))
             views.setViewVisibility(R.id.widget_now1, if (remaining1 != null) View.VISIBLE else View.GONE)
             if (remaining1 != null) views.setTextViewText(R.id.widget_now1, AndroidWidgetStr.endsInN(remaining1))
-            views.setInt(R.id.widget_course1, "setBackgroundResource",
-                if (remaining1 != null) {
-                    WidgetWallpaperRender.activeCardBackgroundRes(WidgetWallpaperStore.KEY_TODAY, dark)
-                } else WidgetWallpaperRender.cardBackgroundRes(WidgetWallpaperStore.KEY_TODAY, dark))
+            WidgetWallpaperRender.applyCardBackground(
+                views, R.id.widget_course1, WidgetWallpaperStore.KEY_TODAY, dark,
+                active = remaining1 != null, monet = monet,
+            )
             views.setTextViewText(R.id.widget_info1, buildCourseInfo(c1))
 
             if (displayCourses.size >= 2) {
@@ -202,10 +204,10 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
                     createColorBarBitmap(context, c2.colorRes.toInt()))
                 views.setViewVisibility(R.id.widget_now2, if (remaining2 != null) View.VISIBLE else View.GONE)
                 if (remaining2 != null) views.setTextViewText(R.id.widget_now2, AndroidWidgetStr.endsInN(remaining2))
-                views.setInt(R.id.widget_course2, "setBackgroundResource",
-                    if (remaining2 != null) {
-                        WidgetWallpaperRender.activeCardBackgroundRes(WidgetWallpaperStore.KEY_TODAY, dark)
-                    } else WidgetWallpaperRender.cardBackgroundRes(WidgetWallpaperStore.KEY_TODAY, dark))
+                WidgetWallpaperRender.applyCardBackground(
+                    views, R.id.widget_course2, WidgetWallpaperStore.KEY_TODAY, dark,
+                    active = remaining2 != null, monet = monet,
+                )
                 views.setTextViewText(R.id.widget_info2, buildCourseInfo(c2))
             } else {
                 // 无课时直接隐藏色条，不再塞占位位图，避免灰色竖杆/矩形残留

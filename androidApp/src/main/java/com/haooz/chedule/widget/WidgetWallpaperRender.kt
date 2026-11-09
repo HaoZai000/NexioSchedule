@@ -165,6 +165,31 @@ object WidgetWallpaperRender {
         }
     }
 
+    /** 卡片先给圆角 shape，再按莫奈色染一层 tint。 */
+    fun applyCardBackground(
+        views: RemoteViews,
+        cardId: Int,
+        key: String,
+        dark: Boolean,
+        active: Boolean,
+        monet: WidgetMonetColors.Palette? = null,
+        jinming: Boolean = false,
+    ) {
+        views.setInt(
+            cardId,
+            "setBackgroundResource",
+            if (active) activeCardBackgroundRes(key, dark, jinming)
+            else cardBackgroundRes(key, dark, jinming),
+        )
+        monet?.let {
+            WidgetMonetColors.tintBackground(
+                views,
+                cardId,
+                WidgetMonetColors.cardColor(it, active, hasWallpaper(key)),
+            )
+        }
+    }
+
     /**
      * 组件模式带来的上下留白（dp）。
      * 与各 provider 的 `applyWidgetMode` 同一张表：根容器被这段 padding 内缩，
@@ -243,6 +268,8 @@ object WidgetWallpaperRender {
         insetBottomDp: Float = 0f,
         /** 该份 RemoteViews 对应的渲染尺寸（dp）；给了就按它烘焙，不再读 options */
         size: WidgetSize? = null,
+        /** 莫奈取色；为空时保持原配色 */
+        monet: WidgetMonetColors.Palette? = null,
     ) {
         val appearance = WidgetWallpaperStore.loadAppearance(key)
         val bitmap = if (hasWallpaper(key)) {
@@ -272,6 +299,7 @@ object WidgetWallpaperRender {
         if (bitmap == null) {
             views.setViewVisibility(imageId, View.GONE)
             views.setInt(containerId, "setBackgroundResource", normalBackgroundRes)
+            monet?.let { WidgetMonetColors.tintBackground(views, containerId, it.surface) }
             return
         }
         views.setViewVisibility(imageId, View.VISIBLE)

@@ -91,6 +91,8 @@ class NexioApplication : Application() {
             },
             isRecording = { com.haooz.chedule.ui.utils.CrashLogHelper.isRecording },
         )
+        // 莫奈取色开关或系统壁纸色变化时重刷小部件
+        com.haooz.chedule.widget.WidgetMonetColors.installRefresh(this)
         warmUpStorage()
         cleanupTransientFiles()
         initWearableSync()

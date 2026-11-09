@@ -112,6 +112,7 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
         // 有壁纸且档位是「跟随壁纸」时，深浅按照片锁，不跟系统
         val appearance = WidgetWallpaperStore.loadAppearance(WidgetWallpaperStore.KEY_TODAY)
         val dark = WidgetWallpaperRender.resolveDark(context, WidgetWallpaperStore.KEY_TODAY)
+        val monet = WidgetMonetColors.palette(context, dark)
 
         val currentWeek = repository.getLiveTeachingWeek()
         val todayCourses = CourseReminderHelper.getTodayCourses(context)
@@ -204,6 +205,7 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
             append(dark).append('|').append(paddingMode).append('|').append(rowCount)
             append('|').append(titleText).append('|').append(weekText)
             append('|').append(WidgetWallpaperRender.signaturePart(WidgetWallpaperStore.KEY_TODAY))
+            append('|').append(WidgetMonetColors.signature(monet))
             append('|').append(
                 WidgetWallpaperRender.sizeSignature(
                     appWidgetManager, appWidgetId, WidgetWallpaperRender.WidgetSize(250, 157)
@@ -243,11 +245,12 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
             insetTopDp = insetTopDp,
             insetBottomDp = insetBottomDp,
             size = size,
+            monet = monet,
         )
         WidgetTextSizes.applyCourseReminder(views, contentScale * appearance.textScale)
         // 有壁纸时深浅按照片锁死，文字颜色必须显式下发（否则仍跟系统的 values-night）
-        if (WidgetWallpaperRender.hasWallpaper(WidgetWallpaperStore.KEY_TODAY)) {
-            WidgetTextSizes.applyTextColors(views, context, dark, courseReminder = true)
+        if (WidgetWallpaperRender.hasWallpaper(WidgetWallpaperStore.KEY_TODAY) || monet != null) {
+            WidgetTextSizes.applyTextColors(views, context, dark, courseReminder = true, monet = monet)
         }
         applyScaledMetrics(views, context, contentScale)
         views.setTextViewText(R.id.widget_title, titleText)
@@ -272,10 +275,9 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
                     views.setTextViewText(infoIds[index], "")
                     views.setViewVisibility(colorIds[index], View.GONE)
                     views.setViewVisibility(nowIds[index], View.GONE)
-                    views.setInt(
-                        cardIds[index],
-                        "setBackgroundResource",
-                        WidgetWallpaperRender.cardBackgroundRes(WidgetWallpaperStore.KEY_TODAY, dark)
+                    WidgetWallpaperRender.applyCardBackground(
+                        views, cardIds[index], WidgetWallpaperStore.KEY_TODAY, dark,
+                        active = false, monet = monet,
                     )
                     return@forEach
                 }
@@ -289,10 +291,10 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
                 views.setViewVisibility(colorIds[index], View.VISIBLE)
                 views.setViewVisibility(nowIds[index], if (slot.remaining != null) View.VISIBLE else View.GONE)
                 if (slot.remaining != null) views.setTextViewText(nowIds[index], AndroidWidgetStr.endsInN(slot.remaining))
-                views.setInt(cardIds[index], "setBackgroundResource",
-                    if (slot.remaining != null) {
-                        WidgetWallpaperRender.activeCardBackgroundRes(WidgetWallpaperStore.KEY_TODAY, dark)
-                    } else WidgetWallpaperRender.cardBackgroundRes(WidgetWallpaperStore.KEY_TODAY, dark))
+                WidgetWallpaperRender.applyCardBackground(
+                    views, cardIds[index], WidgetWallpaperStore.KEY_TODAY, dark,
+                    active = slot.remaining != null, monet = monet,
+                )
             }
         }
 

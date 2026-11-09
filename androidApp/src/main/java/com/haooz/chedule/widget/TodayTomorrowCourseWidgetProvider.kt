@@ -118,6 +118,7 @@ class TodayTomorrowCourseWidgetProvider : AppWidgetProvider() {
             context,
             WidgetWallpaperStore.KEY_TODAY_TOMORROW
         )
+        val monet = WidgetMonetColors.palette(context, dark)
 
         val currentWeek = repository.getLiveTeachingWeek()
         // 今天/明天两套日程：getTodayCourses 即 resolveDaySchedule(false).courses；
@@ -206,6 +207,7 @@ class TodayTomorrowCourseWidgetProvider : AppWidgetProvider() {
             append('|').append(
                 WidgetWallpaperRender.signaturePart(WidgetWallpaperStore.KEY_TODAY_TOMORROW)
             )
+            append('|').append(WidgetMonetColors.signature(monet))
             append('|').append(
                 WidgetWallpaperRender.sizeSignature(
                     appWidgetManager, appWidgetId, WidgetWallpaperRender.WidgetSize(250, 157)
@@ -245,10 +247,11 @@ class TodayTomorrowCourseWidgetProvider : AppWidgetProvider() {
             insetTopDp = insetTopDp,
             insetBottomDp = insetBottomDp,
             size = size,
+            monet = monet,
         )
         WidgetTextSizes.applyCourseReminder(views, contentScale * appearance.textScale)
-        if (WidgetWallpaperRender.hasWallpaper(WidgetWallpaperStore.KEY_TODAY_TOMORROW)) {
-            WidgetTextSizes.applyTextColors(views, context, dark, courseReminder = true)
+        if (WidgetWallpaperRender.hasWallpaper(WidgetWallpaperStore.KEY_TODAY_TOMORROW) || monet != null) {
+            WidgetTextSizes.applyTextColors(views, context, dark, courseReminder = true, monet = monet)
         }
         applyScaledMetrics(views, context, contentScale)
         views.setTextViewText(R.id.widget_header_today, todayHeaderText)
@@ -284,12 +287,9 @@ class TodayTomorrowCourseWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(infoIds[index], "")
                 views.setViewVisibility(infoIds[index], View.GONE)
                 views.setViewVisibility(colorIds[index], View.GONE)
-                views.setInt(
-                    cardIds[index],
-                    "setBackgroundResource",
-                    WidgetWallpaperRender.cardBackgroundRes(
-                        WidgetWallpaperStore.KEY_TODAY_TOMORROW, dark, jinming = true
-                    )
+                WidgetWallpaperRender.applyCardBackground(
+                    views, cardIds[index], WidgetWallpaperStore.KEY_TODAY_TOMORROW, dark,
+                    active = false, monet = monet, jinming = true,
                 )
                 return@forEach
             }
@@ -304,14 +304,10 @@ class TodayTomorrowCourseWidgetProvider : AppWidgetProvider() {
                 createColorBarBitmap(context, slot.color))
             views.setViewVisibility(colorIds[index], View.VISIBLE)
             // 无倒计时文案：正在上课仅体现为卡片变蓝
-            views.setInt(cardIds[index], "setBackgroundResource",
-                if (slot.remaining != null) {
-                    WidgetWallpaperRender.activeCardBackgroundRes(
-                        WidgetWallpaperStore.KEY_TODAY_TOMORROW, dark, jinming = true
-                    )
-                } else WidgetWallpaperRender.cardBackgroundRes(
-                    WidgetWallpaperStore.KEY_TODAY_TOMORROW, dark, jinming = true
-                ))
+            WidgetWallpaperRender.applyCardBackground(
+                views, cardIds[index], WidgetWallpaperStore.KEY_TODAY_TOMORROW, dark,
+                active = slot.remaining != null, monet = monet, jinming = true,
+            )
         }
 
         // 任意位置点击 = 打开应用 + 刷新全部小部件

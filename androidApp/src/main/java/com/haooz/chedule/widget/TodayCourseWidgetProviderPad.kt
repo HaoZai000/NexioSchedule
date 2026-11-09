@@ -65,6 +65,7 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
         val repository = CourseRepository()
         val appearance = WidgetWallpaperStore.loadAppearance(WidgetWallpaperStore.KEY_SMALL)
         val dark = WidgetWallpaperRender.resolveDark(context, WidgetWallpaperStore.KEY_SMALL)
+        val monet = WidgetMonetColors.palette(context, dark)
 
         val currentWeek = repository.getLiveTeachingWeek()
         val todayCourses = CourseReminderHelper.getTodayCourses(context)
@@ -174,6 +175,7 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
         val signature = buildString {
             append(dark).append('|').append(repository.getWidgetPaddingMode())
             append('|').append(WidgetWallpaperRender.signaturePart(WidgetWallpaperStore.KEY_SMALL))
+            append('|').append(WidgetMonetColors.signature(monet))
             append('|').append(titleText).append('|').append(weekText)
             if (displayCourse != null) {
                 append('|').append(displayCourse.id).append('|').append(displayCourse.name)
@@ -197,10 +199,11 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
             imageId = R.id.widget_wallpaper,
             containerId = R.id.widget_today_container,
             normalBackgroundRes = R.drawable.widget_today_course_background,
+            monet = monet,
         )
         WidgetTextSizes.applyTodayCourse(views, appearance.textScale)
-        if (WidgetWallpaperRender.hasWallpaper(WidgetWallpaperStore.KEY_SMALL)) {
-            WidgetTextSizes.applyTextColors(views, context, dark, courseReminder = false)
+        if (WidgetWallpaperRender.hasWallpaper(WidgetWallpaperStore.KEY_SMALL) || monet != null) {
+            WidgetTextSizes.applyTextColors(views, context, dark, courseReminder = false, monet = monet)
         }
         views.setTextViewText(R.id.widget_title, titleText)
         views.setTextViewText(R.id.widget_week, weekText)

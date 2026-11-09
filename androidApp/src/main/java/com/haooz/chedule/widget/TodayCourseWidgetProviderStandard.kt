@@ -74,6 +74,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         val repository = CourseRepository()
         val appearance = WidgetWallpaperStore.loadAppearance(WidgetWallpaperStore.KEY_SMALL)
         val dark = WidgetWallpaperRender.resolveDark(context, WidgetWallpaperStore.KEY_SMALL)
+        val monet = WidgetMonetColors.palette(context, dark)
 
         val currentWeek = repository.getLiveTeachingWeek()
         val todayCourses = CourseReminderHelper.getTodayCourses(context)
@@ -192,6 +193,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         val signature = buildString {
             append(dark).append('|').append(paddingMode)
             append('|').append(WidgetWallpaperRender.signaturePart(WidgetWallpaperStore.KEY_SMALL))
+            append('|').append(WidgetMonetColors.signature(monet))
             append('|').append(
                 WidgetWallpaperRender.sizeSignature(
                     appWidgetManager, appWidgetId, WidgetWallpaperRender.WidgetSize(110, 110)
@@ -230,12 +232,13 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
             normalBackgroundRes = containerBackground,
             insetTopDp = insetTopDp,
             insetBottomDp = insetBottomDp,
+            monet = monet,
         )
         // ColorOS 上 2×2 的内容会被整体放大，按 0.85 倍反补偿（字号与间距一起）
         val contentScale = if (WidgetTextSizes.isColorOs) COLOR_OS_CONTENT_SCALE else 1f
         WidgetTextSizes.applyTodayCourse(views, contentScale * appearance.textScale)
-        if (WidgetWallpaperRender.hasWallpaper(WidgetWallpaperStore.KEY_SMALL)) {
-            WidgetTextSizes.applyTextColors(views, context, dark, courseReminder = false)
+        if (WidgetWallpaperRender.hasWallpaper(WidgetWallpaperStore.KEY_SMALL) || monet != null) {
+            WidgetTextSizes.applyTextColors(views, context, dark, courseReminder = false, monet = monet)
         }
         applyScaledMetrics(views, context, contentScale)
         views.setTextViewText(R.id.widget_title, titleText)

@@ -15,7 +15,7 @@ object PreferenceStr {
     val darkMode = L("深色模式", "Dark Mode")
     val autoDarkMode = L("自动切换深色模式", "Auto Dark Mode")
     val monetColor = L("莫奈取色", "Monet Colors")
-    val monetColorSummary = L("跟随系统壁纸对应用进行配色", "Color the app based on the system wallpaper")
+    val monetColorSummary = L("跟随系统壁纸对应用与桌面小部件进行配色", "Color the app and widgets based on the system wallpaper")
     val monetColorUnavailable = L("需要 Android 12 及以上版本", "Requires Android 12 or later")
     val appMaterialEffect = L("应用材质效果", "App Material Effects")
     val materialLockedSummary =

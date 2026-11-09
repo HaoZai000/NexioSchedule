@@ -11,9 +11,10 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
-        version = "v1.6.9-1103",
+        version = "v1.7.0-1103",
         date = "2026-11-03",
         changes = listOf(
+            L("桌面小组件支持莫奈取色，配色跟随系统壁纸（Android 12+）", "Home screen widgets support Monet colors and follow the system wallpaper (Android 12+)"),
             L("优化今日助手提醒文案，不再重复显示倒计时", "Improve Today assistant tips so they no longer repeat the countdown"),
             L("优化今日助手文案语气，更自然、更随机", "Improve Today assistant wording — more natural and more varied"),
         )
