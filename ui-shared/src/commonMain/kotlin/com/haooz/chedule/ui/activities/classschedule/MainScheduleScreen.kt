@@ -94,7 +94,7 @@ import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.activities.main.PagerJumpNeighbor
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.components.TabletNavSideState
+import com.haooz.chedule.ui.components.tabletNavSamplingSignal
 import com.haooz.chedule.ui.components.CourseDetailSheet
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
 import com.haooz.chedule.ui.components.LocalPageStartPadding
@@ -294,10 +294,8 @@ fun MainScheduleScreen(
             pagerState.currentPageOffsetFraction
             overScrollState.offset
             weekOverscrollX.floatValue
-            // 侧栏展开 / 侧栏↔顶栏变形都会把整页内容横移：卡片的尺寸不变、位置变了，
-            // 玻璃的绘制缓存按这几个信号复用，不把 nav 进度并进来就会一直用变形前的采样。
-            TabletNavSideState.expandProgress.floatValue
-            TabletNavSideState.morphProgress.floatValue
+            // nav 几何一变，整页内容横移，卡片玻璃要重新采样（唯一来源见该函数）
+            tabletNavSamplingSignal()
             tabRedraw()
         }
     }

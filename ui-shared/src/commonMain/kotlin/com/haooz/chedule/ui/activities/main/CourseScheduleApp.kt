@@ -55,6 +55,7 @@ import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.LanguageStore
 import com.haooz.chedule.ui.activities.today.TodayAssistantCardData
 import com.haooz.chedule.ui.components.SharedFileIntent
+import com.haooz.chedule.ui.components.TabletNavSamplingTracker
 import com.haooz.chedule.ui.components.TabletNavSideState
 import com.haooz.chedule.ui.effects.motion.CUSTOMIZE_COVER_FADE_MILLIS
 import com.haooz.chedule.ui.effects.motion.CUSTOMIZE_COVER_SCALE_MILLIS
@@ -824,6 +825,8 @@ fun CourseScheduleApp(
             //   一次翻页动画期间每帧重录 = 整棵内容树在 300ms 里重画 60 遍，帧预算直接吃满，
             //   这才是程序化滚动（返回今日 / 调课翻周）发卡的来源。内容整页平移时玻璃滞后的
             //   观感与周左右滑同一取舍，用户已接受。落页靠下面 draw 期比较 settledPage 补一帧。
+            // 侧栏展开 / 侧栏↔顶栏变形都会让采样源横移（唯一来源见采样信号）
+            val liquidGlassNavSampling = remember { TabletNavSamplingTracker() }
             val liquidGlassMustRecord = remember(
                 scheduleScrollState,
                 todayListScrollInProgress,
@@ -831,9 +834,6 @@ fun CourseScheduleApp(
                 todayPagerState,
                 mainPagerState
             ) {
-                var lastRailExpand = Float.NaN
-                // 侧栏 ↔ 顶栏变形也会把整页内容横移，采样源跟着变
-                var lastRailMorph = Float.NaN
                 var lastBlurEpoch = -1
                 // 今日页上一次落定的页号：只在落页后补录一次。
                 // 用 settledPage 而不是 currentPage —— currentPage 在翻到一半就变了，
@@ -843,12 +843,7 @@ fun CourseScheduleApp(
                 var lastTodayPage = -1
                 {
                     // 侧栏进度只在 draw 阶段读，不进组合
-                    val expand = TabletNavSideState.expandProgress.floatValue
-                    val expandMoving = expand != lastRailExpand
-                    lastRailExpand = expand
-                    val railMorph = TabletNavSideState.morphProgress.floatValue
-                    val morphMoving = railMorph != lastRailMorph
-                    lastRailMorph = railMorph
+                    val navMoving = liquidGlassNavSampling.moved()
                     val epochBumped = railBlurResampleEpoch.intValue != lastBlurEpoch
                     lastBlurEpoch = railBlurResampleEpoch.intValue
                     val forceRail = railForceRecordFrames[0] > 0
@@ -862,8 +857,7 @@ fun CourseScheduleApp(
                             // ⚠ 周左右滑（pagerState）与今日页左右翻日（todayPagerState）不在此列
                             todayPageChanged ||
                             mainPagerState.isScrollInProgress ||
-                            expandMoving ||
-                            morphMoving ||
+                            navMoving ||
                             forceRail ||
                             epochBumped ||
                             // 开洞编辑时主内容持续缩放，绝不能停录

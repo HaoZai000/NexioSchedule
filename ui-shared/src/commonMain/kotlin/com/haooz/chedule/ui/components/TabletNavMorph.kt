@@ -258,7 +258,7 @@ internal fun Modifier.tabletNavMorphItem(
     /** 侧栏态自身宽度（跟展开/折叠走），layout 期现读 */
     sideWidthPx: () -> Float,
     sideHeightPx: Float,
-    /** 本条目自己的进度（带错落延迟） */
+    /** 本条目自己的进度（带错落延迟）—— 只作用于**横向** */
     progress: () -> Float,
     /** 目标点相对本条目原点的偏移（可以超出自身，甚至为负 —— 会被面板裁剪） */
     targetLeftPx: Float,
@@ -266,12 +266,16 @@ internal fun Modifier.tabletNavMorphItem(
     targetWidthPx: Float,
     targetHeightPx: Float,
 ): Modifier = layout { measurable, constraints ->
-    val p = progress()
+    // 错落只放在横向上：纵向位移与尺寸插值一律用全局进度，
+    // 保证所有条目**同一时刻**升到位，只是横向依次滑入。
+    val pX = progress()
+    val pGlobal = tabletNavSettleProgress()
     val fromW = sideWidthPx()
-    val w = (fromW + (targetWidthPx - fromW) * p).roundToInt().coerceAtLeast(1)
-    val h = (sideHeightPx + (targetHeightPx - sideHeightPx) * p).roundToInt().coerceAtLeast(1)
-    val x = (targetLeftPx * p).roundToInt()
-    val y = (targetTopPx * p).roundToInt()
+    val w = (fromW + (targetWidthPx - fromW) * pGlobal).roundToInt().coerceAtLeast(1)
+    val h = (sideHeightPx + (targetHeightPx - sideHeightPx) * pGlobal)
+        .roundToInt().coerceAtLeast(1)
+    val x = (targetLeftPx * pX).roundToInt()
+    val y = (targetTopPx * pGlobal).roundToInt()
     val placeable = measurable.measure(Constraints.fixed(w, h))
     layout(fromW.roundToInt().coerceAtLeast(1), sideHeightPx.roundToInt().coerceAtLeast(1)) {
         placeable.place(x, y)

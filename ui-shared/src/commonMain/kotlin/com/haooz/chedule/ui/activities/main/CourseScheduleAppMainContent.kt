@@ -105,6 +105,7 @@ import com.haooz.chedule.ui.components.PublishNativeBottomBar
 import com.haooz.chedule.ui.components.ScheduleBottomBar
 import com.haooz.chedule.ui.components.scheduleBottomBarHeight
 import com.haooz.chedule.ui.components.ShareImportDialog
+import com.haooz.chedule.ui.components.TabletNavSamplingTracker
 import com.haooz.chedule.ui.components.TabletNavSideState
 import com.haooz.chedule.ui.components.UpdateDialog
 import com.haooz.chedule.ui.components.tabletNavExpandSampleTrack
@@ -211,8 +212,9 @@ internal fun CourseScheduleAppMainContent(
             else managePageBlurRadius.value
 
         // 顶栏/底栏那两层采样层的重录谓词。⚠️ 不能复用 liquidGlassMustRecord：那份闭包里
-        // 带着 rail 强制续录的帧计数与「侧栏进度是否还在动」的比较状态，两个节点各调一次
-        // 会把计数双倍扣掉、把 expandMoving 判成 false。这两层只跟滚动，自己另起一份。
+        // 带着 rail 强制续录的帧计数与自己的比较状态，两个节点各调一次会把计数双倍扣掉。
+        // 这两层只跟滚动 + nav 几何，自己另起一份追踪器。
+        val chromeBarNavSampling = remember { TabletNavSamplingTracker() }
         val chromeBarMustRecord = remember(
             scheduleScrollState,
             todayListScrollInProgress,
@@ -220,13 +222,8 @@ internal fun CourseScheduleAppMainContent(
             todayPagerState,
             mainPagerState,
         ) {
-            var lastRailMorph = Float.NaN
             {
-                // 侧栏 ↔ 顶栏变形会把整页内容横移，这两层的采样源也跟着变
-                val railMorph = TabletNavSideState.morphProgress.floatValue
-                val morphMoving = railMorph != lastRailMorph
-                lastRailMorph = railMorph
-                morphMoving ||
+                chromeBarNavSampling.moved() ||
                         scheduleScrollState.isScrollInProgress ||
                         todayListScrollInProgress.value ||
                         pagerState.isScrollInProgress ||

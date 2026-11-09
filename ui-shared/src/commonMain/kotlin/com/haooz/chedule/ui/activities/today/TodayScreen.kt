@@ -82,6 +82,7 @@ import com.haooz.chedule.ui.activities.main.PagerJumpNeighbor
 import com.haooz.chedule.ui.activities.main.jumpToPageSmoothly
 import com.haooz.chedule.ui.components.CourseDetailSheet
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
+import com.haooz.chedule.ui.components.tabletNavSamplingSignal
 import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.components.LocalSoftGlassSurface
 import com.haooz.chedule.ui.components.SoftGlassSurface
@@ -394,6 +395,8 @@ fun TodayScreen(
             pagerState.currentPageOffsetFraction
             overScrollState.offset
             pageOverscrollX.floatValue
+            // nav 几何一变，整页内容横移，卡片玻璃要重新采样（唯一来源见该函数）
+            tabletNavSamplingSignal()
             tabRedraw()
         }
     }

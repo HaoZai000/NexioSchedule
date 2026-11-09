@@ -109,8 +109,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 private const val LIVE_TABLET_NAV_GLASS_KEY = "NexioSoftGlassLiveTabletNavSideBar"
 
 /**
- * 顶栏糊层 draw 阶段的采样跟踪信号（勿在组合期调用）。
- * 变形时内容区也在平移，所以 expand 与 morph 任一变化都要让它重采样。
+ * 顶栏糊层（`ProgressiveBlurTopBar` 的 sampleTrack）的采样跟踪信号，
+ * 返回一个可比大小的单调量，供它做 draw 期"有没有动过"的判断。勿在组合期调用。
+ *
+ * 语义与 [tabletNavSamplingSignal] 同源，改那边记得同步这边。
  */
 val tabletNavExpandSampleTrack: () -> Float = {
     TabletNavSideState.expandProgress.floatValue + TabletNavSideState.morphProgress.floatValue
