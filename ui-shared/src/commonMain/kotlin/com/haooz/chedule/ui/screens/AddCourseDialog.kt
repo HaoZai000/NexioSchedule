@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -94,15 +91,10 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import com.haooz.softglass.shape.continuousBorder
 import com.haooz.softglass.shape.continuousClip
+import com.haooz.chedule.ui.components.sheetContentBottomInset
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-
-/** 揭示分组数（基本信息/星期/节次/周次/颜色/删除） */
-private const val REVEAL_GROUP_COUNT = 6
-
-/** 每组揭示间隔 */
-private const val REVEAL_STEP_MS = 60L
 
 // 字段只在消费它的那张卡片内读取；已在 compose-stability.conf 声明 stable
 private class AddCourseFormState(
@@ -300,10 +292,10 @@ fun AddCourseDialog(
             val evenWeeksInRange = allWeeksInRange.filter { it % 2 == 0 }.toSet()
 
             val selectedWeekSet = form.selectedWeeks.toSet()
-            val weekType = when {
-                selectedWeekSet == allWeeksInRange -> Course.WEEK_TYPE_ALL
-                selectedWeekSet == oddWeeksInRange -> Course.WEEK_TYPE_ODD
-                selectedWeekSet == evenWeeksInRange -> Course.WEEK_TYPE_EVEN
+            val weekType = when (selectedWeekSet) {
+                allWeeksInRange -> Course.WEEK_TYPE_ALL
+                oddWeeksInRange -> Course.WEEK_TYPE_ODD
+                evenWeeksInRange -> Course.WEEK_TYPE_EVEN
                 else -> Course.WEEK_TYPE_ALL
             }
 
@@ -754,7 +746,6 @@ private fun AddCourseDialogContent(
     onDeleteClick: () -> Unit,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
-    val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isTablet = isTabletWidth()
 
     // rememberUpdatedState 保证稳定引用 + 调用时拿到最新 lambda（remember{} 会冻结旧值）
@@ -771,7 +762,8 @@ private fun AddCourseDialogContent(
                 hapticFeedbackType = HapticFeedbackType.TextHandleMove
             )
             .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp),
+            .padding(start = 16.dp, end = 16.dp)
+            .sheetContentBottomInset(isTablet, phoneExtra = 65.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
@@ -821,8 +813,8 @@ private fun AddCourseDialogContent(
             )
         }
 
-        CardReveal(index = 5) {
-            if (isEdit) {
+        if (isEdit) {
+            CardReveal(index = 5) {
                 Button(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -852,7 +844,6 @@ private fun AddCourseDialogContent(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(if (isTablet) 4.dp else statusBarsPadding + 65.dp))
     }
 }
 

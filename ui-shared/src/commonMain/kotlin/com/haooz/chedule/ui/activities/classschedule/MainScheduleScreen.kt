@@ -1186,9 +1186,6 @@ fun MainScheduleScreen(
                                     val lineColor = MiuixTheme.colorScheme.onSurface.copy(
                                         alpha = if (scheduleIsDark) 0.09f else 0.05f
                                     )
-                                    val railColor = MiuixTheme.colorScheme.onSurface.copy(
-                                        alpha = if (scheduleIsDark) 0.16f else 0.12f
-                                    )
                                     val sectionWidthDp = scheduleSectionColumnWidth(isTablet)
                                     // drawBehind 每帧都跑：几何全部预计算 + 排序，绘制期只做 drawLine
                                     val hairlinePx = remember(density) {
@@ -1235,7 +1232,6 @@ fun MainScheduleScreen(
                                                 // 关闭时整条绘制直接跳过，稳态不产生任何线段
                                                 if (p <= 0f) return@drawBehind
                                                 val line = lineColor.copy(alpha = lineColor.alpha * p)
-                                                val rail = railColor.copy(alpha = railColor.alpha * p)
                                                 val hairline = hairlinePx
                                                 val columnCount = pageDayRange.size
                                                 val dayWidthPx = if (columnCount > 0) {
@@ -1278,7 +1274,6 @@ fun MainScheduleScreen(
                                                             // 内缩半个线宽，右封边才不会被裁掉一半
                                                             size.width - hairline / 2f
                                                         } else sectionWidthPx + dayWidthPx * i
-                                                        val color = if (i == 0) rail else line
                                                         var segStart = 0f
                                                         for ((bandTop, bandBottom) in breakBandsPx) {
                                                             val segEnd = bandTop
@@ -1286,7 +1281,7 @@ fun MainScheduleScreen(
                                                                 .coerceAtLeast(segStart)
                                                             if (segEnd > segStart) {
                                                                 drawLine(
-                                                                    color = color,
+                                                                    color = line,
                                                                     start = Offset(x, segStart),
                                                                     end = Offset(x, segEnd),
                                                                     strokeWidth = hairline,
@@ -1298,7 +1293,7 @@ fun MainScheduleScreen(
                                                         }
                                                         if (segStart < size.height) {
                                                             drawLine(
-                                                                color = color,
+                                                                color = line,
                                                                 start = Offset(x, segStart),
                                                                 end = Offset(x, size.height),
                                                                 strokeWidth = hairline,

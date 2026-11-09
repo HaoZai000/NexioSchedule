@@ -9,11 +9,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -50,6 +47,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
+import com.haooz.chedule.ui.components.sheetContentBottomInset
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -107,7 +105,6 @@ fun AdapterSelectionBottomSheet(
     var customUrl by remember { mutableStateOf("") }
 
     val isTablet = screenWidthDp() >= 600
-    val sheetBottomPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 60.dp
 
     val startAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
@@ -154,7 +151,8 @@ fun AdapterSelectionBottomSheet(
                             hapticFeedbackType = HapticFeedbackType.TextHandleMove
                         )
                         .verticalScroll(rememberScrollState())
-                        .padding(start = 16.dp, end = 16.dp),
+                        .padding(start = 16.dp, end = 16.dp)
+                        .sheetContentBottomInset(isTablet),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
@@ -182,7 +180,6 @@ fun AdapterSelectionBottomSheet(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(if (isTablet) 4.dp else sheetBottomPadding))
                 }
             }
         }

@@ -427,7 +427,9 @@ internal fun TimelineAxis(
             isShowNowLine && nowMinuteState.intValue in layout.windowStart..layout.windowEnd
         }
     }
-    // 与周视图网格线同一口径（深色比亮色略白一档），两处改动必须同步
+    // 横线口径与周视图网格线一致（深色比亮色略白一档）。
+    // 注意：周视图的网格线已全部统一为这一档；时间轴视图时间列右缘仍保留略深的
+    // rail 作为唯一主轴（这个视图没有周视图那样的竖向日分界线），不要反向同步过去。
     val hourLineColor = MiuixTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.09f else 0.05f)
     val railColor = MiuixTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.16f else 0.12f)
     val tickColor = MiuixTheme.colorScheme.onSurfaceVariantActions

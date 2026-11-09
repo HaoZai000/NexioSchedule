@@ -148,6 +148,9 @@ private val TabletNavSideItemHeight = 52.dp
 /** 侧栏条目之间的行距（Column spacedBy） */
 private val TabletNavItemRowGap = 4.dp
 
+/** 顶栏 → 回侧栏：等面板长到底再弹，否则会撞在半路上 */
+private const val LANDING_DELAY_MS = 200L
+
 /** 侧栏条目里图标与文字的间距 */
 private val TabletNavLabelGap = 12.dp
 
@@ -182,7 +185,7 @@ fun TabletNavExpandAnimator() {
 /** 侧栏避让宽度 px。竖屏展开为叠层时固定按折叠轨，不随展开变宽。 */
 fun Density.tabletNavSideInsetPx(widthDp: Int, screenHeightDp: Int = widthDp): Float {
     if (widthDp < 600) return 0f
-    val expandedWidth = widthDp.dp * TabletNavSideWidthFraction
+    val expandedWidth = tabletNavExpandedWidthDp(widthDp.toFloat())
     val collapsedTotal = TabletNavSideInset + TabletNavIconRailWidth
     if (screenHeightDp > widthDp) {
         return collapsedTotal.toPx()
@@ -267,11 +270,13 @@ fun TabletNavSideBar(
     // 用显式动画而不是 spring 过冲 —— 展开方向 spring 只有 2~4% 过冲，
     // 被面板底部 12dp 留白吃掉以后肉眼就是 0（实测确认）。所以这里自己造一条。
     var landingJob by remember { mutableStateOf<Job?>(null) }
-    val playLanding: (Long) -> Unit = remember(animationScope) {
-        { delayMs ->
+    // 只有「顶栏 → 回侧栏」这条会从 50dp 长到全高，才需要落地回弹；
+    // 折叠轨 ↔ 展开侧栏高度不变，不能触发。
+    val playLanding: () -> Unit = remember(animationScope) {
+        {
             landingJob?.cancel()
             landingJob = animationScope.launch {
-                if (delayMs > 0L) delay(delayMs)
+                delay(LANDING_DELAY_MS)
                 TabletNavSideState.landBounce.floatValue = 0f
                 animate(
                     initialValue = 0f,
@@ -333,10 +338,9 @@ fun TabletNavSideBar(
         { drawRect(containerColor) }
     }
     val widthDp = screenWidthDp()
-    val screenWidth = widthDp.dp
     val collapsedPanelPx = with(density) { TabletNavIconRailWidth.toPx() }
     val expandedPanelPx = with(density) {
-        (screenWidth * TabletNavSideWidthFraction - TabletNavSideInset).toPx()
+        (tabletNavExpandedWidthDp(widthDp.toFloat()) - TabletNavSideInset).toPx()
     }
     val tabs = if (isShiftMode) {
         listOf(
@@ -536,10 +540,8 @@ fun TabletNavSideBar(
                         textColor = textColor,
                         showLabel = false,
                         onClick = {
-                            val willExpand = !TabletNavSideState.expanded
-                            TabletNavSideState.expanded = willExpand
-                            // 展开落位时底缘顶一下（宽度动画本身没有纵向位移）
-                            if (willExpand) playLanding(0L)
+                            // 只改折叠/展开：高度没变，不该有落地回弹
+                            TabletNavSideState.expanded = !TabletNavSideState.expanded
                         },
                     )
                 }
@@ -759,7 +761,7 @@ fun TabletNavSideBar(
                             TabletNavSideState.expanded = true
                             TabletNavSideState.topBarMode = false
                             // 面板长到底之后再顶一下（高度本身还在飞，等它落位再弹）
-                            playLanding(220L)
+                            playLanding()
                         }
                     } else if (TabletNavSideState.expanded) {
                         Modifier.clickable(

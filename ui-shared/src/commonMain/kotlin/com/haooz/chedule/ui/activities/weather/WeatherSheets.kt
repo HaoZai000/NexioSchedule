@@ -9,14 +9,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -45,6 +42,7 @@ import com.haooz.chedule.weather.WeatherSnapshot
 import com.haooz.chedule.weather.localHourMinute
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.chedule.ui.components.sheetContentBottomInset
 import org.jetbrains.compose.resources.painterResource
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -170,7 +168,6 @@ private fun WeatherSheetContent(
     snapshot: WeatherSnapshot,
     isTablet: Boolean,
 ) {
-    val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -179,7 +176,8 @@ private fun WeatherSheetContent(
                 if (LocalBlurBottomSheetContentExpanded.current) Modifier.fillMaxHeight() else Modifier
             )
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .sheetContentBottomInset(isTablet),
     ) {
         // ⚠ 顶层 Column 不能挂 spacedBy：那样这个让位 Spacer 下面还会再叠一次间距，
         // 让位高度就等于"顶栏 + 12dp"，每次调都差一截。间距交给内层 Column。
@@ -193,8 +191,6 @@ private fun WeatherSheetContent(
                 }
             }
         }
-        // 展开态末尾要能滚过状态栏，否则最后一行贴着屏幕顶边
-        Spacer(Modifier.height(if (isTablet) 4.dp else statusBarsPadding + 60.dp))
     }
 }
 

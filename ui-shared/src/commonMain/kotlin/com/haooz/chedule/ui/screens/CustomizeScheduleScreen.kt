@@ -117,6 +117,7 @@ import com.haooz.softglass.backdrop.effects.blur as backdropBlur
 import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
 import com.haooz.softglass.backdrop.shadow.Shadow
 import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.chedule.ui.components.sheetContentBottomInset
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.coroutineScope
@@ -1773,8 +1774,6 @@ fun CustomizeScheduleScreen(
                     }
                 }
 
-                val sheetBottomPadding =
-                    WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 60.dp
                 // 手机版两个弹窗的默认（半屏吸附）高度统一为屏幕 48%；
                 val defaultSheetContentHeight = screenHeightDp().dp * 0.52f
 
@@ -1795,12 +1794,12 @@ fun CustomizeScheduleScreen(
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
                                 )
-                                .verticalScroll(rememberScrollState()),
+                                .verticalScroll(rememberScrollState())
+                                .sheetContentBottomInset(isTablet),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Spacer(Modifier.height(56.dp))
                             effectSheetContent()
-                            Spacer(Modifier.height(4.dp))
                         }
                     }
                 } else {
@@ -1821,12 +1820,12 @@ fun CustomizeScheduleScreen(
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
                                 )
-                                .verticalScroll(rememberScrollState()),
+                                .verticalScroll(rememberScrollState())
+                                .sheetContentBottomInset(isTablet),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Spacer(Modifier.height(58.dp))
                             effectSheetContent()
-                            Spacer(Modifier.height(sheetBottomPadding))
                         }
                     }
                 }
@@ -1848,12 +1847,12 @@ fun CustomizeScheduleScreen(
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
                                 )
-                                .verticalScroll(rememberScrollState()),
+                                .verticalScroll(rememberScrollState())
+                                .sheetContentBottomInset(isTablet),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Spacer(Modifier.height(56.dp))
                             customizeSheetContent()
-                            Spacer(Modifier.height(4.dp))
                         }
                     }
                 } else {
@@ -1874,12 +1873,12 @@ fun CustomizeScheduleScreen(
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
                                 )
-                                .verticalScroll(rememberScrollState()),
+                                .verticalScroll(rememberScrollState())
+                                .sheetContentBottomInset(isTablet),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Spacer(Modifier.height(58.dp))
                             customizeSheetContent()
-                            Spacer(Modifier.height(sheetBottomPadding))
                         }
                     }
                 }

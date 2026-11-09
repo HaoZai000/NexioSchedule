@@ -10,13 +10,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -69,6 +66,7 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
+import com.haooz.chedule.ui.components.sheetContentBottomInset
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -207,7 +205,6 @@ private fun CourseDetailSheetContent(
     }
     // 始终参与布局，用 graphicsLayer 做透明/位移，避免移除节点导致弹窗高度闪烁；
     // 逐张错开由 CardRevealSpec 的 index 负责
-    val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -217,7 +214,8 @@ private fun CourseDetailSheetContent(
             )
             .overScrollVertical()
             .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
+            .sheetContentBottomInset(isTablet),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
@@ -235,8 +233,6 @@ private fun CourseDetailSheetContent(
                 )
             }
         }
-        // 展开到全屏时列表末尾要能滚过状态栏高度，否则最后一张卡贴着屏幕顶边
-        Spacer(modifier = Modifier.height(statusBarsPadding + 60.dp))
     }
 }
 

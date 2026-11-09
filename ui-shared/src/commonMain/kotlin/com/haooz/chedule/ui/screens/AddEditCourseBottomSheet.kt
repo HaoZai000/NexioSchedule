@@ -8,14 +8,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -78,6 +75,7 @@ import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import com.haooz.softglass.shape.continuousClip
+import com.haooz.chedule.ui.components.sheetContentBottomInset
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -327,7 +325,6 @@ fun AddEditCourseBottomSheet(
         )
     }
 
-    val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val sheetContent: @Composable () -> Unit = {
         Column(
             modifier = Modifier
@@ -341,7 +338,8 @@ fun AddEditCourseBottomSheet(
                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
                 )
                 .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp),
+                .padding(start = 16.dp, end = 16.dp)
+                .sheetContentBottomInset(isTablet),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
@@ -645,7 +643,6 @@ fun AddEditCourseBottomSheet(
                 }
             }
             }
-            Spacer(modifier = Modifier.height(if (isTablet) 4.dp else statusBarsPadding + 60.dp))
         }
     }
 

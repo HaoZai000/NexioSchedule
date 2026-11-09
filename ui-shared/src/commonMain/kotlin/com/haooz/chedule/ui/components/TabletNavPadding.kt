@@ -10,6 +10,7 @@ import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.haooz.chedule.ui.utils.screenHeightDp
@@ -22,6 +23,21 @@ import kotlin.math.roundToInt
 
 /** 展开侧栏占位宽度占屏宽比例 */
 const val TabletNavSideWidthFraction = 0.22f
+
+/**
+ * 展开态侧栏**面板**的最小宽度（不含左缘 [TabletNavSideInset]）。
+ *
+ * 竖屏平板的屏宽小，比例算下来只有 160~180dp，标题会被挤成两行，
+ * 所以给一条保底。横屏屏宽够大，比例本来就超过它，这条不会生效。
+ */
+val TabletNavSideExpandedMinWidth = 200.dp
+
+/** 展开态侧栏总宽（含左缘间距）：屏宽比例与 [TabletNavSideExpandedMinWidth] 取大者 */
+fun tabletNavExpandedWidthDp(screenWidthDp: Float): Dp =
+    maxOf(
+        screenWidthDp.dp * TabletNavSideWidthFraction,
+        TabletNavSideExpandedMinWidth + TabletNavSideInset,
+    )
 
 /** 折叠态遮罩（玻璃）宽度 */
 val TabletNavIconRailWidth = 84.dp
@@ -51,7 +67,7 @@ fun tabletNavRailStartPadding(): Modifier {
     val isPortrait = screenHeightDp() > widthDp
     val density = LocalDensity.current
     val collapsedTotalPx = with(density) { (TabletNavSideInset + TabletNavIconRailWidth).toPx() }
-    val expandedWidthPx = with(density) { (widthDp.dp * TabletNavSideWidthFraction).toPx() }
+    val expandedWidthPx = with(density) { tabletNavExpandedWidthDp(widthDp.toFloat()).toPx() }
     // 竖屏叠层：内容 start padding 恒为折叠轨，展开不改变布局
     if (isPortrait) {
         return TabletNavRailTargetPaddingElement(collapsedTotalPx, collapsedTotalPx)

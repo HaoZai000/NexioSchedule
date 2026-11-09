@@ -47,6 +47,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.schedulePageBackgroundColor
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
+import com.haooz.chedule.ui.components.sheetContentBottomInset
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
@@ -231,7 +232,6 @@ fun ShiftScheduleScreen(
     } // wallpaper Box
 
 
-    val sheetBottomPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 60.dp
     val detailContent: @Composable () -> Unit = {
         Column(
             modifier = Modifier
@@ -243,7 +243,8 @@ fun ShiftScheduleScreen(
                 .scrollEndHaptic(
                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
                 )
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .sheetContentBottomInset(isTablet),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
@@ -281,7 +282,6 @@ fun ShiftScheduleScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(if (isTablet) 0.dp else sheetBottomPadding))
         }
     }
 

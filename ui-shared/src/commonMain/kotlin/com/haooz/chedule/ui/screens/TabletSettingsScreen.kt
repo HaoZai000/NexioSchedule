@@ -202,7 +202,7 @@ fun TabletSettingsChromeOverlay() {
                 com.haooz.chedule.ui.components.TabletNavIconRailWidth).toPx()
     }
     val expandedWidthPx = with(density) {
-        (widthDp.dp * com.haooz.chedule.ui.components.TabletNavSideWidthFraction).toPx()
+        com.haooz.chedule.ui.components.tabletNavExpandedWidthDp(widthDp.toFloat()).toPx()
     }
 
     BoxWithConstraints(
@@ -213,13 +213,16 @@ fun TabletSettingsChromeOverlay() {
     ) {
         val maxWPx = with(density) { maxWidth.toPx() }
 
-        // 折叠态标题：状态栏下 CollapsedHeight 内垂直居中
+        // 折叠态标题：状态栏下 CollapsedHeight 内垂直居中。
+        // textAlign 必须显式给 Center：文字变化动效是「旧字新字各画一份、容器取两者较宽」，
+        // 短的那条按 textAlign 落位 —— 不传就是靠左，切页时能看到标题从左边滑成居中。
         val collapsedTitle: @Composable (String) -> Unit = { text ->
             Text(
                 text = text,
                 color = titleColor,
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
                 maxLines = 1,
                 softWrap = false,
             )
