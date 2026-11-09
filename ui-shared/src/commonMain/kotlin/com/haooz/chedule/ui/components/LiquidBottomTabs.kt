@@ -1,6 +1,5 @@
 package com.haooz.chedule.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -77,12 +76,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 /** tab 胶囊 / 右侧圆按钮是两块独立玻璃，尺寸不同 ⇒ 各自一份 shader uniform，不能共用 key。 */
 private const val LIVE_BOTTOM_BAR_PILL_GLASS_KEY = "NexioSoftGlassLiveBottomBarPill"
 private const val LIVE_BOTTOM_BAR_BUTTON_GLASS_KEY = "NexioSoftGlassLiveBottomBarButton"
-
-/** 拖尾增益：原版 miuix `OverlayView` 是 `min(4 × 单帧位移, 60px)`，60px ≈ 20dp @3x。 */
-private const val TRAIL_GAIN = 4f
-
-/** 拖尾速度的一阶低通系数：越大越跟手，越小越平滑（直接用每帧 dx 会一直哆嗦）。 */
-private const val TRAIL_SMOOTHING = 0.55f
 
 /** 底栏胶囊底色。tab 胶囊与圆按钮共用同一块材质，颜色必须同源，所以只在这里定义一次。 */
 @Composable
@@ -209,7 +202,6 @@ fun LiquidBottomTabs(
     }
     // 柔光自己画玻璃色，叠容器色会盖住折射；只有无材质档留实色底
     val surface: DrawScope.() -> Unit = remember(containerColor) { { drawRect(containerColor) } }
-    val selectorColor = if (isLightTheme) Color.Black.copy(0.06f) else Color.White.copy(0.1f)
 
     val density = LocalDensity.current
     val animationScope = rememberCoroutineScope()
@@ -219,9 +211,9 @@ fun LiquidBottomTabs(
             animationScope = animationScope,
             initialValue = selectedTabIndex().toFloat(),
             valueRange = 0f..maxIndex,
-            visibilityThreshold = 0.001f,
+            visibilityThreshold = CapsuleSlider.DampedVisibilityThreshold,
             initialScale = 1f,
-            pressedScale = 78f / 56f,
+            pressedScale = CapsuleSlider.PressScale,
             onDragStarted = {},
             onDragStopped = {},
             onDrag = { _, _ -> }
@@ -262,7 +254,7 @@ fun LiquidBottomTabs(
         val pillWidthDp = with(density) { pillPx.toDp() }
         val padPx = with(density) { 4f.dp.toPx() }
         val tabWidthPx = (pillPx - padPx * 2f) / tabsCount
-        val selectorInsetPx = with(density) { BottomBarSelectorInset.toPx() }
+        val selectorInsetPx = with(density) { CapsuleSlider.Inset.toPx() }
 
         val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
         val ltrSign = if (isLtr) 1f else -1f
@@ -291,7 +283,7 @@ fun LiquidBottomTabs(
             )
         }
         val selectorHeightPx = with(density) { selectorHeight.roundToPx() }
-        val trailMaxPx = with(density) { 20.dp.toPx() }
+        val trailMaxPx = with(density) { CapsuleSlider.TrailMax.toPx() }
         // 松手 / 点别的 tab 时，目标槽位落在胶囊当前所在位置的哪一侧（几何方向，RTL 自动成立）
         val settleToSlot: (Int) -> Unit = { index ->
             val target = slotLeft(index.toFloat())
@@ -371,22 +363,11 @@ fun LiquidBottomTabs(
             // 位移途中宽度先撑开再收回，所以平移带橡皮筋感。
             // 位置与宽度都在 layout 期读（[capsuleBounds]），组合期不读任何高频值。
             Box(
-                Modifier
-                    .capsuleBounds(capsule, selectorHeightPx)
-                    // 按压缩放（四周各 2dp，且夹在 0.5 以上）
-                    // 走 graphicsLayer，draw 期读一次按压进度，不进组合、不触发 layout。
-                    .graphicsLayer {
-                        val progress = pillHighlight.pressProgress
-                        if (progress > 0f && size.width > 0f && size.height > 0f) {
-                            val shrink = 2.dp.toPx() * 2f
-                            val targetX = ((size.width - shrink) / size.width).coerceAtLeast(0.5f)
-                            val targetY = ((size.height - shrink) / size.height).coerceAtLeast(0.5f)
-                            scaleX = 1f - (1f - targetX) * progress
-                            scaleY = 1f - (1f - targetY) * progress
-                        }
-                    }
-                    .clip(ContinuousCapsule())
-                    .background(selectorColor)
+                Modifier.capsuleSliderPill(
+                    selector = capsule,
+                    heightPx = selectorHeightPx,
+                    pressProgress = { pillHighlight.pressProgress },
+                )
             )
             Row(
                 Modifier.fillMaxSize().padding(horizontal = 4f.dp),
@@ -479,7 +460,7 @@ fun LiquidBottomTabs(
                         if (downX > pillPx) return@awaitEachGesture
 
                         // 按在滑块上才是拖；按在别的 tab 上直接选中（同原版：胶囊就是拖动把手）
-                        val capsuleHalf = tabWidthPx * 0.55f
+                        val capsuleHalf = tabWidthPx * CapsuleSlider.GrabHalfWidthRatio
                         var dragging = abs(downX - capsule.centerPx) <= capsuleHalf
                         var pressedTab = -1
                         // 以「按下那一刻胶囊在哪」为锚，不用逻辑 index：
@@ -537,9 +518,9 @@ fun LiquidBottomTabs(
                             if (dragging) {
                                 // 拖尾：原版是 min(4 × 单帧位移, 60px)，这里先做一阶低通，
                                 // 否则每帧 dx 抖动会让尾巴一直哆嗦
-                                trailVelocity = trailVelocity * TRAIL_SMOOTHING +
-                                    dx * (1f - TRAIL_SMOOTHING)
-                                val trail = (abs(trailVelocity) * TRAIL_GAIN).coerceAtMost(trailMaxPx)
+                                trailVelocity = trailVelocity * CapsuleSlider.TrailSmoothing +
+                                    dx * (1f - CapsuleSlider.TrailSmoothing)
+                                val trail = (abs(trailVelocity) * CapsuleSlider.TrailGain).coerceAtMost(trailMaxPx)
                                 val dir = when {
                                     trailVelocity > 0.5f -> 1
                                     trailVelocity < -0.5f -> -1

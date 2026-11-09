@@ -826,15 +826,13 @@ private fun TabletNavTopBarInteraction(
     val animationScope = rememberCoroutineScope()
     val viewConfiguration = LocalViewConfiguration.current
     val isLightTheme = !isAppDarkTheme()
-    val selectorColor =
-        if (isLightTheme) Color.Black.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.1f)
-    val selectorInsetPx = with(density) { 0.5.dp.toPx() }
-    val selectorHeightPx = with(density) { (TabletNavTopBarHeight - 8.dp).roundToPx() }
+    val selectorInsetPx = with(density) { CapsuleSlider.Inset.toPx() }
+    val selectorHeightPx = with(density) { (TabletNavTopBarHeight - CapsuleSlider.VerticalInset).roundToPx() }
     val stripLeftPx = padPx + leadingPx
     val stripRightPx = stripLeftPx + tabsCount * tabWidthPx
     val selectorWidthPx = tabWidthPx - selectorInsetPx * 2f
     val maxIndex = (tabsCount - 1).toFloat()
-    val trailMaxPx = with(density) { 20.dp.toPx() }
+    val trailMaxPx = with(density) { CapsuleSlider.TrailMax.toPx() }
 
     fun slotLeft(index: Float): Float = stripLeftPx + index * tabWidthPx + selectorInsetPx
 
@@ -846,9 +844,9 @@ private fun TabletNavTopBarInteraction(
             animationScope = animationScope,
             initialValue = selectedTabIndex().toFloat(),
             valueRange = 0f..maxIndex,
-            visibilityThreshold = 0.001f,
+            visibilityThreshold = CapsuleSlider.DampedVisibilityThreshold,
             initialScale = 1f,
-            pressedScale = 78f / 56f,
+            pressedScale = CapsuleSlider.PressScale,
             onDragStarted = {},
             onDragStopped = {},
             onDrag = { _, _ -> },
@@ -892,23 +890,16 @@ private fun TabletNavTopBarInteraction(
     // 选中滑块：位置与宽度都在 layout 期读，组合期不碰任何高频值。
     // 按下时四周各缩 2dp —— 与手机底栏滑块完全一致（照抄 LiquidBottomTabs）。
     Box(
-        modifier = Modifier
-            .capsuleBounds(capsule, selectorHeightPx)
-            .graphicsLayer {
-                val press = pressProgress()
-                if (press > 0f && size.width > 0f && size.height > 0f) {
-                    val shrink = 2.dp.toPx() * 2f
-                    val targetX = ((size.width - shrink) / size.width).coerceAtLeast(0.5f)
-                    val targetY = ((size.height - shrink) / size.height).coerceAtLeast(0.5f)
-                    scaleX = 1f - (1f - targetX) * press
-                    scaleY = 1f - (1f - targetY) * press
-                }
-                // 胶囊快成形了才显形，别在侧栏形态里闪一下
+        modifier = Modifier.capsuleSliderPill(
+            selector = capsule,
+            heightPx = selectorHeightPx,
+            pressProgress = { pressProgress() },
+            // 胶囊快成形了才显形，别在侧栏形态里闪一下
+            visibility = {
                 val p = TabletNavSideState.morphProgress.floatValue.coerceIn(0f, 1f)
-                alpha = ((p - 0.5f) * 2f).coerceIn(0f, 1f)
-            }
-            .clip(ContinuousCapsule())
-            .background(selectorColor),
+                ((p - 0.5f) * 2f).coerceIn(0f, 1f)
+            },
+        ),
     )
 
     // 统一手势层：按下某格 / 拖胶囊 / 松手吸附。最左那颗圆钮自己处理点击。
@@ -925,7 +916,7 @@ private fun TabletNavTopBarInteraction(
                     if (downX < stripLeftPx) return@awaitEachGesture
 
                     // 按在滑块上才是拖；按在别的格上直接选中（胶囊就是拖动把手）
-                    val capsuleHalf = tabWidthPx * 0.55f
+                    val capsuleHalf = tabWidthPx * CapsuleSlider.GrabHalfWidthRatio
                     var dragging = abs(downX - capsule.centerPx) <= capsuleHalf
                     var pressedTab = -1
                     var dragAnchorLeft = capsule.leftPx
@@ -972,8 +963,9 @@ private fun TabletNavTopBarInteraction(
                         }
 
                         if (dragging) {
-                            trailVelocity = trailVelocity * 0.55f + dx * 0.45f
-                            val trail = (abs(trailVelocity) * 4f).coerceAtMost(trailMaxPx)
+                            trailVelocity = trailVelocity * CapsuleSlider.TrailSmoothing +
+                                dx * (1f - CapsuleSlider.TrailSmoothing)
+                            val trail = (abs(trailVelocity) * CapsuleSlider.TrailGain).coerceAtMost(trailMaxPx)
                             val dir = when {
                                 trailVelocity > 0.5f -> 1
                                 trailVelocity < -0.5f -> -1

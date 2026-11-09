@@ -1,5 +1,11 @@
 package com.haooz.chedule.ui.navigation
 
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
+import com.haooz.chedule.ui.components.CapsuleSegmentedControl
+import com.haooz.chedule.data.platform.FeedbackKind
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -73,6 +79,7 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.ChromeStr
+import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.activities.AboutScreen
@@ -89,6 +96,10 @@ import com.haooz.chedule.ui.activities.CourseReminderScreen
 import com.haooz.chedule.ui.activities.CourseTimeSettingsScreen
 import com.haooz.chedule.ui.activities.EduImportUpdater
 import com.haooz.chedule.ui.activities.EducationalImportScreen
+import com.haooz.chedule.ui.activities.FeedbackHistoryScreen
+import com.haooz.chedule.ui.activities.FeedbackRoadmapScreen
+import com.haooz.chedule.ui.activities.FeedbackScreen
+import com.haooz.chedule.ui.activities.rememberFeedbackFormState
 import com.haooz.chedule.ui.activities.HolidaySettingsScreen
 import com.haooz.chedule.ui.activities.LicenseScreen
 import com.haooz.chedule.ui.activities.LocalBackupScreen
@@ -264,7 +275,143 @@ fun PrivacyPolicyRoute(router: AppRouter) {
 @Composable
 fun CommunicationRoute(router: AppRouter) {
     DocumentPageScaffold(title = ChromeStr.communityFeedback(), onBack = { router.popBack() }) { scrollBehavior, _ ->
-        CommunicationScreen(scrollBehavior = scrollBehavior)
+        CommunicationScreen(
+            scrollBehavior = scrollBehavior,
+            onOpenFeedback = { router.navigate(AppRoute.Feedback) },
+            onOpenRoadmap = { router.navigate(AppRoute.FeedbackRoadmap) },
+        )
+    }
+}
+
+/** 应用内反馈路由 */
+@Composable
+fun FeedbackRoute(router: AppRouter) {
+    val state = rememberFeedbackFormState()
+    val scope = rememberCoroutineScope()
+    val hapticFeedback = LocalHapticFeedback.current
+    val isTablet = isTabletWidth()
+    val horizontalPadding = if (isTablet) 20.dp else 16.dp
+
+    DocumentPageScaffold(
+        title = FeedbackStr.title(),
+        onBack = { router.popBack() },
+        // 类型选择挂在标题下方：顶栏下方的兄弟层，随大标题高度变化上移
+        headerOverlay = { backdrop, _ ->
+            if (state.submittedId == null) {
+                CapsuleSegmentedControl(
+                    options = listOf(FeedbackStr.typeBug(), FeedbackStr.typeFeature()),
+                    selectedIndex = state.kind.ordinal,
+                    onSelect = { i -> state.kind = if (i == 0) FeedbackKind.Bug else FeedbackKind.Feature },
+                    backdrop = backdrop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // 与大标题之间留 8dp
+                        .padding(top = 8.dp)
+                        .padding(horizontal = horizontalPadding),
+                )
+            }
+        },
+        overlay = { backdrop ->
+            // 成功态由页面内的卡片给出口，底部不再压一个提交按钮
+            if (state.submittedId == null) {
+                LiquidGlassTextButton(
+                    text = if (state.submitting) FeedbackStr.submitting() else FeedbackStr.submit(),
+                    enabled = state.canSubmit,
+                    backdrop = backdrop,
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                        if (state.validateEmail()) {
+                            scope.launch {
+                                state.submit().onFailure { error ->
+                                    showToast(error.message ?: FeedbackStr.loadFailed())
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(
+                            start = horizontalPadding + 16.dp,
+                            end = horizontalPadding + 16.dp,
+                        )
+                        .navigationBarsPadding()
+                        .padding(bottom = 20.dp),
+                )
+            }
+        },
+    ) { scrollBehavior, _ ->
+        FeedbackScreen(
+            state = state,
+            scrollBehavior = scrollBehavior,
+            onOpenHistory = { router.navigate(AppRoute.FeedbackHistory) },
+            onOpenRoadmap = { router.navigate(AppRoute.FeedbackRoadmap) },
+            // 头部控件占掉的高度 + 间距
+            topExtra = 64.dp,
+        )
+    }
+}
+
+/** 我的反馈路由。 */
+@Composable
+fun FeedbackHistoryRoute(router: AppRouter) {
+    DocumentPageScaffold(
+        title = FeedbackStr.historyTitle(),
+        onBack = { router.popBack() },
+    ) { scrollBehavior, backdrop ->
+        FeedbackHistoryScreen(
+            scrollBehavior = scrollBehavior,
+            onWriteFeedback = { router.navigate(AppRoute.Feedback) },
+            // 确认弹窗要接材质，需要页面采样层
+            liquidGlassBackdrop = backdrop,
+        )
+    }
+}
+
+/** 开发进度路由。 */
+@Composable
+fun FeedbackRoadmapRoute(router: AppRouter) {
+    var roadmapFilter by remember { mutableStateOf<FeedbackKind?>(null) }
+    val isTablet = isTabletWidth()
+    val horizontalPadding = if (isTablet) 20.dp else 16.dp
+
+    DocumentPageScaffold(
+        title = FeedbackStr.roadmapTitle(),
+        onBack = { router.popBack() },
+        headerOverlay = { backdrop, _ ->
+            CapsuleSegmentedControl(
+                // 0 = 全部，1 = 新功能，2 = Bug 修复
+                options = listOf(
+                    FeedbackStr.filterAll(),
+                    FeedbackStr.filterFeature(),
+                    FeedbackStr.filterBug(),
+                ),
+                selectedIndex = when (roadmapFilter) {
+                    null -> 0
+                    FeedbackKind.Feature -> 1
+                    FeedbackKind.Bug -> 2
+                },
+                onSelect = { i ->
+                    roadmapFilter = when (i) {
+                        0 -> null
+                        1 -> FeedbackKind.Feature
+                        else -> FeedbackKind.Bug
+                    }
+                },
+                backdrop = backdrop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // 与大标题之间留 8dp
+                    .padding(top = 8.dp)
+                    .padding(horizontal = horizontalPadding),
+            )
+        },
+    ) { scrollBehavior, _ ->
+        FeedbackRoadmapScreen(
+            scrollBehavior = scrollBehavior,
+            filter = roadmapFilter,
+            topExtra = 64.dp,
+        )
     }
 }
 

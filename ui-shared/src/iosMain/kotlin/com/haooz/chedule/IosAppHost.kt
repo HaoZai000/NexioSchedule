@@ -30,6 +30,7 @@ import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.i18n.SwitchStr
 import com.haooz.chedule.i18n.WeatherStr
@@ -673,6 +674,9 @@ internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     AppRoute.License -> ChromeStr.openSourceLicenses()
     AppRoute.PrivacyPolicy -> ChromeStr.privacyPolicy()
     AppRoute.Communication -> ChromeStr.communityFeedback()
+    AppRoute.Feedback -> FeedbackStr.title()
+    AppRoute.FeedbackHistory -> FeedbackStr.historyTitle()
+    AppRoute.FeedbackRoadmap -> FeedbackStr.roadmapTitle()
     AppRoute.AppreciateAuthor -> ChromeStr.donate()
     AppRoute.PreferenceSettings -> ChromeStr.appPreferences()
     AppRoute.UpdateSettings -> ChromeStr.updateSettingsTitle()

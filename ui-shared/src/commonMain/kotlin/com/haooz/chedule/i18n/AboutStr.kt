@@ -146,8 +146,11 @@ object AboutStr {
     val feedbackSuggestions = L("反馈与建议", "Feedback & Suggestions")
     val feedbackOnGitHub = L("前往GitHub反馈", "Feedback on GitHub")
     val githubIssuesSummary = L("在GitHub Issues提交反馈和建议", "Submit feedback and suggestions on GitHub Issues")
-    val feedbackForm = L("填写表单反馈", "Feedback via Form")
-    val feedbackFormSummary = L("在表单中提交反馈和建议", "Submit feedback and suggestions via the form")
+    val feedbackForm = L("应用内反馈", "In-App Feedback")
+    val feedbackFormSummary = L("在应用内提交 Bug 报告或功能建议", "Report a bug or suggest a feature in the app")
+    val featureProgress = L("开发进度", "Development Progress")
+    val featureProgressTitle = L("查看开发进度", "View Progress")
+    val featureProgressSummary = L("新功能开发与问题修复的进展", "What's being built and fixed")
 
     // ---- 赞赏作者 ----
 

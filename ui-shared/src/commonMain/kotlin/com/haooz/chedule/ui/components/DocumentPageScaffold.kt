@@ -1,5 +1,11 @@
 package com.haooz.chedule.ui.components
 
+import top.yukonga.miuix.kmp.layout.collapsibleTopInset
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -37,6 +43,28 @@ import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 import top.yukonga.miuix.kmp.utils.OverScrollState
 
 /**
+ * 标题下方内容（分段控件、搜索框等）的**唯一**定位实现
+ */
+@Composable
+fun PageHeaderContent(
+    paddingValues: PaddingValues,
+    scrollBehavior: SharedScrollBehavior?,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .padding(
+                top = paddingValues.calculateTopPadding() +
+                    CollapsibleTopAppBarDefaults.CollapsedHeight,
+            )
+            .collapsibleTopInset(scrollBehavior)
+            .fillMaxWidth(),
+        content = content,
+    )
+}
+
+/**
  * 「全屏文档页」的统一脚手架：折叠大标题顶栏 + 玻璃返回按钮 + 内容采样层
  *
  * @param recordKey 两层采样源共用的结构指纹。传 null（默认）= 每帧录制，
@@ -54,6 +82,11 @@ fun DocumentPageScaffold(
     // 看着"没有玻璃效果"就是这个原因。
     endAction: (@Composable (backdropAlpha: Float, shadowAlpha: Float, backdrop: com.haooz.softglass.backdrop.GlassBackdrop) -> Unit)? = null,
     overlay: (@Composable BoxScope.(liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop) -> Unit)? = null,
+    // 挂在页面固定层的头部内容（分段控件等）
+    headerOverlay: (@Composable (
+        backdrop: com.haooz.softglass.backdrop.GlassBackdrop,
+        scrollBehavior: SharedScrollBehavior,
+    ) -> Unit)? = null,
     content: @Composable (
         scrollBehavior: SharedScrollBehavior,
         liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop,
@@ -97,7 +130,24 @@ fun DocumentPageScaffold(
                     WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
                 )
                 .consumeWindowInsets(PaddingValues(top = nativeBarInset)),
-            topBar = {
+            topBar = {},
+        ) { paddingValues ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                // 采样层只包内容；顶栏玻璃按钮放在层外，避免循环采样
+                Box(
+                    modifier = Modifier.fillMaxSize().then(
+                        // 无材质档：玻璃全关，采样录屏层不挂
+                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) Modifier
+                        else Modifier.layerBackdrop(
+                            liquidGlassBackdrop,
+                            recordKey = recordKey,
+                            mustRecord = docMustRecord
+                        )
+                    )
+                ) {
+                    content(scrollBehavior, liquidGlassBackdrop)
+                }
+
                 ProgressiveBlurTopBar(
                     backdrop = liquidGlassBackdrop,
                     topInsetAdjustment = nativeBarInset,
@@ -133,23 +183,17 @@ fun DocumentPageScaffold(
                         } else null,
                     )
                 }
-            }
-        ) { _ ->
-            Box(modifier = Modifier.fillMaxSize()) {
-                // 采样层只包内容；顶栏玻璃按钮放在层外，避免循环采样
-                Box(
-                    modifier = Modifier.fillMaxSize().then(
-                        // 无材质档：玻璃全关，采样录屏层不挂
-                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) Modifier
-                        else Modifier.layerBackdrop(
-                            liquidGlassBackdrop,
-                            recordKey = recordKey,
-                            mustRecord = docMustRecord
-                        )
-                    )
-                ) {
-                    content(scrollBehavior, liquidGlassBackdrop)
+
+                // 标题下方内容：走共用实现，与教务导入页同一段结构
+                if (headerOverlay != null) {
+                    PageHeaderContent(
+                        paddingValues = paddingValues,
+                        scrollBehavior = scrollBehavior,
+                    ) {
+                        headerOverlay.invoke(liquidGlassBackdrop, scrollBehavior)
+                    }
                 }
+
                 overlay?.invoke(this, liquidGlassBackdrop)
             }
         }

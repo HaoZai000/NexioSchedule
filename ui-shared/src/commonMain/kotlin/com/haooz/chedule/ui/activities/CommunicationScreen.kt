@@ -32,6 +32,10 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 @Composable
 fun CommunicationScreen(
     scrollBehavior: SharedScrollBehavior? = null,
+    /** 应用内反馈：手机端进路由栈，平板端在右栏切 dest（所以用回调而不是直接拿 router） */
+    onOpenFeedback: () -> Unit = {},
+    /** 开发进度 */
+    onOpenRoadmap: () -> Unit = {},
 ) {
     val isTablet = screenWidthDp() >= 600
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
@@ -52,8 +56,6 @@ fun CommunicationScreen(
                 "https://github.com/HaoZai000/NexioSchedule/issues"
             val qqGroupUrl =
                 "https://pd.qq.com/s/g4n2qm2sx?b=9"
-            val tableUrl =
-                "https://docs.qq.com/sheet/DSUV2dWxLa09XQXRZ?tab=BB08J2&scode="
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -126,8 +128,28 @@ fun CommunicationScreen(
                                 title = AboutStr.feedbackForm(),
                                 summary = AboutStr.feedbackFormSummary(),
                                 onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                    uriHandler.openUri(tableUrl)
+                                    onOpenFeedback()
+                                }
+                            )
+                        }
+                    }
+                }
+                item {
+                    SmallTitle(
+                        text = AboutStr.featureProgress(),
+                    )
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            ArrowPreference(
+                                title = AboutStr.featureProgressTitle(),
+                                summary = AboutStr.featureProgressSummary(),
+                                onClick = {
+                                    onOpenRoadmap()
                                 }
                             )
                         }

@@ -49,6 +49,9 @@ import com.haooz.chedule.ui.navigation.CourseManageRoute
 import com.haooz.chedule.ui.navigation.CourseReminderRoute
 import com.haooz.chedule.ui.navigation.CourseTimeSettingsRoute
 import com.haooz.chedule.ui.navigation.EducationalImportRoute
+import com.haooz.chedule.ui.navigation.FeedbackHistoryRoute
+import com.haooz.chedule.ui.navigation.FeedbackRoadmapRoute
+import com.haooz.chedule.ui.navigation.FeedbackRoute
 import com.haooz.chedule.ui.navigation.HolidaySettingsRoute
 import com.haooz.chedule.ui.navigation.LicenseRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
@@ -341,6 +344,9 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.License -> LicenseRoute(router)
         AppRoute.PrivacyPolicy -> PrivacyPolicyRoute(router)
         AppRoute.Communication -> CommunicationRoute(router)
+        AppRoute.Feedback -> FeedbackRoute(router)
+        AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
+        AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
         // 带注入的文档壳：iOS 用默认 Noop 能力，剪贴板注入 UIPasteboard
         AppRoute.PreferenceSettings -> PreferenceSettingsRoute(router)

@@ -116,9 +116,7 @@ actual fun NativeMiuixTextField(
             minLines = minLines,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             decorationBox = { innerTextField ->
-                // useLabelAsPlaceholder 时 label 兼作 hint（有内容即隐藏）——
-                // 与 Android actual 的 EditText.hint 条件一致
-                Box(contentAlignment = Alignment.CenterStart) {
+                Box(contentAlignment = Alignment.TopStart) {
                     if (value.isEmpty() && useLabelAsPlaceholder && label.isNotEmpty()) {
                         Text(
                             text = label,
@@ -206,7 +204,8 @@ actual fun NativeMiuixTextField(
             minLines = minLines,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             decorationBox = { innerTextField ->
-                Box(contentAlignment = Alignment.CenterStart) {
+                // 同 String 重载：占位符贴顶，与 Android 原生 hint 一致
+                Box(contentAlignment = Alignment.TopStart) {
                     if (value.text.isEmpty() && useLabelAsPlaceholder && label.isNotEmpty()) {
                         Text(
                             text = label,

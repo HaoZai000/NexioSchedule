@@ -70,11 +70,16 @@ import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.i18n.L10n
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
 import com.haooz.chedule.ui.activities.CommunicationScreen
 import com.haooz.chedule.ui.activities.CourseTimeSettingsScreen
+import com.haooz.chedule.ui.activities.FeedbackHistoryScreen
+import com.haooz.chedule.ui.activities.FeedbackRoadmapScreen
+import com.haooz.chedule.ui.activities.FeedbackScreen
+import com.haooz.chedule.ui.activities.rememberFeedbackFormState
 import com.haooz.chedule.ui.activities.HolidaySettingsScreen
 import com.haooz.chedule.ui.activities.WebDavSettingsScreen
 import com.haooz.chedule.ui.activities.WidgetIntroScreen
@@ -143,6 +148,10 @@ enum class TabletSettingsDest {
     About,
     Appreciate,
     Communication,
+    // 以下三个是「交流与反馈」里的子页：只在右栏切换，不进左栏列表（未列入 StandaloneDests/BottomMoreDests）
+    Feedback,
+    FeedbackHistory,
+    FeedbackRoadmap,
     ;
 
     /** 左栏入口与右栏固定顶栏的标题文案 */
@@ -163,6 +172,9 @@ enum class TabletSettingsDest {
         About -> SettingsStr.aboutApp()
         Appreciate -> SettingsStr.destAppreciate()
         Communication -> SettingsStr.destCommunication()
+        Feedback -> FeedbackStr.title()
+        FeedbackHistory -> FeedbackStr.historyTitle()
+        FeedbackRoadmap -> FeedbackStr.roadmapTitle()
     }
 
     /** 左栏分组标题文案 */
@@ -171,7 +183,8 @@ enum class TabletSettingsDest {
         Reminder, Holiday, Widget -> SettingsStr.featuresSection()
         ScheduleImport, AiImport, EducationalImport, ScheduleExport -> SettingsStr.groupImportExport()
         LocalBackup, WebDav -> SettingsStr.groupBackup()
-        Preference, Update, About, Appreciate, Communication -> CommonStr.other()
+        Preference, Update, About, Appreciate, Communication,
+        Feedback, FeedbackHistory, FeedbackRoadmap -> CommonStr.other()
     }
 }
 
@@ -662,6 +675,9 @@ fun TabletSettingsScreen(
                     }
                     val rightTrack =
                         rememberPaneScrollTracker(selected, rightScrollBehavior, rightOverScroll)
+                    // 反馈表单状态：内容在下方 when 里、提交按钮在底部玻璃层，同一次组合内共用一份
+                    val feedbackFormState = rememberFeedbackFormState()
+                    val feedbackScope = rememberCoroutineScope()
                     // 右上角按钮与右栏顶遮罩共用同一 alpha（contentOffset 向下滚为负）
                     val rightMaskAlpha =
                         rememberPaneMaskAlpha(rightScrollBehavior.state.contentOffset)
@@ -787,6 +803,34 @@ fun TabletSettingsScreen(
 
                                 TabletSettingsDest.Communication -> CommunicationScreen(
                                     scrollBehavior = null,
+                                    onOpenFeedback = {
+                                        TabletSettingsUiState.selected = TabletSettingsDest.Feedback
+                                    },
+                                    onOpenRoadmap = {
+                                        TabletSettingsUiState.selected = TabletSettingsDest.FeedbackRoadmap
+                                    },
+                                )
+
+                                TabletSettingsDest.Feedback -> FeedbackScreen(
+                                    state = feedbackFormState,
+                                    scrollBehavior = null,
+                                    onOpenHistory = {
+                                        TabletSettingsUiState.selected = TabletSettingsDest.FeedbackHistory
+                                    },
+                                    onOpenRoadmap = {
+                                        TabletSettingsUiState.selected = TabletSettingsDest.FeedbackRoadmap
+                                    },
+                                )
+
+                                TabletSettingsDest.FeedbackHistory -> FeedbackHistoryScreen(
+                                    scrollBehavior = null,
+                                    onWriteFeedback = {
+                                        TabletSettingsUiState.selected = TabletSettingsDest.Feedback
+                                    },
+                                )
+
+                                TabletSettingsDest.FeedbackRoadmap -> FeedbackRoadmapScreen(
+                                    scrollBehavior = null,
                                 )
                             }
                         }
@@ -795,6 +839,43 @@ fun TabletSettingsScreen(
                         // 不能采样全局 liquidGlassBackdrop——按钮就在全局玻璃层内，采样自身会循环采样。
                         val glassBackdrop = liquidGlassBackdrop
                         if (glassBackdrop != null) when (selected) {
+                            // 反馈页的提交按钮：与手机同一枚玻璃按钮，这里采样右栏本地 backdrop
+                            TabletSettingsDest.Feedback -> {
+                                val state = feedbackFormState
+                                if (state.submittedId == null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 36.dp)
+                                            .navigationBarsPadding()
+                                            .padding(bottom = 20.dp)
+                                    ) {
+                                        LiquidGlassTextButton(
+                                            text = if (state.submitting) {
+                                                FeedbackStr.submitting()
+                                            } else {
+                                                FeedbackStr.submit()
+                                            },
+                                            enabled = state.canSubmit,
+                                            backdrop = rightPaneBackdrop,
+                                            onClick = {
+                                                if (state.validateEmail()) {
+                                                    feedbackScope.launch {
+                                                        state.submit().onFailure { error ->
+                                                            showToast(
+                                                                error.message ?: FeedbackStr.loadFailed(),
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                    }
+                                }
+                            }
+
                             TabletSettingsDest.Reminder -> {
                                 Box(
                                     modifier = Modifier

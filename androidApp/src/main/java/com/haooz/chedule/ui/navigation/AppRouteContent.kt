@@ -82,6 +82,9 @@ fun AppRouteContent(
         AppRoute.License -> LicenseRoute(router)
         AppRoute.PrivacyPolicy -> PrivacyPolicyRoute(router)
         AppRoute.Communication -> CommunicationRoute(router)
+        AppRoute.Feedback -> FeedbackRoute(router)
+        AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
+        AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
 
         // 文档壳路由，Android 注入平台能力。

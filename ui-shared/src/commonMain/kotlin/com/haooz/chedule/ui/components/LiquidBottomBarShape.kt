@@ -32,9 +32,6 @@ import kotlin.math.sqrt
 internal val MaterialBleedX = 16.dp
 internal val MaterialBleedY = 28.dp
 
-/** 滑块（可按压的选中玻璃）左右各收窄的量；宽度减 2×本值、位置补 1×本值保持居中 */
-internal val BottomBarSelectorInset = 0.5.dp
-
 /**
  * 融合颈的完整几何：两条**三次**贝塞尔的八个点 + 山丘参数。
  *

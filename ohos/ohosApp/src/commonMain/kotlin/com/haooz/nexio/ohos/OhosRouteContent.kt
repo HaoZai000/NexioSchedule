@@ -26,6 +26,9 @@ import com.haooz.chedule.ui.navigation.CourseManageRoute
 import com.haooz.chedule.ui.navigation.CourseReminderRoute
 import com.haooz.chedule.ui.navigation.CourseTimeSettingsRoute
 import com.haooz.chedule.ui.navigation.EducationalImportRoute
+import com.haooz.chedule.ui.navigation.FeedbackHistoryRoute
+import com.haooz.chedule.ui.navigation.FeedbackRoadmapRoute
+import com.haooz.chedule.ui.navigation.FeedbackRoute
 import com.haooz.chedule.ui.navigation.HolidaySettingsRoute
 import com.haooz.chedule.ui.navigation.LicenseRoute
 import com.haooz.chedule.ui.navigation.LocalBackupRoute
@@ -63,6 +66,9 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.PreferenceSettings -> PreferenceSettingsRoute(router = router)
         AppRoute.UpdateSettings -> UpdateSettingsRoute(router = router)
         AppRoute.Communication -> CommunicationRoute(router)
+        AppRoute.Feedback -> FeedbackRoute(router)
+        AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
+        AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
         AppRoute.LocalBackup -> LocalBackupRoute(router = router)
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
         AppRoute.AiImport -> AiImportRoute(router = router)

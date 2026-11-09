@@ -134,6 +134,21 @@ sealed interface AppRoute {
         override val id: String get() = "web_import"
     }
 
+    /** 应用内反馈（提交 Bug / 功能建议，替代原来的腾讯文档外链）。 */
+    data object Feedback : AppRoute {
+        override val id: String get() = "feedback"
+    }
+
+    /** 我的反馈（按 device_id + 可选邮箱查历史提交与状态时间线）。 */
+    data object FeedbackHistory : AppRoute {
+        override val id: String get() = "feedback_history"
+    }
+
+    /** 开发进度（后端维护的 roadmap，App 只读）。 */
+    data object FeedbackRoadmap : AppRoute {
+        override val id: String get() = "feedback_roadmap"
+    }
+
     companion object {
         /** 按 [id] 还原路由；未知 id 返回 null（版本回退/脏数据时由调用方兜底）。 */
         fun fromId(id: String): AppRoute? = when (id) {
@@ -160,6 +175,9 @@ sealed interface AppRoute {
             CourseManage.id -> CourseManage
             EducationalImport.id -> EducationalImport
             WebImport.id -> WebImport
+            Feedback.id -> Feedback
+            FeedbackHistory.id -> FeedbackHistory
+            FeedbackRoadmap.id -> FeedbackRoadmap
             else -> null
         }
     }

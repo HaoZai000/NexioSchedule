@@ -5,6 +5,7 @@
 package com.haooz.chedule.ui.activities
 
 
+import com.haooz.chedule.ui.components.PageHeaderContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -334,17 +335,14 @@ fun EducationalImportScreen(
                 )
             }
 
-            // :miuix 拿不到 App 偏好，isLightTheme 需显式传入，否则强制深浅色时底色与文字对不上。
-            // isAppDarkTheme 是 @Composable，必须在组合期先取好，不能塞进下面那个 lambda。
             val searchIsLightTheme = !isAppDarkTheme()
-            Column(
-                modifier = Modifier
-                    // The preceding header reports its height during measurement. Read it
-                    // during layout so the search field starts below it on the first frame.
-                    .padding(top = paddingValues.calculateTopPadding() + CollapsedHeight)
-                    .collapsibleTopInset(scrollBehavior)
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+            // 与所有文档页共用同一段「标题下方内容」定位（见 PageHeaderContent）
+            PageHeaderContent(
+                paddingValues = paddingValues,
+                scrollBehavior = scrollBehavior,
+                modifier = Modifier.windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
+                ),
             ) {
                 SearchBar(
                     modifier = Modifier.padding(

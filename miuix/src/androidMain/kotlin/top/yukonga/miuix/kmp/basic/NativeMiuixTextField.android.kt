@@ -8,6 +8,7 @@ import android.graphics.Typeface
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.Gravity
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
@@ -238,6 +239,9 @@ actual fun NativeMiuixTextField(
 
                                 background = null
                                 setPadding(0, 0, 0, 0)
+                                // 原生 EditText 在「高度大于一行」时默认把文字垂直居中（多行框尤其明显），
+                                // 光标、hint、正文会各自居中/贴顶，看起来互相错位。统一钉在左上角。
+                                gravity = Gravity.TOP or Gravity.START
 
                                 // 光标与选择手柄颜色（API 29+，低版本保留系统默认样式）
                                 applySelectionHandlesTint(themeColor.toArgb())
@@ -457,6 +461,9 @@ actual fun NativeMiuixTextField(
 
                                 background = null
                                 setPadding(0, 0, 0, 0)
+                                // 原生 EditText 在「高度大于一行」时默认把文字垂直居中（多行框尤其明显），
+                                // 光标、hint、正文会各自居中/贴顶，看起来互相错位。统一钉在左上角。
+                                gravity = Gravity.TOP or Gravity.START
 
                                 applySelectionHandlesTint(themeColor.toArgb())
                                 highlightColor = themeColor.copy(alpha = 0.2f).toArgb()
