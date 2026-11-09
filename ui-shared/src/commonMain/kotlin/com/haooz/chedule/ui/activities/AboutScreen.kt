@@ -756,30 +756,6 @@ fun AboutScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
-                                                    text = "Capsule",
-                                                    fontSize = 15.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.primary,
-                                                    modifier = Modifier.clickable {
-                                                        uriHandler.openUri("https://github.com/Kyant0/Capsule")
-                                                    }
-                                                )
-                                                Text(
-                                                    text = "Kyant0",
-                                                    fontSize = 15.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.height(12.dp))
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 2.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
                                                     text = "OkHttp",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
@@ -852,16 +828,16 @@ fun AboutScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
-                                                    text = "GlassBackdrop",
+                                                    text = "SoftGlass",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
                                                     color = MiuixTheme.colorScheme.primary,
                                                     modifier = Modifier.clickable {
-                                                        uriHandler.openUri("https://github.com/Kyant0/AndroidLiquidGlass")
+                                                        uriHandler.openUri("https://github.com/HaoZai000/softglass")
                                                     }
                                                 )
                                                 Text(
-                                                    text = "Kyant0",
+                                                    text = "HaoZai000",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
                                                     color = MiuixTheme.colorScheme.onSurfaceVariantActions

@@ -3,7 +3,7 @@ name: CI
 # 门禁全部来自 docs/NAVIGATION_MIGRATION_HANDOFF.md 的「2. 门禁（每次改完必跑）」，
 # 这里只是把它自动化：
 #   1. checkKmpPurity                    已知 JVM 专有 API 静态扫描
-#   2. :core:check :miuix:check :backdrop:check   默认态红线
+#   2. :core:check :miuix:check          默认态红线
 #   3. :core:jvmTest --rerun-tasks       单测（不许吃缓存）
 #   4. :androidApp:assembleDebug         Android 零回归
 #
@@ -65,8 +65,8 @@ jobs:
       - name: KMP purity
         run: ./gradlew checkKmpPurity
 
-      - name: Core gate (:core :miuix :backdrop check)
-        run: ./gradlew :core:check :miuix:check :backdrop:check
+      - name: Core gate (:core :miuix check)
+        run: ./gradlew :core:check :miuix:check
 
       - name: Core JVM tests
         run: ./gradlew :core:jvmTest --rerun-tasks

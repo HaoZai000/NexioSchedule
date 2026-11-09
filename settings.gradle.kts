@@ -36,7 +36,7 @@ val softglassSource = file("../softglass")
 if (softglassSource.resolve("build.gradle.kts").exists()) {
     includeBuild(softglassSource) {
         dependencySubstitution {
-            substitute(module("com.github.HaoZai000:softglass")).using(project(":"))
+            substitute(module("com.github.HaoZai000.softglass:softglass")).using(project(":"))
         }
     }
 }

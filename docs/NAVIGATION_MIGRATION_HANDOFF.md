@@ -50,7 +50,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ```bash
 # 默认态（不加任何 property）—— 红线
-./gradlew :core:check :miuix:check :backdrop:check --offline
+./gradlew :core:check :miuix:check --offline
 ./gradlew :androidApp:assembleDebug                  # Android 零回归，不许破
 
 # 拆开跑（等价）

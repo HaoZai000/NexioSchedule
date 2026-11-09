@@ -32,7 +32,7 @@ kotlin {
             implementation(compose.material3)
             // 液态玻璃：绘制路径与能力探测
             // 连续圆角形状
-            api("com.github.HaoZai000:softglass:0.1.0")
+            api("com.github.HaoZai000.softglass:softglass:0.1.0")
             // Monet 取色
             api(libs.materialKolor.utilities)
             // AGSL/SkSL 运行时的编译期注解
