@@ -48,6 +48,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -361,6 +362,8 @@ private fun BlurBottomSheetContent(
                 .clip(sheetShape)
                 // 弹窗本体不做壁纸玻璃模糊，纯实色
                 .background(sheetBgColor)
+                // 上下方向高光描边：纯 Compose 画，不走 AGSL
+                .sheetRimHighlight(isDark, 36.dp)
                 .consumeWindowInsets(PaddingValues(horizontal = horizontalGap))
                 .pointerInput(Unit) {
                     // 消费空白处点击，防止事件穿透到背景层触发关闭

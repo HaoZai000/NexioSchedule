@@ -293,6 +293,8 @@ private fun BlurBottomSheetTabletContent(
                 .clip(sheetShape)
                 // 弹窗本体不做壁纸玻璃模糊，纯实色
                 .background(sheetBgColor)
+                // 上下方向高光描边：纯 Compose 画，不走 AGSL
+                .sheetRimHighlight(isDark, 38.dp)
                 // A centered sheet already clears the window edges by this distance.
                 .consumeWindowInsets(PaddingValues(horizontal = horizontalGap))
                 .onGloballyPositioned { coordinates ->
