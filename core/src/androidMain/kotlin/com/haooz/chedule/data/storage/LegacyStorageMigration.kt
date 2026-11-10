@@ -15,7 +15,8 @@ private const val LEGACY_FALLBACK_LEDGER = "storage_fallback_state"
  *
  * 严格，不做兜底：
  * - 任何一个命名空间搬不动就抛异常，**一个文件都不删**，调用方（`onCreate`）直接失败；
- * - 没有迁移标记、没有重试状态、没有冷快照、没有第二套存储；下次启动只是把同一件事重做一遍。
+ * - 没有重试状态、没有冷快照、没有第二套存储；失败就下次启动把同一件事重做一遍
+ *   （逐命名空间的导入标记与扫描完成标记，只用来跳过已经搬过的名字）；
  * - 只有「数据已经确实在库里」的实体表搬运允许失败后继续 —— 那些 blob 本身就是库里的键，
  *   行表为空时读路径会自己再导一次，删源文件不会丢数据。
  */
@@ -43,7 +44,11 @@ object LegacyStorageMigration {
             NexioLog.w(TAG, "旧存储已全部迁入 nexio.db 并删除：${pending.size} 个命名空间 / $deleted 个文件")
         }
 
-        // 3) 旧结构（课程 blob / 作息 / 三个设置字段）搬进实体表。
+        // 3) 扫描完成标记。写在导入与删文件都做过之后：此后新建的命名空间（按课表分区的
+        //    节假日等）不再被当作 prefs 文件名去探测 —— 命名空间因此不必再迁就文件名规则。
+        SqliteStorage.markLegacyScanComplete(context)
+
+        // 4) 旧结构（课程 blob / 作息 / 三个设置字段）搬进实体表。
         //    独立于上面那段：老版本可能搬了一半就退出，靠全局标记决定是否重跑，
         //    不能靠「还有没有 prefs 文件」—— 文件已经删了但表没写完的正是要重试的。
         val outcome = runCatching { CourseRepository().migrateLegacyEntitiesOnce() }

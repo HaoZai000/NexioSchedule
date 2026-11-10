@@ -8,8 +8,9 @@ import com.haooz.chedule.data.platform.NexioLog
  *
  * - 导入、回读比对、写标记同一事务，任一步失败整体回滚且不写标记；
  * - 失败直接抛给调用方，没有第二套存储可退；
- * - SharedPreferences 只是迁移源：`shared_prefs` 目录被删之后，这里读到的永远是空，
- *   新命名空间只会记一个「本来是空的」标记。
+ * - SharedPreferences 只是迁移源：`shared_prefs` 目录被删之后，这里读到的永远是空；
+ * - [LegacyStorageMigration] 扫完旧存储会写 [META_LEGACY_SCAN_DONE]，之后新建的命名空间
+ *   （按课表分区的节假日等）不再探测 SharedPreferences —— 动态名字不受 prefs 文件名规则约束。
  */
 object SqliteStorage {
 
@@ -17,6 +18,9 @@ object SqliteStorage {
 
     /** 导入标记的前缀。带命名空间，缺一个就少导一个，互不影响。 */
     private const val META_IMPORTED_PREFIX = "sp_imported:"
+
+    /** 旧 SharedPreferences 已全部扫描并导入完成的全局标记。 */
+    private const val META_LEGACY_SCAN_DONE = "sp_legacy_scan_done"
 
     /** 整个应用的库连接。[backendOf] 懒建，[backendLock] 守。 */
     @Volatile
@@ -56,9 +60,19 @@ object SqliteStorage {
             stores.getOrPut(namespace) { SqliteKeyValueStore(b, namespace) }
         }
 
-    /** 该命名空间是否已经迁进库（含「文件本来就是空」）。迁移层用它跳过已迁过的名字。 */
-    fun isImported(context: Context, namespace: String): Boolean =
-        backendOf(context).readMeta(META_IMPORTED_PREFIX + namespace) != null
+    /** 该命名空间是否已迁进库（含「文件本来就是空」与「扫描完成后才新建」）。 */
+    fun isImported(context: Context, namespace: String): Boolean {
+        val b = backendOf(context)
+        return b.readMeta(META_IMPORTED_PREFIX + namespace) != null ||
+            b.readMeta(META_LEGACY_SCAN_DONE) != null
+    }
+
+    /** 旧 SharedPreferences 已全部扫完。此后新建的命名空间不再探测 SharedPreferences。 */
+    fun markLegacyScanComplete(context: Context) {
+        val b = backendOf(context)
+        if (b.readMeta(META_LEGACY_SCAN_DONE) != null) return
+        b.transaction { putMeta(META_LEGACY_SCAN_DONE, "1") }
+    }
 
     /** 课程行表门面。异常外抛。 */
     fun courseRows(context: Context): CourseRowStore = courseStore ?: synchronized(backendLock) {
@@ -72,6 +86,8 @@ object SqliteStorage {
         namespace: String,
     ) {
         if (backend.readMeta(META_IMPORTED_PREFIX + namespace) != null) return
+        // 旧存储已扫完：这时才出现的命名空间不可能是历史数据，也不再拿它当 prefs 文件名
+        if (backend.readMeta(META_LEGACY_SCAN_DONE) != null) return
 
         val prefs = context.getSharedPreferences(namespace, Context.MODE_PRIVATE)
         val snapshot = try {
