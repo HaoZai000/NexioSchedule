@@ -32,7 +32,7 @@ fun WeatherAlertBadge(alert: WeatherAlert, modifier: Modifier = Modifier) {
             .widthIn(max = 60.dp)
             .clip(ContinuousRoundedRectangle(4.dp))
             .background(background)
-            .padding(horizontal = 5.dp, vertical = 1.dp),
+            .padding(horizontal = 4.dp, vertical = 2.dp),
     ) {
         Text(
             text = alertKind(alert),

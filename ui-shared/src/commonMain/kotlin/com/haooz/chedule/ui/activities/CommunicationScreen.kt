@@ -1,4 +1,4 @@
-/** 交流与反馈页面 - Screen */
+/** 问题反馈页面 - Screen */
 package com.haooz.chedule.ui.activities
 
 import androidx.compose.foundation.layout.Arrangement
