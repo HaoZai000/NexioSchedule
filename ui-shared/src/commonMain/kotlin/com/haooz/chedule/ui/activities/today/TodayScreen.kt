@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -26,7 +24,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,7 +78,9 @@ import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.main.PagerJumpNeighbor
 import com.haooz.chedule.ui.activities.main.jumpToPageSmoothly
 import com.haooz.chedule.ui.components.CourseDetailSheet
+import com.haooz.chedule.ui.components.HorizontalPageSwitch
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
+import com.haooz.chedule.ui.components.PageSwitchState
 import com.haooz.chedule.ui.components.tabletNavSamplingSignal
 import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.components.LocalSoftGlassSurface
@@ -91,8 +90,6 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.pagerAxisTakeoverGesture
-import com.haooz.chedule.ui.utils.rememberPagerTakeoverGestureState
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.softglass.backdrop.GlassBackdrop
@@ -349,7 +346,8 @@ fun TodayScreen(
  */
     hiddenCourseIds: Set<String> = emptySet(),
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: TransitionLayerSnapshot?, courseIdToHide: String, targetWeek: Int) -> Unit = { _, _, _, _, _, _, _, _ -> },
-    pagerState: PagerState,
+    /** 翻日位置来源。 */
+    pageState: PageSwitchState,
     /** 长距跳日的借位页：让相邻页临时显示目标日期（见 PagerJumpNeighbor） */
     jumpNeighbor: PagerJumpNeighbor? = null,
     navBarStyle: String = "standard",
@@ -381,10 +379,9 @@ fun TodayScreen(
 ) {
     val todayIsDark = isAppDarkTheme()
     val overScrollState = remember { OverScrollState() }
-    val pageOverscrollX = remember { mutableFloatStateOf(0f) }
     // 当前页的列表状态：draw 期直接读，滚动时同步失效；不要用异步 tick（会晚一帧、看起来在跳）
     val currentListState = remember { mutableStateOf<LazyListState?>(null) }
-    val baseGlassSignal: () -> Unit = remember(pagerState, overScrollState, pageOverscrollX, tabRedraw, settingsScrollBehavior) {
+    val baseGlassSignal: () -> Unit = remember(pageState, overScrollState, tabRedraw, settingsScrollBehavior) {
         {
             currentListState.value?.firstVisibleItemIndex
             currentListState.value?.firstVisibleItemScrollOffset
@@ -392,9 +389,8 @@ fun TodayScreen(
             settingsScrollBehavior?.state?.heightOffset
             settingsScrollBehavior?.state?.contentOffset
             settingsScrollBehavior?.currentHeightPx
-            pagerState.currentPageOffsetFraction
+            pageState.offsetFraction
             overScrollState.offset
-            pageOverscrollX.floatValue
             // nav 几何一变，整页内容横移，卡片玻璃要重新采样（唯一来源见该函数）
             tabletNavSamplingSignal()
             tabRedraw()
@@ -420,7 +416,7 @@ fun TodayScreen(
         mutableStateOf(localDateTimeAt(Clock.System.now().toEpochMilliseconds()))
     }
     val currentLocalDate = currentLocalDateTime.date
-    val initialDaysOffset = pagerState.currentPage - MAX_DATE_OFFSET
+    val initialDaysOffset = pageState.currentPage - MAX_DATE_OFFSET
     val initialDate = currentLocalDate.plusDays(initialDaysOffset.toLong())
     var selectedDate by remember { mutableStateOf(initialDate) }
     var isToday by remember { mutableStateOf(initialDaysOffset == 0) }
@@ -434,18 +430,16 @@ fun TodayScreen(
     var datePickerYear by remember { mutableIntStateOf(todayLocalDate().year) }
     var datePickerMonth by remember { mutableIntStateOf(todayLocalDate().monthNumber - 1) }
     var datePickerDay by remember { mutableIntStateOf(todayLocalDate().dayOfMonth) }
-    // 手势接管状态：借位跳日被手势打断时，jumpToPageSmoothly 借它同步平移松手落页基准
-    val takeoverGestureState = rememberPagerTakeoverGestureState()
 
     LaunchedEffect(scrollToTodayTrigger) {
-        if (scrollToTodayTrigger > 0 && pagerState.currentPage != MAX_DATE_OFFSET) {
+        if (scrollToTodayTrigger > 0 && pageState.currentPage != MAX_DATE_OFFSET) {
             // 相邻一天直接滑；跨多天借位后也只滑一页，全程连续
             pendingDatePage = MAX_DATE_OFFSET
             try {
-                pagerState.jumpToPageSmoothly(MAX_DATE_OFFSET, jumpNeighbor, takeoverGestureState)
+                pageState.jumpToPageSmoothly(MAX_DATE_OFFSET, jumpNeighbor)
             } finally {
                 // 落点不是目标（被打断）就立刻撤掉覆盖，别让标题卡在今天
-                if (pagerState.currentPage != MAX_DATE_OFFSET) pendingDatePage = -1
+                if (pageState.currentPage != MAX_DATE_OFFSET) pendingDatePage = -1
             }
         }
     }
@@ -462,15 +456,15 @@ fun TodayScreen(
     }
 
     // 落页后撤掉「立刻切日期」的覆盖
-    LaunchedEffect(pagerState.currentPage, pendingDatePage) {
-        if (pendingDatePage >= 0 && pagerState.currentPage == pendingDatePage) {
+    LaunchedEffect(pageState.currentPage, pendingDatePage) {
+        if (pendingDatePage >= 0 && pageState.currentPage == pendingDatePage) {
             pendingDatePage = -1
         }
     }
 
     // 跟手换日期：过半页就换（settledPage 要等 fling 停稳，翻起来标题会看着卡住）。
     // 程序化跳日期间由 [pendingDatePage] 提前钉住目标，借位也不会闪到中间那天。
-    LaunchedEffect(pagerState.currentPage, pendingDatePage, holidayDataTick) {
+    LaunchedEffect(pageState.currentPage, pendingDatePage, holidayDataTick) {
         var lastReportedDate: LocalDate? = null
         while (true) {
             val sampledAtMillis = Clock.System.now().toEpochMilliseconds()
@@ -479,7 +473,7 @@ fun TodayScreen(
             currentLocalDateTime = sampledNow
             // 程序化跳日期间用目标页，点「今」的那一帧日期就切过去
             val anchorPage =
-                if (pendingDatePage >= 0) pendingDatePage else pagerState.currentPage
+                if (pendingDatePage >= 0) pendingDatePage else pageState.currentPage
             val daysOffset = anchorPage - MAX_DATE_OFFSET
             val newDate = today.plusDays(daysOffset.toLong())
             if (newDate != lastReportedDate) {
@@ -549,16 +543,15 @@ fun TodayScreen(
             modifier = Modifier
                 .fillMaxSize()
         ) {
-            HorizontalPager(
-                state = pagerState,
-                // 与课表周 pager 同款预组合：翻日/返回今日时下一日页面在第一帧就要露出，
+            HorizontalPageSwitch(
+                state = pageState,
+                // 页数：MAX_DATE_OFFSET 前后各 1000 天
+                pageCount = MAX_DATE_OFFSET * 2,
+                // 预组合一页
                 // 现组一整页（resolveDaySchedule + 假期/调休查询 + 卡片）会把那一帧顶爆。
-                beyondViewportPageCount = 1,
-                modifier = Modifier
-                    .fillMaxSize()
-                    // 与课表周 pager 共用的横竖主导翻页手势；纵向仍归页内 LazyColumn
-                    .pagerAxisTakeoverGesture(pagerState = pagerState, gestureState = takeoverGestureState, overscrollXState = pageOverscrollX),
-                userScrollEnabled = false,
+                beyondPageCount = 1,
+                // 横向翻日由 draggable 接管，纵向归页内 LazyColumn
+                modifier = Modifier.fillMaxSize(),
             ) { physicalPage ->
                 // 借位页：长距跳日期间这一页按目标日期出内容，于是跨 N 天也只是一页连续位移
                 val page = jumpNeighbor?.resolve(physicalPage) ?: physicalPage
@@ -577,11 +570,10 @@ fun TodayScreen(
                             pageListState.firstVisibleItemScrollOffset
                         )
                     }.collect { (p, scrolling, offset) ->
-                        if (p == pagerState.settledPage || p == pagerState.currentPage) {
+                        if (p == pageState.currentPage) {
                             onListScrollInProgress(scrolling)
-                            if (scrolling || p == pagerState.settledPage) {
-                                onScrollYChanged(offset)
-                            }
+                            // 停滑时上报最后一帧 offset
+                            onScrollYChanged(offset)
                         }
                     }
                 }
@@ -1043,15 +1035,13 @@ fun TodayScreen(
                             val targetPage = MAX_DATE_OFFSET + days
                             scope.launch {
                                 // 选日期可能跨几十上百天：借位后只滑一页，不逐页组合中间每一天
-                                val dest = targetPage.coerceIn(
-                                    0, (pagerState.pageCount - 1).coerceAtLeast(0)
-                                )
+                                val dest = targetPage.coerceIn(0, MAX_DATE_OFFSET * 2 - 1)
                                 // 标题日期立刻切到目标日
                                 pendingDatePage = dest
                                 try {
-                                    pagerState.jumpToPageSmoothly(dest, jumpNeighbor, takeoverGestureState)
+                                    pageState.jumpToPageSmoothly(dest, jumpNeighbor)
                                 } finally {
-                                    if (pagerState.currentPage != dest) pendingDatePage = -1
+                                    if (pageState.currentPage != dest) pendingDatePage = -1
                                 }
                             }
                             showDatePicker = false

@@ -91,6 +91,12 @@ internal class CapsuleSelector(
         ensureLoop()
     }
 
+    /** 停在当前位置、速度归零，等下一次 [settleTo] 重新吸附。 */
+    fun freeze() {
+        left.freeze()
+        right.freeze()
+    }
+
     private fun ensureLoop() {
         if (running) return
         running = true
@@ -140,6 +146,11 @@ internal class CapsuleSelector(
 
         fun needsTick(): Boolean =
             abs(value - target) > SETTLE_PX || abs(velocity) > SETTLE_VELOCITY
+
+        fun freeze() {
+            target = value
+            velocity = 0f
+        }
 
         /** 半隐式欧拉，按 [MAX_STEP] 切子步；返回是否还在动。 */
         fun advance(dt: Float): Boolean {
@@ -191,8 +202,7 @@ internal fun Modifier.capsuleBounds(
     heightPx: Int,
 ): Modifier = layout { measurable, constraints ->
     val left = selector.leftPx.roundToInt()
-    val right = selector.rightPx.roundToInt()
-    val width = (right - left).coerceAtLeast(1)
+    val width = (selector.rightPx - selector.leftPx).roundToInt().coerceAtLeast(1)
     val height = if (constraints.hasBoundedHeight) {
         heightPx.coerceAtMost(constraints.maxHeight)
     } else {

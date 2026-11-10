@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -40,6 +39,8 @@ import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.SwitchStr
 import com.haooz.chedule.ui.activities.classschedule.SectionColumn
+import com.haooz.chedule.ui.components.HorizontalPageSwitch
+import com.haooz.chedule.ui.components.PageSwitchState
 import com.haooz.chedule.ui.components.ShiftDayColumn
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.LocalHostNavigation
@@ -70,7 +71,10 @@ internal data class ShiftSchedulePageDayRangeKey(
 fun ShiftScheduleScreen(
     shiftViewModel: ShiftViewModel,
     settingsViewModel: com.haooz.chedule.viewmodel.SettingsViewModel,
-    pagerState: androidx.compose.foundation.pager.PagerState,
+    /** 周页横向位置。 */
+    pageState: PageSwitchState,
+    /** 总周数。 */
+    pageCount: Int,
     scheduleDataVersion: Int = 0,
     cardHeightPerSection: Float = 54f,
     scheduleScrollBehavior: SharedScrollBehavior? = null,
@@ -114,10 +118,11 @@ fun ShiftScheduleScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(wallpaperBackdropColor)) {
 
-    HorizontalPager(
-        state = pagerState,
+    HorizontalPageSwitch(
+        state = pageState,
+        pageCount = pageCount,
         modifier = Modifier.fillMaxSize(),
-        beyondViewportPageCount = 0
+        beyondPageCount = 1,
     ) { page ->
         val week = page + 1
         val scrollState = rememberScrollState()

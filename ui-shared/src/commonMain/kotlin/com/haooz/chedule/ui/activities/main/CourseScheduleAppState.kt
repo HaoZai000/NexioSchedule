@@ -50,13 +50,13 @@ import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.ui.activities.classschedule.ScheduleGridGeometry
 import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.today.TodayAssistantCardData
+import com.haooz.chedule.ui.components.PageSwitchState
 import com.haooz.chedule.ui.components.SharedFileIntent
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.HostNavigationState
-import com.haooz.chedule.ui.utils.PagerTakeoverGestureState
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.captureScreenWithNativeChrome
@@ -134,15 +134,20 @@ class CourseScheduleAppState {
     lateinit var scheduleScrollState: ScrollState
     lateinit var todayListState: LazyListState
     lateinit var screenCornerRadius: ScreenCornerRadiiPx
-    lateinit var pagerState: PagerState
-    lateinit var todayPagerState: PagerState
-    lateinit var mainPagerState: PagerState
+    /** 周页横向位置。 */
+    lateinit var weekPageState: PageSwitchState
+
+    /** 今日页翻日横向位置。 */
+    lateinit var todayPageState: PageSwitchState
+    /** 主 tab 位置来源：手机自绘平移，平板 / iOS 纵向 pager。 */
+    lateinit var mainTabPosition: MainTabPosition
+    /** 手机端平移状态。 */
+    lateinit var mainTabSwitchState: PageSwitchState
+    /** 竖排分支 pager，手机端为 null。 */
+    var verticalMainPagerState: PagerState? = null
 
     /** 长距跳转的借位页：让相邻页临时显示目标周，滑一页就到位（见 [PagerJumpNeighbor]） */
     val weekJumpNeighbor = PagerJumpNeighbor()
-
-    /** 周 pager 的手势接管状态：借位跳周被手势打断时同步平移落页基准（组合期由 MainContent 注入） */
-    var weekPagerGestureState: PagerTakeoverGestureState? = null
 
     /** 同上，今日页按天 */
     val todayJumpNeighbor = PagerJumpNeighbor()
@@ -715,7 +720,7 @@ class CourseScheduleAppState {
     val pageBehindHasWallpaper
         get() = wallpaperBitmap != null &&
                 !isShiftMode &&
-                mainPagerState.currentPage in 0..1
+                mainTabPosition.currentPage in 0..1
 
     // 二级页侧栏点选主 tab（无转场回来后处理）
     var lastAutoPage by mutableIntStateOf(0)
@@ -734,7 +739,7 @@ class CourseScheduleAppState {
     // 基线必须用 currentPage：手动翻页过半页标题/日期行就该跟着换
     val currentViewingWeek: Int
         get() {
-            val live = pagerState.currentPage + 1
+            val live = weekPageState.currentPage + 1
             val target = pendingViewingWeek
             return if (target >= 1 && target != live) target else live
         }
@@ -751,7 +756,7 @@ class CourseScheduleAppState {
     val mainTabGeneration = intArrayOf(0)
     val onMainTabSelected: (Int) -> Unit = { index ->
         if (index in 0 until mainPagerPageCount &&
-            (index != selectedTab || mainPagerState.currentPage != index)
+            (index != selectedTab || mainTabPosition.currentPage != index)
         ) {
             val generation = ++mainTabGeneration[0]
             mainTabAnimation[0]?.cancel()
@@ -759,11 +764,10 @@ class CourseScheduleAppState {
             selectedTab = index
             mainTabAnimation[0] = coroutineScope.launch {
                 try {
-                    if (todayPagerState.isScrollInProgress) todayPagerState.cancelScroll()
-                    if (pagerState.isScrollInProgress) pagerState.cancelScroll()
-                    if (mainPagerState.isScrollInProgress) mainPagerState.cancelScroll()
-                    if (navBarStyle == "rail") mainPagerState.scrollToPage(index)
-                    else mainPagerState.animateMainTabTo(index)
+                    if (todayPageState.isAnimating) todayPageState.cancel()
+                    if (weekPageState.isAnimating) weekPageState.cancel()
+                    if (navBarStyle == "rail") mainTabPosition.snapTo(index)
+                    else mainTabPosition.animateTo(index)
                     FeatureLog.t(
                         "主页",
                         "tab",
@@ -957,8 +961,8 @@ class CourseScheduleAppState {
             fingerX >= width - zone -> 1
             else -> 0
         }
-        val exhausted = (dir == -1 && pagerState.currentPage <= 0) ||
-            (dir == 1 && pagerState.currentPage >= lastPage)
+        val exhausted = (dir == -1 && weekPageState.currentPage <= 0) ||
+            (dir == 1 && weekPageState.currentPage >= lastPage)
         val nextDir = if (exhausted) 0 else dir
         edgeAutoPageEnabled = enabled
         edgeAutoPageLatestDir = nextDir
@@ -1002,14 +1006,14 @@ class CourseScheduleAppState {
                     if (edgeAutoPageStopRequested || !edgeAutoPageEnabled ||
                         edgeAutoPageLatestDir != nextDir
                     ) break
-                    val current = pagerState.currentPage
+                    val current = weekPageState.currentPage
                     val target = (current + nextDir).coerceIn(0, lastPage)
                     if (target == current) break
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     edgeAutoPageAnimating = true
                     try {
-                        // 与「返回本周」同一根滑入曲线（±1 页，走 JumpLandingSpec）
-                        pagerState.jumpToPageSmoothly(target)
+                        // 与「返回本周」同一条曲线。
+                        weekPageState.jumpToPageSmoothly(target)
                     } catch (e: CancellationException) {
                         // 第二根手指开始滑 pager（UserInput 优先级更高）会取消这次翻页；
                         // 本 Job 自己没被取消就继续等下一轮，别把持续翻页整条打死。
@@ -1041,17 +1045,17 @@ class CourseScheduleAppState {
      * 被打断（用户反向滑 / 抢占）立即撤掉，标题回到真实页。
      */
     suspend fun jumpToWeek(targetWeek: Int) {
-        val lastPage = (pagerState.pageCount - 1).coerceAtLeast(0)
+        val lastPage = (weekPageState.pageCount - 1).coerceAtLeast(0)
         val dest = (targetWeek - 1).coerceIn(0, lastPage)
         // 目标周按落点页算，避免「总周数」与 pageCount 不一致时标题落到界外
         pendingViewingWeek = dest + 1
         try {
-            pagerState.jumpToPageSmoothly(dest, weekJumpNeighbor, weekPagerGestureState)
+            weekPageState.jumpToPageSmoothly(dest, weekJumpNeighbor)
         } catch (e: CancellationException) {
             pendingViewingWeek = 0
             throw e
         } finally {
-            if (pagerState.currentPage != dest) pendingViewingWeek = 0
+            if (weekPageState.currentPage != dest) pendingViewingWeek = 0
         }
     }
 

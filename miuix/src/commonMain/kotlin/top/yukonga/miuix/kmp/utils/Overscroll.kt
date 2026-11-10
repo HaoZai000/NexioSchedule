@@ -1,4 +1,4 @@
-// 基于 miuix 源码修改，添加 offset 属性用于检测超出滚动量
+// 基于 miuix 源码修改：OverScrollState 增加 offset
 package top.yukonga.miuix.kmp.utils
 
 import androidx.compose.runtime.Stable
@@ -30,20 +30,15 @@ import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Velocity
-import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.pow
 import kotlin.math.round
 import kotlin.math.sign
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-// SpringMath / SpringEngine / runSettleAnimation 统一在同包的 SpringUtils.kt
-// （Miuix 原版即如此）；本文件曾另抄一份 private 版本，重复且 PullToRefresh / OverscrollFactory 访问不到，已删除。
+// SpringMath / SpringEngine / runSettleAnimation 在同包的 SpringUtils.kt
 
 class OverScrollState {
     var isOverScrollActive by mutableStateOf(false)
@@ -288,9 +283,9 @@ private class OverscrollNode(
         val parentConsumed = if (nestedScrollToParent) dispatcher.dispatchPostFling(consumed, available) else Velocity.Zero
         val realAvailable = available - parentConsumed
         // 甩边预置/弹回用列表给出的 available，不依赖 parent 是否吞掉速度
-        val rawVelocity = (if (isVertical) available.y else available.x) / 1.53333f
+        val rawVelocity = OverscrollMath.settleVelocity(if (isVertical) available.y else available.x)
         val velocity = if (abs(offset) > offsetThreshold) {
-            (if (isVertical) realAvailable.y else realAvailable.x) / 1.53333f
+            OverscrollMath.settleVelocity(if (isVertical) realAvailable.y else realAvailable.x)
         } else {
             rawVelocity
         }

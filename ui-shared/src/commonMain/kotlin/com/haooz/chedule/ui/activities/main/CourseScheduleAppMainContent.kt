@@ -29,8 +29,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -96,6 +94,7 @@ import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.classschedule.millisUntilNextMinute
 import com.haooz.chedule.ui.activities.classschedule.nowMinuteOfDay
 import com.haooz.chedule.ui.activities.today.TodayScreen
+import com.haooz.chedule.ui.components.HorizontalPageSwitch
 import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.BackToNowFloatingButton
 import com.haooz.chedule.ui.components.LiquidNavigationRail
@@ -134,7 +133,6 @@ import com.haooz.chedule.ui.utils.addScreenCornerRect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
-import com.haooz.chedule.ui.utils.rememberPagerTakeoverGestureState
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.haooz.softglass.backdrop.drawBackdrop
@@ -191,10 +189,10 @@ internal fun CourseScheduleAppMainContent(
         // 滚动 / 翻页 / 侧栏伸缩逐帧订阅；二级页转场是整层平移，卡片要相对不动，
         // 只在转场结束、主界面归位后由 mainLayerRedraw() 补一帧重采样。
         val mainLayerRedraw = LocalMainLayerRedrawSignal.current
-        val tabGlassRedraw: () -> Unit = remember(mainPagerState, mainLayerRedraw) {
+        val tabGlassRedraw: () -> Unit = remember(mainTabPosition, mainLayerRedraw) {
             {
                 // 主 tab pager 整体平移
-                mainPagerState.currentPageOffsetFraction
+                mainTabPosition.offsetFraction
                 // pad 侧栏展开 / 收起：页内留白在 layout 期插值，卡片跟着横移
                 TabletNavSideState.expanded
                 TabletNavSideState.expandProgress.floatValue
@@ -218,17 +216,17 @@ internal fun CourseScheduleAppMainContent(
         val chromeBarMustRecord = remember(
             scheduleScrollState,
             todayListScrollInProgress,
-            pagerState,
-            todayPagerState,
-            mainPagerState,
+            weekPageState,
+            todayPageState,
+            mainTabPosition,
         ) {
             {
                 chromeBarNavSampling.moved() ||
                         scheduleScrollState.isScrollInProgress ||
                         todayListScrollInProgress.value ||
-                        pagerState.isScrollInProgress ||
-                        todayPagerState.isScrollInProgress ||
-                        mainPagerState.isScrollInProgress
+                        weekPageState.isAnimating ||
+                        todayPageState.isAnimating ||
+                        mainTabPosition.isAnimating
             }
         }
 
@@ -368,7 +366,7 @@ internal fun CourseScheduleAppMainContent(
                 val nativeBarRouter = LocalAppRouter.current
                 PublishNativeTopBarButtons(
                     host = nativeBarHost,
-                    pagerState = mainPagerState,
+                    position = mainTabPosition,
                     vertical = useVerticalMainPager,
                     isTablet = isTablet,
                     isShiftMode = isShiftMode,
@@ -489,21 +487,21 @@ internal fun CourseScheduleAppMainContent(
                     topBar = {
                         // 标题可见性只在页码/方向变化时重组；平移读 pager 写在 graphicsLayer，
                         // 避免动画每帧重组顶栏及 ScheduleTopBar 整棵树。
-                        val showTodayTitle by remember(isShiftMode, mainPagerState) {
+                        val showTodayTitle by remember(isShiftMode, mainTabPosition) {
                             derivedStateOf {
                                 if (isShiftMode) {
                                     false
                                 } else {
-                                    val page = mainPagerState.currentPage
-                                    val off = mainPagerState.currentPageOffsetFraction
+                                    val page = mainTabPosition.currentPage
+                                    val off = mainTabPosition.offsetFraction
                                     page == 0 || (page == 1 && off < 0f)
                                 }
                             }
                         }
-                        val showScheduleTitle by remember(isShiftMode, mainPagerState) {
+                        val showScheduleTitle by remember(isShiftMode, mainTabPosition) {
                             derivedStateOf {
-                                val page = mainPagerState.currentPage
-                                val off = mainPagerState.currentPageOffsetFraction
+                                val page = mainTabPosition.currentPage
+                                val off = mainTabPosition.offsetFraction
                                 if (isShiftMode) {
                                     page == 0 || (page == 1 && off < 0f)
                                 } else {
@@ -513,10 +511,10 @@ internal fun CourseScheduleAppMainContent(
                                 }
                             }
                         }
-                        val showSettingsTitle by remember(isShiftMode, mainPagerState) {
+                        val showSettingsTitle by remember(isShiftMode, mainTabPosition) {
                             derivedStateOf {
-                                val page = mainPagerState.currentPage
-                                val off = mainPagerState.currentPageOffsetFraction
+                                val page = mainTabPosition.currentPage
+                                val off = mainTabPosition.offsetFraction
                                 if (isShiftMode) {
                                     page == 1 || (page == 0 && off > 0f)
                                 } else {
@@ -550,8 +548,8 @@ internal fun CourseScheduleAppMainContent(
                                 // 也少掉它带来的软件裁剪遮罩（实测每帧 ~2.5ms）。
                                 val scheduleTitleIdle by remember(scheduleTitleIndex, navBarStyle) {
                                     derivedStateOf {
-                                        val page = mainPagerState.currentPage
-                                        val off = mainPagerState.currentPageOffsetFraction
+                                        val page = mainTabPosition.currentPage
+                                        val off = mainTabPosition.offsetFraction
                                         (scheduleTitleIndex - page - off) == 0f
                                     }
                                 }
@@ -563,9 +561,9 @@ internal fun CourseScheduleAppMainContent(
                                                 Modifier
                                             } else {
                                                 Modifier.offset {
-                                                    val page = mainPagerState.currentPage
+                                                    val page = mainTabPosition.currentPage
                                                     val off =
-                                                        mainPagerState.currentPageOffsetFraction
+                                                        mainTabPosition.offsetFraction
                                                     val delta = scheduleTitleIndex - page - off
                                                     if (useVerticalMainPager) {
                                                         IntOffset(0, (delta * screenHPx).roundToInt())
@@ -628,8 +626,8 @@ internal fun CourseScheduleAppMainContent(
                                 val settingsTitleIndex = if (isShiftMode) 1 else 2
                                 val settingsTitleIdle by remember(settingsTitleIndex, navBarStyle) {
                                     derivedStateOf {
-                                        val page = mainPagerState.currentPage
-                                        val off = mainPagerState.currentPageOffsetFraction
+                                        val page = mainTabPosition.currentPage
+                                        val off = mainTabPosition.offsetFraction
                                         (settingsTitleIndex - page - off) == 0f
                                     }
                                 }
@@ -641,9 +639,9 @@ internal fun CourseScheduleAppMainContent(
                                                 Modifier
                                             } else {
                                                 Modifier.graphicsLayer {
-                                                    val page = mainPagerState.currentPage
+                                                    val page = mainTabPosition.currentPage
                                                     val off =
-                                                        mainPagerState.currentPageOffsetFraction
+                                                        mainTabPosition.offsetFraction
                                                     val delta = settingsTitleIndex - page - off
                                                     if (useVerticalMainPager) {
                                                         translationX = 0f
@@ -670,8 +668,8 @@ internal fun CourseScheduleAppMainContent(
                             // 空闲在本页时不挂层；离屏时用 graphicsLayer 位移+隐藏
                             val todayTitleIdle by remember(navBarStyle) {
                                 derivedStateOf {
-                                    val page = mainPagerState.currentPage
-                                    val off = mainPagerState.currentPageOffsetFraction
+                                    val page = mainTabPosition.currentPage
+                                    val off = mainTabPosition.offsetFraction
                                     val delta = 0 - page - off
                                     delta == 0f && showTodayTitle
                                 }
@@ -684,8 +682,8 @@ internal fun CourseScheduleAppMainContent(
                                             Modifier
                                         } else {
                                             Modifier.graphicsLayer {
-                                                val page = mainPagerState.currentPage
-                                                val off = mainPagerState.currentPageOffsetFraction
+                                                val page = mainTabPosition.currentPage
+                                                val off = mainTabPosition.offsetFraction
                                                 val delta = 0 - page - off
                                                 if (useVerticalMainPager) {
                                                     translationX = 0f
@@ -733,15 +731,15 @@ internal fun CourseScheduleAppMainContent(
                         // 单个「更多」控件随所在顶栏一起滑动：与顶栏同一套 delta 公式；
                         // 非当前页时整块被平移出屏幕，天然只留一份可见
                         val scheduleMoreMenuOffset: () -> Offset = {
-                            val page = mainPagerState.currentPage
-                            val off = mainPagerState.currentPageOffsetFraction
+                            val page = mainTabPosition.currentPage
+                            val off = mainTabPosition.offsetFraction
                             val delta = (if (isShiftMode) 0 else 1) - page - off
                             if (useVerticalMainPager) Offset(0f, delta * screenHPx)
                             else Offset(delta * screenWPx, 0f)
                         }
                         val todayMoreMenuOffset: () -> Offset = {
-                            val page = mainPagerState.currentPage
-                            val off = mainPagerState.currentPageOffsetFraction
+                            val page = mainTabPosition.currentPage
+                            val off = mainTabPosition.offsetFraction
                             // 排班模式下没有今日页，恒移出屏幕
                             val delta = if (isShiftMode) -1f else (-page - off)
                             if (useVerticalMainPager) Offset(0f, delta * screenHPx)
@@ -827,7 +825,7 @@ internal fun CourseScheduleAppMainContent(
                             isShiftMode,
                             sharedWallpaperBitmap,
                             showCustomizePage,
-                            mainPagerState,
+                            mainTabPosition,
                             navBarStyle,
                             selectedTab,
                         ) {
@@ -836,8 +834,8 @@ internal fun CourseScheduleAppMainContent(
                                 if (showCustomizePage && sharedWallpaperBitmap != null) {
                                     return@derivedStateOf true
                                 }
-                                val page = mainPagerState.currentPage
-                                val off = abs(mainPagerState.currentPageOffsetFraction)
+                                val page = mainTabPosition.currentPage
+                                val off = abs(mainTabPosition.offsetFraction)
                                 // 平板：壁纸层全程可见。侧栏常驻且玻璃采的就是这一层，
                                 // 只要有一页不铺壁纸，侧栏就会采到空白（表现成深色块）。
                                 // 手机：今日/课表页铺壁纸，切回主页面时随滑动提前铺上。
@@ -977,7 +975,7 @@ internal fun CourseScheduleAppMainContent(
                                                                     targetWeek = targetWeek
                                                                 )
                                                             },
-                                                            pagerState = todayPagerState,
+                                                            pageState = todayPageState,
                                                             jumpNeighbor = todayJumpNeighbor,
                                                             navBarStyle = navBarStyle,
                                                             onScrollYChanged = { _ -> },
@@ -1029,17 +1027,12 @@ internal fun CourseScheduleAppMainContent(
                                                                 token = landRippleToken
                                                             )
                                                         ) {
-                                                            // 手势状态提升并注入 state：借位跳周被手势打断时，
-                                                            // jumpToPageSmoothly 借它同步平移松手落页基准
-                                                            val weekGestureState = rememberPagerTakeoverGestureState()
-                                                            weekPagerGestureState = weekGestureState
                                                             MainScheduleScreen(
                                                                 viewModel = viewModel,
                                                                 settingsViewModel = settingsViewModel,
-                                                                pagerState = pagerState,
+                                                                pageState = weekPageState,
                                                                 scheduleViewMode = scheduleViewMode,
                                                                 jumpNeighbor = weekJumpNeighbor,
-                                                                pagerGestureState = weekGestureState,
                                                                 hiddenCourseIds = hiddenCourseIds,
                                                                 draggingCourseSlots = draggingCourseSlots,
                                                                 onCourseClick = { courses, left, top, width, height, cardLayer, courseIdToHide, targetWeek ->
@@ -1221,7 +1214,7 @@ internal fun CourseScheduleAppMainContent(
                                                                     // 翻周动画还在跑时落点仍属于上一页：此时写库会写进错的周，
                                                                     // 宁可吸回原位让用户重拖
                                                                     if (source != null && target != null &&
-                                                                        !pagerState.isScrollInProgress
+                                                                        !weekPageState.isAnimating
                                                                     ) {
                                                                         // 列 → 数据坐标：调课日列显示的是 followWeekday/followWeek 的课，
                                                                         // 冲突检测与写库都必须落在数据坐标上，几何/动画仍用列
@@ -1572,7 +1565,7 @@ internal fun CourseScheduleAppMainContent(
                                         3 -> {
                                             // 课程管理不预加载：beyond 撑满整窗后这一格任何时候都在窗口里，
                                             // 不加 if 就等于常驻；只有它是当前页才真正组合。
-                                            if (mainPagerState.currentPage == 3) {
+                                            if (mainTabPosition.currentPage == 3) {
                                                 TabletCourseManagePane(
                                                     viewModel = viewModel,
                                                     settingsViewModel = settingsViewModel,
@@ -1583,7 +1576,7 @@ internal fun CourseScheduleAppMainContent(
 
                                         4 -> {
                                             // 切换课表同上，不预加载
-                                            if (mainPagerState.currentPage == 4) {
+                                            if (mainTabPosition.currentPage == 4) {
                                                 val shareRepository =
                                                     remember { CourseRepository() }
                                                 TabletSwitchSchedulePane(
@@ -1611,7 +1604,8 @@ internal fun CourseScheduleAppMainContent(
                                                 ShiftScheduleScreen(
                                                     shiftViewModel = shiftViewModel,
                                                     settingsViewModel = settingsViewModel,
-                                                    pagerState = pagerState,
+                                                    pageState = weekPageState,
+                                                    pageCount = totalWeeks,
                                                     scheduleDataVersion = dataVersion,
                                                     cardHeightPerSection = currentAppearance().cardHeight,
                                                     scheduleScrollBehavior = scheduleScrollBehavior,
@@ -1679,23 +1673,22 @@ internal fun CourseScheduleAppMainContent(
                             // 竖排分支不预组合相邻页：Compose 从「当前页 + 1」开始数
                             // beyondViewportPageCount 个页去测量，请求的页号不会夹回 pageCount
                             // （折叠屏 iPhone 实测 IndexOutOfBoundsException: Index 3, size 3）。
-                            if (useVerticalMainPager) {
+                            val verticalPager = verticalMainPagerState
+                            if (useVerticalMainPager && verticalPager != null) {
                                 VerticalPager(
-                                    state = mainPagerState,
+                                    state = verticalPager,
                                     modifier = mainPagerModifier,
                                     key = mainPagerPageKey,
                                     userScrollEnabled = false,
                                     beyondViewportPageCount = 0,
                                 ) { page -> mainPagerPageContent(page) }
                             } else {
-                                // 手机切 tab 是 spring 平移动画：beyond=1 时目标页隔壁那页会在动画途中
-                                // 才首次组合、砸在首帧上；beyond=2 让三页常驻，切页变纯位移动画。
-                                HorizontalPager(
-                                    state = mainPagerState,
+                                // 手机切 tab：自绘平移，swipeEnabled = false。
+                                HorizontalPageSwitch(
+                                    state = mainTabSwitchState,
+                                    pageCount = mainPagerPageCount,
                                     modifier = mainPagerModifier,
-                                    key = mainPagerPageKey,
-                                    userScrollEnabled = false,
-                                    beyondViewportPageCount = 2,
+                                    swipeEnabled = false,
                                 ) { page -> mainPagerPageContent(page) }
                             }
                         }
@@ -1792,7 +1785,7 @@ internal fun CourseScheduleAppMainContent(
                     val hapticFeedback = LocalHapticFeedback.current
                     LaunchedEffect(showJumpWeekDialog) {
                         if (showJumpWeekDialog) {
-                            jumpWeekTemp = pagerState.currentPage + 1
+                            jumpWeekTemp = weekPageState.currentPage + 1
                         }
                     }
                     OverlayDialog(
@@ -2216,10 +2209,10 @@ internal fun CourseScheduleAppMainContent(
                                 selectedTab = idx
                                 coroutineScope.launch {
                                     try {
-                                        if (todayPagerState.isScrollInProgress) todayPagerState.cancelScroll()
-                                        if (pagerState.isScrollInProgress) pagerState.cancelScroll()
-                                        if (mainPagerState.isScrollInProgress) mainPagerState.cancelScroll()
-                                        mainPagerState.scrollToPage(idx)
+                                        if (todayPageState.isAnimating) todayPageState.cancel()
+                                        if (weekPageState.isAnimating) weekPageState.cancel()
+                                        if (mainTabPosition.isAnimating) mainTabPosition.cancel()
+                                        mainTabPosition.snapTo(idx)
                                     } finally {
                                         mainTabProgrammatic = false
                                     }
@@ -2268,7 +2261,7 @@ internal fun CourseScheduleAppMainContent(
                     // ⚠ 叠层必须只在设置页（rail 下第 3 页）当前时渲染：它画的是左栏「我的」+
                     //   右栏 dest 标题，画在 pager 外面、不带位移，留在今日/课程表页就会串页
                     //   （「今天是周六 我的 学期与周次」）。
-                    if (navBarStyle == "rail" && !isShiftMode && mainPagerState.currentPage == 2) {
+                    if (navBarStyle == "rail" && !isShiftMode && mainTabPosition.currentPage == 2) {
                         val settingsChromeController =
                             rememberAppThemeController(isDark = appSettingDark)
                         MiuixTheme(controller = settingsChromeController) {
@@ -2287,13 +2280,12 @@ internal fun CourseScheduleAppMainContent(
 /**
  * 右上角按钮的唯一发布点（鸿蒙 ArkUI 宿主）。
  *
- * 今日页与课程表页各发一组，位移按主 pager 的 `page + offsetFraction` 算 —— 宿主画在 Compose
- * 之外，不跟着 pager 走，只能靠这个值让按钮随页面平移。
+ * 今日页与课程表页各发一组，位移取主 tab 位置源的 currentPage + offsetFraction。
  */
 @Composable
 private fun PublishNativeTopBarButtons(
     host: NativeTopBarHost,
-    pagerState: PagerState,
+    position: MainTabPosition,
     vertical: Boolean,
     isTablet: Boolean,
     isShiftMode: Boolean,
@@ -2313,8 +2305,8 @@ private fun PublishNativeTopBarButtons(
     // 折叠顶栏 collapsed 高 52，按钮在其中垂直居中 ⇒ 与 Compose 侧同一中线
     val top = statusBarHeight + (CollapsedHeight - buttonSize) / 2
 
-    val page = pagerState.currentPage
-    val fraction = pagerState.currentPageOffsetFraction
+    val page = position.currentPage
+    val fraction = position.offsetFraction
     // 与顶栏同一套 delta：今日页 0、课程表页 1（排班模式只有课程表页）
     val todayDelta = (if (isShiftMode) -1f else 0f) - page - fraction
     val scheduleDelta = (if (isShiftMode) 0f else 1f) - page - fraction

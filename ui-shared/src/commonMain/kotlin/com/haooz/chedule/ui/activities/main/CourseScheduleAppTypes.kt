@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.activities.main
 
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.MutatePriority
@@ -18,8 +19,8 @@ import com.haooz.chedule.data.appearance.CardContentAlignment
 import com.haooz.chedule.data.appearance.CardEdgeThickness
 import com.haooz.chedule.data.appearance.CardRefractionLevel
 import com.haooz.chedule.data.appearance.CardTextColor
+import com.haooz.chedule.ui.components.PageSwitchState
 import com.haooz.chedule.ui.screens.SettingsScreen
-import com.haooz.chedule.ui.utils.PagerTakeoverGestureState
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -184,8 +185,8 @@ data class PasteTarget(
     val dataWeek: Int,
 )
 
-/** 主 tab 翻页动画（点底栏 tab 时平移切换）；相邻页略偏软 */
-private val MainTabPagerAnimSpec = spring<Float>(
+/** 纵向主 tab pager 点选切页曲线（像素）。 */
+private val MainTabSwitchSpec: AnimationSpec<Float> = spring(
     dampingRatio = Spring.DampingRatioNoBouncy,
     stiffness = 320f,
 )
@@ -194,12 +195,6 @@ private val MainTabPagerAnimSpec = spring<Float>(
 private val MainTabPagerCrossPageAnimSpec = spring<Float>(
     dampingRatio = Spring.DampingRatioNoBouncy,
     stiffness = 240f,
-)
-
-/** 长距跳转 / 落页的滑入曲线：落得稳、看得出方向 */
-private val JumpLandingSpec = spring<Float>(
-    dampingRatio = Spring.DampingRatioNoBouncy,
-    stiffness = 380f,
 )
 
 /**
@@ -229,16 +224,15 @@ class PagerJumpNeighbor {
 }
 
 /**
- * 跨周 / 跨日跳到目标页：**永远有动画，且永远只滑一页**。
+ * 跨周 / 跨日跳到目标页：始终有动画，且只滑一页。
  *
- * - 相邻一页：直接滑（[JumpLandingSpec]）
+ * - 相邻一页：点选曲线
  * - 跨多页且给了 [neighbor]：借位后滑一页（见 [PagerJumpNeighbor]）
- * - 跨多页但没给 [neighbor]：退化成「预跳到目标隔壁 + 滑最后一页」
+ * - 跨多页但没给 [neighbor]：预跳到目标隔壁 + 滑最后一页
  */
-internal suspend fun PagerState.jumpToPageSmoothly(
+internal suspend fun PageSwitchState.jumpToPageSmoothly(
     target: Int,
     neighbor: PagerJumpNeighbor? = null,
-    gestureState: PagerTakeoverGestureState? = null,
 ) {
     val lastPage = (pageCount - 1).coerceAtLeast(0)
     if (lastPage <= 0) return
@@ -246,18 +240,16 @@ internal suspend fun PagerState.jumpToPageSmoothly(
     val delta = dest - currentPage
 
     if (abs(delta) <= 1) {
-        if (delta != 0 || abs(currentPageOffsetFraction) > 0.001f) {
-            animateScrollToPage(dest, animationSpec = JumpLandingSpec)
-        }
+        if (delta != 0 || abs(offsetFraction) > 0.001f) animateTo(dest)
         return
     }
 
-    // 先掐掉可能在跑的 settle / 边缘翻周，再动位置
-    runCatching { cancelScroll() }
+    // 停止吸附与越界回弹
+    runCatching { cancel() }
 
     if (neighbor == null) {
-        scrollToPage(if (delta > 0) dest - 1 else dest + 1)
-        animateScrollToPage(dest, animationSpec = JumpLandingSpec)
+        snapTo(if (delta > 0) dest - 1 else dest + 1)
+        animateTo(dest)
         return
     }
 
@@ -266,27 +258,15 @@ internal suspend fun PagerState.jumpToPageSmoothly(
     neighbor.borrow(virtualPage, dest)
     runCatching { withFrameNanos { } }
     try {
-        animateScrollToPage(virtualPage, animationSpec = JumpLandingSpec)
+        animateTo(virtualPage)
         // 正常走完才把落点换成真身：借位内容与真身逐像素相同，看不出切换。
-        // 写在 try 里而不是 finally —— 被打断（CancellationException）时跳过
-        // 这步不抢落点，手势永远优先
-        runCatching { scrollToPage(dest) }
+        runCatching { adoptBorrowedPage(dest) }
     } catch (c: CancellationException) {
-        // 被打断（用户手势 / cancelScroll）时手势优先，但借位把物理位置留在了邻页
-        // （例：回本周时停在原周旁边），放任不管会被甩回原周。这里把位置平移回逻辑页：
-        // 借位页与目标页像素相同 ⇒ 屏上这一侧不跳；松手落页基准同步平移（见 PagerTakeoverGestureState）。
-        runCatching {
-            val viewportPx = layoutInfo.viewportSize.width.toFloat()
-            if (viewportPx > 0f) {
-                // dispatchRawDelta 不走 mutateMutex：手势持锁期间也能即时平移；
-                // 返回实际消费的像素（边界会截断），按实际值平移落页基准
-                val appliedPages = dispatchRawDelta((dest - virtualPage) * viewportPx) / viewportPx
-                gestureState?.requestStartOffsetShift(appliedPages)
-            }
-        }
+        // 打断时把借位页换成真身页。
+        runCatching { adoptBorrowedPage(dest) }
         throw c
     } finally {
-        // 打断/完成都执行：借位页立即还原成正常周（平移后已在屏外，屏上无感）
+        // 还原借位页。
         neighbor.clear()
     }
 }
@@ -294,7 +274,7 @@ internal suspend fun PagerState.jumpToPageSmoothly(
 /** 动画切到目标主 tab；正常结束后若未精确落页则强制吸附 */
 internal suspend fun PagerState.animateMainTabTo(target: Int) {
     val distance = abs(target - currentPage)
-    val spec = if (distance > 1) MainTabPagerCrossPageAnimSpec else MainTabPagerAnimSpec
+    val spec = if (distance > 1) MainTabPagerCrossPageAnimSpec else MainTabSwitchSpec
     try {
         animateScrollToPage(target, animationSpec = spec)
     } catch (e: CancellationException) {

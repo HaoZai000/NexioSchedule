@@ -4,11 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.shape.ContinuousCapsule
+import kotlin.math.abs
 
 /**
  * 胶囊滑块的**唯一参数源**。
@@ -45,6 +48,9 @@ object CapsuleSlider {
     /** 判定「按在了滑块上」的半格宽比例：小于它算抓滑块，大于它算点格子 */
     const val GrabHalfWidthRatio: Float = 0.55f
 
+    /** 快甩阈值（dp/秒） */
+    val FlingVelocityDpPerSecond = 420.dp
+
     /** 阻尼动画看成到位的阈值 */
     const val DampedVisibilityThreshold: Float = 0.001f
 
@@ -54,6 +60,66 @@ object CapsuleSlider {
 
     @Composable
     fun color(): Color = color(!isAppDarkTheme())
+
+    /** 快甩补切：沿 [indexDirection] 至少前进一格，保留更远落点。 */
+    fun flingTarget(
+        startIndex: Int,
+        positionalTarget: Int,
+        indexDirection: Int,
+        lastIndex: Int,
+    ): Int {
+        if (indexDirection == 0) return positionalTarget
+        val flick = (startIndex + indexDirection).coerceIn(0, lastIndex)
+        return if (indexDirection > 0) {
+            maxOf(positionalTarget, flick)
+        } else {
+            minOf(positionalTarget, flick)
+        }
+    }
+}
+
+/** 胶囊手势快甩速度采样：分段控件 / 手机底栏 / pad 顶栏共用。 */
+internal class CapsuleFlingTracker(
+    private val downUptimeMillis: Long,
+    downX: Float,
+) {
+    private val velocityTracker = VelocityTracker()
+    private var lastMoveUptime = downUptimeMillis
+    private var lastTotalDx = 0f
+
+    init {
+        velocityTracker.addPosition(downUptimeMillis, Offset(downX, 0f))
+    }
+
+    /** 每帧 move 调用一次；[downX] 为按下横坐标。 */
+    fun onMove(uptimeMillis: Long, position: Offset, downX: Float) {
+        lastMoveUptime = uptimeMillis
+        lastTotalDx = position.x - downX
+        velocityTracker.addPosition(uptimeMillis, position)
+    }
+
+    /** 净位移（px）。 */
+    val totalDx: Float get() = lastTotalDx
+
+    /** 松手瞬时速度（px/s）。 */
+    fun velocityX(): Float {
+        val spanMs = (lastMoveUptime - downUptimeMillis).coerceAtLeast(16L)
+        val avg = lastTotalDx * 1000f / spanMs
+        val tracked = runCatching { velocityTracker.calculateVelocity().x }.getOrDefault(0f)
+        return when {
+            avg != 0f && tracked != 0f && (avg > 0f) != (tracked > 0f) -> avg
+            abs(avg) > abs(tracked) -> avg
+            else -> tracked
+        }
+    }
+
+    /** 拖动且速度达标时返回屏幕方向（-1 左 / +1 右），否则 0。 */
+    fun flingDirection(thresholdPxPerSec: Float, touchSlop: Float): Int {
+        if (abs(lastTotalDx) <= touchSlop) return 0
+        val vx = velocityX()
+        if (abs(vx) < thresholdPxPerSec) return 0
+        return if (vx > 0f) 1 else -1
+    }
 }
 
 /**

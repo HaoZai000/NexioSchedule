@@ -1,10 +1,10 @@
 package com.haooz.chedule.ui.activities.main
 
+import com.haooz.chedule.ui.components.rememberPageSwitchState
 import com.haooz.softglass.GlassEnvironment
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -476,29 +476,38 @@ fun CourseScheduleApp(
             } else basePage
         }
 
-        pagerState = rememberPagerState(
-            initialPage = autoAdvancePage,
-            pageCount = { totalWeeks }
-        )
+        // 周页 / 今日页共用一条位置来源；pageCount 在首帧前写入。
+        weekPageState = rememberPageSwitchState(autoAdvancePage).also { it.pageCount = totalWeeks }
+        todayPageState = rememberPageSwitchState(todayMaxDateOffset)
+            .also { it.pageCount = todayMaxDateOffset * 2 }
 
-        todayPagerState = rememberPagerState(
-            initialPage = todayMaxDateOffset,
-            pageCount = { todayMaxDateOffset * 2 }
+        // 主 tab 位置容器：手机端自绘平移（3 页），平板 / iOS 纵向 pager（5 页）。
+        val tabInitial = selectedTab.coerceIn(0, mainPagerPageCount - 1)
+        val switchTabState = rememberPageSwitchState(tabInitial)
+        val verticalTabPager = rememberPagerState(
+            initialPage = tabInitial,
+            pageCount = { mainPagerPageCount },
         )
-
-        // 主 tab 平移容器：仅点底栏/侧栏 tab 驱动。手机端只有 3 页，
-        // 后两页（课程管理/切换课表）只有平板侧栏才到得了，按 5 页建会让它们常驻组合树白陪跑。
-        mainPagerState = rememberPagerState(
-            initialPage = selectedTab.coerceIn(0, mainPagerPageCount - 1),
-            pageCount = { mainPagerPageCount }
-        )
+        mainTabSwitchState = switchTabState
+        verticalMainPagerState = verticalTabPager
+        // pageCount 在首帧前写入。
+        switchTabState.pageCount = mainPagerPageCount
+        mainTabPosition = remember(useVerticalMainPager, switchTabState, verticalTabPager) {
+            if (useVerticalMainPager) PagerMainTabPosition(verticalTabPager)
+            else SwitchMainTabPosition(switchTabState)
+        }
+        // 容器形态切换后按当前 tab 对齐位置。
+        LaunchedEffect(mainTabPosition) {
+            mainTabPosition.snapTo(selectedTab.coerceIn(0, mainPagerPageCount - 1))
+        }
 
         LaunchedEffect(mainPagerPageCount) {
             if (shiftModeInitialized && isShiftMode) return@LaunchedEffect
             val lastIndex = (mainPagerPageCount - 1).coerceAtLeast(0)
-            if (mainPagerState.currentPage > lastIndex) {
-                mainPagerState.scrollToPage(lastIndex)
+            // 页数收口按位置判断，不看 currentPage。
+            if (selectedTab > lastIndex || mainTabPosition.currentPage > lastIndex) {
                 selectedTab = lastIndex
+                mainTabPosition.snapTo(lastIndex)
             }
         }
 
@@ -517,7 +526,7 @@ fun CourseScheduleApp(
                     // 手机端只剩 2 页（排班 1 页），侧栏带过来的页号要按实际页数收口
                     val target = pending.coerceAtMost(mainPagerPageCount - 1)
                     selectedTab = target
-                    mainPagerState.scrollToPage(target)
+                    mainTabPosition.snapTo(target)
                 }
                 TabletNavSideState.pendingMainTab = -1
             }
@@ -526,7 +535,7 @@ fun CourseScheduleApp(
         LaunchedEffect(isShiftMode) {
             if (shiftModeInitialized) {
                 selectedTab = if (isShiftMode) 0 else if (defaultHomepage == "今日") 0 else 1
-                mainPagerState.scrollToPage(selectedTab)
+                mainTabPosition.snapTo(selectedTab)
             }
             shiftModeInitialized = true
         }
@@ -535,37 +544,30 @@ fun CourseScheduleApp(
         remember { lastAutoWeek = currentWeek; lastAutoPage = autoAdvancePage }
         LaunchedEffect(currentWeek, totalWeeks, autoAdvancePage) {
             // A rule edit must recalculate the default, but must not pull a manually browsed page back.
-            if (currentWeek != lastAutoWeek || pagerState.currentPage == lastAutoPage) {
-                if (pagerState.currentPage != autoAdvancePage) pagerState.scrollToPage(
-                    autoAdvancePage
-                )
+            if (currentWeek != lastAutoWeek || weekPageState.currentPage == lastAutoPage) {
+                if (weekPageState.currentPage != autoAdvancePage) {
+                    weekPageState.snapTo(autoAdvancePage)
+                }
             }
             lastAutoWeek = currentWeek
             lastAutoPage = autoAdvancePage
         }
 
-        // 切 tab 时强制放掉 pager 上可能残留的 scroll 锁。
-        // 周 pager 与今日页 pager 走的是同一套 pagerAxisTakeoverGesture，锁泄漏家族相同：
-        // 今日页锁一旦泄漏，切回今日后左右滑就彻底失效（只能重进应用）。
-        LaunchedEffect(mainPagerState.currentPage) {
-            runCatching { pagerState.scroll(MutatePriority.PreventUserInput) { } }
-            runCatching {
-                // 抢占会把未完成的 settle 动画一起掐掉，落点可能停在两页之间，补一次吸附
-                todayPagerState.scroll(MutatePriority.PreventUserInput) { }
-                val visual =
-                    todayPagerState.currentPage + todayPagerState.currentPageOffsetFraction
-                val target = visual.roundToInt()
-                if (abs(visual - target) > 0.001f) todayPagerState.scrollToPage(target)
-            }
+        // 切 tab 时停止周页 / 今日页的平移与回弹。
+        LaunchedEffect(mainTabPosition.currentPage) {
+            todayPageState.cancel()
+            val visual = todayPageState.currentPage + todayPageState.offsetFraction
+            val target = visual.roundToInt()
+            if (abs(visual - target) > 0.001f) todayPageState.snapTo(target)
+            weekPageState.cancel()
         }
 
         // 今日页默认选中今天：等价于原来的 remember { mutableIntStateOf(currentDayOfWeek) }
         remember { if (todaySelectedDayOfWeek == 0) todaySelectedDayOfWeek = currentDayOfWeek }
 
-        // 跳周落到目标页后撤掉标题覆盖：currentPage 已被 scrollToPage 定在目标，
-        // 此时覆盖值与真实值相同，撤掉画面不跳；被打断的情况由 jumpToWeek 自己清。
-        LaunchedEffect(pagerState.currentPage, pendingViewingWeek) {
-            if (pendingViewingWeek >= 1 && pagerState.currentPage + 1 == pendingViewingWeek) {
+        // 跳周落页后撤掉标题覆盖。
+        LaunchedEffect(weekPageState.currentPage, pendingViewingWeek) {
+            if (pendingViewingWeek >= 1 && weekPageState.currentPage + 1 == pendingViewingWeek) {
                 pendingViewingWeek = 0
             }
         }
@@ -636,23 +638,23 @@ fun CourseScheduleApp(
         }
         // 内容区（切天/周）一有横向手势：立刻取消未完成的主 tab 平移，吸回当前页，避免露出隔壁页
         cancelUnfinishedMainTabAnim = {
-            if (mainPagerState.isScrollInProgress ||
-                abs(mainPagerState.currentPageOffsetFraction) > 0.001f
+            if (mainTabPosition.isAnimating ||
+                abs(mainTabPosition.offsetFraction) > 0.001f
             ) {
-                val target = mainPagerState.currentPage.coerceIn(
+                val target = mainTabPosition.currentPage.coerceIn(
                     0,
-                    (mainPagerState.pageCount - 1).coerceAtLeast(0)
+                    (mainTabPosition.pageCount - 1).coerceAtLeast(0)
                 )
                 coroutineScope.launch {
-                    mainPagerState.cancelScroll()
-                    mainPagerState.scrollToPage(target)
+                    mainTabPosition.cancel()
+                    mainTabPosition.snapTo(target)
                     // 底栏与当前页对齐，避免 tab 还停在未完成的目标页
                     if (selectedTab != target) selectedTab = target
                 }
             }
         }
         // 固定实例：lambda 每次重组都新建，不能拿它当 remember key
-        mainContentNestedScroll = remember(mainPagerState) {
+        mainContentNestedScroll = remember(mainTabPosition) {
             object : NestedScrollConnection {
                 override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                     // 横向（手机主 tab）与纵向（平板主 tab）手势都取消未完成的切页动画
@@ -767,7 +769,7 @@ fun CourseScheduleApp(
                 MiuixTheme.colorScheme.tertiaryContainer,
             )
             val liquidGlassRecordKey = remember(
-                mainPagerState.currentPage,
+                mainTabPosition.currentPage,
                 isShiftMode,
                 showDetail,
                 showCustomizePage,
@@ -784,11 +786,11 @@ fun CourseScheduleApp(
                 wallpaperBitmap,
                 TabletNavSideState.expanded,
                 scheduleShowCourseDetail.value,
-                pagerState.settledPage,
+                weekPageState.settledPage,
                 themeBackdropKey
             ) {
                 listOf(
-                    mainPagerState.currentPage,
+                    mainTabPosition.currentPage,
                     isShiftMode,
                     showDetail,
                     showCustomizePage,
@@ -805,7 +807,7 @@ fun CourseScheduleApp(
                     wallpaperBitmap,
                     TabletNavSideState.expanded,
                     scheduleShowCourseDetail.value,
-                    pagerState.settledPage,
+                    weekPageState.settledPage,
                     themeBackdropKey
                 )
             }
@@ -821,7 +823,7 @@ fun CourseScheduleApp(
             val wallpaperImage = remember(wallpaperBitmap) { wallpaperBitmap }
             val originalWallpaperImage = originalWallpaperBitmap
             // 课表/今日/设置滚动时主内容像素在变，必须重录，否则顶栏/底栏玻璃冻结。
-            // ⚠ 周左右滑（pagerState）与**今日页左右翻日（todayPagerState）**刻意不在此列：
+            // 周左右滑与今日页翻日不在此列。
             //   一次翻页动画期间每帧重录 = 整棵内容树在 300ms 里重画 60 遍，帧预算直接吃满，
             //   这才是程序化滚动（返回今日 / 调课翻周）发卡的来源。内容整页平移时玻璃滞后的
             //   观感与周左右滑同一取舍，用户已接受。落页靠下面 draw 期比较 settledPage 补一帧。
@@ -830,9 +832,9 @@ fun CourseScheduleApp(
             val liquidGlassMustRecord = remember(
                 scheduleScrollState,
                 todayListScrollInProgress,
-                pagerState,
-                todayPagerState,
-                mainPagerState
+                weekPageState,
+                todayPageState,
+                mainTabPosition
             ) {
                 var lastBlurEpoch = -1
                 // 今日页上一次落定的页号：只在落页后补录一次。
@@ -849,14 +851,14 @@ fun CourseScheduleApp(
                     val forceRail = railForceRecordFrames[0] > 0
                     if (forceRail) railForceRecordFrames[0] = railForceRecordFrames[0] - 1
                     // 今日页落页：draw 期读，不触发组合，也不逐帧重录
-                    val todayPage = todayPagerState.settledPage
+                    val todayPage = todayPageState.settledPage
                     val todayPageChanged = todayPage != lastTodayPage
                     if (todayPageChanged) lastTodayPage = todayPage
                     scheduleScrollState.isScrollInProgress ||
                             todayListScrollInProgress.value ||
-                            // ⚠ 周左右滑（pagerState）与今日页左右翻日（todayPagerState）不在此列
+                            // 周左右滑与今日页翻日不在此列。
                             todayPageChanged ||
-                            mainPagerState.isScrollInProgress ||
+                            mainTabPosition.isAnimating ||
                             navMoving ||
                             forceRail ||
                             epochBumped ||

@@ -284,6 +284,9 @@ fun LiquidBottomTabs(
         }
         val selectorHeightPx = with(density) { selectorHeight.roundToPx() }
         val trailMaxPx = with(density) { CapsuleSlider.TrailMax.toPx() }
+        // 快甩阈值 dp/秒 → px/秒
+        val flingVelocityThresholdPxPerSec =
+            with(density) { CapsuleSlider.FlingVelocityDpPerSecond.toPx() }
         // 松手 / 点别的 tab 时，目标槽位落在胶囊当前所在位置的哪一侧（几何方向，RTL 自动成立）
         val settleToSlot: (Int) -> Unit = { index ->
             val target = slotLeft(index.toFloat())
@@ -451,13 +454,19 @@ fun LiquidBottomTabs(
                 // 胶囊的高光/拉伸进度由这一层手势观察：下面的 pointerInput 会 consume，
                 // inspectDragGestures 带 observeConsumed=true，照样能跟手
                 .then(pillHighlight.gestureModifier)
-                .pointerInput(capsule, tabsCount, tabWidthPx, isLtr, padPx, pillPx, trailMaxPx) {
+                .pointerInput(
+                    capsule, tabsCount, tabWidthPx, isLtr, padPx, pillPx, trailMaxPx,
+                    flingVelocityThresholdPxPerSec,
+                ) {
                     val touchSlop = viewConfiguration.touchSlop
+                    val flingVelocityThreshold = flingVelocityThresholdPxPerSec
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val downX = down.position.x
                         // 圆按钮那一侧交给它自己的点击
                         if (downX > pillPx) return@awaitEachGesture
+                        val startIndex = currentIndex.coerceIn(0, tabsCount - 1)
+                        val fling = CapsuleFlingTracker(down.uptimeMillis, downX)
 
                         // 按在滑块上才是拖；按在别的 tab 上直接选中（同原版：胶囊就是拖动把手）
                         val capsuleHalf = tabWidthPx * CapsuleSlider.GrabHalfWidthRatio
@@ -487,11 +496,22 @@ fun LiquidBottomTabs(
                             val change = event.changes.firstOrNull { it.id == down.id }
                             if (change == null || !change.pressed) {
                                 // 松手吸附按胶囊的实际位置判，不用逻辑 value
-                                val target = if (dragging) {
+                                val positionalTarget = if (dragging) {
                                     indexAtCapsule()
                                 } else {
                                     pressedTab.fastCoerceIn(0, tabsCount - 1)
                                 }
+                                // RTL 下把屏幕方向换成逻辑 index 方向
+                                val flingDir = if (dragging) {
+                                    fling.flingDirection(flingVelocityThreshold, touchSlop) *
+                                        ltrSign.toInt()
+                                } else 0
+                                val target = CapsuleSlider.flingTarget(
+                                    startIndex = startIndex,
+                                    positionalTarget = positionalTarget,
+                                    indexDirection = flingDir,
+                                    lastIndex = tabsCount - 1,
+                                )
                                 currentIndex = target
                                 dampedDragAnimation.animateToValue(target.toFloat())
                                 settleToSlot(target)
@@ -503,6 +523,7 @@ fun LiquidBottomTabs(
 
                             val dx = change.position.x - lastX
                             val totalDx = change.position.x - downX
+                            fling.onMove(change.uptimeMillis, change.position, downX)
 
                             // 点 tab 后继续滑，接管为拖动；锚点直接取当前手指位置，
                             // 把滑出 touchSlop 的那一小段吃掉，胶囊不会突然跳一下

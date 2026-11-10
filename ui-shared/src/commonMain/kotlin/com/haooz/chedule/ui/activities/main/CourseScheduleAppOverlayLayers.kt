@@ -804,9 +804,9 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 coroutineScope.launch {
                                     try {
                                         if (navBarStyle == "rail") {
-                                            mainPagerState.scrollToPage(target)
+                                            mainTabPosition.snapTo(target)
                                         } else {
-                                            mainPagerState.animateMainTabTo(target)
+                                            mainTabPosition.animateTo(target)
                                         }
                                     } finally {
                                         mainTabProgrammatic = false
@@ -1263,7 +1263,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         shiftViewModel.exitShiftMode()
                         selectedTab = 0
                         selectedTab = 0
-                        coroutineScope.launch { mainPagerState.scrollToPage(0) }
+                        coroutineScope.launch { mainTabPosition.snapTo(0) }
                     } else {
                         FeatureLog.shift("enter_confirmed")
                         shiftViewModel.enterShiftMode()

@@ -833,6 +833,9 @@ private fun TabletNavTopBarInteraction(
     val selectorWidthPx = tabWidthPx - selectorInsetPx * 2f
     val maxIndex = (tabsCount - 1).toFloat()
     val trailMaxPx = with(density) { CapsuleSlider.TrailMax.toPx() }
+    // 快甩阈值 dp/秒 → px/秒
+    val flingVelocityThresholdPxPerSec =
+        with(density) { CapsuleSlider.FlingVelocityDpPerSecond.toPx() }
 
     fun slotLeft(index: Float): Float = stripLeftPx + index * tabWidthPx + selectorInsetPx
 
@@ -908,12 +911,18 @@ private fun TabletNavTopBarInteraction(
         modifier = Modifier
             .fillMaxSize()
             .zIndex(2f)
-            .pointerInput(capsule, tabsCount, tabWidthPx, stripLeftPx, stripRightPx) {
+            .pointerInput(
+                capsule, tabsCount, tabWidthPx, stripLeftPx, stripRightPx,
+                flingVelocityThresholdPxPerSec,
+            ) {
                 val touchSlop = viewConfiguration.touchSlop
+                val flingVelocityThreshold = flingVelocityThresholdPxPerSec
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val downX = down.position.x
                     if (downX < stripLeftPx) return@awaitEachGesture
+                    val startIndex = currentIndex.coerceIn(0, tabsCount - 1)
+                    val fling = CapsuleFlingTracker(down.uptimeMillis, downX)
 
                     // 按在滑块上才是拖；按在别的格上直接选中（胶囊就是拖动把手）
                     val capsuleHalf = tabWidthPx * CapsuleSlider.GrabHalfWidthRatio
@@ -938,9 +947,19 @@ private fun TabletNavTopBarInteraction(
                         val event = awaitPointerEvent(PointerEventPass.Main)
                         val change = event.changes.firstOrNull { it.id == down.id }
                         if (change == null || !change.pressed) {
-                            val target =
+                            val positionalTarget =
                                 if (dragging) indexAtCapsule()
                                 else pressedTab.coerceIn(0, tabsCount - 1)
+                            // 顶栏胶囊为 LTR 布局
+                            val flingDir = if (dragging) {
+                                fling.flingDirection(flingVelocityThreshold, touchSlop)
+                            } else 0
+                            val target = CapsuleSlider.flingTarget(
+                                startIndex = startIndex,
+                                positionalTarget = positionalTarget,
+                                indexDirection = flingDir,
+                                lastIndex = tabsCount - 1,
+                            )
                             currentIndex = target
                             dampedDragAnimation.animateToValue(target.toFloat())
                             settleToSlot(target)
@@ -951,6 +970,7 @@ private fun TabletNavTopBarInteraction(
 
                         val dx = change.position.x - lastX
                         val totalDx = change.position.x - downX
+                        fling.onMove(change.uptimeMillis, change.position, downX)
 
                         // 点完继续滑就接管成拖动；锚点取当前手指位置，吃掉过 slop 那一段
                         if (!dragging && abs(totalDx) > touchSlop) {
