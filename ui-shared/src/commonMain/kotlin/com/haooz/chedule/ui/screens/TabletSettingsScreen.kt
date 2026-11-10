@@ -145,7 +145,7 @@ enum class TabletSettingsDest {
     About,
     Appreciate,
     Communication,
-    // 以下三个是「交流与反馈」里的子页：只在右栏切换，不进左栏列表（未列入 StandaloneDests/BottomMoreDests）
+    // 以下三个是「问题反馈」里的子页：只在右栏切换，不进左栏列表（未列入 StandaloneDests/BottomMoreDests）
     Feedback,
     FeedbackHistory,
     FeedbackRoadmap,
@@ -415,7 +415,7 @@ fun TabletSettingsScreen(
     onHolidayDataChanged: () -> Unit = {},
     /** 节假日 API 拉取（Android 宿主实现）；null 时返回 emptyList */
     fetchHolidayEntries: (suspend (year: Int) -> List<HolidayEntry>)? = null,
-    /** 是否显示「更新设置」入口（iOS 走 App Store → false，左栏那一项整个不渲染） */
+    /** 是否显示「更新」入口（iOS 走 App Store → false，左栏那一项整个不渲染） */
     showUpdateSettings: Boolean = true,
 ) {
     val selected = TabletSettingsUiState.selected
@@ -558,15 +558,6 @@ fun TabletSettingsScreen(
                                                     }
                                                 )
                                             }
-                                        // 排班模式入口：并入「特色功能」分类，非排班模式时显示
-                                        CardExpand(visible = group == TabletSettingsDest.Reminder.displayGroup() && !isShiftMode) {
-                                            ArrowPreference(
-                                                title = SettingsStr.shiftMode(),
-                                                summary = SettingsStr.shiftModeSummary(),
-                                                holdDownState = showShiftModeConfirmDialog,
-                                                onClick = { showShiftModeConfirmDialog = true }
-                                            )
-                                        }
                                     }
                                 }
                             }
@@ -591,7 +582,7 @@ fun TabletSettingsScreen(
                                     }
                                 }
                             }
-                            // 关于应用/捐赠支持/交流与反馈独立卡片：同「其他」分类下
+                            // 关于应用/捐赠支持/问题反馈独立卡片：同「其他」分类下
                             if (group == TabletSettingsDest.About.displayGroup() && BottomMoreDests.isNotEmpty()) {
                                 item(key = "x_about_more") {
                                     Card(
@@ -701,6 +692,7 @@ fun TabletSettingsScreen(
                                     isShiftMode = isShiftMode,
                                     liquidGlassBackdrop = liquidGlassBackdrop,
                                     scrollBehavior = null,
+                                    onRequestEnterShiftMode = { showShiftModeConfirmDialog = true },
                                 )
 
                                 TabletSettingsDest.CourseTime -> CourseTimeSettingsScreen(
@@ -1200,7 +1192,7 @@ private val StandaloneDests = listOf(
     TabletSettingsDest.ScheduleExport,
 )
 
-/** 左栏「其他」分类下独立卡片：关于应用 / 捐赠支持 / 交流与反馈 */
+/** 左栏「其他」分类下独立卡片：关于应用 / 捐赠支持 / 问题反馈 */
 private val BottomMoreDests = listOf(
     TabletSettingsDest.About,
     TabletSettingsDest.Appreciate,
@@ -1249,6 +1241,8 @@ private fun TabletSemesterPane(
     isShiftMode: Boolean,
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop?,
     scrollBehavior: top.yukonga.miuix.kmp.layout.SharedScrollBehavior? = null,
+    /** 请求进入排班模式（确认弹窗由外层持有） */
+    onRequestEnterShiftMode: () -> Unit = {},
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
@@ -1419,6 +1413,11 @@ private fun TabletSemesterPane(
                     insideMargin = PaddingValues(0.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
+                        ArrowPreference(
+                            title = SettingsStr.shiftMode(),
+                            summary = SettingsStr.shiftModeSummary(),
+                            onClick = onRequestEnterShiftMode,
+                        )
                         ArrowPreference(
                             title = SettingsStr.newSemester(),
                             summary = SettingsStr.newSemesterSummary(),

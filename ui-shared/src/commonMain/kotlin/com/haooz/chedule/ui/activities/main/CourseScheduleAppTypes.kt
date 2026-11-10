@@ -122,7 +122,7 @@ data class SettingsPaneArgs(
     val navBarStyle: String,
     val settingsScrollBehavior: SharedScrollBehavior?,
     val liquidGlassBackdrop: GlassBackdrop?,
-    /** 是否显示「更新设置」入口（iOS 走 App Store → false） */
+    /** 是否显示「更新」入口（iOS 走 App Store → false） */
     val showUpdateSettings: Boolean = true,
 )
 

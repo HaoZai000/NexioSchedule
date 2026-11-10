@@ -26,7 +26,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.platform.showToast
+import com.haooz.chedule.data.repo.CourseRepository
+import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.i18n.TimeCfgStr
+import com.haooz.chedule.i18n.orDefaultName
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.ui.utils.ShiftModeRequest
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.DocumentPageScaffold
@@ -41,11 +46,16 @@ import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.scheduleViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
 import com.haooz.chedule.viewmodel.shiftViewModel
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
@@ -57,8 +67,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
-/** 课表设置（二级页）。 */
-/** 课表设置。 */
+/** 课程表（二级页）。 */
 @Composable
 fun ScheduleSettingsScreen(router: AppRouter) {
     val viewModel = courseViewModel()
@@ -78,6 +87,25 @@ fun ScheduleSettingsScreen(router: AppRouter) {
 
     var showNewSemesterDialog by remember { mutableStateOf(false) }
     var newSemesterName by remember { mutableStateOf("") }
+    var showShiftModeConfirmDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    val timeRepository = remember { CourseRepository() }
+    // 走「可写」入口：未绑定的课表先补绑，否则保存会把节次写进它回退到的那套配置
+    var timeConfig by remember { mutableStateOf(timeRepository.getWritableCurrentTimeConfig().ensureRoutine()) }
+    var showSectionPicker by remember { mutableStateOf(false) }
+    var secMorning by remember { mutableIntStateOf(4) }
+    var secAfternoon by remember { mutableIntStateOf(4) }
+    var secEvening by remember { mutableIntStateOf(4) }
+    // 从「上课时间」页改完作息返回时重新取一次，右侧作息名要跟着变
+    LaunchedEffect(Unit) {
+        timeConfig = timeRepository.getWritableCurrentTimeConfig().ensureRoutine()
+    }
+    val activeRoutineName = timeConfig.safeRoutines
+        .firstOrNull { it.id == timeConfig.effectiveRoutineId() }
+        ?.name
+        .orEmpty()
+        .orDefaultName(TimeCfgStr.defaultRoutineName, TimeCfgStr.seededRoutineName, ImportStr.defaultRoutineName)
 
     val (tempYearInit, tempMonthInit, tempDayInit) = remember(classStartTime) {
         parseDate(classStartTime)
@@ -188,6 +216,60 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                                 },
                                 holdDownState = showTotalWeeksDialog,
                             )
+                            ArrowPreference(
+                                title = TimeCfgStr.sectionCountTitle(),
+                                endActions = {
+                                    Text(
+                                        text = TimeCfgStr.sectionsCompactN(
+                                            timeConfig.morningSections,
+                                            timeConfig.afternoonSections,
+                                            timeConfig.eveningSections,
+                                        ),
+                                        fontSize = 14.5.sp,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        textAlign = TextAlign.End,
+                                    )
+                                },
+                                holdDownState = showSectionPicker,
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    secMorning = timeConfig.morningSections
+                                    secAfternoon = timeConfig.afternoonSections
+                                    secEvening = timeConfig.eveningSections
+                                    showSectionPicker = true
+                                },
+                            )
+                            ArrowPreference(
+                                title = SettingsStr.classTime(),
+                                endActions = {
+                                    Text(
+                                        text = activeRoutineName,
+                                        fontSize = 14.5.sp,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        textAlign = TextAlign.End,
+                                    )
+                                },
+                                onClick = {
+                                    FeatureLog.timeConfig("open")
+                                    router.navigate(AppRoute.CourseTimeSettings)
+                                },
+                            )
+                            ArrowPreference(
+                                title = SettingsStr.holidayAndWorkswap(),
+                                onClick = {
+                                    FeatureLog.holiday("open")
+                                    router.navigate(AppRoute.HolidaySettings)
+                                },
+                            )
+                        }
+                    }
+                }
+                item(key = "display") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp),
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
                             SwitchPreference(
                                 title = SettingsStr.smartWeekend(),
                                 summary = SettingsStr.smartWeekendSummary(),
@@ -201,30 +283,25 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                                     onCheckedChange = { settingsViewModel.setShowNonCurrentWeek(it) },
                                 )
                             }
-                            ArrowPreference(
-                                title = SettingsStr.courseTimeManagement(),
-                                summary = SettingsStr.courseTimeSummary(),
-                                onClick = {
-                                    FeatureLog.timeConfig("open")
-                                    router.navigate(AppRoute.CourseTimeSettings)
-                                },
-                            )
                         }
                     }
                 }
-                item(key = "entries") {
+
+                item(key = "other") {
+                    SmallTitle(text = CommonStr.other())
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         insideMargin = PaddingValues(0.dp),
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            ArrowPreference(
-                                title = SettingsStr.holidayAndWorkswap(),
-                                onClick = {
-                                    FeatureLog.holiday("open")
-                                    router.navigate(AppRoute.HolidaySettings)
-                                },
-                            )
+                            CardExpand(visible = !isShiftMode) {
+                                ArrowPreference(
+                                    title = SettingsStr.shiftMode(),
+                                    summary = SettingsStr.shiftModeSummary(),
+                                    holdDownState = showShiftModeConfirmDialog,
+                                    onClick = { showShiftModeConfirmDialog = true },
+                                )
+                            }
                             ArrowPreference(
                                 title = SettingsStr.newSemester(),
                                 summary = SettingsStr.newSemesterSummary(),
@@ -236,6 +313,133 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                                 },
                             )
                         }
+                    }
+                }
+            }
+
+            OverlayDialog(
+                title = TimeCfgStr.sectionCountDialogTitle(),
+                show = showSectionPicker,
+                liquidGlassBackdrop = backdrop,
+                onDismissRequest = { showSectionPicker = false },
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        listOf(
+                            Triple(TimeCfgStr.morning(), { v: Int -> secMorning = v }, secMorning),
+                            Triple(TimeCfgStr.afternoon(), { v: Int -> secAfternoon = v }, secAfternoon),
+                            Triple(TimeCfgStr.evening(), { v: Int -> secEvening = v }, secEvening),
+                        ).forEach { (label, onPick, current) ->
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                                    textAlign = TextAlign.Center,
+                                )
+                                NumberPicker(
+                                    value = current,
+                                    onValueChange = onPick,
+                                    range = 0..6,
+                                    visibleItemCount = 3,
+                                    itemHeight = 50.dp,
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        TimeCfgStr.sectionsNote(),
+                        fontSize = 13.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        modifier = Modifier.padding(top = 16.dp),
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        TextButton(
+                            text = CommonStr.cancel(),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showSectionPicker = false
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(
+                            text = CommonStr.ok(),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                val next = timeConfig.copy(
+                                    morningSections = secMorning,
+                                    afternoonSections = secAfternoon,
+                                    eveningSections = secEvening,
+                                )
+                                timeRepository.saveTimeConfig(next)
+                                // 节次数变了 → 节次到时间的映射全变，必须广播让提醒/小部件重排
+                                timeRepository.notifyTimeConfigChanged()
+                                timeConfig = timeRepository.getWritableCurrentTimeConfig().ensureRoutine()
+                                showSectionPicker = false
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+
+            OverlayDialog(
+                title = SettingsStr.enterShiftMode(),
+                summary = SettingsStr.enterShiftModeSummary(),
+                show = showShiftModeConfirmDialog,
+                liquidGlassBackdrop = backdrop,
+                onDismissRequest = { showShiftModeConfirmDialog = false },
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        TextButton(
+                            text = CommonStr.cancel(),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showShiftModeConfirmDialog = false
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(
+                            text = CommonStr.ok(),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showShiftModeConfirmDialog = false
+                                coroutineScope.launch {
+                                    delay(100.milliseconds)
+                                    ShiftModeRequest.enter()
+                                    router.popBack()
+                                }
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
             }

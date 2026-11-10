@@ -29,13 +29,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -58,16 +58,20 @@ import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.uishared.resources.Res
-import com.haooz.chedule.uishared.resources.app_icon_monochrome
+import com.haooz.chedule.uishared.resources.ic_settings_about
+import com.haooz.chedule.uishared.resources.ic_settings_data
+import com.haooz.chedule.uishared.resources.ic_settings_feedback
+import com.haooz.chedule.uishared.resources.ic_settings_personalization
+import com.haooz.chedule.uishared.resources.ic_settings_reminders
+import com.haooz.chedule.uishared.resources.ic_settings_update
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
+import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -76,16 +80,12 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Alarm
+import top.yukonga.miuix.kmp.icon.extended.All
 import top.yukonga.miuix.kmp.icon.extended.Backup
+import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
-import top.yukonga.miuix.kmp.icon.extended.Contacts
-import top.yukonga.miuix.kmp.icon.extended.ConvertFile
-import top.yukonga.miuix.kmp.icon.extended.Favorites
-import top.yukonga.miuix.kmp.icon.extended.GridView
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Settings
-import top.yukonga.miuix.kmp.icon.extended.Update
+import top.yukonga.miuix.kmp.icon.extended.FavoritesFill
+import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
@@ -186,101 +186,107 @@ private fun SettingsEntryRow(
     }
 }
 
-/** 设置入口图标底板。 */
+/** 设置入口图标底板：28dp 方块 + 8dp 连续圆角，底色取色板（莫奈取色时统一 primary）。 */
 @Composable
-private fun SettingsEntryIcon(content: @Composable () -> Unit) {
+private fun SettingsEntryIcon(accent: Color, content: @Composable (Color) -> Unit) {
+    val resolver = rememberSettingsAccentResolver()
     val shape = remember { ContinuousRoundedRectangle(8.dp) }
     Box(
         modifier = Modifier
             .size(28.dp)
             .clip(shape)
-            .background(MiuixTheme.colorScheme.primary),
+            .background(resolver.background(accent)),
         contentAlignment = Alignment.Center,
     ) {
-        content()
+        content(resolver.foreground(accent))
     }
 }
 
-/** 矢量图标底板内容。 */
+/** 矢量图标。 */
 @Composable
-private fun VectorEntryIcon(imageVector: ImageVector) {
-    SettingsEntryIcon {
+private fun VectorEntryIcon(imageVector: ImageVector, accent: Color) {
+    SettingsEntryIcon(accent) { tint ->
         Icon(
             imageVector = imageVector,
             contentDescription = null,
             modifier = Modifier.size(22.dp),
-            tint = Color.White,
+            tint = tint,
         )
     }
 }
 
-/** 课表设置图标。 */
+/** composeResources 里的自定义图标。 */
 @Composable
-private fun ScheduleSettingsIcon() {
-    SettingsEntryIcon {
+private fun DrawableEntryIcon(resource: DrawableResource, accent: Color) {
+    SettingsEntryIcon(accent) { tint ->
         Image(
-            painter = painterResource(Res.drawable.app_icon_monochrome),
+            painter = painterResource(resource),
             contentDescription = null,
-            modifier = Modifier.size(26.dp),
+            modifier = Modifier.size(22.dp),
+            colorFilter = ColorFilter.tint(tint),
         )
     }
+}
+
+/** 课程表图标。 */
+@Composable
+private fun ScheduleSettingsIcon() {
+    VectorEntryIcon(MiuixIcons.Months, SettingsAccents.Blue)
 }
 
 /** 课程提醒图标。 */
 @Composable
 private fun CourseReminderIcon() {
-    VectorEntryIcon(MiuixIcons.Alarm)
+    DrawableEntryIcon(Res.drawable.ic_settings_reminders, SettingsAccents.Red)
 }
 
 /** 桌面小部件图标。 */
 @Composable
 private fun HomeScreenWidgetIcon() {
-    VectorEntryIcon(MiuixIcons.GridView)
+    VectorEntryIcon(MiuixIcons.All, SettingsAccents.Green)
 }
 
 /** 导入导出图标。 */
 @Composable
 private fun ImportExportIcon() {
-    VectorEntryIcon(MiuixIcons.ConvertFile)
+    DrawableEntryIcon(Res.drawable.ic_settings_data, SettingsAccents.Orange)
 }
 
 /** 备份与同步图标。 */
 @Composable
 private fun BackupSyncIcon() {
-    VectorEntryIcon(MiuixIcons.Backup)
+    VectorEntryIcon(MiuixIcons.CloudFill, SettingsAccents.Blue)
 }
 
 /** 应用个性化图标。 */
 @Composable
 private fun PersonalizationIcon() {
-    VectorEntryIcon(MiuixIcons.Settings)
+    DrawableEntryIcon(Res.drawable.ic_settings_personalization, SettingsAccents.Purple)
 }
 
-/** 更新设置图标。 */
+/** 更新图标。 */
 @Composable
 private fun UpdateSettingsIcon() {
-    VectorEntryIcon(MiuixIcons.Update)
+    DrawableEntryIcon(Res.drawable.ic_settings_update, SettingsAccents.Green)
 }
 
 /** 关于应用图标。 */
 @Composable
 private fun AboutAppIcon() {
-    VectorEntryIcon(MiuixIcons.Info)
+    DrawableEntryIcon(Res.drawable.ic_settings_about, SettingsAccents.Gray)
 }
 
 /** 捐赠支持图标。 */
 @Composable
 private fun DonateIcon() {
-    VectorEntryIcon(MiuixIcons.Favorites)
+    VectorEntryIcon(MiuixIcons.FavoritesFill, SettingsAccents.Red)
 }
 
-/** 交流与反馈图标。 */
+/** 问题反馈图标。 */
 @Composable
 private fun CommunicationIcon() {
-    VectorEntryIcon(MiuixIcons.Contacts)
+    DrawableEntryIcon(Res.drawable.ic_settings_feedback, SettingsAccents.Blue)
 }
-
-
 
 @Composable
 fun SettingsScreen(
@@ -315,7 +321,7 @@ fun SettingsScreen(
     /** 节假日 API 拉取（Android 宿主实现）；null 时返回 emptyList */
     fetchHolidayEntries: (suspend (year: Int) -> List<HolidayEntry>)? = null,
     /**
-     * 是否显示「更新设置」入口。
+     * 是否显示「更新」入口。
      */
     showUpdateSettings: Boolean = true,
     /**
@@ -334,9 +340,7 @@ fun SettingsScreen(
     val hapticFeedback = LocalHapticFeedback.current
     // LocalAppRouter.current 是 @Composable 调用，必须在组合层取（各入口共用）
     val settingsRouter = LocalAppRouter.current
-    var showShiftModeConfirmDialog by remember { mutableStateOf(false) }
 
-    val coroutineScope = rememberCoroutineScope()
 
     // 平板：设置页左右两栏，原地静态切换
     if (navBarStyle == "rail") {
@@ -449,12 +453,6 @@ fun SettingsScreen(
                                     FeatureLog.widget("open")
                                     settingsRouter.navigate(AppRoute.WidgetIntro)
                                 }
-                            )
-                            ArrowPreference(
-                                title = SettingsStr.shiftMode(),
-                                summary = SettingsStr.shiftModeSummary(),
-                                holdDownState = showShiftModeConfirmDialog,
-                                onClick = { showShiftModeConfirmDialog = true }
                             )
                         }
                     }
@@ -612,47 +610,5 @@ fun SettingsScreen(
             }
         }
 
-        // 即使 iOS 没有入口打开它也要挡：showShiftModeConfirmDialog 可能被别的路径置 true。
-        OverlayDialog(
-            title = SettingsStr.enterShiftMode(),
-            summary = SettingsStr.enterShiftModeSummary(),
-            show = showShiftModeConfirmDialog,
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onDismissRequest = { showShiftModeConfirmDialog = false },
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = CommonStr.cancel(),
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showShiftModeConfirmDialog = false
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = CommonStr.ok(),
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showShiftModeConfirmDialog = false
-                            coroutineScope.launch {
-                                delay(100.milliseconds)
-                                onEnterShiftMode()
-                            }
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
     }
 }

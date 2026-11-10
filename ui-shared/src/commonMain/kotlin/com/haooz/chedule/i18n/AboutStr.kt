@@ -27,7 +27,7 @@ object AboutStr {
 
     // ---- 关于页 ----
 
-    val communicationFeedback = L("交流与反馈", "Community & Feedback")
+    val communicationFeedback = L("问题反馈", "Report a Problem")
     val projectRepo = L("项目仓库", "Project Repository")
     val donate = L("捐赠支持", "Donate")
 
@@ -38,7 +38,7 @@ object AboutStr {
 
     /** 页脚开源协议入口。 */
     val license = L("开源协议", "Open Source License")
-    val privacyPolicy = L("《隐私政策》", "Privacy Policy")
+    val privacyPolicy = L("隐私政策", "Privacy Policy")
     val revokeConsent = L("撤回同意", "Revoke Consent")
     val revokeDialogTitle = L("撤回隐私政策同意", "Revoke Privacy Consent")
     val revokeDialogSummary = L(
@@ -131,12 +131,12 @@ object AboutStr {
         "Failed to get the download link. Try again later"
     )
     val getDownloadUrlFailedSettings = L(
-        "获取下载地址失败，请到「设置 - 更新设置」中重试",
+        "获取下载地址失败，请到「设置 - 更新」中重试",
         "Failed to get the download link. Try again in Settings - Update Settings"
     )
     val downloadFailedN = L("下载失败：%s", "Download failed: %s")
 
-    // ---- 交流与反馈 ----
+    // ---- 问题反馈 ----
 
     val contactUs = L("联系我们", "Contact Us")
     val joinGroup = L("加入交流群", "Join the Group Chat")

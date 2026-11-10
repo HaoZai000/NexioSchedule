@@ -19,7 +19,7 @@ sealed interface AppRoute {
         override val id: String get() = "settings"
     }
 
-    /** 课表设置。 */
+    /** 课程表。 */
     data object ScheduleSettings : AppRoute {
         override val id: String get() = "schedule_settings"
     }
@@ -54,12 +54,12 @@ sealed interface AppRoute {
         override val id: String get() = "preference_settings"
     }
 
-    /** 更新设置（「更新设置」）。 */
+    /** 更新。 */
     data object UpdateSettings : AppRoute {
         override val id: String get() = "update_settings"
     }
 
-    /** 交流与反馈（「交流与反馈」）。 */
+    /** 问题反馈（「问题反馈」）。 */
     data object Communication : AppRoute {
         override val id: String get() = "communication"
     }

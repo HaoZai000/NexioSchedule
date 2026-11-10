@@ -53,7 +53,7 @@ fun NexioRoot() {
                     CourseScheduleApp(
                         // 选壁纸入口：系统选图器只能由 ArkTS 起，桥在 ohosSharedCore 里
                         onPickWallpaperImage = PlatformWallpaperPicker,
-                        // 鸿蒙没有应用内更新通道（应用市场分发），隐藏更新设置入口（同 iOS）
+                        // 鸿蒙没有应用内更新通道（应用市场分发），隐藏更新入口（同 iOS）
                         showUpdateSettings = false,
                     )
                 }

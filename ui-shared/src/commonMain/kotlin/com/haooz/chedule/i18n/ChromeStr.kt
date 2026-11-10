@@ -93,11 +93,11 @@ object ChromeStr {
     val changelog = L("更新日志", "Changelog")
     val openSourceLicenses = L("开源协议", "Open Source License")
     val privacyPolicy = L("隐私政策", "Privacy Policy")
-    val communityFeedback = L("交流与反馈", "Community & Feedback")
+    val communityFeedback = L("问题反馈", "Report a Problem")
     val donate = L("捐赠支持", "Donate")
 
     val appPreferences = L("应用个性化", "Personalization")
-    val updateSettingsTitle = L("更新设置", "Update Settings")
+    val updateSettingsTitle = L("更新", "Update")
     val localBackup = L("本地备份", "Local Backup")
     val aiImport = L("AI 文本导入", "AI Text Import")
     val webImport = L("网页导入", "Web Import")

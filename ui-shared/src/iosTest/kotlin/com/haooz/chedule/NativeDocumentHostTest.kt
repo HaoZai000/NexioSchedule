@@ -167,13 +167,13 @@ class NativeDocumentHostTest {
             AppRoute.Changelog to "更新日志",
             AppRoute.License to "开源协议",
             AppRoute.PrivacyPolicy to "隐私政策",
-            AppRoute.Communication to "交流与反馈",
+            AppRoute.Communication to "问题反馈",
             AppRoute.Feedback to "应用内反馈",
             AppRoute.FeedbackHistory to "我的反馈",
             AppRoute.FeedbackRoadmap to "开发进度",
             AppRoute.AppreciateAuthor to "捐赠支持",
             AppRoute.PreferenceSettings to "应用个性化",
-            AppRoute.UpdateSettings to "更新设置",
+            AppRoute.UpdateSettings to "更新",
             AppRoute.LocalBackup to "本地备份",
             AppRoute.AiImport to "AI 文本导入",
             AppRoute.WidgetIntro to "桌面小部件",
@@ -184,7 +184,7 @@ class NativeDocumentHostTest {
             AppRoute.ImportExport to "导入导出",
             AppRoute.About to "关于应用",
             AppRoute.CourseTimeSettings to "课程时间管理",
-            AppRoute.ScheduleSettings to "课表设置",
+            AppRoute.ScheduleSettings to "课程表",
         )
         for ((route, title) in documents) {
             val host = IosAppHost()

@@ -37,10 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.getStringOrNull
-import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
-import com.haooz.chedule.i18n.LanguagePref
-import com.haooz.chedule.i18n.LanguageStore
 import com.haooz.chedule.i18n.PreferenceStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
@@ -353,47 +350,6 @@ fun PreferenceSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         insideMargin = PaddingValues(0.dp)
                     ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            // 直接读 AppLanguage 的快照状态：切换后本行的选中态即时刷新
-                            val languagePref = AppLanguage.pref
-                            val languageEntry = DropdownEntry(
-                                items = listOf(
-                                    DropdownItem(
-                                        text = CommonStr.followSystem(),
-                                        selected = languagePref == LanguagePref.SYSTEM,
-                                        onClick = {
-                                            AppLanguage.set(LanguagePref.SYSTEM)
-                                            LanguageStore.save(LanguagePref.SYSTEM)
-                                        }
-                                    ),
-                                    DropdownItem(
-                                        text = CommonStr.simplifiedChinese(),
-                                        selected = languagePref == LanguagePref.ZH,
-                                        onClick = {
-                                            AppLanguage.set(LanguagePref.ZH)
-                                            LanguageStore.save(LanguagePref.ZH)
-                                        }
-                                    ),
-                                    DropdownItem(
-                                        text = CommonStr.english(),
-                                        selected = languagePref == LanguagePref.EN,
-                                        onClick = {
-                                            AppLanguage.set(LanguagePref.EN)
-                                            LanguageStore.save(LanguagePref.EN)
-                                        }
-                                    ),
-                                )
-                            )
-
-                            OverlayDropdownMenu(
-                                title = CommonStr.language(),
-                                summary = CommonStr.languageSummary(),
-                                entry = languageEntry,
-                                collapseOnSelection = true,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                dropdownColors = liquidGlassDropdownColors,
-                            )
-                        }
                         Column(modifier = Modifier.fillMaxWidth()) {
                             val homepageEntry = DropdownEntry(
                                 items = listOf(

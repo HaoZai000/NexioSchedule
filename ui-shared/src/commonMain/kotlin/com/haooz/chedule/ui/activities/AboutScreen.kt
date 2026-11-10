@@ -67,12 +67,15 @@ import com.haooz.chedule.data.platform.PrivacyConsent
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.AboutStr
+import com.haooz.chedule.i18n.AppLanguage
+import com.haooz.chedule.i18n.LanguagePref
+import com.haooz.chedule.i18n.LanguageStore
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.rememberTopBarMaterialAlpha
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.effects.background.BgEffectBackground
 import com.haooz.chedule.ui.effects.miuix.rememberBlurBackdrop
 import com.haooz.chedule.ui.navigation.AppRoute
@@ -91,6 +94,9 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.painterResource
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -113,14 +119,6 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-
-/**
- * 关于页展示的最近几条更新日志。
- *
- * 提到文件级：`changelogData.take(3)` 每次组合都新建一个 List，而调用点用它当
- * 展开状态表的长度依据。
- */
-private val RecentChangelog = changelogData.take(3)
 
 /** 顶部留白高度（图标/名称/版本号区域下方） */
 private val LogoSpacerHeight = 340.dp
@@ -453,176 +451,84 @@ fun AboutScreen(
                             Column(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
+                                // 直接读 AppLanguage 的快照状态：切换后本行的选中态即时刷新
+                                val languagePref = AppLanguage.pref
+                                val languageEntry = DropdownEntry(
+                                    items = listOf(
+                                        DropdownItem(
+                                            text = CommonStr.followSystem(),
+                                            selected = languagePref == LanguagePref.SYSTEM,
+                                            onClick = {
+                                                AppLanguage.set(LanguagePref.SYSTEM)
+                                                LanguageStore.save(LanguagePref.SYSTEM)
+                                            }
+                                        ),
+                                        DropdownItem(
+                                            text = CommonStr.simplifiedChinese(),
+                                            selected = languagePref == LanguagePref.ZH,
+                                            onClick = {
+                                                AppLanguage.set(LanguagePref.ZH)
+                                                LanguageStore.save(LanguagePref.ZH)
+                                            }
+                                        ),
+                                        DropdownItem(
+                                            text = CommonStr.english(),
+                                            selected = languagePref == LanguagePref.EN,
+                                            onClick = {
+                                                AppLanguage.set(LanguagePref.EN)
+                                                LanguageStore.save(LanguagePref.EN)
+                                            }
+                                        ),
+                                    )
+                                )
+                                OverlayDropdownMenu(
+                                    title = CommonStr.appLanguage(),
+                                    entry = languageEntry,
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = dialogGlass,
+                                    dropdownColors = DropdownDefaults.dropdownColors(
+                                        containerColor = Color.Transparent,
+                                        selectedContainerColor = Color.Transparent,
+                                    ),
+                                )
                                 ArrowPreference(
                                     title = AboutStr.projectRepo(),
                                     onClick = {
                                         showRepoDialog = true
                                     }
                                 )
-                            }
-                        }
-                    }
-
-                    item(key = "changelog") {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Card(
-                            modifier = Modifier
-                                .padding(horizontal = 16.dp)
-                                .then(
-                                    if (glassCards) {
-                                        Modifier.textureBlur(
-                                            backdrop = backdrop,
-                                            shape = ContinuousRoundedRectangle(20.dp),
-                                            blurRadius = 60f,
-                                            colors = BlurDefaults.blurColors(blendColors = cardBlend),
+                                ArrowPreference(
+                                    title = AboutStr.license(),
+                                    endActions = {
+                                        Text(
+                                            text = "AGPL-3.0",
+                                            fontSize = 14.5.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                            textAlign = TextAlign.End,
                                         )
-                                    } else {
-                                        Modifier
                                     },
-                                ),
-                            colors = if (glassCards) {
-                                CardDefaults.defaultColors(Color.Transparent, Color.Transparent)
-                            } else {
-                                // 无材质档：卡片标准实色
-                                CardDefaults.defaultColors()
-                            },
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            onNavigate(AppRoute.Changelog)
-                                        }
-                                        .padding(
-                                            start = 16.dp,
-                                            end = 13.dp,
-                                            top = 17.dp,
-                                            bottom = 12.dp
-                                        ),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = AboutStr.changelog(),
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MiuixTheme.colorScheme.onSurface
-                                    )
-                                    Icon(
-                                        imageVector = MiuixIcons.Basic.ArrowRight,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                    )
-                                }
-                                val recentChangelog = RecentChangelog
-                                // 一次 remember 拿整张状态表：原来在 List{} 的 lambda 里逐个 remember，
-                                // 位置依赖 size，changelog 一变就会把展开态错位到别的版本上
-                                val expandedStates = remember {
-                                    List(RecentChangelog.size) { index -> mutableStateOf(index == 0) }
-                                }
-                                val rotations = List(recentChangelog.size) { index ->
-                                    val rotation by animateFloatAsState(
-                                        targetValue = if (expandedStates[index].value) 90f else -90f,
-                                        animationSpec = tween(durationMillis = 200),
-                                        label = "changelogRotation$index"
-                                    )
-                                    rotation
-                                }
-                                recentChangelog.forEachIndexed { index, entry ->
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                expandedStates[index].value =
-                                                    !expandedStates[index].value
-                                            }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(
-                                                    start = 20.dp,
-                                                    end = 18.dp,
-                                                    top = if (index == 0) 12.dp else 17.dp,
-                                                    bottom = 17.dp
-                                                ),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = entry.version,
-                                                fontSize = 17.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.onSurface,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                            Text(
-                                                text = entry.date,
-                                                fontSize = 14.sp,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Icon(
-                                                imageVector = MiuixIcons.ChevronForward,
-                                                contentDescription = null,
-                                                modifier = Modifier
-                                                    .size(16.dp)
-                                                    .graphicsLayer {
-                                                        rotationZ = rotations[index]
-                                                    },
-                                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            )
-                                        }
-                                        CardExpand(visible = expandedStates[index].value) {
-                                            Column(
-                                                modifier = Modifier.padding(
-                                                    start = 18.dp,
-                                                    end = 18.dp,
-                                                    bottom = 14.dp
-                                                )
-                                            ) {
-                                                entry.changes.forEach { change ->
-                                                    Row(modifier = Modifier.padding(bottom = 2.dp)) {
-                                                        Text(
-                                                            text = "• ",
-                                                            fontSize = 14.sp,
-                                                            lineHeight = 22.sp,
-                                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                                        )
-                                                        Text(
-                                                            text = change(),
-                                                            fontSize = 14.sp,
-                                                            lineHeight = 22.sp,
-                                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                                            modifier = Modifier.weight(1f)
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    if (index < recentChangelog.lastIndex) {
-                                        Spacer(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 18.dp)
-                                                .height(0.5.dp)
-                                                .background(
-                                                    MiuixTheme.colorScheme.onSurfaceVariantActions.copy(
-                                                        alpha = 0.07f
-                                                    )
-                                                )
+                                    onClick = { onNavigate(AppRoute.License) },
+                                )
+                                ArrowPreference(
+                                    title = AboutStr.privacyPolicy(),
+                                    endActions = {
+                                        Text(
+                                            text = AboutStr.revokeConsent(),
+                                            fontSize = 14.5.sp,
+                                            color = Color(0xFFF44336),
+                                            textAlign = TextAlign.End,
+                                            modifier = Modifier.clickable {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                showRevokeDialog = true
+                                            },
                                         )
-                                    }
-                                }
+                                    },
+                                    onClick = { onNavigate(AppRoute.PrivacyPolicy) },
+                                )
                             }
                         }
                     }
+
                     item(key = "thanks") {
                         Column(
                             modifier = Modifier
@@ -958,50 +864,11 @@ fun AboutScreen(
                                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = AboutStr.copyright(),
-                                            fontSize = 13.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                        )
-                                        // 开源协议入口：应用内展示 AGPL-3.0 全文，与隐私政策入口同构
-                                        Text(
-                                            text = AboutStr.license(),
-                                            fontSize = 13.sp,
-                                            color = MiuixTheme.colorScheme.primary,
-                                            modifier = Modifier
-                                                .clickable {
-                                                    onNavigate(AppRoute.License)
-                                                }
-                                                .padding(start = 4.dp)
-                                        )
-                                    }
-                                    // 隐私政策入口 + 撤回同意：用户可随时查阅政策或撤回授权
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(20.dp),
-                                        modifier = Modifier.padding(top = 6.dp)
-                                    ) {
-                                        Text(
-                                            text = AboutStr.privacyPolicy(),
-                                            fontSize = 13.sp,
-                                            color = MiuixTheme.colorScheme.primary,
-                                            modifier = Modifier.clickable {
-                                                onNavigate(AppRoute.PrivacyPolicy)
-                                            }
-                                        )
-                                        Text(
-                                            text = AboutStr.revokeConsent(),
-                                            fontSize = 13.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                            modifier = Modifier.clickable {
-                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                                showRevokeDialog = true
-                                            }
-                                        )
-                                    }
+                                    Text(
+                                        text = AboutStr.copyright().trimEnd(' ', '·'),
+                                        fontSize = 13.sp,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                    )
                                     // APP 备案号：按工信部要求在「关于」页面显著位置展示
                                     Text(
                                         text = AboutStr.icpNumber(),

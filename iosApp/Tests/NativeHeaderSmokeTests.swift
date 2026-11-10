@@ -121,11 +121,11 @@ final class NativeHeaderSmokeTests: XCTestCase {
         settle()
     }
 
-    /// 展开「课表设置」总览卡片。
+    /// 展开「课程表」总览卡片。
     private func expandScheduleSettings() {
         if item("课程时间管理").isHittable { return }
         let card = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@", "课表设置")).firstMatch
+            .matching(NSPredicate(format: "label CONTAINS %@", "课程表")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(card.isHittable, app.debugDescription)
         card.tap()
@@ -372,7 +372,7 @@ final class NativeHeaderSmokeTests: XCTestCase {
         nativeBack()
         // 设置已是压栈的二级页：退回偏好设置后落在设置页，本身就是原生文档壳
         requireNativeHeader("设置")
-        XCTAssertTrue(item("课表设置").exists, app.debugDescription)
+        XCTAssertTrue(item("课程表").exists, app.debugDescription)
     }
 
     func testHolidayNativeActionAndRotation() throws {
@@ -458,13 +458,13 @@ final class NativeHeaderSmokeTests: XCTestCase {
         XCTAssertEqual(app.navigationBars.count, 0, "Popping Backup did not return to Compose settings")
     }
 
-    /// 交流与反馈 / 捐赠支持从设置页底部直达，不再经关于应用页。
+    /// 问题反馈 / 捐赠支持从设置页底部直达，不再经关于应用页。
     func testNativeAboutLeafPagesPreserveOriginalContent() throws {
         try requireExpandedRoutes()
         try requirePhoneWidthSettings()
         showSettings()
-        open("交流与反馈")
-        requireNativeHeader("交流与反馈")
+        open("问题反馈")
+        requireNativeHeader("问题反馈")
         XCTAssertTrue(item("联系我们").exists)
         XCTAssertTrue(item("加入交流群").exists)
         capture("Communication - native header with original entry actions")

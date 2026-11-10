@@ -88,7 +88,7 @@ object FeatureLog {
         t("应用偏好", event, detail)
 
     fun update(event: String, detail: String = "") =
-        t("更新设置", event, detail)
+        t("更新", event, detail)
 
     fun about(event: String, detail: String = "") =
         t("关于应用", event, detail)

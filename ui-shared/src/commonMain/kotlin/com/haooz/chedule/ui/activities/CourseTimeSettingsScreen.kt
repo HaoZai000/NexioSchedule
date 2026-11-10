@@ -141,10 +141,6 @@ fun CourseTimeSettingsScreen(
     }
 
     // ---- 作息相关弹窗状态 ----
-    var showSectionPicker by remember { mutableStateOf(false) }
-    var secMorning by remember { mutableIntStateOf(4) }
-    var secAfternoon by remember { mutableIntStateOf(4) }
-    var secEvening by remember { mutableIntStateOf(4) }
     var showAddRoutine by remember { mutableStateOf(false) }
     var newRoutineName by remember { mutableStateOf("") }
     var newRoutineMonth by remember { mutableIntStateOf(todayLocalDate().monthNumber) }
@@ -187,36 +183,7 @@ fun CourseTimeSettingsScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // 1. 节次骨架：属于这张课表，收进弹窗里改，不平铺
-                    item(key = "sections") {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            insideMargin = PaddingValues(0.dp)
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                ArrowPreference(
-                                    title = TimeCfgStr.sectionCountTitle(),
-                                    summary = TimeCfgStr.sectionsSummaryN(
-                                        config.morningSections,
-                                        config.afternoonSections,
-                                        config.eveningSections,
-                                    ),
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(
-                                            HapticFeedbackType.Confirm
-                                        )
-                                        secMorning = config.morningSections
-                                        secAfternoon = config.afternoonSections
-                                        secEvening = config.eveningSections
-                                        showSectionPicker = true
-                                    },
-                                    holdDownState = showSectionPicker
-                                )
-                            }
-                        }
-                    }
-
-                    // 2. 作息方案：点进去才进二级。按项目惯例收在一张 Card 里，行间自动分隔
+                    // 作息方案：点进去才进二级。按项目惯例收在一张 Card 里，行间自动分隔
                     item(key = "routines") {
                         SmallTitle(text = TimeCfgStr.routinesTitle())
                         // morph 期间整张作息卡都不画，routineLayer 留住上一帧给二级页重放。
@@ -363,88 +330,6 @@ fun CourseTimeSettingsScreen(
                         }
                     }
                 }
-            }
-        }
-    }
-
-    // ---- 节次选择 ----
-    OverlayDialog(
-        title = TimeCfgStr.sectionCountDialogTitle(),
-        show = showSectionPicker,
-        liquidGlassBackdrop = liquidGlassBackdrop,
-        onDismissRequest = { showSectionPicker = false }
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                listOf(
-                    Triple(TimeCfgStr.morning(), { v: Int -> secMorning = v }, secMorning),
-                    Triple(TimeCfgStr.afternoon(), { v: Int -> secAfternoon = v }, secAfternoon),
-                    Triple(TimeCfgStr.evening(), { v: Int -> secEvening = v }, secEvening)
-                ).forEach { (label, onPick, current) ->
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = label,
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
-                            textAlign = TextAlign.Center,
-                        )
-                        NumberPicker(
-                            value = current,
-                            onValueChange = onPick,
-                            range = 0..6,
-                            visibleItemCount = 3,
-                            itemHeight = 50.dp
-                        )
-                    }
-                }
-            }
-
-            Text(
-                TimeCfgStr.sectionsNote(),
-                fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                modifier = Modifier.padding(top = 16.dp)
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextButton(
-                    text = CommonStr.cancel(),
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showSectionPicker = false
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(
-                    text = CommonStr.ok(),
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        config = config.copy(
-                            morningSections = secMorning,
-                            afternoonSections = secAfternoon,
-                            eveningSections = secEvening
-                        )
-                        commit()
-                        showSectionPicker = false
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
             }
         }
     }

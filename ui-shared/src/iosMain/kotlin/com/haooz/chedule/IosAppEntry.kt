@@ -256,7 +256,7 @@ internal fun NexioIosMain(host: IosAppHost) {
                     sharedFileIntent = IosSharedFileReceiver.pending,
                     onShareIntentConsumed = { IosSharedFileReceiver.clear() },
                     onReadSharedFileText = { uri -> IosSharedFileReceiver.readText(uri) },
-                    // iOS 走 App Store 更新 → 设置页的「更新设置」入口整个不渲染
+                    // iOS 走 App Store 更新 → 设置页的「更新」入口整个不渲染
                     showUpdateSettings = false,
                     // 平板设置两栏的 8 个平台专有 dest 装配（对齐 Android 的 AndroidSettingsScreen）
                     settingsPane = { args ->
@@ -320,7 +320,7 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
         // 设置二级页（原主 pager 第三页）：iOS 走原生文档壳，标题/返回由 NavigationBar 给
         AppRoute.Settings -> SettingsRoute(
             router = router,
-            // iOS 走 App Store 更新 → 「更新设置」入口整个不渲染
+            // iOS 走 App Store 更新 → 「更新」入口整个不渲染
             showUpdateSettings = false,
             settingsPane = { args ->
                 com.haooz.chedule.ui.screens.IosSettingsScreen(

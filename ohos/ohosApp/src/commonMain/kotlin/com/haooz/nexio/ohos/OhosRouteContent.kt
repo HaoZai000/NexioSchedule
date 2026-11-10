@@ -58,7 +58,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun OhosRouteContent(router: AppRouter, route: AppRoute) {
     when (route) {
-        // 鸿蒙没有应用内更新通道（应用市场分发），隐藏「更新设置」入口（同 iOS）
+        // 鸿蒙没有应用内更新通道（应用市场分发），隐藏「更新」入口（同 iOS）
         AppRoute.Settings -> SettingsRoute(router = router, showUpdateSettings = false)
         AppRoute.ScheduleSettings -> ScheduleSettingsRoute(router = router)
         AppRoute.About -> AboutRoute(router = router)

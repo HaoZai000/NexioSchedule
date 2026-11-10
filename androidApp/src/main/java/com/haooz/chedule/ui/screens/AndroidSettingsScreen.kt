@@ -31,6 +31,7 @@ import com.haooz.chedule.ui.activities.MainActivity
 import com.haooz.chedule.ui.activities.PreferenceSettingsScreen
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.UpdateSettingsScreen
+import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.utils.AndroidBackupFileController
 import com.haooz.chedule.ui.utils.AndroidDiagnosticRecorder
@@ -88,7 +89,7 @@ fun AndroidSettingsScreen(
     navBarStyle: String = "standard",
     settingsScrollBehavior: SharedScrollBehavior? = null,
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
-    /** 是否显示「更新设置」入口（Android 恒 true；iOS 走 App Store 传 false） */
+    /** 是否显示「更新」入口（Android 恒 true；iOS 走 App Store 传 false） */
     showUpdateSettings: Boolean = true,
 ) {
     val context = LocalContext.current
@@ -233,12 +234,16 @@ fun AndroidSettingsScreen(
                     },
                 )
 
-                TabletSettingsDest.Update -> UpdateSettingsScreen(
-                    scrollBehavior = null,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    // Android 更新能力（检查/下载/APK 安装）注入
-                    updateController = remember { AndroidUpdateController(context) },
-                )
+                TabletSettingsDest.Update -> {
+                    val updateRouter = LocalAppRouter.current
+                    UpdateSettingsScreen(
+                        scrollBehavior = null,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        // Android 更新能力（检查/下载/APK 安装）注入
+                        updateController = remember { AndroidUpdateController(context) },
+                        onOpenChangelog = { updateRouter.navigate(AppRoute.Changelog) },
+                    )
+                }
 
                 TabletSettingsDest.About -> {
                     val aboutBackdrop =

@@ -272,7 +272,7 @@ fun PrivacyPolicyRoute(router: AppRouter) {
     }
 }
 
-/** 交流与反馈路由。 */
+/** 问题反馈路由。 */
 @Composable
 fun CommunicationRoute(router: AppRouter) {
     DocumentPageScaffold(title = ChromeStr.communityFeedback(), onBack = { router.popBack() }) { scrollBehavior, _ ->
@@ -551,7 +551,7 @@ fun SettingsRoute(
     }
 }
 
-/** 课表设置。 */
+/** 课程表。 */
 @Composable
 fun ScheduleSettingsRoute(router: AppRouter) {
     ScheduleSettingsScreen(router = router)
@@ -589,7 +589,7 @@ fun PreferenceSettingsRoute(
 }
 
 /**
- * 更新设置路由。
+ * 更新路由。
  *
  * @param updateController Android 注入 `AndroidUpdateController(context)`（检查/下载/APK 安装）；桌面/iOS 用默认 [NoopUpdateController]。
  */
@@ -606,6 +606,7 @@ fun UpdateSettingsRoute(
             scrollBehavior = scrollBehavior,
             liquidGlassBackdrop = backdrop,
             updateController = updateController,
+            onOpenChangelog = { router.navigate(AppRoute.Changelog) },
         )
     }
 }

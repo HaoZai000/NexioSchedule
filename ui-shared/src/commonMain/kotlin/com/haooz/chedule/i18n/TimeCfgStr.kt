@@ -19,6 +19,7 @@ object TimeCfgStr {
         "上午%d·下午%d·晚上%d · %d 套作息",
         "Morning %d · Afternoon %d · Evening %d · %d routines",
     )
+    val sectionsCompactN = L("上%d·下%d·晚%d", "M%d·A%d·E%d")
     val sectionsNote = L(
         "节次决定课表的行数，所有作息方案共用",
         "Sections determine how many rows the schedule has and are shared by all routines",

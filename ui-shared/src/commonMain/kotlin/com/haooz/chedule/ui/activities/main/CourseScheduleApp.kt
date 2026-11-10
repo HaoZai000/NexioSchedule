@@ -142,7 +142,7 @@ fun CourseScheduleApp(
     todayAssistantCard: (@Composable (TodayAssistantCardData) -> Unit)? = null,
     /** 更新能力（检查/下载/安装）；null = NoopUpdateController（不弹更新） */
     updateController: UpdateController? = null,
-    /** 是否显示设置页的「更新设置」入口；iOS 走 App Store → 传 false，入口整个不渲染。 */
+    /** 是否显示设置页的「更新」入口；iOS 走 App Store → 传 false，入口整个不渲染。 */
     showUpdateSettings: Boolean = true,
     /**
      * 是否显示「排班模式」入口（设置页进入开关 / 退出按钮 / 确认弹窗）；iOS 不支持 → 传 false，入口整个不渲染。

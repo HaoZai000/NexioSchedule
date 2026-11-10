@@ -1,6 +1,10 @@
-/** 应用更新设置页面 - Screen（更新能力经 UpdateController 注入） */
+/** 应用更新页面 - Screen（更新能力经 UpdateController 注入） */
 package com.haooz.chedule.ui.activities
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -25,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -44,6 +51,7 @@ import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import kotlinx.coroutines.launch
@@ -54,10 +62,13 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
@@ -68,6 +79,9 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+
+/** 更新页展示的最近几条更新日志（文件级：避免每次组合都新建 List）。 */
+private val RecentChangelog = changelogData.take(3)
 
 /** 今日日期 `yyyy-MM-dd`（手写零填充；⚠ 与迁移前逐字一致，勿改）。 */
 private fun todayIsoDate(): String {
@@ -83,6 +97,8 @@ fun UpdateSettingsScreen(
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /** 更新能力控制器（Android 注入 `AndroidUpdateController`；桌面/iOS 用 [NoopUpdateController]）。 */
     updateController: UpdateController = NoopUpdateController,
+    /** 进完整更新日志页 */
+    onOpenChangelog: () -> Unit = {},
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
@@ -438,6 +454,133 @@ fun UpdateSettingsScreen(
                                     prefs.edit { putBoolean("update_reminder", it) }
                                 }
                             )
+                        }
+                    }
+                }
+
+                item(key = "changelog") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onOpenChangelog)
+                                    .padding(start = 16.dp, end = 13.dp, top = 17.dp, bottom = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = AboutStr.changelog(),
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
+                                Icon(
+                                    imageVector = MiuixIcons.ChevronForward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                )
+                            }
+                            val recentChangelog = RecentChangelog
+                            // 一次 remember 拿整张状态表：逐个 remember 会按位置错位
+                            val expandedStates = remember {
+                                List(RecentChangelog.size) { index -> mutableStateOf(index == 0) }
+                            }
+                            val rotations = List(recentChangelog.size) { index ->
+                                val rotation by animateFloatAsState(
+                                    targetValue = if (expandedStates[index].value) 90f else -90f,
+                                    animationSpec = tween(durationMillis = 200),
+                                    label = "changelogRotation$index"
+                                )
+                                rotation
+                            }
+                            recentChangelog.forEachIndexed { index, entry ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            expandedStates[index].value = !expandedStates[index].value
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(
+                                                start = 20.dp,
+                                                end = 18.dp,
+                                                top = if (index == 0) 12.dp else 17.dp,
+                                                bottom = 17.dp
+                                            ),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = entry.version,
+                                            fontSize = 17.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MiuixTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            text = entry.date,
+                                            fontSize = 14.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Icon(
+                                            imageVector = MiuixIcons.ChevronForward,
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .graphicsLayer { rotationZ = rotations[index] },
+                                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                    }
+                                    CardExpand(visible = expandedStates[index].value) {
+                                        Column(
+                                            modifier = Modifier.padding(
+                                                start = 18.dp,
+                                                end = 18.dp,
+                                                bottom = 14.dp
+                                            )
+                                        ) {
+                                            entry.changes.forEach { change ->
+                                                Row(modifier = Modifier.padding(bottom = 2.dp)) {
+                                                    Text(
+                                                        text = "• ",
+                                                        fontSize = 14.sp,
+                                                        lineHeight = 22.sp,
+                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    )
+                                                    Text(
+                                                        text = change(),
+                                                        fontSize = 14.sp,
+                                                        lineHeight = 22.sp,
+                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (index < recentChangelog.lastIndex) {
+                                    Spacer(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 18.dp)
+                                            .height(0.5.dp)
+                                            .background(
+                                                MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.07f)
+                                            )
+                                    )
+                                }
+                            }
                         }
                     }
                 }

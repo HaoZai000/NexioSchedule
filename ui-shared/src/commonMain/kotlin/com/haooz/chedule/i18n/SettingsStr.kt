@@ -8,7 +8,7 @@ object SettingsStr {
     val featuresSection = L("特色功能", "Features")
 
     // ---- 基本设置总览卡片 ----
-    val scheduleSettings = L("课表设置", "Schedule Settings")
+    val scheduleSettings = L("课程表", "Schedule")
     /** 折叠态摘要：开始上课日期 · 当前周 / 总周数 */
     val scheduleSettingsSummary = L("%s · 第%d周 / 共%d周", "%s · Week %d / %d weeks")
     /** 未开学 / 放假中：当前周换成状态文案 */
@@ -34,6 +34,7 @@ object SettingsStr {
 
     // ---- 课程时间 ----
     val courseTimeManagement = L("课程时间管理", "Class Time Settings")
+    val classTime = L("上课时间", "Class Time")
     val courseTimeSummary = L("管理课表的节数与课程时间", "Manage periods and course times in your schedule")
 
     // ---- 特色功能 ----
@@ -70,7 +71,7 @@ object SettingsStr {
 
     // ---- 其他入口 ----
     val appPreferences = L("应用个性化", "Personalization")
-    val updateSettings = L("更新设置", "Update Settings")
+    val updateSettings = L("更新", "Update")
     val aboutApp = L("关于应用", "About")
 
     /** 「关于应用」右侧提示：该页内含捐赠入口。 */
@@ -84,7 +85,7 @@ object SettingsStr {
     val destLocalBackup = L("本地备份", "Local Backup")
     val destWebDav = L("WebDAV 云同步", "WebDAV Cloud Sync")
     val destAppreciate = L("捐赠支持", "Donate")
-    val destCommunication = L("交流与反馈", "Community & Feedback")
+    val destCommunication = L("问题反馈", "Report a Problem")
     /** 平板左栏分组。 */
     val groupImportExport: L10n get() = ChromeStr.importExport
     val groupBackup = L("备份", "Backup")

@@ -58,6 +58,7 @@ object CommonStr {
     val dateN = L("%d日", "%d")
     val weekN = L("第%d周", "Week %d")
     val language = L("语言", "Language")
+    val appLanguage = L("应用语言", "App Language")
     val languageSummary = L("切换应用界面显示语言", "Choose the app display language")
     val followSystem = L("跟随系统", "Follow system")
     val simplifiedChinese = L("简体中文", "简体中文")
