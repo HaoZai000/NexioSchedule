@@ -41,9 +41,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -56,7 +54,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -573,7 +570,7 @@ fun TabletSettingsScreen(
                                     }
                                 }
                             }
-                            // 课表导出独立卡片：同「导入与导出」分类下、教务系统导入之后
+                            // 课表导出独立卡片
                             if (group == TabletSettingsDest.ScheduleExport.displayGroup() && StandaloneDests.isNotEmpty()) {
                                 item(key = "x_export") {
                                     Card(
@@ -1695,6 +1692,10 @@ private fun TabletHolidayPane(
     var entries by remember { mutableStateOf(HolidayManager.load(year)) }
     var loading by remember { mutableStateOf(false) }
     val latestYear by rememberUpdatedState(year)
+    val holidayRevision by HolidayManager.dataRevision.collectAsState()
+    LaunchedEffect(holidayRevision) {
+        if (holidayRevision != 0L) entries = HolidayManager.load(latestYear)
+    }
 
     val doUpdate = {
         if (!loading) {

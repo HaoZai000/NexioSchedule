@@ -2,43 +2,52 @@ package com.haooz.chedule.ui.screens
 
 // ⚠ 本文件不得出现 android.* / androidx.activity / androidx.core；平台能力做成注入参数。
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.holiday.HolidayEntry
-import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.util.lengthOfMonth
 import com.haooz.chedule.data.util.todayLocalDate
-import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.ui.components.CardExpand
@@ -48,21 +57,35 @@ import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.uishared.resources.Res
+import com.haooz.chedule.uishared.resources.app_icon_monochrome
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
+import org.jetbrains.compose.resources.painterResource
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.NumberPicker
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Alarm
+import top.yukonga.miuix.kmp.icon.extended.Backup
+import top.yukonga.miuix.kmp.icon.extended.ChevronForward
+import top.yukonga.miuix.kmp.icon.extended.Contacts
+import top.yukonga.miuix.kmp.icon.extended.ConvertFile
+import top.yukonga.miuix.kmp.icon.extended.Favorites
+import top.yukonga.miuix.kmp.icon.extended.GridView
+import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
@@ -71,7 +94,6 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -96,7 +118,169 @@ internal fun getDaysInMonth(year: Int, month: Int): Int {
     }
 }
 
-// 顶栏折叠期间会逐帧重组，提到顶层避免组合期每帧新建 Set
+/** 带图标的设置入口行：[expanded] 非空为展开项，空为二级页入口；[summary] 为空时只画标题。 */
+@Composable
+private fun SettingsEntryRow(
+    title: String,
+    summary: String? = null,
+    icon: @Composable () -> Unit,
+    expanded: Boolean? = null,
+    endText: String? = null,
+    onClick: () -> Unit,
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded == true) 90f else 0f,
+        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+        label = "settingsEntryRotation",
+    )
+    val interactionSource = remember { MutableInteractionSource() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onClick,
+            )
+            .padding(start = 16.dp, end = 13.dp, top = 14.dp, bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        icon()
+        Spacer(Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                color = MiuixTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (summary != null) {
+                Text(
+                    text = summary,
+                    fontSize = 14.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (endText != null) {
+            Text(
+                text = endText,
+                fontSize = 14.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                maxLines = 1,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            imageVector = MiuixIcons.ChevronForward,
+            contentDescription = null,
+            modifier = Modifier
+                .size(17.dp)
+                .graphicsLayer { rotationZ = rotation },
+            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+        )
+    }
+}
+
+/** 设置入口图标底板。 */
+@Composable
+private fun SettingsEntryIcon(content: @Composable () -> Unit) {
+    val shape = remember { ContinuousRoundedRectangle(8.dp) }
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .clip(shape)
+            .background(MiuixTheme.colorScheme.primary),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+/** 矢量图标底板内容。 */
+@Composable
+private fun VectorEntryIcon(imageVector: ImageVector) {
+    SettingsEntryIcon {
+        Icon(
+            imageVector = imageVector,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = Color.White,
+        )
+    }
+}
+
+/** 课表设置图标。 */
+@Composable
+private fun ScheduleSettingsIcon() {
+    SettingsEntryIcon {
+        Image(
+            painter = painterResource(Res.drawable.app_icon_monochrome),
+            contentDescription = null,
+            modifier = Modifier.size(26.dp),
+        )
+    }
+}
+
+/** 课程提醒图标。 */
+@Composable
+private fun CourseReminderIcon() {
+    VectorEntryIcon(MiuixIcons.Alarm)
+}
+
+/** 桌面小部件图标。 */
+@Composable
+private fun HomeScreenWidgetIcon() {
+    VectorEntryIcon(MiuixIcons.GridView)
+}
+
+/** 导入导出图标。 */
+@Composable
+private fun ImportExportIcon() {
+    VectorEntryIcon(MiuixIcons.ConvertFile)
+}
+
+/** 备份与同步图标。 */
+@Composable
+private fun BackupSyncIcon() {
+    VectorEntryIcon(MiuixIcons.Backup)
+}
+
+/** 应用个性化图标。 */
+@Composable
+private fun PersonalizationIcon() {
+    VectorEntryIcon(MiuixIcons.Settings)
+}
+
+/** 更新设置图标。 */
+@Composable
+private fun UpdateSettingsIcon() {
+    VectorEntryIcon(MiuixIcons.Update)
+}
+
+/** 关于应用图标。 */
+@Composable
+private fun AboutAppIcon() {
+    VectorEntryIcon(MiuixIcons.Info)
+}
+
+/** 捐赠支持图标。 */
+@Composable
+private fun DonateIcon() {
+    VectorEntryIcon(MiuixIcons.Favorites)
+}
+
+/** 交流与反馈图标。 */
+@Composable
+private fun CommunicationIcon() {
+    VectorEntryIcon(MiuixIcons.Contacts)
+}
+
+
 
 @Composable
 fun SettingsScreen(
@@ -143,8 +327,6 @@ fun SettingsScreen(
     val currentWeek by viewModel.currentWeek.collectAsState()
     val isSemesterStarted by viewModel.isSemesterStarted.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
-    val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
-    val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
     // 不可在 forEach 内 collectAsState：remember 槽位会随课表增删错位
     val scheduleSummaries by scheduleViewModel.scheduleSummaries.collectAsState()
@@ -153,26 +335,9 @@ fun SettingsScreen(
     // LocalAppRouter.current 是 @Composable 调用，必须在组合层取（各入口共用）
     val settingsRouter = LocalAppRouter.current
     var showShiftModeConfirmDialog by remember { mutableStateOf(false) }
-    var showNewSemesterDialog by remember { mutableStateOf(false) }
-    var newSemesterName by remember { mutableStateOf("") }
-
-    val (tempYearInit, tempMonthInit, tempDayInit) = remember(classStartTime) {
-        parseDate(classStartTime)
-    }
-
-    var showCurrentWeekDialog by remember { mutableStateOf(false) }
-    var showTotalWeeksDialog by remember { mutableStateOf(false) }
-    var showStartDateDialog by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
 
-    var tempCurrentWeek by remember { mutableIntStateOf(currentWeek) }
-    var tempTotalWeeks by remember { mutableIntStateOf(totalWeeks) }
-    var tempYear by remember { mutableIntStateOf(tempYearInit) }
-    var tempMonth by remember { mutableIntStateOf(tempMonthInit) }
-    var tempDay by remember { mutableIntStateOf(tempDayInit) }
-
-    val backgroundColor = MiuixTheme.colorScheme.surface
     // 平板：设置页左右两栏，原地静态切换
     if (navBarStyle == "rail") {
         TabletSettingsScreen(
@@ -204,352 +369,248 @@ fun SettingsScreen(
         ?.takeIf { it.showsNativeTabBar && !isTablet }
         ?.bottomBarInset?.toFloat()?.dp
 
-    Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
-        Scaffold(
+    Scaffold(
         topBar = {}
     ) { paddingValues ->
-            val listState = rememberLazyListState()
-            // 折叠高度在布局阶段补齐，避免组合期读 currentHeightPx 导致动画每帧重组
-            val scrollBehaviorModifier = remember(settingsScrollBehavior) {
-                settingsScrollBehavior?.let {
-                    Modifier
-                        .collapsibleTopInset(it)
-                        .nestedScroll(it.nestedScrollConnection)
-                } ?: Modifier
-            }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .then(scrollBehaviorModifier)
-                    .fillMaxSize()
-                    .overScrollVertical()
-                    .scrollEndHaptic(
-                        hapticFeedbackType = HapticFeedbackType.TextHandleMove
-                    ),
-                contentPadding = PaddingValues(
-                    start = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() +
-                        CollapsibleTopAppBarDefaults.CollapsedHeight,
-                    end = tabletHorizontalPadding,
-                    bottom = nativeChromeInset?.plus(24.dp) ?: 60.dp
+        val listState = rememberLazyListState()
+        // 折叠高度在布局阶段补齐，避免组合期读 currentHeightPx 导致动画每帧重组
+        val scrollBehaviorModifier = remember(settingsScrollBehavior) {
+            settingsScrollBehavior?.let {
+                Modifier
+                    .collapsibleTopInset(it)
+                    .nestedScroll(it.nestedScrollConnection)
+            } ?: Modifier
+        }
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .then(scrollBehaviorModifier)
+                .fillMaxSize()
+                .overScrollVertical()
+                .scrollEndHaptic(
+                    hapticFeedbackType = HapticFeedbackType.TextHandleMove
                 ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item(key = "basic") {
+            contentPadding = PaddingValues(
+                start = tabletHorizontalPadding,
+                top = paddingValues.calculateTopPadding() +
+                    CollapsibleTopAppBarDefaults.CollapsedHeight + 8.dp,
+                end = tabletHorizontalPadding,
+                bottom = nativeChromeInset?.plus(24.dp) ?: 60.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item(key = "basic") {
+                val basicSummary = when {
+                    !isSemesterStarted -> SettingsStr.scheduleSettingsIdleSummary(
+                        classStartTime, SettingsStr.notStarted(), totalWeeks
+                    )
+                    currentWeek > totalWeeks -> SettingsStr.scheduleSettingsIdleSummary(
+                        classStartTime, SettingsStr.onBreak(), totalWeeks
+                    )
+                    else -> SettingsStr.scheduleSettingsSummary(
+                        classStartTime, currentWeek, totalWeeks
+                    )
+                }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    insideMargin = PaddingValues(0.dp)
+                ) {
+                    SettingsEntryRow(
+                        title = SettingsStr.scheduleSettings(),
+                        summary = basicSummary,
+                        icon = { ScheduleSettingsIcon() },
+                        expanded = null,
+                        onClick = {
+                            settingsRouter.navigate(AppRoute.ScheduleSettings)
+                        },
+                    )
+                }
+            }
+
+            if (!isShiftMode) {
+                item(key = "features") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SettingsEntryRow(
+                                title = SettingsStr.courseReminder(),
+                                icon = { CourseReminderIcon() },
+                                onClick = {
+                                    FeatureLog.reminder("open")
+                                    settingsRouter.navigate(AppRoute.CourseReminder)
+                                }
+                            )
+                            SettingsEntryRow(
+                                title = SettingsStr.homeScreenWidget(),
+                                icon = { HomeScreenWidgetIcon() },
+                                onClick = {
+                                    FeatureLog.widget("open")
+                                    settingsRouter.navigate(AppRoute.WidgetIntro)
+                                }
+                            )
+                            ArrowPreference(
+                                title = SettingsStr.shiftMode(),
+                                summary = SettingsStr.shiftModeSummary(),
+                                holdDownState = showShiftModeConfirmDialog,
+                                onClick = { showShiftModeConfirmDialog = true }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (isShiftMode) {
+                item(key = "shift_schedules") {
                     SmallTitle(
-                        text = SettingsStr.basicSettings(),
+                        text = SettingsStr.selectCompareSchedules(),
                     )
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         insideMargin = PaddingValues(0.dp)
                     ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                ArrowPreference(
-                                title = SettingsStr.startDate(),
-                                endActions = {
-                                    Text(
-                                        text = classStartTime,
-                                        fontSize = 14.5.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                        textAlign = TextAlign.End,
-                                    )
-                                },
-                                onClick = {
-                                    FeatureLog.t("设置", "start_date_dialog")
-                                    val (y, m, d) = parseDate(classStartTime)
-                                    tempYear = y
-                                    tempMonth = m
-                                    tempDay = d
-                                    showStartDateDialog = true
-                                },
-                                holdDownState = showStartDateDialog
-                            )
-
-                            ArrowPreference(
-                                title = SettingsStr.currentWeek(),
-                                endActions = {
-                                    Text(
-                                        text = when {
-                                            !isSemesterStarted -> SettingsStr.notStarted()
-                                            currentWeek > totalWeeks -> SettingsStr.onBreak()
-                                            else -> CommonStr.weekN(currentWeek)
-                                        },
-                                        fontSize = 14.5.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                        textAlign = TextAlign.End,
-                                    )
-                                },
-                                onClick = {
-                                    FeatureLog.t("设置", "current_week_dialog")
-                                    // 未开始学期时 currentWeek 可能是 0：滚轮会被 coerce 到 1 显示，
-                                    // 这里也必须抬到 1，否则「看着是第 1 周、点确定却写回 0」
-                                    tempCurrentWeek = currentWeek.coerceIn(1, totalWeeks)
-                                    showCurrentWeekDialog = true
-                                },
-                                holdDownState = showCurrentWeekDialog
-                            )
-
-                            ArrowPreference(
-                                title = SettingsStr.totalWeeksTitle(),
-                                endActions = {
-                                    Text(
-                                        text = SettingsStr.totalWeeksValue(totalWeeks),
-                                        fontSize = 14.5.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                        textAlign = TextAlign.End,
-                                    )
-                                },
-                                onClick = {
-                                    FeatureLog.t("设置", "total_weeks_dialog")
-                                    tempTotalWeeks = totalWeeks
-                                    showTotalWeeksDialog = true
-                                },
-                                holdDownState = showTotalWeeksDialog
-                            )
-
-                            SwitchPreference(
-                                title = SettingsStr.smartWeekend(),
-                                summary = SettingsStr.smartWeekendSummary(),
-                                checked = smartWeekend,
-                                onCheckedChange = { settingsViewModel.setSmartWeekend(it) }
-                            )
-
-                            CardExpand(visible = !isShiftMode) {
-                                SwitchPreference(
-                                    title = SettingsStr.showNonCurrentWeek(),
-                                    checked = showNonCurrentWeek,
-                                    onCheckedChange = { settingsViewModel.setShowNonCurrentWeek(it) }
-                                )
-                            }
-
-                            ArrowPreference(
-                                    title = SettingsStr.courseTimeManagement(),
-                                    summary = SettingsStr.courseTimeSummary(),
-                                onClick = {
-                                    FeatureLog.timeConfig("open")
-                                    // 已路由化：保存/删除作息时 repository 会 notifyCourseChanged("settings")，
-                                    // 各 VM 自行刷新，无需结果回调
-                                    settingsRouter.navigate(AppRoute.CourseTimeSettings)
-                                }
-                            )
-                        }
-                    }
-                }
-
-                if (!isShiftMode) {
-                    item(key = "features") {
-                        SmallTitle(
-                            text = SettingsStr.featuresSection(),
-                        )
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            insideMargin = PaddingValues(0.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                ArrowPreference(
-                                    title = SettingsStr.courseReminder(),
-                                    summary = SettingsStr.courseReminderSummary(),
-                                    onClick = {
-                                        FeatureLog.reminder("open")
-                                        settingsRouter.navigate(AppRoute.CourseReminder)
-                                    }
-                                )
-                                ArrowPreference(
-                                    title = SettingsStr.holidayAndWorkswap(),
-                                    onClick = {
-                                        FeatureLog.holiday("open")
-                                        settingsRouter.navigate(AppRoute.HolidaySettings)
-                                    }
-                                )
-                                ArrowPreference(
-                                    title = SettingsStr.homeScreenWidget(),
-                                    onClick = {
-                                        FeatureLog.widget("open")
-                                        settingsRouter.navigate(AppRoute.WidgetIntro)
-                                    }
-                                )
-                                ArrowPreference(
-                                    title = SettingsStr.shiftMode(),
-                                    summary = SettingsStr.shiftModeSummary(),
-                                    holdDownState = showShiftModeConfirmDialog,
-                                    onClick = { showShiftModeConfirmDialog = true }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (isShiftMode) {
-                    item(key = "shift_schedules") {
-                        SmallTitle(
-                            text = SettingsStr.selectCompareSchedules(),
-                        )
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            insideMargin = PaddingValues(0.dp)
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                scheduleNames.forEach { name ->
-                                    CheckboxPreference(
-                                        title = name,
-                                        summary = scheduleSummaries[name] ?: "",
-                                        checked = name in shiftSelectedSchedules,
-                                        onCheckedChange = { checked ->
-                                            val newList = if (checked) {
-                                                shiftSelectedSchedules + name
-                                            } else {
-                                                shiftSelectedSchedules - name
-                                            }
-                                            shiftViewModel.setShiftSelectedSchedules(newList)
-                                        },
-                                        checkboxLocation = CheckboxLocation.End
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    item(key = "shift_exit") {
-                        top.yukonga.miuix.kmp.basic.Button(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 24.dp, end = tabletHorizontalPadding, start = tabletHorizontalPadding)
-                                .height(50.dp),
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                onExitShiftMode()
-                            },
-                            colors = if (isDark) ButtonDefaults.buttonColors(
-                                color = Color(0xFF181818)
-                            ) else ButtonDefaults.buttonColors(),
-                        ) {
-                            Text(
-                                text = SettingsStr.exitShiftMode(),
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = ComposeColor(0xFFF44336)
-                            )
-                        }
-                    }
-                }
-
-                if (!isShiftMode) {
-                    item(key = "data_manage") {
-                        SmallTitle(
-                            text = SettingsStr.dataManagement(),
-                        )
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            insideMargin = PaddingValues(0.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
-                                val dataManageRouter = LocalAppRouter.current
-                                ArrowPreference(
-                                    title = SettingsStr.scheduleImport(),
-                                    onClick = {
-                                        FeatureLog.import("open")
-                                        dataManageRouter.navigate(AppRoute.ScheduleImport)
-                                    }
-                                )
-                                ArrowPreference(
-                                    title = SettingsStr.scheduleExport(),
-                                    onClick = {
-                                        FeatureLog.backup("open_export")
-                                        dataManageRouter.navigate(AppRoute.ScheduleExport)
-                                    }
-                                )
-                                ArrowPreference(
-                                    title = SettingsStr.scheduleBackup(),
-                                    onClick = {
-                                        FeatureLog.backup("open_backup")
-                                        dataManageRouter.navigate(AppRoute.ScheduleBackup)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (!isShiftMode) {
-                    item(key = "others_title") {
-                        SmallTitle(
-                            text = CommonStr.other(),
-                        )
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            insideMargin = PaddingValues(0.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                ArrowPreference(
-                                    title = SettingsStr.newSemester(),
-                                    summary = SettingsStr.newSemesterSummary(),
-                                    holdDownState = showNewSemesterDialog,
-                                    onClick = {
-                                        FeatureLog.t("设置", "new_semester_dialog")
-                                        newSemesterName = ""
-                                        showNewSemesterDialog = true
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    item(key = "others_prefs") {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            insideMargin = PaddingValues(0.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
-                                val appRouter = LocalAppRouter.current
-                                ArrowPreference(
-                                    title = SettingsStr.appPreferences(),
-                                    // 只在偏好设置页仍在栈上时压暗；
-                                    // 单独打开更新设置时不应连带压暗本项
-                                    onClick = {
-                                        FeatureLog.preference("open")
-                                        appRouter.navigate(AppRoute.PreferenceSettings)
-                                    }
-                                )
-                                // iOS 走 App Store 更新 → 宿主传 showUpdateSettings=false，入口整个不渲染
-                                CardExpand(visible = showUpdateSettings) {
-                                    ArrowPreference(
-                                        title = SettingsStr.updateSettings(),
-                                        onClick = {
-                                            FeatureLog.update("open")
-                                            appRouter.navigate(AppRoute.UpdateSettings)
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            scheduleNames.forEach { name ->
+                                CheckboxPreference(
+                                    title = name,
+                                    summary = scheduleSummaries[name] ?: "",
+                                    checked = name in shiftSelectedSchedules,
+                                    onCheckedChange = { checked ->
+                                        val newList = if (checked) {
+                                            shiftSelectedSchedules + name
+                                        } else {
+                                            shiftSelectedSchedules - name
                                         }
-                                    )
-                                }
-                                ArrowPreference(
-                                    title = SettingsStr.aboutApp(),
-                                    onClick = {
-                                        FeatureLog.about("open")
-                                        appRouter.navigate(AppRoute.About)
+                                        shiftViewModel.setShiftSelectedSchedules(newList)
                                     },
-                                    endActions = {
-                                        Text(
-                                            text = SettingsStr.supportAuthor(),
-                                            fontSize = 14.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                        )
-                                    },
+                                    checkboxLocation = CheckboxLocation.End
                                 )
                             }
+                        }
+                    }
+                }
+
+                item(key = "shift_exit") {
+                    top.yukonga.miuix.kmp.basic.Button(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 24.dp, end = tabletHorizontalPadding, start = tabletHorizontalPadding)
+                            .height(50.dp),
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            onExitShiftMode()
+                        },
+                        colors = if (isDark) ButtonDefaults.buttonColors(
+                            color = Color(0xFF181818)
+                        ) else ButtonDefaults.buttonColors(),
+                    ) {
+                        Text(
+                            text = SettingsStr.exitShiftMode(),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = ComposeColor(0xFFF44336)
+                        )
+                    }
+                }
+            }
+
+            if (!isShiftMode) {
+                item(key = "data_manage") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
+                            val dataManageRouter = LocalAppRouter.current
+                            SettingsEntryRow(
+                                title = SettingsStr.appPreferences(),
+                                icon = { PersonalizationIcon() },
+                                onClick = {
+                                    FeatureLog.preference("open")
+                                    dataManageRouter.navigate(AppRoute.PreferenceSettings)
+                                }
+                            )
+                            SettingsEntryRow(
+                                title = SettingsStr.importExport(),
+                                icon = { ImportExportIcon() },
+                                onClick = {
+                                    FeatureLog.import("open")
+                                    dataManageRouter.navigate(AppRoute.ImportExport)
+                                }
+                            )
+                            SettingsEntryRow(
+                                title = SettingsStr.scheduleBackup(),
+                                icon = { BackupSyncIcon() },
+                                onClick = {
+                                    FeatureLog.backup("open_backup")
+                                    dataManageRouter.navigate(AppRoute.ScheduleBackup)
+                                }
+                            )
                         }
                     }
                 }
             }
+
+            if (!isShiftMode) {
+                item(key = "others_prefs") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
+                            val appRouter = LocalAppRouter.current
+                            // iOS 走 App Store 更新 → 宿主传 showUpdateSettings=false，入口整个不渲染
+                            CardExpand(visible = showUpdateSettings) {
+                                SettingsEntryRow(
+                                    title = SettingsStr.updateSettings(),
+                                    icon = { UpdateSettingsIcon() },
+                                    onClick = {
+                                        FeatureLog.update("open")
+                                        appRouter.navigate(AppRoute.UpdateSettings)
+                                    }
+                                )
+                            }
+                            SettingsEntryRow(
+                                title = SettingsStr.aboutApp(),
+                                icon = { AboutAppIcon() },
+                                onClick = {
+                                    FeatureLog.about("open")
+                                    appRouter.navigate(AppRoute.About)
+                                }
+                            )
+                            SettingsEntryRow(
+                                title = SettingsStr.destAppreciate(),
+                                icon = { DonateIcon() },
+                                onClick = {
+                                    appRouter.navigate(AppRoute.AppreciateAuthor)
+                                }
+                            )
+                        }
+                    }
+                }
+                item(key = "community") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        SettingsEntryRow(
+                            title = SettingsStr.destCommunication(),
+                            icon = { CommunicationIcon() },
+                            onClick = {
+                                settingsRouter.navigate(AppRoute.Communication)
+                            }
+                        )
+                    }
+                }
+            }
+        }
 
         // 即使 iOS 没有入口打开它也要挡：showShiftModeConfirmDialog 可能被别的路径置 true。
         OverlayDialog(
@@ -558,7 +619,6 @@ fun SettingsScreen(
             show = showShiftModeConfirmDialog,
             liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = { showShiftModeConfirmDialog = false },
-
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -594,251 +654,5 @@ fun SettingsScreen(
                 }
             }
         }
-
-        OverlayDialog(
-            title = SettingsStr.newSemester(),
-            summary = SettingsStr.newSemesterDialogSummary(),
-            show = showNewSemesterDialog,
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onDismissRequest = {
-                showNewSemesterDialog = false
-                newSemesterName = ""
-            }
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                NativeMiuixTextField(
-                    value = newSemesterName,
-                    onValueChange = { newSemesterName = it },
-                    label = SettingsStr.newScheduleNameLabel(),
-                    modifier = Modifier.fillMaxWidth(),
-                    requestFocus = showNewSemesterDialog
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = CommonStr.cancel(),
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showNewSemesterDialog = false
-                            newSemesterName = ""
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = SettingsStr.create(),
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            val name = newSemesterName.trim()
-                            when {
-                                // 名称空着点「创建」以前是静默无反应，看着像按钮坏了
-                                name.isEmpty() -> showToast(SettingsStr.emptyNameToast())
-                                name in scheduleViewModel.scheduleNames.value ->
-                                    showToast(SettingsStr.duplicateNameToast())
-
-                                else -> {
-                                    scheduleViewModel.createNewSemesterSchedule(name)
-                                    showNewSemesterDialog = false
-                                    newSemesterName = ""
-                                    showToast(SettingsStr.createdToast(name))
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-
-        OverlayDialog(
-            title = SettingsStr.startDate(),
-            show = showStartDateDialog,
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onDismissRequest = { showStartDateDialog = false }
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                val maxDaysInMonth = remember(tempYear, tempMonth) {
-                    getDaysInMonth(tempYear, tempMonth)
-                }
-                LaunchedEffect(maxDaysInMonth) {
-                    if (tempDay > maxDaysInMonth) {
-                        tempDay = maxDaysInMonth
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    NumberPicker(
-                        value = tempYear,
-                        onValueChange = { tempYear = it },
-                        // 当年份超出 2024..2030 时滚轮会把值静默夹到边界，
-                        // 点确定就写回一个不是用户选的年份，所以按当前值把范围撑开
-                        range = minOf(2024, tempYearInit)..maxOf(2030, tempYearInit),
-                        visibleItemCount = 3,
-                        itemHeight = 60.dp,
-                        textStyle = MiuixTheme.textStyles.title2,
-                        modifier = Modifier.weight(1f)
-                    )
-                    NumberPicker(
-                        value = tempMonth,
-                        onValueChange = { tempMonth = it },
-                        range = 1..12,
-                        visibleItemCount = 3,
-                        itemHeight = 60.dp,
-                        label = { SettingsStr.monthN(it) },
-                        wrapAround = true,
-                        textStyle = MiuixTheme.textStyles.title2,
-                        modifier = Modifier.weight(1f)
-                    )
-                    NumberPicker(
-                        value = tempDay,
-                        onValueChange = { tempDay = it },
-                        range = 1..maxDaysInMonth,
-                        visibleItemCount = 3,
-                        itemHeight = 60.dp,
-                        label = { CommonStr.dateN(it) },
-                        wrapAround = true,
-                        textStyle = MiuixTheme.textStyles.title2,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = CommonStr.cancel(),
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showStartDateDialog = false
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = CommonStr.ok(),
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            // ⚠ 手写 padStart（`String.format` 是 JVM 专有）；格式与迁移前逐字一致，且
-                            // 不会像 `LocalDate(...)` 那样在月/日组合非法时抛异常（换月瞬间 tempDay 可能短暂越界）。
-                            val date = "${tempYear.toString().padStart(4, '0')}/" +
-                                "${tempMonth.toString().padStart(2, '0')}/" +
-                                tempDay.toString().padStart(2, '0')
-                            viewModel.setClassStartTime(date)
-                            showStartDateDialog = false
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-
-        OverlayDialog(
-            title = SettingsStr.selectCurrentWeek(),
-            show = showCurrentWeekDialog,
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onDismissRequest = { showCurrentWeekDialog = false }
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                NumberPicker(
-                    value = tempCurrentWeek,
-                    onValueChange = { tempCurrentWeek = it },
-                    range = 1..totalWeeks,
-                    visibleItemCount = 3,
-                    itemHeight = 60.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 0.dp, bottom = 20.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = CommonStr.cancel(),
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showCurrentWeekDialog = false
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = CommonStr.ok(),
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            viewModel.setCurrentWeek(tempCurrentWeek)
-                            showCurrentWeekDialog = false
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-
-        OverlayDialog(
-            title = SettingsStr.selectTotalWeeks(),
-            show = showTotalWeeksDialog,
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onDismissRequest = { showTotalWeeksDialog = false }
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                NumberPicker(
-                    value = tempTotalWeeks,
-                    onValueChange = { tempTotalWeeks = it },
-                    range = 1..30,
-                    visibleItemCount = 3,
-                    itemHeight = 60.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 0.dp, bottom = 20.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = CommonStr.cancel(),
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showTotalWeeksDialog = false
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = CommonStr.ok(),
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            viewModel.setTotalWeeks(tempTotalWeeks)
-                            showTotalWeeksDialog = false
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-
     }
 }

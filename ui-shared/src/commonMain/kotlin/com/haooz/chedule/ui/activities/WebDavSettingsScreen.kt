@@ -66,7 +66,7 @@ fun WebDavSettingsScreen(
     onConnectedChange: (Boolean) -> Unit = {},
     onTestConnectionReady: (() -> Unit) -> Unit = {},
     /**
-     * 底部「备份到云端 / 从云端恢复」的实现反抛给宿主（宿主在 overlay 里直接渲染两颗文字按钮）
+     * 底部「同步到云端 / 从云端恢复」的实现反抛给宿主（宿主在 overlay 里直接渲染两颗文字按钮）
      */
     onBackupRestoreReady: (onBackup: () -> Unit, onRestore: () -> Unit) -> Unit = { _, _ -> },
     onBusyStateChange: (backingUp: Boolean, restoring: Boolean) -> Unit = { _, _ -> },

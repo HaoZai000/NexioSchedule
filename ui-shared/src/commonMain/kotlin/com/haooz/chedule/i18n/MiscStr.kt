@@ -76,7 +76,7 @@ object MiscStr {
     val requiredHint = L("必填", "Required")
     val configureServerFirst = L("请先配置服务器信息", "Configure the server info first")
     val noOperationRecord = L("暂无操作记录", "No operations yet")
-    val cloudBackupAfterConfig = L("配置后即可使用云备份功能", "Cloud backup is available after configuration")
+    val cloudBackupAfterConfig = L("配置后即可使用云同步功能", "Cloud sync is available after configuration")
     val neverOperated = L("从未操作", "Never used")
     val nutstoreStepsTitle = L("关联坚果云步骤：", "Link Nutstore (Jianguoyun):")
     val nutstoreStepsDetail = L(
@@ -85,7 +85,7 @@ object MiscStr {
     )
     val backupRestoreNotesTitle = L("备份与恢复说明", "Backup and Restore Notes")
     val backupRestoreNotesDetail = L(
-        "备份到云端：将全部课表数据上传为带时间戳的文件，每次备份独立保存，不覆盖历史备份。\n\n从云端恢复：下载最新的备份文件覆盖本地数据。恢复前请先备份当前数据。",
-        "Back up to cloud: all schedule data is uploaded as timestamped files. Each backup is saved independently and never overwrites previous ones.\n\nRestore from cloud: the latest backup file is downloaded and overwrites local data. Back up your current data before restoring.",
+        "同步到云端：将全部课表数据上传为带时间戳的文件，每次备份独立保存，不覆盖历史备份。\n\n从云端恢复：下载最新的备份文件覆盖本地数据。恢复前请先备份当前数据。",
+        "Sync to cloud: all schedule data is uploaded as timestamped files. Each backup is saved independently and never overwrites previous ones.\n\nRestore from cloud: the latest backup file is downloaded and overwrites local data. Back up your current data before restoring.",
     )
 }

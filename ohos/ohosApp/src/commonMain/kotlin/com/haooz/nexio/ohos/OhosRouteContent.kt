@@ -34,6 +34,7 @@ import com.haooz.chedule.ui.navigation.LicenseRoute
 import com.haooz.chedule.ui.navigation.LocalBackupRoute
 import com.haooz.chedule.ui.navigation.PreferenceSettingsRoute
 import com.haooz.chedule.ui.navigation.PrivacyPolicyRoute
+import com.haooz.chedule.ui.navigation.ScheduleSettingsRoute
 import com.haooz.chedule.ui.navigation.SettingsRoute
 import com.haooz.chedule.ui.navigation.UpdateSettingsRoute
 import com.haooz.chedule.ui.navigation.WebDavSettingsRoute
@@ -59,6 +60,7 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
     when (route) {
         // 鸿蒙没有应用内更新通道（应用市场分发），隐藏「更新设置」入口（同 iOS）
         AppRoute.Settings -> SettingsRoute(router = router, showUpdateSettings = false)
+        AppRoute.ScheduleSettings -> ScheduleSettingsRoute(router = router)
         AppRoute.About -> AboutRoute(router = router)
         AppRoute.Changelog -> ChangelogRoute(router)
         AppRoute.License -> LicenseRoute(router)
@@ -80,17 +82,16 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.CourseManage -> CourseManageRoute(router = router)
         AppRoute.EducationalImport -> EducationalImportRoute(router = router)
 
-        AppRoute.ScheduleImport ->
+        AppRoute.ImportExport ->
             BackupAndMigrationRoute(
                 router = router,
                 mode = ScheduleDataManageMode.Import,
+                switchableModes = listOf(ScheduleDataManageMode.Import, ScheduleDataManageMode.Export),
+                // 默认停在导入 tab
                 // 本站口令 / 星链走纯 HTTP；WakeUp 要无头 WebView，鸿蒙还没接（wakeUpRunner 为 null 时给明确报错）
                 onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
                 onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
             )
-
-        AppRoute.ScheduleExport ->
-            BackupAndMigrationRoute(router = router, mode = ScheduleDataManageMode.Export)
 
         AppRoute.ScheduleBackup ->
             BackupAndMigrationRoute(router = router, mode = ScheduleDataManageMode.Backup)

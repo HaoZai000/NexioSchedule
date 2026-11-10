@@ -74,6 +74,8 @@ fun AppRouteContent(
             settingsPane = { args -> AndroidSettingsPane(args) },
         )
 
+        AppRoute.ScheduleSettings -> ScheduleSettingsRoute(router)
+
         AppRoute.About -> AndroidAboutRoute(router)
 
         // 纯文档壳路由，直接调跨平台版
@@ -144,10 +146,14 @@ fun AppRouteContent(
             )
         }
 
-        // ── 数据管理（导入 / 导出 / 备份，共用 BackupAndMigrationScreen，按 mode 区分）──
-        AppRoute.ScheduleImport -> AndroidBackupAndMigrationRoute(router, ScheduleDataManageMode.Import)
-        AppRoute.ScheduleExport -> AndroidBackupAndMigrationRoute(router, ScheduleDataManageMode.Export)
+        // ── 导入导出 / 备份与同步 ──
         AppRoute.ScheduleBackup -> AndroidBackupAndMigrationRoute(router, ScheduleDataManageMode.Backup)
+        // 导入 / 导出同页，顶部胶囊切换
+        AppRoute.ImportExport -> AndroidBackupAndMigrationRoute(
+            router,
+            ScheduleDataManageMode.Import,
+            switchable = true,
+        )
 
         // ── 带额外元素的页面（顶栏按钮 / 底部悬浮按钮 / 弹窗）──
         // Android 只注入平台能力。
@@ -274,12 +280,19 @@ fun AppRouteContent(
  * 口令分享出图 / 手环推送。三者共用同一份装配，只是 `mode` 不同。
  */
 @Composable
-private fun AndroidBackupAndMigrationRoute(router: AppRouter, mode: ScheduleDataManageMode) {
+private fun AndroidBackupAndMigrationRoute(
+    router: AppRouter,
+    mode: ScheduleDataManageMode,
+    switchable: Boolean = false,
+) {
     val context = LocalContext.current
     val shareScope = rememberCoroutineScope()
     BackupAndMigrationRoute(
         router = router,
         mode = mode,
+        switchableModes = if (switchable) {
+            listOf(ScheduleDataManageMode.Import, ScheduleDataManageMode.Export)
+        } else emptyList(),
         // 导入选文件 / 导出另存为（SAF）
         scheduleFileController = remember { AndroidScheduleFileController(context) },
         // WebDAV 恢复后的提醒重排

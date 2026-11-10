@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.backup.NoopScheduleFileController
 import com.haooz.chedule.data.backup.ScheduleFileController
@@ -95,7 +96,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
-/** 数据管理：课表导入 / 导出 / 备份 三种页面模式 */
+/** 课表导入 / 导出 / 备份 三种页面模式 */
 enum class ScheduleDataManageMode {
     Import,
     Export,
@@ -113,6 +114,8 @@ fun BackupAndMigrationScreen(
     mode: ScheduleDataManageMode = ScheduleDataManageMode.Import,
     /** pad 设置右栏：导入页去掉「导入方式」，并把口令/文件拆成两个小标题 */
     compactImport: Boolean = false,
+    /** 内容顶部额外留出的高度。 */
+    topExtra: Dp = 0.dp,
     /** 课表文件的选文件 / 另存为能力（Android 注入 `AndroidScheduleFileController`；桌面/iOS 用 [NoopScheduleFileController]）。 */
     scheduleFileController: ScheduleFileController = NoopScheduleFileController,
     /** 节假日/调休数据变更后的平台副作用（重排提醒），Android 宿主注入。 */
@@ -234,7 +237,7 @@ fun BackupAndMigrationScreen(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
                 top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                    (if (isTablet) 12.dp else 0.dp),
+                    (if (isTablet) 12.dp else 0.dp) + topExtra,
                 bottom = 60.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)

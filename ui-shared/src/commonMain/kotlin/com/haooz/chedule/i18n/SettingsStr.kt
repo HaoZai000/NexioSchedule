@@ -6,8 +6,16 @@ object SettingsStr {
     // ---- 分区标题 ----
     val basicSettings = L("基本设置", "General")
     val featuresSection = L("特色功能", "Features")
+
+    // ---- 基本设置总览卡片 ----
+    val scheduleSettings = L("课表设置", "Schedule Settings")
+    /** 折叠态摘要：开始上课日期 · 当前周 / 总周数 */
+    val scheduleSettingsSummary = L("%s · 第%d周 / 共%d周", "%s · Week %d / %d weeks")
+    /** 未开学 / 放假中：当前周换成状态文案 */
+    val scheduleSettingsIdleSummary = L("%s · %s / 共%d周", "%s · %s / %d weeks")
     val selectCompareSchedules = L("选择对比课表", "Schedules to Compare")
-    val dataManagement = L("数据管理", "Data Management")
+    /** 导入 / 导出合并页入口。 */
+    val importExport: L10n get() = ChromeStr.importExport
     val otherActions = L("其他操作", "Other Actions")
 
     // ---- 学期与周次 ----
@@ -42,10 +50,10 @@ object SettingsStr {
     )
     val exitShiftMode = L("退出排班模式", "Exit Shift Mode")
 
-    // ---- 数据管理 ----
+    // ---- 导入导出 / 备份 ----
     val scheduleImport = L("课表导入", "Import Schedule")
     val scheduleExport = L("课表导出", "Export Schedule")
-    val scheduleBackup = L("课表备份", "Schedule Backup")
+    val scheduleBackup = L("备份与同步", "Backup & Sync")
 
     // ---- 开启新学期 ----
     val newSemester = L("开启新学期", "Start New Semester")
@@ -61,7 +69,7 @@ object SettingsStr {
     val createdToast = L("「%s」创建成功", "\"%s\" created successfully")
 
     // ---- 其他入口 ----
-    val appPreferences = L("应用偏好设置", "App Preferences")
+    val appPreferences = L("应用个性化", "Personalization")
     val updateSettings = L("更新设置", "Update Settings")
     val aboutApp = L("关于应用", "About")
 
@@ -77,7 +85,8 @@ object SettingsStr {
     val destWebDav = L("WebDAV 云同步", "WebDAV Cloud Sync")
     val destAppreciate = L("捐赠支持", "Donate")
     val destCommunication = L("交流与反馈", "Community & Feedback")
-    val groupImportExport = L("导入与导出", "Import & Export")
+    /** 平板左栏分组。 */
+    val groupImportExport: L10n get() = ChromeStr.importExport
     val groupBackup = L("备份", "Backup")
 
     // ---- 平板外壳 ----
@@ -92,7 +101,7 @@ object SettingsStr {
 
     // ---- WebDAV ----
     val backingUp = L("备份中…", "Backing up…")
-    val backupToCloud = L("备份到云端", "Back Up to Cloud")
+    val backupToCloud = L("同步到云端", "Sync to Cloud")
     val restoring = L("恢复中…", "Restoring…")
     val restoreFromCloud = L("从云端恢复", "Restore from Cloud")
     val connected = L("已连接", "Connected")

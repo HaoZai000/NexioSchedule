@@ -1,11 +1,8 @@
 package com.haooz.chedule.ui.navigation
 
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
+import androidx.compose.ui.unit.Dp
 import com.haooz.chedule.ui.components.CapsuleSegmentedControl
 import com.haooz.chedule.data.platform.FeedbackKind
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -87,6 +84,8 @@ import com.haooz.chedule.ui.activities.AiImportScreen
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
 import com.haooz.chedule.ui.activities.BackupAndMigrationScreen
 import com.haooz.chedule.ui.activities.weather.WeatherScreen
+import com.haooz.chedule.ui.components.HorizontalPageSwitch
+import com.haooz.chedule.ui.components.rememberPageSwitchState
 import com.haooz.chedule.weather.WeatherStore
 import com.haooz.chedule.ui.activities.CalendarSyncResult
 import com.haooz.chedule.ui.activities.ChangelogScreen
@@ -123,6 +122,7 @@ import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.chedule.ui.screens.ScheduleSettingsScreen
 import com.haooz.chedule.ui.screens.CourseEditScreen
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
 import com.haooz.chedule.ui.theme.rememberAppThemeController
@@ -168,6 +168,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.softglass.shape.addContinuousRoundRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
+import top.yukonga.miuix.kmp.basic.Scaffold
 
 /**
  * 路由宿主的跨平台部分：路由跳转、状态接线、Updater 订阅，平台能力一律参数注入。
@@ -296,13 +297,14 @@ fun FeedbackRoute(router: AppRouter) {
         title = FeedbackStr.title(),
         onBack = { router.popBack() },
         // 类型选择挂在标题下方：顶栏下方的兄弟层，随大标题高度变化上移
-        headerOverlay = { backdrop, _ ->
+        headerOverlay = { backdrop, scrollBehavior ->
             if (state.submittedId == null) {
                 CapsuleSegmentedControl(
                     options = listOf(FeedbackStr.typeBug(), FeedbackStr.typeFeature()),
                     selectedIndex = state.kind.ordinal,
                     onSelect = { i -> state.kind = if (i == 0) FeedbackKind.Bug else FeedbackKind.Feature },
                     backdrop = backdrop,
+                    scrollBehavior = scrollBehavior,
                     modifier = Modifier
                         .fillMaxWidth()
                         // 与大标题之间留 8dp
@@ -378,7 +380,7 @@ fun FeedbackRoadmapRoute(router: AppRouter) {
     DocumentPageScaffold(
         title = FeedbackStr.roadmapTitle(),
         onBack = { router.popBack() },
-        headerOverlay = { backdrop, _ ->
+        headerOverlay = { backdrop, scrollBehavior ->
             CapsuleSegmentedControl(
                 // 0 = 全部，1 = 新功能，2 = Bug 修复
                 options = listOf(
@@ -399,6 +401,7 @@ fun FeedbackRoadmapRoute(router: AppRouter) {
                     }
                 },
                 backdrop = backdrop,
+                scrollBehavior = scrollBehavior,
                 modifier = Modifier
                     .fillMaxWidth()
                     // 与大标题之间留 8dp
@@ -509,16 +512,16 @@ fun SettingsRoute(
     val shiftViewModel = shiftViewModel()
     // 排班模式状态直接读 VM：本页可能从普通模式进、也可能从排班模式进
     val isShiftMode by shiftViewModel.isShiftMode.collectAsState()
-    // 设置页始终跟应用主题、不被壁纸锁深色 —— 这层原先由 pager 的设置分支提供，
-    // 搬进路由后必须自己补上，否则深色壁纸下整页会被染深。
+    // 设置页始终跟应用主题、不被壁纸锁深色。主题必须包住整个 DocumentPageScaffold：
+    // 顶栏材质、玻璃返回按钮、页面底色都在脚手架里取色，包在内容层里会让它们继续用外层主题。
     val settingsThemeController =
         rememberAppThemeController(isDark = isAppDarkTheme())
-    DocumentPageScaffold(
-        title = CommonStr.settings(),
-        onBack = { router.popBack() },
-    ) { scrollBehavior, backdrop ->
-        MiuixTheme(controller = settingsThemeController) {
-            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+    MiuixTheme(controller = settingsThemeController) {
+        CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+            DocumentPageScaffold(
+                title = CommonStr.settings(),
+                onBack = { router.popBack() },
+            ) { scrollBehavior, backdrop ->
                 RenderSettingsPane(
                     settingsPane,
                     SettingsPaneArgs(
@@ -548,8 +551,14 @@ fun SettingsRoute(
     }
 }
 
+/** 课表设置。 */
+@Composable
+fun ScheduleSettingsRoute(router: AppRouter) {
+    ScheduleSettingsScreen(router = router)
+}
+
 /**
- * 应用偏好设置路由。四个平台能力全部参数注入：定位权限检查 / 天气缓存清空 /
+ * 应用个性化路由。四个平台能力全部参数注入：定位权限检查 / 天气缓存清空 /
  * 最近任务卡片隐藏 / 主题切换后的系统栏刷新。
  *
  * Android 从 `ContextCompat` / `MainActivity` 取；桌面/iOS 用默认值（前三项空/false，后一项无系统栏概念）。
@@ -919,8 +928,8 @@ fun CourseReminderRoute(
 }
 
 /**
- * WebDAV 云备份设置路由：顶栏「测试连接」（[DocumentPageScaffold] 的 endAction）+
- * 底部「备份到云端 / 从云端恢复」（overlay 里直接两颗 [LiquidGlassTextButton]）。
+ * WebDAV 云同步设置路由：顶栏「测试连接」（[DocumentPageScaffold] 的 endAction）+
+ * 底部「同步到云端 / 从云端恢复」（overlay 里直接两颗 [LiquidGlassTextButton]）。
  *
  * ⚠ 底部按钮必须画在 `overlay` 里，不能挪进 [WebDavSettingsScreen]：本页内容整体在录制层内，
  * 按钮自己又采样同一层 backdrop，放进去就是自采自，直接崩。
@@ -1010,9 +1019,10 @@ fun WebDavSettingsRoute(
 }
 
 /**
- * 课表导入 / 导出 / 备份（三者共用 [BackupAndMigrationScreen]，只差 [mode]）。
+ * 课表导入 / 导出 / 备份（共用 [BackupAndMigrationScreen]，只差 [mode]）。
  *
- * ⚠ 三个入口必须走路由、不能是独立 Activity：`BackupAndMigrationScreen` 的「本地备份」入口读 [LocalAppRouter]，独立 Activity 的 setContent 没 provide，默认值 `error(...)` 一点就崩。口令取回 / 第三方抓取 / 分享出图 / 手环推送四条 Android 能力走注入，iOS/桌面默认「当前平台不支持」—— 这一页在 iOS 上仍能打开（WebDAV / 本地备份 / 文件导入导出可用），只是口令通道不可用。
+ * [switchableModes] 非空时启用「导入导出」胶囊切换页；留空为单模式页。
+ * 三个入口必须走路由，不能是独立 Activity。
  *
  * @param scheduleFileController Android 注入 `AndroidScheduleFileController(context)`；iOS/桌面用 [NoopScheduleFileController]（点导入会提示不可用）。
  */
@@ -1020,6 +1030,8 @@ fun WebDavSettingsRoute(
 fun BackupAndMigrationRoute(
     router: AppRouter,
     mode: ScheduleDataManageMode,
+    /** 非空时启用胶囊切换页。 */
+    switchableModes: List<ScheduleDataManageMode> = emptyList(),
     scheduleFileController: ScheduleFileController = NoopScheduleFileController,
     onHolidayDataChanged: () -> Unit = {},
     onFetchShareCode: suspend (code: String) -> Result<ShareCodeFetchResult> =
@@ -1031,28 +1043,91 @@ fun BackupAndMigrationRoute(
     onExportToWearable: suspend (scheduleName: String) -> String? = { null },
     onSyncToCalendar: suspend (scheduleName: String) -> CalendarSyncResult = { CalendarSyncResult.Unsupported },
 ) {
-    val title = when (mode) {
-        ScheduleDataManageMode.Import -> ChromeStr.scheduleImport()
-        ScheduleDataManageMode.Export -> ChromeStr.scheduleExport()
-        ScheduleDataManageMode.Backup -> ChromeStr.scheduleBackup()
+    val switchable = switchableModes.size > 1
+    val pageCount = switchableModes.size.coerceAtLeast(1)
+    val initialPage = switchableModes.indexOf(mode).coerceIn(0, pageCount - 1)
+    // [selectedTab] 由胶囊与页面手势松手写入。
+    var selectedTab by remember(mode) { mutableIntStateOf(initialPage) }
+    val pageSwitch = rememberPageSwitchState(initialPage)
+    LaunchedEffect(switchable, selectedTab, pageCount) {
+        if (switchable) pageSwitch.animateTo(selectedTab.coerceIn(0, pageCount - 1))
     }
+    // 抓起冻住滑块；松手强制吸附。
+    var pillFreezeKey by remember(mode) { mutableIntStateOf(0) }
+    var pillAlignKey by remember(mode) { mutableIntStateOf(0) }
+    val goToPage: (Int) -> Unit = { index ->
+        selectedTab = index.coerceIn(0, pageCount - 1)
+    }
+    val title = if (mode == ScheduleDataManageMode.Backup && !switchable) {
+        ChromeStr.scheduleBackup()
+    } else {
+        ChromeStr.importExport()
+    }
+    val horizontalPadding = if (isTabletWidth()) 20.dp else 16.dp
     DocumentPageScaffold(
         title = title,
         onBack = { router.popBack() },
+        headerOverlay = if (switchable) {
+            { backdrop, scrollBehavior ->
+                CapsuleSegmentedControl(
+                    options = switchableModes.map { modeTabLabel(it) },
+                    selectedIndex = selectedTab.coerceIn(0, switchableModes.lastIndex),
+                    onSelect = goToPage,
+                    selectOnPress = true,
+                    freezeKey = pillFreezeKey,
+                    alignKey = pillAlignKey,
+                    backdrop = backdrop,
+                    scrollBehavior = scrollBehavior,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .padding(horizontal = horizontalPadding),
+                )
+            }
+        } else null,
     ) { scrollBehavior, backdrop ->
-        BackupAndMigrationScreen(
-            scrollBehavior = scrollBehavior,
-            liquidGlassBackdrop = backdrop,
-            mode = mode,
-            scheduleFileController = scheduleFileController,
-            onHolidayDataChanged = onHolidayDataChanged,
-            onFetchShareCode = onFetchShareCode,
-            onImportThirdParty = onImportThirdParty,
-            onShareSchedule = onShareSchedule,
-            onExportToWearable = onExportToWearable,
-            onSyncToCalendar = onSyncToCalendar,
-        )
+        // 两页与单模式页共用参数表
+        val screen: @Composable (ScheduleDataManageMode, Dp) -> Unit = { pageMode, topExtra ->
+            BackupAndMigrationScreen(
+                scrollBehavior = scrollBehavior,
+                liquidGlassBackdrop = backdrop,
+                mode = pageMode,
+                topExtra = topExtra,
+                scheduleFileController = scheduleFileController,
+                onHolidayDataChanged = onHolidayDataChanged,
+                onFetchShareCode = onFetchShareCode,
+                onImportThirdParty = onImportThirdParty,
+                onShareSchedule = onShareSchedule,
+                onExportToWearable = onExportToWearable,
+                onSyncToCalendar = onSyncToCalendar,
+            )
+        }
+        if (switchable) {
+            HorizontalPageSwitch(
+                state = pageSwitch,
+                pageCount = pageCount,
+                modifier = Modifier.fillMaxSize(),
+                // 手势接管：停住滑块
+                onGestureStart = { pillFreezeKey++ },
+                // 松手回灌落点并吸附滑块
+                onGestureEnd = { page ->
+                    selectedTab = page
+                    pillAlignKey++
+                },
+            ) { page ->
+                screen(switchableModes[page], 64.dp)
+            }
+        } else {
+            screen(mode, 0.dp)
+        }
     }
+}
+
+/** 导入导出页胶囊短标签。 */
+private fun modeTabLabel(mode: ScheduleDataManageMode): String = when (mode) {
+    ScheduleDataManageMode.Import -> ChromeStr.importTab()
+    ScheduleDataManageMode.Export -> ChromeStr.exportTab()
+    ScheduleDataManageMode.Backup -> ChromeStr.scheduleBackup()
 }
 
 // ── 最后两个路由壳：二级页转场 + 卡片快照 ──

@@ -58,12 +58,14 @@ import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.navigation.LocalBackupRoute
 import com.haooz.chedule.ui.navigation.PreferenceSettingsRoute
 import com.haooz.chedule.ui.navigation.PrivacyPolicyRoute
+import com.haooz.chedule.ui.navigation.ScheduleSettingsRoute
 import com.haooz.chedule.ui.navigation.SettingsRoute
 import com.haooz.chedule.ui.navigation.UpdateSettingsRoute
 import com.haooz.chedule.ui.navigation.WebDavSettingsRoute
 import com.haooz.chedule.ui.navigation.WebImportRoute
 import com.haooz.chedule.ui.navigation.WidgetIntroRoute
 import com.haooz.chedule.ui.screens.PrivacyConsentScreen
+import com.haooz.chedule.ui.screens.WeatherBootstrapIos
 import com.haooz.chedule.ui.screens.rememberWeatherIos
 import com.haooz.chedule.ui.utils.IosReminderController
 import com.haooz.chedule.ui.utils.IosWakeUpImport
@@ -215,6 +217,8 @@ internal fun NexioIosMain(host: IosAppHost) {
     }
     CompositionLocalProvider(LocalAppRouter provides router) {
         Box(Modifier.fillMaxSize()) {
+            // 壳层引导：天气在课表页顶栏也要显示，不能等切到今日页才加载
+            WeatherBootstrapIos()
             // 主界面常驻底座（真课表界面）；未接的宿主能力走默认「无此能力」，入口不渲染而非留死按钮。
                 CourseScheduleApp(
                     privacyConsented = consented,
@@ -339,6 +343,7 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
             onExitApp = { platform.posix.exit(0) },
         )
         // 纯文档壳路由，iOS 直接可用
+        AppRoute.ScheduleSettings -> ScheduleSettingsRoute(router)
         AppRoute.Changelog -> ChangelogRoute(router)
         AppRoute.Weather -> WeatherRoute(router)
         AppRoute.License -> LicenseRoute(router)
@@ -399,20 +404,13 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
             router = router,
             onHolidayDataChanged = onHolidayDataChanged,
         )
-        // 课表导入/导出/备份：接 iOS 原生文件选择器（UIDocumentPicker）+ 三条口令导入。
+        // iOS 文件选择器（UIDocumentPicker）+ 三条口令导入
         // 口令取回与星链是纯 HTTP（共享 HttpService = NSURLSession），WakeUp 走无头
         // WKWebView（IosWakeUpImport）。口令**导出**与手环推送仍是 Android 专有。
-        AppRoute.ScheduleImport -> BackupAndMigrationRoute(
+        AppRoute.ImportExport -> BackupAndMigrationRoute(
             router = router,
             mode = ScheduleDataManageMode.Import,
-            scheduleFileController = fileController,
-            onHolidayDataChanged = onHolidayDataChanged,
-            onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
-            onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
-        )
-        AppRoute.ScheduleExport -> BackupAndMigrationRoute(
-            router = router,
-            mode = ScheduleDataManageMode.Export,
+            switchableModes = listOf(ScheduleDataManageMode.Import, ScheduleDataManageMode.Export),
             scheduleFileController = fileController,
             onHolidayDataChanged = onHolidayDataChanged,
             onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },

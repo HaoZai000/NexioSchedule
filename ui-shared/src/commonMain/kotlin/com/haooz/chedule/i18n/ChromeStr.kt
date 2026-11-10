@@ -79,9 +79,13 @@ object ChromeStr {
     val shiftSchedule = L("排班课表", "Shift Schedule")
     val switchSchedule = L("切换课表", "Switch Schedule")
     val navigationLabel = L("导航", "Navigation")
+    /** 平板侧栏「数据管理」分组。 */
     val dataManagement = L("数据管理", "Data Management")
 
     // ── 路由壳页面 ──
+
+    /** 导入 / 导出合并页与设置页入口文案。 */
+    val importExport = L("导入导出", "Import & Export")
 
     val unknownVersion = L("未知版本", "Unknown version")
     val appName = L("Nexio课程表", "Nexio Schedule")
@@ -92,7 +96,7 @@ object ChromeStr {
     val communityFeedback = L("交流与反馈", "Community & Feedback")
     val donate = L("捐赠支持", "Donate")
 
-    val appPreferences = L("应用偏好设置", "App Preferences")
+    val appPreferences = L("应用个性化", "Personalization")
     val updateSettingsTitle = L("更新设置", "Update Settings")
     val localBackup = L("本地备份", "Local Backup")
     val aiImport = L("AI 文本导入", "AI Text Import")
@@ -119,9 +123,9 @@ object ChromeStr {
 
     val connected = L("已连接", "Connected")
     val testConnection = L("测试连接", "Test Connection")
-    val webdavBackup = L("WebDAV 云备份", "WebDAV Cloud Backup")
+    val webdavBackup = L("WebDAV 云同步", "WebDAV Cloud Sync")
     val backingUp = L("备份中…", "Backing up…")
-    val backupToCloud = L("备份到云端", "Back Up to Cloud")
+    val backupToCloud = L("同步到云端", "Sync to Cloud")
     val restoring = L("恢复中…", "Restoring…")
     val restoreFromCloud = L("从云端恢复", "Restore from Cloud")
 
@@ -131,7 +135,10 @@ object ChromeStr {
 
     val scheduleImport = L("课表导入", "Import Schedule")
     val scheduleExport = L("课表导出", "Export Schedule")
-    val scheduleBackup = L("课表备份", "Schedule Backup")
+    val scheduleBackup = L("备份与同步", "Backup & Sync")
+    /** 导入导出页胶囊短标签。 */
+    val importTab = L("导入", "Import")
+    val exportTab = L("导出", "Export")
 
     val classTimeSettings = L("课程时间管理", "Class Time Settings")
     val saveFailedRetry = L("保存失败，请重试", "Save failed, please try again")

@@ -178,7 +178,7 @@ private fun DesktopShell() {
                             scrollBehavior = scrollBehavior,
                         )
                         DesktopPage.Home -> Unit // 上面已分流，不可达
-                        // WebDAV 云备份（节假日副作用回调桌面端给空实现）
+                        // WebDAV 云同步（节假日副作用回调桌面端给空实现）
                         DesktopPage.WebDavSettings -> WebDavSettingsScreen(
                             scrollBehavior = scrollBehavior,
                         )

@@ -32,6 +32,7 @@ import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.i18n.SwitchStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.EduImportUpdater
@@ -670,6 +671,7 @@ internal fun AppRoute.isNativeDocument(): Boolean = nativeDocumentTitle() != nul
 internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     // 设置二级页：走原生文档壳，顶栏与返回按钮由 iOS 原生 NavigationBar 给
     AppRoute.Settings -> CommonStr.settings()
+    AppRoute.ScheduleSettings -> SettingsStr.scheduleSettings()
     AppRoute.Changelog -> ChromeStr.changelog()
     AppRoute.License -> ChromeStr.openSourceLicenses()
     AppRoute.PrivacyPolicy -> ChromeStr.privacyPolicy()
@@ -686,9 +688,8 @@ internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     AppRoute.CourseReminder -> ChromeStr.courseReminders()
     AppRoute.HolidaySettings -> ChromeStr.holidaysTitle()
     AppRoute.WebDavSettings -> ChromeStr.webdavBackup()
-    AppRoute.ScheduleExport -> ChromeStr.scheduleExport()
     AppRoute.ScheduleBackup -> ChromeStr.scheduleBackup()
-    AppRoute.ScheduleImport -> ChromeStr.scheduleImport()
+    AppRoute.ImportExport -> ChromeStr.importExport()
     AppRoute.About -> AboutStr.aboutApp()
     AppRoute.CourseTimeSettings -> ChromeStr.classTimeSettings()
     // 网页导入页与选择页同级：必须是原生文档（走 Compose 栈会被原生文档挡住）

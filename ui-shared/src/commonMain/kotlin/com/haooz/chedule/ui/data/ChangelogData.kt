@@ -350,9 +350,9 @@ val changelogData = listOf(
         changes = listOf(
             L("合入 @九磅九万便士 pr，支持跳过节假日课程、假期调休补课功能", "Merge @九磅九万便士's PR: skip holiday courses and support holiday make-up classes"),
             L("合入 @玖柒 pr，支持单节课展示教师/地点", "Merge @玖柒's PR: show teacher/location per course"),
-            L("升级天气数据源，并可在「我的」-「应用偏好设置」中切换天气数据源", "Upgrade the weather data source, switchable in \"Me\" - \"App Preferences\""),
+            L("升级天气数据源，并可在「我的」-「应用个性化」中切换天气数据源", "Upgrade the weather data source, switchable in \"Me\" - \"Personalization\""),
             L("教务导入补齐缺失的上游仓库重要功能", "Academic import catches up on missing upstream features"),
-            L("优化了应用偏好设置页面排版", "Improve the App Preferences page layout"),
+            L("优化了应用个性化页面排版", "Improve the Personalization page layout"),
             L("修复课程提醒可能意外发送的问题", "Fix course reminders possibly firing unexpectedly"),
             L("修复周数没有正确简写的问题", "Fix week numbers not abbreviated correctly"),
             L("修复教务导入搜索功能无法正确搜索的问题", "Fix the academic import search not working correctly")
@@ -422,7 +422,7 @@ val changelogData = listOf(
         changes = listOf(
             L("为Pad端进行适配", "Adapt for tablets"),
             L("适配HyperOS无极窗口", "Adapt to HyperOS freeform windows"),
-            L("新增今日页支持显示壁纸（可在「我的」-「应用偏好设置」中关闭）", "Today page can show the wallpaper (disable in \"Me\" - \"App Preferences\")"),
+            L("新增今日页支持显示壁纸（可在「我的」-「应用个性化」中关闭）", "Today page can show the wallpaper (disable in \"Me\" - \"Personalization\")"),
             L("课程管理支持长按卡片进行 [ 编辑 / 删除 ] ", "Course management: long-press a card to [ edit / delete ] "),
             L("新增支持调节课程卡片内容对齐方式", "Add course card content alignment options"),
             L("优化液态玻璃材质", "Improve the liquid glass material"),
@@ -480,7 +480,7 @@ val changelogData = listOf(
             L("新增「课程节数与时间」页面，整合课程时间管理与课表节次功能，并支持保存时间配置，可在不同配置间快速切换", "Add a \"Course Periods & Times\" page combining time management and timetable periods, with savable configs for quick switching"),
             L("「显示周末」升级为「智能显示周末」，开启后根据周课程智能显示周末", "\"Show Weekend\" upgraded to \"Smart Show Weekend\", showing weekends based on the week's courses"),
             L("新增「课程管理」页面，更方便统一管理课程，并可以点击课程进行编辑", "Add a \"Course Management\" page for centralized course management; tap a course to edit"),
-            L("新增「备份与迁移」页面，整合WebDAV云备份及课表导入/导出功能", "Add a \"Backup & Migration\" page combining WebDAV cloud backup and timetable import/export"),
+            L("新增「备份与迁移」页面，整合WebDAV云同步及课表导入/导出功能", "Add a \"Backup & Migration\" page combining WebDAV cloud sync and timetable import/export"),
             L("导出支持ICS日历格式、单独选择课表，并可自定义保存位置", "Export supports ICS calendar format, per-timetable selection and custom save locations"),
             L("新增本地备份功能，支持将课表数据备份至设备本地存储中", "Add local backup to save timetable data to device storage"),
             L("今日页新增「今日助手」，智能显示课程提醒与当日信息", "Today page adds a \"Today Assistant\" with smart course reminders and daily info"),

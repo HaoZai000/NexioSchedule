@@ -21,9 +21,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -83,6 +80,9 @@ import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
+import com.haooz.chedule.ui.components.HorizontalPageSwitch
+import com.haooz.chedule.ui.components.PageSwitchState
+import com.haooz.chedule.ui.components.rememberPageSwitchState
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.isIosPlatform
@@ -221,12 +221,13 @@ fun WidgetIntroScreen(
             ) {
                 Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + (if (isTablet) 12.dp else 0.dp)))
 
-                val pagerState = rememberPagerState(pageCount = { pageCount })
+                val pageState = rememberPageSwitchState(0)
 
-                HorizontalPager(
-                    state = pagerState,
+                HorizontalPageSwitch(
+                    state = pageState,
+                    pageCount = pageCount,
                     modifier = Modifier.fillMaxWidth(),
-                    beyondViewportPageCount = 1
+                    beyondPageCount = 1,
                 ) { page ->
                     Box(
                         modifier = Modifier
@@ -240,7 +241,7 @@ fun WidgetIntroScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .graphicsLayer {
-                                    val off = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                                    val off = (pageState.currentPage - page) + pageState.offsetFraction
                                     val absOff = min(abs(off), 1f)
                                     cameraDistance = 48f
                                     rotationY = -off * 56f
@@ -281,14 +282,14 @@ fun WidgetIntroScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 // 页面指示器（会跟手跑的胶囊，点一下也能跳页）
-                WidgetPagerIndicator(pageCount = pageCount, pagerState = pagerState)
+                WidgetPagerIndicator(pageCount = pageCount, pageState = pageState)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // 自定义入口：跟着「当前这一页」的小部件走，所以矩形也取当前页的
                 WidgetCustomizeEntry(
                     onClick = {
-                        val page = pagerState.currentPage
+                        val page = pageState.currentPage
                         val bounds = widgetBounds[page]
                         if (bounds != null) {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
@@ -355,20 +356,13 @@ fun WidgetIntroScreen(
 @Composable
 private fun WidgetPagerIndicator(
     pageCount: Int,
-    pagerState: PagerState,
+    pageState: PageSwitchState,
     modifier: Modifier = Modifier,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val activeColor = MiuixTheme.colorScheme.primary
     val inactiveColor = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.12f)
-    var lastSettled by remember { mutableIntStateOf(pagerState.settledPage) }
-    LaunchedEffect(pagerState.settledPage) {
-        if (pagerState.settledPage != lastSettled) {
-            lastSettled = pagerState.settledPage
-        }
-    }
-
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -377,14 +371,14 @@ private fun WidgetPagerIndicator(
                     val dotPx = IndicatorDot.toPx()
                     val gapPx = IndicatorGap.toPx()
                     val stretchPx = IndicatorStretch.toPx()
-                    val position = pagerPosition(pagerState, pageCount)
+                    val position = pagerPosition(pageState, pageCount)
                     var left = (size.width - indicatorWidth(pageCount, position, dotPx, gapPx, stretchPx)) / 2f
                     for (index in 0 until pageCount) {
                         val width = indicatorSlotWidth(index, position, dotPx, stretchPx)
                         if (offset.x >= left && offset.x <= left + width) {
-                            if (index != pagerState.currentPage) {
+                            if (index != pageState.currentPage) {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                scope.launch { pagerState.animateScrollToPage(index) }
+                                scope.launch { pageState.animateTo(index) }
                             }
                             break
                         }
@@ -397,7 +391,7 @@ private fun WidgetPagerIndicator(
             val dotPx = IndicatorDot.toPx()
             val gapPx = IndicatorGap.toPx()
             val stretchPx = IndicatorStretch.toPx()
-            val position = pagerPosition(pagerState, pageCount)
+            val position = pagerPosition(pageState, pageCount)
             var left = (size.width - indicatorWidth(pageCount, position, dotPx, gapPx, stretchPx)) / 2f
             val centerY = size.height / 2f
             for (index in 0 until pageCount) {
@@ -426,8 +420,8 @@ private val IndicatorGap = 6.dp
 private val IndicatorStretch = 12.dp
 
 /** 跟手位置：整页为整数，拖动过程中是小数 */
-private fun pagerPosition(pagerState: PagerState, pageCount: Int): Float =
-    (pagerState.currentPage + pagerState.currentPageOffsetFraction)
+private fun pagerPosition(pageState: PageSwitchState, pageCount: Int): Float =
+    (pageState.currentPage + pageState.offsetFraction)
         .coerceIn(0f, (pageCount - 1).coerceAtLeast(0).toFloat())
 
 /** 第 index 颗与当前位置的「重合度」：0 = 完全没挨着，1 = 正好停在它上面 */

@@ -14,7 +14,7 @@ object DesktopStr {
     val appreciateAuthor = L("赞赏作者", "Donate & Support")
     val addCourse = L("添加课程（弹窗）", "Add course (dialog)")
     val widgetIntro = L("桌面小部件介绍", "Widgets intro")
-    val webDavSettings = L("WebDAV 云备份", "WebDAV Cloud Backup")
+    val webDavSettings = L("WebDAV 云同步", "WebDAV Cloud Sync")
     val courseDetail = L("课程详情（转场页）", "Course detail (transition)")
     val courseEdit = L("课程编辑（转场页）", "Course edit (transition)")
     val migratedPages = L("已迁移到 :ui-shared 的页面", "Pages migrated to :ui-shared")

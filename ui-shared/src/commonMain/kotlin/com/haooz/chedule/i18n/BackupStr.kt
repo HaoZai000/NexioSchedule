@@ -1,7 +1,7 @@
 package com.haooz.chedule.i18n
 
 /**
- * 数据管理（备份 / 恢复 / 导入 / 导出）页面文案。
+ * 课表导入 / 导出 / 备份 / 恢复 / 迁移页面文案。
  * 术语统一：备份=Backup、恢复=Restore、迁移=Migration。
  */
 object BackupStr {
@@ -52,8 +52,8 @@ object BackupStr {
     val fullBackupNoSelection = L("全部备份模式下无需选择", "No selection needed for full backup")
     val localBackup = L("本地备份", "Local Backup")
     val localBackupSummary = L("备份课表数据到设备存储", "Back up schedule data to device storage")
-    val webDavBackup = L("WebDAV 云备份", "WebDAV Cloud Backup")
-    val webDavBackupSummary = L("配置WebDAV后可云备份/恢复", "Configure WebDAV for cloud backup and restore")
+    val webDavBackup = L("WebDAV 云同步", "WebDAV Cloud Sync")
+    val webDavBackupSummary = L("配置WebDAV后可云同步/恢复", "Configure WebDAV for cloud sync and restore")
     val lastOperationAtN = L("上次操作：%s", "Last operation: %s")
     val noOperationYet = L("未操作", "No operations yet")
     val restore = L("恢复", "Restore")

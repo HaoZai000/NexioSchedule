@@ -140,8 +140,6 @@ fun AboutScreen(
      * - 平板设置页内嵌（还没路由化）→ `startActivity(AboutActivity + 初始路由)`
      *
      * 默认空实现是为了让签名向后兼容；**两处调用点都显式传了**，别依赖默认值。
-     * ⚠ 注意这里只接管这三页；「交流与反馈」「赞赏作者」仍是独立 Activity，
-     * 继续走 `startActivity`。
      */
     onNavigate: (AppRoute) -> Unit = {},
     /** 应用版本号（宿主从 packageManager 取）；桌面/iOS 用各自来源 */
@@ -455,35 +453,12 @@ fun AboutScreen(
                             Column(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                if (!embedded) {
-                                    ArrowPreference(
-                                        title = AboutStr.communicationFeedback(),
-                                        onClick = {
-                                            onNavigate(AppRoute.Communication)
-                                        }
-                                    )
-                                }
                                 ArrowPreference(
                                     title = AboutStr.projectRepo(),
                                     onClick = {
                                         showRepoDialog = true
                                     }
                                 )
-                                if (!embedded) {
-                                    ArrowPreference(
-                                        title = AboutStr.donate(),
-                                        endActions = {
-                                            Text(
-                                                text = AboutStr.buyCoffee(),
-                                                fontSize = 14.sp,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            )
-                                        },
-                                        onClick = {
-                                            onNavigate(AppRoute.AppreciateAuthor)
-                                        }
-                                    )
-                                }
                             }
                         }
                     }
