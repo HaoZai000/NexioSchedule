@@ -83,6 +83,8 @@ fun UpdateSettingsScreen(
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /** 更新能力控制器（Android 注入 `AndroidUpdateController`；桌面/iOS 用 [NoopUpdateController]）。 */
     updateController: UpdateController = NoopUpdateController,
+    /** true = 页尾内联更新历史日志（设置「更新」分类二级页用），不再单开三级页 */
+    changelogInline: Boolean = false,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
@@ -221,7 +223,7 @@ fun UpdateSettingsScreen(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
                     top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        (if (isTablet) 24.dp else 12.dp),
+                        (if (isTablet) 0.dp else 12.dp),
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -439,6 +441,14 @@ fun UpdateSettingsScreen(
                                 }
                             )
                         }
+                    }
+                }
+
+                if (changelogInline) {
+                    item(key = "inline_changelog") {
+                        // 历史日志直接铺在本页尾部，不再跳三级页
+                        Spacer(modifier = Modifier.height(4.dp))
+                        ChangelogContent()
                     }
                 }
             }

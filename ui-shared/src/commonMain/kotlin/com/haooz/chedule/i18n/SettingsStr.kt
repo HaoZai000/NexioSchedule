@@ -3,12 +3,38 @@ package com.haooz.chedule.i18n
 /** 设置页（手机页 + 平板双栏页）文案 */
 object SettingsStr {
 
+    // ---- 分类主页（9 个分类：5 个容器型 + 4 个直达型）----
+    val catCourse = L("课表", "Schedule")
+    val catCourseSummary = L("学期、周次与课表显示", "Term, weeks and display")
+    val catReminder = L("提醒", "Reminders")
+    val catReminderSummary = L("课程提醒与节假日", "Class reminders and holidays")
+    val catWidget = L("小组件", "Widgets")
+    val catWidgetSummary = L("桌面小部件与样式", "Home screen widgets and styles")
+    val catPersonalization = L("个性化", "Personalization")
+    val catPersonalizationSummary = L("主题、材质与交互", "Theme, materials and interactions")
+    val catData = L("数据管理", "Data")
+    val catDataSummary = L("导入、导出与数据源", "Import, export and data sources")
+    val catSync = L("备份与同步", "Backup & Sync")
+    val catSyncSummary = L("课表备份、本地备份与 WebDAV", "Schedule backup, local backup and WebDAV")
+    val catUpdate = L("更新", "Updates")
+    val catUpdateSummary = L("版本与更新通道", "Version and update channel")
+    val catAbout = L("关于", "About")
+    val catAboutSummary = L("关于本应用与支持作者", "About this app and supporting the author")
+    val catDonate = L("捐赠", "Donate")
+    val catDonateSummary = L("支持开发者", "Support the developer")
+
+    // ---- 二级页分组标题 ----
+    val secSemester = L("学期", "Semester")
+    val secCourseDisplay = L("课表显示", "Schedule Display")
+    val secCourseExtra = L("其它", "More")
+    val appLanguage = L("应用语言", "App Language")
+    val secLanguageHome = L("显示", "Display")
+    val secInteraction = L("交互", "Interaction")
+    val secDataSources = L("数据源", "Data Sources")
+    val secSync = L("同步", "Sync")
+
     // ---- 分区标题 ----
-    val basicSettings = L("基本设置", "General")
-    val featuresSection = L("特色功能", "Features")
     val selectCompareSchedules = L("选择对比课表", "Schedules to Compare")
-    val dataManagement = L("数据管理", "Data Management")
-    val otherActions = L("其他操作", "Other Actions")
 
     // ---- 学期与周次 ----
     val startDate = L("开始上课日期", "Semester Start Date")
@@ -28,11 +54,7 @@ object SettingsStr {
     val courseTimeManagement = L("课程时间管理", "Class Time Settings")
     val courseTimeSummary = L("管理课表的节数与课程时间", "Manage periods and course times in your schedule")
 
-    // ---- 特色功能 ----
-    val courseReminder = L("课程提醒", "Course Reminders")
-    val courseReminderSummary = L("课前提醒、次日课程提醒", "Before-class and next-day reminders")
     val holidayAndWorkswap = L("节假日与调休", "Holidays & Adjusted Workdays")
-    val homeScreenWidget = L("桌面小部件", "Widgets")
     val shiftMode = L("排班模式", "Shift Mode")
     val shiftModeSummary = L("同时对比多个课表的排班情况", "Compare shifts across multiple schedules at once")
     val enterShiftMode = L("进入排班模式", "Enter Shift Mode")
@@ -41,11 +63,6 @@ object SettingsStr {
         "Switch to shift schedule mode to compare shifts across multiple schedules at once. Continue?",
     )
     val exitShiftMode = L("退出排班模式", "Exit Shift Mode")
-
-    // ---- 数据管理 ----
-    val scheduleImport = L("课表导入", "Import Schedule")
-    val scheduleExport = L("课表导出", "Export Schedule")
-    val scheduleBackup = L("课表备份", "Schedule Backup")
 
     // ---- 开启新学期 ----
     val newSemester = L("开启新学期", "Start New Semester")
@@ -60,51 +77,15 @@ object SettingsStr {
     val duplicateNameToast = L("该课表名称已存在", "This schedule name already exists")
     val createdToast = L("「%s」创建成功", "\"%s\" created successfully")
 
-    // ---- 其他入口 ----
-    val appPreferences = L("应用偏好设置", "App Preferences")
-    val updateSettings = L("更新设置", "Update Settings")
-    val aboutApp = L("关于应用", "About")
-
-    /** 「关于应用」右侧提示：该页内含捐赠入口。 */
-    val supportAuthor = L("支持作者", "Support the Author")
-
-    // ---- 平板左栏目的地 ----
-    val destSemester = L("学期与周次", "Semester & Weeks")
-    val destFileCodeImport = L("文件口令导入", "File & Code Import")
-    val destAiImport = L("AI 文本导入", "AI Text Import")
-    val destAcademicImport = L("教务系统导入", "Academic System Import")
     val destLocalBackup = L("本地备份", "Local Backup")
     val destWebDav = L("WebDAV 云同步", "WebDAV Cloud Sync")
-    val destAppreciate = L("捐赠支持", "Donate")
-    val destCommunication = L("交流与反馈", "Community & Feedback")
-    val groupImportExport = L("导入与导出", "Import & Export")
-    val groupBackup = L("备份", "Backup")
 
-    // ---- 平板外壳 ----
-
-    // ---- 小部件引导 ----
-    val addToHomeScreen = L("添加到桌面", "Add to Home Screen")
-    val addWidgetDialogTitle = L("添加桌面小部件", "Add Home Screen Widget")
-    val widgetGuideSteps = L(
-        "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Nexio课程表」并添加",
-        "1. Touch and hold an empty area of the Home Screen\n2. Choose “Widgets” under “All apps”\n3. Find “Nexio Schedule” and add it",
-    )
-
-    // ---- WebDAV ----
-    val backingUp = L("备份中…", "Backing up…")
-    val backupToCloud = L("备份到云端", "Back Up to Cloud")
-    val restoring = L("恢复中…", "Restoring…")
-    val restoreFromCloud = L("从云端恢复", "Restore from Cloud")
-    val connected = L("已连接", "Connected")
-    val testConnection = L("测试连接", "Test Connection")
-    val saveFailedRetry = L("保存失败，请重试", "Save failed, please try again")
 
     // ---- 通知测试 ----
     val testXiaomiSuperIsland = L("测试小米超级岛", "Test Xiaomi Super Island")
     val testLiveActivity = L("测试实时活动", "Test Live Activity")
-
-    // ---- 节假日面板 ----
-    val fetchFailedNoData = L("获取失败或暂无数据", "Fetch failed or no data available")
-    val localDataError = L("本地数据异常，更新未保存", "Local data error, update not saved")
-    val updatedNRecords = L("已更新 %d 条记录", "Updated %d records")
+    // iOS 的「超级岛」= Live Activity，文案沿用原生课程提醒页的说法
+    val testDynamicIsland = L("测试灵动岛", "Test Dynamic Island")
+    val islandTestStarted = L("已启动灵动岛测试", "Dynamic Island test started")
+    val testNotificationSent = L("已发送测试通知", "Test notification sent")
 }

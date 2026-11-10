@@ -38,6 +38,7 @@ import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.navigation.NavTransitionState
+import com.haooz.chedule.ui.settings.SettingsCategory
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.HostNavigationState
 import com.haooz.chedule.ui.utils.HostOverlayContent
@@ -669,12 +670,13 @@ internal fun AppRoute.isNativeDocument(): Boolean = nativeDocumentTitle() != nul
 internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     // 设置二级页：走原生文档壳，顶栏与返回按钮由 iOS 原生 NavigationBar 给
     AppRoute.Settings -> CommonStr.settings()
+    // ⚠ 必须非 null：返回 null 会被当成 Compose 栈页面压在原生文档下面，表现为「点了没反应」
+    is AppRoute.SettingsCategoryDetail -> SettingsCategory.fromKey(categoryKey)?.title() ?: CommonStr.settings()
     AppRoute.Changelog -> ChromeStr.changelog()
     AppRoute.License -> ChromeStr.openSourceLicenses()
     AppRoute.PrivacyPolicy -> ChromeStr.privacyPolicy()
     AppRoute.Communication -> ChromeStr.communityFeedback()
     AppRoute.AppreciateAuthor -> ChromeStr.donate()
-    AppRoute.PreferenceSettings -> ChromeStr.appPreferences()
     AppRoute.UpdateSettings -> ChromeStr.updateSettingsTitle()
     AppRoute.LocalBackup -> ChromeStr.localBackup()
     AppRoute.AiImport -> ChromeStr.aiImport()

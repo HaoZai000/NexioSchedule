@@ -92,7 +92,6 @@ object ChromeStr {
     val communityFeedback = L("交流与反馈", "Community & Feedback")
     val donate = L("捐赠支持", "Donate")
 
-    val appPreferences = L("应用偏好设置", "App Preferences")
     val updateSettingsTitle = L("更新设置", "Update Settings")
     val localBackup = L("本地备份", "Local Backup")
     val aiImport = L("AI 文本导入", "AI Text Import")

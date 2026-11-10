@@ -111,8 +111,6 @@ fun BackupAndMigrationScreen(
     settingsViewModel: SettingsViewModel = settingsViewModel(),
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     mode: ScheduleDataManageMode = ScheduleDataManageMode.Import,
-    /** pad 设置右栏：导入页去掉「导入方式」，并把口令/文件拆成两个小标题 */
-    compactImport: Boolean = false,
     /** 课表文件的选文件 / 另存为能力（Android 注入 `AndroidScheduleFileController`；桌面/iOS 用 [NoopScheduleFileController]）。 */
     scheduleFileController: ScheduleFileController = NoopScheduleFileController,
     /** 节假日/调休数据变更后的平台副作用（重排提醒），Android 宿主注入。 */
@@ -130,6 +128,13 @@ fun BackupAndMigrationScreen(
     onExportToWearable: suspend (scheduleName: String) -> String? = { null },
     /** 同步到系统日历（Android 专有；未实现的平台保持默认值 → 点按只提示不支持） */
     onSyncToCalendar: suspend (scheduleName: String) -> CalendarSyncResult = { CalendarSyncResult.Unsupported },
+    /**
+     * 在 Import 模式末尾追加渲染 Export 区块（导出课表 / 导出格式）。
+     * 「数据管理」分类二级页整页内联导入 + 导出时用，避免再套一层三级页。
+     */
+    alsoExport: Boolean = false,
+    /** 列表最后的附加内容（「数据管理」分类页把「数据源」分组挂在本页最底端） */
+    listFooter: (@Composable () -> Unit)? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -233,13 +238,12 @@ fun BackupAndMigrationScreen(
             contentPadding = PaddingValues(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
-                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                    (if (isTablet) 12.dp else 0.dp),
+                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 0.dp,
                 bottom = 60.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (mode == ScheduleDataManageMode.Import && !compactImport) {
+            if (mode == ScheduleDataManageMode.Import) {
                 item {
                     SmallTitle(
                         text = BackupStr.importMethods(),
@@ -253,14 +257,12 @@ fun BackupAndMigrationScreen(
                             val aiImportRouter = LocalAppRouter.current
                             ArrowPreference(
                                 title = BackupStr.aiTextImport(),
-                                summary = BackupStr.aiTextImportSummary(),
                                 onClick = {
                                     aiImportRouter.navigate(AppRoute.AiImport)
                                 }
                             )
                             ArrowPreference(
                                 title = BackupStr.educationalImport(),
-                                summary = BackupStr.educationalImportSummary(),
                                 onClick = {
                                     // 走路由，不再 startActivity
                                     aiImportRouter.navigate(AppRoute.EducationalImport)
@@ -269,75 +271,7 @@ fun BackupAndMigrationScreen(
                         }
                     }
                 }
-            }
 
-            if (mode == ScheduleDataManageMode.Import && compactImport) {
-                // pad：口令
-                item {
-                    SmallTitle(
-                        text = BackupStr.shareCodeSection(),
-                    )
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(0.dp)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            ArrowPreference(
-                                title = BackupStr.shareCodeImport(),
-                                summary = BackupStr.shareCodeImportSummary(),
-                                holdDownState = showShareCodeDialog,
-                                onClick = {
-                                    shareCodeInput = ""
-                                    showShareCodeDialog = true
-                                }
-                            )
-                            ArrowPreference(
-                                title = BackupStr.wakeUpCodeImport(),
-                                summary = BackupStr.wakeUpCodeImportSummary(),
-                                holdDownState = showThirdPartyCodeDialog && thirdPartySource == ThirdPartyShareSource.WakeUp,
-                                onClick = {
-                                    thirdPartySource = ThirdPartyShareSource.WakeUp
-                                    thirdPartyCodeInput = ""
-                                    showThirdPartyCodeDialog = true
-                                }
-                            )
-                            ArrowPreference(
-                                title = BackupStr.starLinkCodeImport(),
-                                summary = BackupStr.starLinkCodeImportSummary(),
-                                holdDownState = showThirdPartyCodeDialog && thirdPartySource == ThirdPartyShareSource.StarLink,
-                                onClick = {
-                                    thirdPartySource = ThirdPartyShareSource.StarLink
-                                    thirdPartyCodeInput = ""
-                                    showThirdPartyCodeDialog = true
-                                }
-                            )
-                        }
-                    }
-                }
-                // pad：文件
-                item {
-                    SmallTitle(
-                        text = BackupStr.fileSection(),
-                    )
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(0.dp)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            ArrowPreference(
-                                title = BackupStr.jsonFileImport(),
-                                summary = BackupStr.jsonFileImportSummary(),
-                                onClick = { pickJsonFile() }
-                            )
-                            ArrowPreference(
-                                title = BackupStr.icsFileImport(),
-                                summary = BackupStr.icsFileImportSummary(),
-                                onClick = { pickIcsFile() }
-                            )
-                        }
-                    }
-                }
-            } else if (mode == ScheduleDataManageMode.Import) {
                 item {
                     SmallTitle(
                         text = BackupStr.fileAndCodeSection(),
@@ -349,7 +283,6 @@ fun BackupAndMigrationScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             ArrowPreference(
                                 title = BackupStr.shareCodeImport(),
-                                summary = BackupStr.shareCodeImportSummary(),
                                 holdDownState = showShareCodeDialog,
                                 onClick = {
                                     shareCodeInput = ""
@@ -358,7 +291,6 @@ fun BackupAndMigrationScreen(
                             )
                             ArrowPreference(
                                 title = BackupStr.wakeUpCodeImport(),
-                                summary = BackupStr.wakeUpCodeImportSummary(),
                                 holdDownState = showThirdPartyCodeDialog && thirdPartySource == ThirdPartyShareSource.WakeUp,
                                 onClick = {
                                     thirdPartySource = ThirdPartyShareSource.WakeUp
@@ -368,7 +300,6 @@ fun BackupAndMigrationScreen(
                             )
                             ArrowPreference(
                                 title = BackupStr.starLinkCodeImport(),
-                                summary = BackupStr.starLinkCodeImportSummary(),
                                 holdDownState = showThirdPartyCodeDialog && thirdPartySource == ThirdPartyShareSource.StarLink,
                                 onClick = {
                                     thirdPartySource = ThirdPartyShareSource.StarLink
@@ -387,12 +318,10 @@ fun BackupAndMigrationScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             ArrowPreference(
                                 title = BackupStr.jsonFileImport(),
-                                summary = BackupStr.jsonFileImportSummary(),
                                 onClick = { pickJsonFile() }
                             )
                             ArrowPreference(
                                 title = BackupStr.icsFileImport(),
-                                summary = BackupStr.icsFileImportSummary(),
                                 onClick = { pickIcsFile() }
                             )
                         }
@@ -400,7 +329,7 @@ fun BackupAndMigrationScreen(
                 }
             }
 
-            if (mode == ScheduleDataManageMode.Export) {
+            if (mode == ScheduleDataManageMode.Export || alsoExport) {
                 item {
                     SmallTitle(
                         text = BackupStr.exportSchedule(),
@@ -441,11 +370,8 @@ fun BackupAndMigrationScreen(
                 }
             }
 
-            if (mode == ScheduleDataManageMode.Export) {
+            if (mode == ScheduleDataManageMode.Export || alsoExport) {
                 item {
-                    SmallTitle(
-                        text = BackupStr.exportFormat(),
-                    )
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         insideMargin = PaddingValues(0.dp)
@@ -453,7 +379,6 @@ fun BackupAndMigrationScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             ArrowPreference(
                                 title = BackupStr.jsonExport(),
-                                summary = BackupStr.jsonExportSummary(),
                                 onClick = {
                                     val json = buildExportJson(selectedExportSchedule)
                                     if (json != null) {
@@ -467,7 +392,6 @@ fun BackupAndMigrationScreen(
                             )
                             ArrowPreference(
                                 title = BackupStr.icsExport(),
-                                summary = BackupStr.icsExportSummary(),
                                 onClick = {
                                     val ics = buildExportIcs(selectedExportSchedule)
                                     if (ics != null) {
@@ -575,6 +499,8 @@ fun BackupAndMigrationScreen(
                     }
                 }
             }
+
+            listFooter?.let { footer -> item(key = "list_footer") { footer() } }
         }
     }
 

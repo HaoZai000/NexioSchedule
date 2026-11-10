@@ -61,6 +61,7 @@ import com.haooz.chedule.data.platform.createHttpService
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.storage.AppStorage
+import com.haooz.chedule.i18n.PreferenceStr
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ReminderStr
@@ -502,7 +503,7 @@ fun CourseReminderScreen(
                     contentPadding = PaddingValues(
                         start = tabletHorizontalPadding,
                         top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                            (if (isTablet) 24.dp else 12.dp),
+                            (if (isTablet) 0.dp else 12.dp),
                         end = tabletHorizontalPadding,
                         bottom = 120.dp
                     ),
@@ -769,6 +770,26 @@ fun CourseReminderScreen(
                                         settingsViewModel.setIslandNotification(it)
                                     }
                                 )
+                                // 超级岛展开态光效（HyperOS 专有）：原在「应用偏好设置」，随提醒类设置
+                                // 收拢到本页。开关只在岛开启且设备支持时出现。
+                                CardExpand(visible = islandNotification && isHyperIsland) {
+                                    val glowPrefs = remember { AppStorage.store("course_reminder_prefs") }
+                                    // 默认值必须与 IslandNotificationHelper.DEFAULT_ISLAND_EXPAND_GLOW 一致
+                                    var glowEnabled by remember {
+                                        mutableStateOf(
+                                            glowPrefs.getBoolean("island_expand_glow_enabled", false)
+                                        )
+                                    }
+                                    SwitchPreference(
+                                        title = PreferenceStr.superIslandGlow(),
+                                        summary = PreferenceStr.superIslandGlowSummary(),
+                                        checked = glowEnabled,
+                                        onCheckedChange = {
+                                            glowEnabled = it
+                                            glowPrefs.edit { putBoolean("island_expand_glow_enabled", it) }
+                                        }
+                                    )
+                                }
                                 CardExpand(visible = islandNotification) {
                                     Column(
                                         modifier = Modifier

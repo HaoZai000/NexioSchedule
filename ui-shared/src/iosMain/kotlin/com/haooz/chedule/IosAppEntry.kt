@@ -31,7 +31,9 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.CourseStorage
 import com.haooz.chedule.data.platform.toByteArray
+import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.L
+import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.main.CourseScheduleApp
 import com.haooz.chedule.ui.activities.today.TodayAssistantCard
@@ -53,7 +55,7 @@ import com.haooz.chedule.ui.navigation.HolidaySettingsRoute
 import com.haooz.chedule.ui.navigation.LicenseRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.navigation.LocalBackupRoute
-import com.haooz.chedule.ui.navigation.PreferenceSettingsRoute
+import com.haooz.chedule.ui.navigation.SettingsCategoryRoute
 import com.haooz.chedule.ui.navigation.PrivacyPolicyRoute
 import com.haooz.chedule.ui.navigation.SettingsRoute
 import com.haooz.chedule.ui.navigation.UpdateSettingsRoute
@@ -62,6 +64,7 @@ import com.haooz.chedule.ui.navigation.WebImportRoute
 import com.haooz.chedule.ui.navigation.WidgetIntroRoute
 import com.haooz.chedule.ui.screens.PrivacyConsentScreen
 import com.haooz.chedule.ui.screens.rememberWeatherIos
+import com.haooz.chedule.ui.settings.DataManagePlatform
 import com.haooz.chedule.ui.utils.IosReminderController
 import com.haooz.chedule.ui.utils.IosWakeUpImport
 import com.haooz.chedule.ui.utils.ShareCodeImport
@@ -326,6 +329,21 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
             },
         )
 
+        is AppRoute.SettingsCategoryDetail -> SettingsCategoryRoute(
+            router = router,
+            categoryKey = route.categoryKey,
+            // 「备份与同步」二级页内嵌本地备份 → 注入 UIDocumentPicker 能力与恢复副作用
+            backupFileController = backupFileController,
+            onHolidayDataChanged = onHolidayDataChanged,
+            // 「数据管理」二级页内嵌导入/导出 → 与 AppRoute.ScheduleImport 同一套注入。
+            // ⚠ 不传会落到 NoopScheduleFileController，点选文件/口令导入全部静默无反应。
+            dataManage = DataManagePlatform(
+                scheduleFileController = fileController,
+                onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
+                onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
+            ),
+        )
+
         AppRoute.About -> AboutRoute(
             router = router,
             appVersion = AppInfo.version,
@@ -343,7 +361,6 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.Communication -> CommunicationRoute(router)
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
         // 带注入的文档壳：iOS 用默认 Noop 能力，剪贴板注入 UIPasteboard
-        AppRoute.PreferenceSettings -> PreferenceSettingsRoute(router)
         AppRoute.UpdateSettings -> UpdateSettingsRoute(router)
         // 本地备份：目录扫描+手动选文件都需原生文件能力。
         // ⚠ 不传会落到 NoopBackupFileController，点「手动选择文件」静默回调 null，什么都不发生。
@@ -376,14 +393,18 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
             CourseReminderRoute(
                 router = router,
                 reminderController = reminderController,
-                testActionLabel = if (islandNotification) L("测试灵动岛", "Test Dynamic Island")() else L("测试通知", "Test Notification")(),
+                testActionLabel = if (islandNotification) {
+                    SettingsStr.testDynamicIsland()
+                } else {
+                    ChromeStr.testNotification()
+                },
                 onSendTestNotification = {
                     if (islandNotification) {
                         IosCourseLiveActivity.startTest()
-                        showToast(L("已启动灵动岛测试", "Dynamic Island test started")())
+                        showToast(SettingsStr.islandTestStarted())
                     } else {
                         IosCourseNotifier.sendTestNotification()
-                        showToast(L("已发送测试通知", "Test notification sent")())
+                        showToast(SettingsStr.testNotificationSent())
                     }
                 },
             )

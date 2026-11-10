@@ -112,6 +112,10 @@ fun LocalBackupScreen(
     backupFileController: BackupFileController = NoopBackupFileController,
     // 全量恢复成功后的平台副作用（重排提醒），由 Android 宿主注入。
     onHolidayDataChanged: () -> Unit = {},
+    /** 列表最前的附加内容（「备份与同步」分类页在本页顶部挂「本地备份」小标题） */
+    listHeader: (@Composable () -> Unit)? = null,
+    /** 列表最后的附加内容（「备份与同步」分类页把 WebDAV 入口挂在本页最底端） */
+    listFooter: (@Composable () -> Unit)? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
@@ -268,10 +272,11 @@ fun LocalBackupScreen(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
                 top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                    (if (isTablet) 24.dp else 12.dp),
+                    (if (isTablet) 0.dp else 12.dp),
                 bottom = 120.dp
             ),
         ) {
+            listHeader?.let { header -> item(key = "list_header") { header() } }
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
@@ -424,7 +429,9 @@ fun LocalBackupScreen(
             if (backupHistory.isEmpty()) {
                 item(key = "history_empty") {
                     Card(
-                        modifier = Modifier.fillMaxWidth().animateItem(),
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                            .animateItem(),
                         insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
                     ) {
                         Text(
@@ -526,7 +533,10 @@ fun LocalBackupScreen(
                     modifier = Modifier.animateItem()
                 )
                 Card(
-                    modifier = Modifier.fillMaxWidth().animateItem(),
+                    // 最后一张卡：补 12dp 下边距，避免贴住列表底（页尾 WebDAV 入口）
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .animateItem(),
                     insideMargin = PaddingValues(0.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -545,6 +555,7 @@ fun LocalBackupScreen(
                     }
                 }
             }
+            listFooter?.let { footer -> item(key = "list_footer") { footer() } }
         }
     }
 

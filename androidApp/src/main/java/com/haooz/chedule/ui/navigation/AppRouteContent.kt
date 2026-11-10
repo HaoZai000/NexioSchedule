@@ -24,9 +24,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.calendar.rememberCalendarSyncAction
 import com.haooz.chedule.data.platform.showToast
-import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.AndroidMiscStr
-import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
@@ -35,6 +33,7 @@ import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.decodeWallpaperSampled
 import com.haooz.chedule.ui.screens.AndroidSettingsPane
 import com.haooz.chedule.ui.screens.invalidateWeatherCache
+import com.haooz.chedule.ui.settings.DataManagePlatform
 import com.haooz.chedule.ui.utils.AndroidBackupFileController
 import com.haooz.chedule.ui.utils.AndroidDiagnosticRecorder
 import com.haooz.chedule.ui.utils.AndroidReminderController
@@ -87,11 +86,15 @@ fun AppRouteContent(
         // 文档壳路由，Android 注入平台能力。
         // ⚠ context/activity 必须在组合期取好再捕获 —— `LocalContext.current` 是
         // @Composable getter，写进非组合 lambda 会编不过。
-        AppRoute.PreferenceSettings -> {
+        // 设置分类二级页（手机）：分类内容与平板右栏共用一套实现
+        is AppRoute.SettingsCategoryDetail -> {
             val context = LocalContext.current
             val activity = LocalActivity.current
-            PreferenceSettingsRoute(
+            val shareScope = rememberCoroutineScope()
+            val calendarSyncAction = rememberCalendarSyncAction()
+            SettingsCategoryRoute(
                 router = router,
+                categoryKey = route.categoryKey,
                 hasLocationPermission = {
                     ContextCompat.checkSelfPermission(
                         context, Manifest.permission.ACCESS_FINE_LOCATION
@@ -104,8 +107,40 @@ fun AppRouteContent(
                 onSetTaskExcludedFromRecents = { hidden ->
                     MainActivity.setTaskExcludedFromRecents(context, hidden)
                 },
-                // 偏好设置页改主题 → 系统栏跟着刷新（原来在 Activity 的 setContent 里）
                 onThemeDarkChanged = { activity?.applyThemeAwareSystemBars() },
+                // 「更新」二级页内嵌更新设置/日志 → 注入 Android 更新能力
+                updateController = remember { AndroidUpdateController(context) },
+                // 「备份与同步」二级页内嵌本地备份 → 注入 SAF 文件能力与恢复副作用
+                backupFileController = remember { AndroidBackupFileController(context) },
+                // 「数据管理」二级页内嵌导入/导出 → 注入 SAF/口令/日历/手环能力
+                dataManage = remember {
+                    DataManagePlatform(
+                        scheduleFileController = AndroidScheduleFileController(context),
+                        onFetchShareCode = { code ->
+                            ShareCodeApi.fetchShare(code).map {
+                                ShareCodeFetchResult(
+                                    code = it.code,
+                                    scheduleName = it.scheduleName,
+                                    scheduleData = it.scheduleData,
+                                )
+                            }
+                        },
+                        onImportThirdParty = { source, code ->
+                            ThirdPartyShareImporter.import(context, source, code)
+                        },
+                        onShareSchedule = { name, onSharingChanged ->
+                            performScheduleShare(
+                                context = context,
+                                scope = shareScope,
+                                scheduleName = name,
+                                onSharingChanged = onSharingChanged,
+                            )
+                        },
+                        onExportToWearable = { name -> WearableScheduleSync.exportToWearable(context, name) },
+                        onSyncToCalendar = calendarSyncAction,
+                    )
+                },
+                onHolidayDataChanged = { CourseReminderHelper.onHolidayDataChanged(context) },
             )
         }
 
@@ -335,54 +370,13 @@ private fun isInFreeformWindow(): Boolean {
 private fun AndroidAboutRoute(router: AppRouter) {
     val context = LocalContext.current
     val activity = LocalActivity.current
-    val packageInfo = remember {
-        runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
-    }
-    // 应用图标：drawable → Bitmap → 裁掉 AdaptiveIcon 四周透明边 → ImageBitmap
-    // （裁边逻辑原在 AboutScreen.cropBitmapToOpaque，随迁移到 ui-shared 已删除，宿主在此复刻）
-    val aboutIcon = remember {
-        runCatching { context.packageManager.getApplicationIcon(context.packageName) }
-            .getOrNull()
-            ?.let { drawable ->
-                val size = maxOf(drawable.intrinsicWidth, drawable.intrinsicHeight, 1)
-                val bitmap = androidx.core.graphics.createBitmap(size, size)
-                drawable.setBounds(0, 0, size, size)
-                drawable.draw(android.graphics.Canvas(bitmap))
-                val pixels = IntArray(size * size)
-                bitmap.getPixels(pixels, 0, size, 0, 0, size, size)
-                var minX = size
-                var minY = size
-                var maxX = -1
-                var maxY = -1
-                for (y in 0 until size) {
-                    for (x in 0 until size) {
-                        if (pixels[y * size + x] ushr 24 != 0) {
-                            if (x < minX) minX = x
-                            if (x > maxX) maxX = x
-                            if (y < minY) minY = y
-                            if (y > maxY) maxY = y
-                        }
-                    }
-                }
-                val cropped = if (maxX >= minX && maxY >= minY &&
-                    (maxX - minX + 1 != size || maxY - minY + 1 != size)
-                ) {
-                    android.graphics.Bitmap.createBitmap(bitmap, minX, minY, maxX - minX + 1, maxY - minY + 1)
-                } else {
-                    bitmap
-                }
-                cropped.asImageBitmap()
-            }
-    }
+    // 版本号 / 应用名 / 图标（含 AdaptiveIcon 透明边裁剪）与平板设置右栏内嵌共用一份实现
+    val info = com.haooz.chedule.ui.utils.rememberAndroidAboutInfo()
     com.haooz.chedule.ui.navigation.AboutRoute(
         router = router,
-        appVersion = remember(AppLanguage.resolved) { packageInfo?.versionName ?: AboutStr.unknownVersion() },
-        appName = remember(AppLanguage.resolved) {
-            packageInfo?.applicationInfo?.labelRes?.let { context.getString(it) }
-                ?: context.applicationInfo?.nonLocalizedLabel?.toString()
-                ?: AboutStr.appName()
-        },
-        appIcon = aboutIcon,
+        appVersion = info.version,
+        appName = info.name,
+        appIcon = info.icon,
         onExitApp = { activity?.finishAffinity() },
         diagnosticRecorder = remember { AndroidDiagnosticRecorder(context) },
     )

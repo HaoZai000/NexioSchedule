@@ -34,7 +34,7 @@ object IslandNotificationHelper {
     private val CHANNEL_NAME: String get() = AndroidNotifStr.channelIslandName()
     private const val KEY_ISLAND_EXPAND_GLOW_ENABLED = "island_expand_glow_enabled"
     /**
-     * 光效默认关闭。⚠ 必须与 `PreferenceSettingsScreen` 里这个开关的初值一致 ——
+     * 光效默认关闭。⚠ 必须与 `CourseReminderScreen`（「课程提醒」页）里这个开关的初值一致 ——
      */
     private const val DEFAULT_ISLAND_EXPAND_GLOW = false
     // 课中提醒：到点后「已上课」替换为模板6进度卡片

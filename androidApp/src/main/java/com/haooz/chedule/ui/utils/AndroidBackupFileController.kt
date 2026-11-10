@@ -37,7 +37,7 @@ import java.util.Locale
  * 同 [AndroidDiagnosticRecorder] / [AndroidUpdateController] / [AndroidReminderController]
  * 的套路：方法都带 `context`，本层在构造时捕获宿主注入的 context，接口层保持无参
  * （`:ui-shared` 的「本地备份」页只依赖跨平台接口，commonMain 里没有 android / java import）。
- * 宿主（AppRouteContent 的 LocalBackup 路由 / TabletSettingsScreen 的 androidPane）在调用点
+ * 宿主（AppRouteContent 的 LocalBackup 路由 / 设置页的 `backupFileController` 注入点）在调用点
  * 创建本实例并注入：`backupFileController = remember { AndroidBackupFileController(context) }`。
  *
  * 本文件集中了原 `LocalBackupScreen.kt`（:androidApp 版）里全部 Android 专有段落，

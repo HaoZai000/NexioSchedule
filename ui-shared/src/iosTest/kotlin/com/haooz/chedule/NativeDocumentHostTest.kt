@@ -1,6 +1,7 @@
 package com.haooz.chedule
 
 import com.haooz.chedule.ui.navigation.AppRoute
+import com.haooz.chedule.ui.settings.SettingsCategory
 import com.haooz.chedule.ui.utils.HostOverlayEntry
 import com.haooz.chedule.ui.utils.NativeDocumentAction
 import com.haooz.chedule.ui.utils.NativeDocumentEditorChrome
@@ -169,7 +170,6 @@ class NativeDocumentHostTest {
             AppRoute.PrivacyPolicy to "隐私政策",
             AppRoute.Communication to "交流与反馈",
             AppRoute.AppreciateAuthor to "捐赠支持",
-            AppRoute.PreferenceSettings to "应用偏好设置",
             AppRoute.UpdateSettings to "更新设置",
             AppRoute.LocalBackup to "本地备份",
             AppRoute.AiImport to "AI 文本导入",
@@ -182,7 +182,10 @@ class NativeDocumentHostTest {
             AppRoute.ScheduleImport to "课表导入",
             AppRoute.About to "关于应用",
             AppRoute.CourseTimeSettings to "课程时间管理",
-        )
+        ) + SettingsCategory.entries.filter { !it.isDirect }.map { category ->
+            // 设置分类二级页：标题由分类决定，漏一条 iOS 上就会「点了没反应」
+            AppRoute.SettingsCategoryDetail(category.key) to category.title()
+        }
         for ((route, title) in documents) {
             val host = IosAppHost()
             host.router.navigate(route)

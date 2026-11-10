@@ -1,5 +1,7 @@
 package com.haooz.chedule.ui.navigation
 
+import com.haooz.chedule.ui.settings.SettingsCategory
+
 /**
  * 应用内子页路由表（单宿主 + 显式路由；iOS 无 Activity，导航状态不能活在 Android back stack 里）。
  *
@@ -44,9 +46,18 @@ sealed interface AppRoute {
         override val id: String get() = "privacy_policy"
     }
 
-    /** 应用偏好设置（Manifest label「应用偏好设置」）。 */
-    data object PreferenceSettings : AppRoute {
-        override val id: String get() = "preference_settings"
+    /**
+     * 设置分类二级页（容器型分类之一，直达型分类没有二级页）。
+     *
+     * ⚠ [categoryKey] 见 `SettingsCategory.key`；id 形如 `settings_category/course`。
+     * 未知 key 与直达型 key 都会被 [fromId] 丢弃（见那里），页面侧再兜底回「课表」。
+     */
+    data class SettingsCategoryDetail(val categoryKey: String) : AppRoute {
+        override val id: String get() = "$SETTINGS_CATEGORY_PREFIX$categoryKey"
+
+        companion object {
+            const val SETTINGS_CATEGORY_PREFIX = "settings_category/"
+        }
     }
 
     /** 更新设置（「更新设置」）。 */
@@ -143,7 +154,6 @@ sealed interface AppRoute {
             Changelog.id -> Changelog
             License.id -> License
             PrivacyPolicy.id -> PrivacyPolicy
-            PreferenceSettings.id -> PreferenceSettings
             UpdateSettings.id -> UpdateSettings
             Communication.id -> Communication
             LocalBackup.id -> LocalBackup
@@ -160,7 +170,15 @@ sealed interface AppRoute {
             CourseManage.id -> CourseManage
             EducationalImport.id -> EducationalImport
             WebImport.id -> WebImport
-            else -> null
+            else -> if (id.startsWith(SettingsCategoryDetail.SETTINGS_CATEGORY_PREFIX)) {
+                val key = id.removePrefix(SettingsCategoryDetail.SETTINGS_CATEGORY_PREFIX)
+                val category = SettingsCategory.fromKey(key)
+                // 直达型分类（提醒/小组件）没有二级列表页：主页点它就直接进目标页面，
+                // 所以 `settings_category/reminder` 不是合法路由，还原时按未知 id 丢弃
+                if (category == null || category.isDirect) null else SettingsCategoryDetail(key)
+            } else {
+                null
+            }
         }
     }
 }

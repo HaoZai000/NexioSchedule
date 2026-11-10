@@ -176,8 +176,7 @@ fun AiImportScreen(
                 .padding(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        (if (isTablet) 12.dp else 0.dp),
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 0.dp,
                     bottom = 120.dp
                 )
         ) {

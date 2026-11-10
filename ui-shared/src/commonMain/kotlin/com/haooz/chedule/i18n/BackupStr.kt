@@ -79,14 +79,11 @@ object BackupStr {
 
     // ---- 导出 ----
 
-    val exportSchedule = L("导出课表", "Export Schedule")
+    val exportSchedule = L("导出", "Export")
     val selectSchedule = L("选择课表", "Select Schedule")
     val noScheduleForExport = L("暂无课表，请先创建或导入后再导出", "No schedules yet. Create or import one before exporting")
-    val exportFormat = L("导出格式", "Export Format")
     val jsonExport = L("JSON 格式导出", "Export as JSON")
-    val jsonExportSummary = L("导出课表为JSON格式", "Export the schedule as a JSON file")
     val icsExport = L("ICS 格式导出", "Export as ICS")
-    val icsExportSummary = L("导出课表为日程格式", "Export the schedule as a calendar file")
     val shareCodeExport = L("口令分享导出", "Share Code Export")
     val shareCodeExportSummary = L("生成趣味口令与分享图片", "Generate a fun share code and image")
     val shareExportConfirmSummaryN = L(
@@ -116,7 +113,7 @@ object BackupStr {
 
     // ---- 导入 ----
 
-    val importMethods = L("导入方式", "Import Methods")
+    val importMethods = L("智能导入", "Smart Import")
     val importSchedule = L("导入课表", "Import Schedule")
     val importScheduleConfirmSummaryN = L(
         "是否导入课表「%s」？\n确定导入将创建一个新的课表",
@@ -136,31 +133,22 @@ object BackupStr {
     val icsImportedScheduleName = L("ICS导入课表", "Imported from ICS")
     val wakeUpImportedName = L("WakeUp导入课表", "Imported from WakeUp")
     val starLinkImportedName = L("星链导入课表", "Imported from StarLink")
-    val shareCodeSection = L("口令", "Share Code")
-    val fileSection = L("文件", "Files")
-    val fileAndCodeSection = L("文件与口令", "Files & Share Codes")
+    val fileAndCodeSection = L("导入", "Import")
     val shareCodeImport = L("分享口令导入", "Share Code Import")
-    val shareCodeImportSummary = L("输入好友分享的口令导入课表", "Enter a share code from a friend to import a schedule")
     val shareCodeImportTitle = L("口令导入", "Share Code Import")
     val shareCodeDialogSummary = L("输入好友分享的口令，过期后需重新获取", "Enter a share code from a friend. Ask for a new one if it has expired")
     val shareCodeLabel = L("分享口令", "Share Code")
     val wakeUpCodeImport = L("WakeUp课程表口令导入", "WakeUp Share Code Import")
-    val wakeUpCodeImportSummary = L("输入WakeUp分享口令即可获取", "Enter a WakeUp share code to fetch the schedule")
     val starLinkCodeImport = L("星链课表分享码导入", "StarLink Share Code Import")
-    val starLinkCodeImportSummary = L("输入星链课表分享码即可获取", "Enter a StarLink share code to fetch the schedule")
     val thirdPartyCodeSummaryN = L("输入%s即可导入课表", "Enter %s to import the schedule")
     val thirdPartyConfirmSummaryN = L(
         "是否导入「%s」课表？\n共 %d 门课程，将创建新课表",
         "Import schedule \"%s\"?\n%d courses in total; a new schedule will be created",
     )
     val aiTextImport = L("AI 文本导入", "AI Text Import")
-    val aiTextImportSummary = L("粘贴由AI解析后的课程进行导入", "Paste AI-parsed courses to import")
     val educationalImport = L("教务系统导入", "Academic System Import")
-    val educationalImportSummary = L("从学校教务系统一键拉取课表", "Fetch your schedule from the school system in one tap")
     val jsonFileImport = L("JSON 文件导入", "Import JSON File")
-    val jsonFileImportSummary = L("支持拾光课程表/Nexio课程表", "Supports Shiguang Schedule/Nexio Schedule")
     val icsFileImport = L("ICS 文件导入", "Import ICS File")
-    val icsFileImportSummary = L("从日程文件导入课程", "Import courses from a calendar file")
     val noScheduleData = L("暂无课表数据", "No schedule data")
     val noBackupRecords = L("暂无备份记录", "No backup records yet")
 }

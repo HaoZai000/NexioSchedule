@@ -58,23 +58,6 @@ fun ChangelogScreen(
         ((widthDp - 600).coerceIn(0, 600) / 600f * 108 + 20).dp
     } else 16.dp
 
-    val expandedStates = remember {
-        mutableStateListOf<Boolean>().apply {
-            repeat(changelogData.size) { index ->
-                add(index < initialExpandCount)
-            }
-        }
-    }
-
-    val rotations = List(changelogData.size) { index ->
-        val rotation by animateFloatAsState(
-            targetValue = if (expandedStates[index]) 90f else -90f,
-            animationSpec = tween(durationMillis = 200),
-            label = "changelogRotation$index"
-        )
-        rotation
-    }
-
     Scaffold(
         topBar = {}
     ) { paddingValues ->
@@ -94,17 +77,47 @@ fun ChangelogScreen(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
                     top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        (if (isTablet) 24.dp else 12.dp),
+                        (if (isTablet) 0.dp else 12.dp),
                     bottom = 60.dp
                 )
         ) {
-            // 整页日志叠成一张卡片会超过 layer 高度上限（约 8192px）导致下方触摸失效，
-            // 这里只画圆角底色、不裁剪子节点。
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .continuousBackground(CardDefaults.defaultColors().color, CardDefaults.CornerRadius)
-            ) {
+            ChangelogContent(initialExpandCount = initialExpandCount)
+        }
+    }
+}
+
+/**
+ * 更新日志卡片本体：整页日志叠成一张卡片会超过 layer 高度上限（约 8192px）导致下方
+ * 触摸失效，这里只画圆角底色、不裁剪子节点。
+ * 独立成内容组件，供「更新」分类二级页内联渲染（不嵌套滚动容器）。
+ */
+@Composable
+fun ChangelogContent(
+    modifier: Modifier = Modifier,
+    initialExpandCount: Int = 3
+) {
+    val expandedStates = remember {
+        mutableStateListOf<Boolean>().apply {
+            repeat(changelogData.size) { index ->
+                add(index < initialExpandCount)
+            }
+        }
+    }
+
+    val rotations = List(changelogData.size) { index ->
+        val rotation by animateFloatAsState(
+            targetValue = if (expandedStates[index]) 90f else -90f,
+            animationSpec = tween(durationMillis = 200),
+            label = "changelogRotation$index"
+        )
+        rotation
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .continuousBackground(CardDefaults.defaultColors().color, CardDefaults.CornerRadius)
+    ) {
                 changelogData.forEachIndexed { index, entry ->
                     Column(
                         modifier = Modifier
@@ -181,7 +194,5 @@ fun ChangelogScreen(
                         )
                     }
                 }
-            }
         }
-    }
 }

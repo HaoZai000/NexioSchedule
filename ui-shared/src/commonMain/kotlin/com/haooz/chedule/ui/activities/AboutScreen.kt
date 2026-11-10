@@ -133,15 +133,13 @@ fun AboutScreen(
     /** 弹窗的玻璃采样层：内嵌时传全屏层，使弹窗能采样到左侧内容 */
     dialogBackdrop: GlassBackdrop? = null,
     /**
-     * 打开子页面（更新日志 / 开源协议 / 隐私政策）。
+     * 打开子页面（更新日志 / 开源协议 / 隐私政策 / 交流与反馈 / 赞赏作者）。
      *
-     * 这三页已经从独立 Activity 改成路由，所以**必须由宿主决定怎么跳**：
-     * - 路由宿主（[com.haooz.chedule.ui.activities.AboutActivity]）→ `router.navigate(...)`
-     * - 平板设置页内嵌（还没路由化）→ `startActivity(AboutActivity + 初始路由)`
+     * 这五页全部是路由，**由宿主决定怎么跳**：
+     * - 手机：`router.navigate(...)` 压全屏路由；
+     * - 平板右栏内嵌（`SettingsDirectPane`）：同样压栈，返回后仍回到分栏。
      *
-     * 默认空实现是为了让签名向后兼容；**两处调用点都显式传了**，别依赖默认值。
-     * ⚠ 注意这里只接管这三页；「交流与反馈」「赞赏作者」仍是独立 Activity，
-     * 继续走 `startActivity`。
+     * 默认空实现只为签名兼容；调用点都应显式传。
      */
     onNavigate: (AppRoute) -> Unit = {},
     /** 应用版本号（宿主从 packageManager 取）；桌面/iOS 用各自来源 */
@@ -455,35 +453,32 @@ fun AboutScreen(
                             Column(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                if (!embedded) {
-                                    ArrowPreference(
-                                        title = AboutStr.communicationFeedback(),
-                                        onClick = {
-                                            onNavigate(AppRoute.Communication)
-                                        }
-                                    )
-                                }
+                                // 内嵌到平板设置右栏时也保留：两个入口都走路由，压栈后返回仍回到分栏
+                                ArrowPreference(
+                                    title = AboutStr.communicationFeedback(),
+                                    onClick = {
+                                        onNavigate(AppRoute.Communication)
+                                    }
+                                )
                                 ArrowPreference(
                                     title = AboutStr.projectRepo(),
                                     onClick = {
                                         showRepoDialog = true
                                     }
                                 )
-                                if (!embedded) {
-                                    ArrowPreference(
-                                        title = AboutStr.donate(),
-                                        endActions = {
-                                            Text(
-                                                text = AboutStr.buyCoffee(),
-                                                fontSize = 14.sp,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            )
-                                        },
-                                        onClick = {
-                                            onNavigate(AppRoute.AppreciateAuthor)
-                                        }
-                                    )
-                                }
+                                ArrowPreference(
+                                    title = AboutStr.donate(),
+                                    endActions = {
+                                        Text(
+                                            text = AboutStr.buyCoffee(),
+                                            fontSize = 14.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                    },
+                                    onClick = {
+                                        onNavigate(AppRoute.AppreciateAuthor)
+                                    }
+                                )
                             }
                         }
                     }

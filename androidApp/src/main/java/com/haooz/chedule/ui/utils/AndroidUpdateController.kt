@@ -12,7 +12,7 @@ import java.io.File
  * 同 [AndroidDiagnosticRecorder] 的套路：两个包装对象的方法都带 `context`，
  * 本层在构造时捕获宿主注入的 context，接口层保持无参（`:ui-shared` 的「应用更新」页
  * 只依赖跨平台接口，commonMain 里没有 android / java import）。
- * 宿主（AppRouteContent / SettingsScreen 的 androidPane）在调用点创建本实例并注入：
+ * 宿主（AppRouteContent 的 UpdateSettings 路由 / 设置页的 `updateController` 注入点）在调用点创建本实例并注入：
  * `updateController = remember { AndroidUpdateController(context) }`。
  *
  * 数据类转换：`UpdateChecker.GiteeRelease`（internal 嵌套类，不能跨模块引用）

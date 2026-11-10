@@ -31,8 +31,8 @@ private const val ACTION_MANAGE_APP_PROMOTED_NOTIFICATIONS =
  *
  * 同 [AndroidDiagnosticRecorder] / [AndroidUpdateController] 的套路：单例方法都带 `context`，
  * 本层在构造时捕获宿主注入的 context，接口层保持无参 —— `:ui-shared` 的「课程提醒」页只依赖
- * 跨平台接口（commonMain 无 android / java import）。宿主（SettingsScreen 的 androidPane /
- * AppRouteContent 路由）在调用点创建本实例并注入：
+ * 跨平台接口（commonMain 无 android / java import）。宿主（AndroidSettingsScreen 的
+ * `directPlatform` / AppRouteContent 的 CourseReminder 路由）在调用点创建本实例并注入：
  * `reminderController = remember { AndroidReminderController(context) }`。
  *
  * ## 设置页 / 权限的结果回调
@@ -213,8 +213,8 @@ class AndroidReminderController(private val context: Context) : ReminderControll
     private companion object {
         /**
          * 固定 key：同 key 重复注册 = 替换回调槽（不抛错）；Activity 重建后注册同 key
-         * 可接上恢复的挂起结果。两处注入点（AppRouteContent / SettingsScreen androidPane）
-         * 不会同时存活，即便先后注册也是后者接管，行为等价。
+         * 可接上恢复的挂起结果。两处注入点（AppRouteContent 的 CourseReminder 路由 /
+         * AndroidSettingsScreen 的 directPlatform）不会同时存活，即便先后注册也是后者接管，行为等价。
          */
         const val KEY_SETTINGS_RESULT = "com.haooz.chedule.reminder.settings_result"
         const val KEY_NOTIFICATION_PERMISSION = "com.haooz.chedule.reminder.notification_permission"

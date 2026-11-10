@@ -545,7 +545,7 @@ fun HolidaySettingsScreen(
             contentPadding = PaddingValues(
                 tabletHorizontalPadding,
                 padding.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                    (if (isTablet) 24.dp else 12.dp),
+                    (if (isTablet) 0.dp else 12.dp),
                 tabletHorizontalPadding,
                 60.dp,
             ),

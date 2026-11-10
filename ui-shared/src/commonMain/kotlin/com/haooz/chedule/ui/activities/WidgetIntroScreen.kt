@@ -219,7 +219,7 @@ fun WidgetIntroScreen(
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + (if (isTablet) 12.dp else 0.dp)))
+                Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 0.dp))
 
                 val pagerState = rememberPagerState(pageCount = { pageCount })
 

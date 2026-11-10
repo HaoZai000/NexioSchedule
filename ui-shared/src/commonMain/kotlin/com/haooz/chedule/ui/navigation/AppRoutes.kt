@@ -92,7 +92,6 @@ import com.haooz.chedule.ui.activities.EducationalImportScreen
 import com.haooz.chedule.ui.activities.HolidaySettingsScreen
 import com.haooz.chedule.ui.activities.LicenseScreen
 import com.haooz.chedule.ui.activities.LocalBackupScreen
-import com.haooz.chedule.ui.activities.PreferenceSettingsScreen
 import com.haooz.chedule.ui.activities.PrivacyPolicyScreen
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.TimeConfigCardBounds
@@ -114,6 +113,9 @@ import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.CourseEditScreen
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
+import com.haooz.chedule.ui.settings.SettingsCategory
+import com.haooz.chedule.ui.settings.SettingsCategoryPage
+import com.haooz.chedule.ui.settings.SettingsContentHost
 import com.haooz.chedule.ui.theme.rememberAppThemeController
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
@@ -346,9 +348,12 @@ fun WeatherRoute(router: AppRouter) {
 // ── 带能力注入的文档壳路由：壳在 commonMain，平台能力走参数 ──
 
 /**
- * 设置（二级页）
- * ⚠ 平板（rail）仍走 pager 内嵌那套，不经过这里。
- * 壳用 [DocumentPageScaffold]：返回按钮、折叠标题、页内采样层、iOS 原生 chrome 都由它给，
+ * 设置（主页）。
+ *
+ * - 手机：分类卡片主页，分类详情走 [SettingsCategoryRoute] 的二级页；
+ * - 平板（rail）：仍走 pager 内嵌那套，不经过这里。
+ *
+ * 壳用 [DocumentPageScaffold]：返回按钮、折叠标题、页内采样层、iOS 原生 chrome 都由它给。
  *
  * @param settingsPane 宿主装配（Android = `AndroidSettingsScreen`，iOS = `IosSettingsScreen`）；
  *   null 时回落到共享 [SettingsScreen] 默认装配。
@@ -402,33 +407,96 @@ fun SettingsRoute(
 }
 
 /**
- * 应用偏好设置路由。四个平台能力全部参数注入：定位权限检查 / 天气缓存清空 /
- * 最近任务卡片隐藏 / 主题切换后的系统栏刷新。
+ * 设置分类二级页（手机）。
  *
- * Android 从 `ContextCompat` / `MainActivity` 取；桌面/iOS 用默认值（前三项空/false，后一项无系统栏概念）。
+ * 内容与平板右栏共用 `SettingsCategoryList`；分类之外的平台能力全部走参数注入。
+ *
+ * @param categoryKey 见 `SettingsCategory.key`；未知值回退到「课表」。
  */
 @Composable
-fun PreferenceSettingsRoute(
+fun SettingsCategoryRoute(
     router: AppRouter,
+    categoryKey: String,
     hasLocationPermission: () -> Boolean = { false },
     onInvalidateWeatherCache: () -> Unit = {},
     onSetTaskExcludedFromRecents: (Boolean) -> Unit = {},
     onThemeDarkChanged: (Boolean) -> Unit = {},
+    /** 更新能力控制器（Android 注入 `AndroidUpdateController`；桌面/iOS 用默认 Noop） */
+    updateController: UpdateController = NoopUpdateController,
+    /** 备份文件能力（Android=SAF，iOS=UIDocumentPicker）——「备份与同步」二级页内嵌本地备份 */
+    backupFileController: BackupFileController = NoopBackupFileController,
+    /** 导入/导出平台能力包（Android 注入 SAF/口令/日历/手环；其余平台 Noop）——「数据管理」二级页内嵌 */
+    dataManage: com.haooz.chedule.ui.settings.DataManagePlatform =
+        com.haooz.chedule.ui.settings.DataManagePlatform(),
+    /** 全量恢复成功后的平台副作用（重排提醒） */
+    onHolidayDataChanged: () -> Unit = {},
 ) {
+    val category = SettingsCategory.fromKey(categoryKey) ?: SettingsCategory.Course
+    val shiftViewModel = shiftViewModel()
+    val courseViewModel = courseViewModel()
+    val scheduleViewModel = scheduleViewModel()
+    val settingsViewModel = settingsViewModel()
+
+    // 个性化页会改主题 → 系统栏要跟着刷新（与偏好设置页同一处理）
+    val isDark = isAppDarkTheme()
+    LaunchedEffect(isDark) { onThemeDarkChanged(isDark) }
+    val themeController = rememberAppThemeController(isDark = isDark)
+
     DocumentPageScaffold(
-        title = ChromeStr.appPreferences(),
+        title = category.title(),
         onBack = { router.popBack() },
     ) { scrollBehavior, backdrop ->
-        // 偏好设置页可能改主题 → 系统栏要跟着刷新
-        val isDark = isAppDarkTheme()
-        LaunchedEffect(isDark) { onThemeDarkChanged(isDark) }
-        PreferenceSettingsScreen(
-            scrollBehavior = scrollBehavior,
-            liquidGlassBackdrop = backdrop,
-            hasLocationPermission = hasLocationPermission,
-            onInvalidateWeatherCache = onInvalidateWeatherCache,
-            onSetTaskExcludedFromRecents = onSetTaskExcludedFromRecents,
-        )
+        MiuixTheme(controller = themeController) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+                // ⚠ host 必须建在 content lambda 里：采样层由 DocumentPageScaffold 现给，
+                // 在外面建就只能传 null。而弹窗/下拉的容器色是 Transparent（见
+                // liquidGlassDropdownColors），没有玻璃层垫底时会直接透出背景 ——
+                // 表现为「popup 没有材质、背景变半透明」。弹窗渲染在根 Scaffold（采样层之外），
+                // 传本页这一层不会循环采样。
+                val isShiftMode by shiftViewModel.isShiftMode.collectAsState()
+                val host = remember(
+                    category,
+                    isShiftMode,
+                    backdrop,
+                    courseViewModel,
+                    scheduleViewModel,
+                    settingsViewModel,
+                    shiftViewModel,
+                    router,
+                    // 平台能力包进 key：宿主替换实例后要跟着换（见 SettingsScreen 同名注释）
+                    updateController,
+                    backupFileController,
+                    dataManage,
+                ) {
+                    SettingsContentHost(
+                        courseViewModel = courseViewModel,
+                        scheduleViewModel = scheduleViewModel,
+                        settingsViewModel = settingsViewModel,
+                        shiftViewModel = shiftViewModel,
+                        isShiftMode = isShiftMode,
+                        liquidGlassBackdrop = backdrop,
+                        hasLocationPermission = hasLocationPermission,
+                        onInvalidateWeatherCache = onInvalidateWeatherCache,
+                        onSetTaskExcludedFromRecents = onSetTaskExcludedFromRecents,
+                        updateController = updateController,
+                        backupFileController = backupFileController,
+                        dataManage = dataManage,
+                        onHolidayDataChanged = onHolidayDataChanged,
+                        onExitShiftMode = {
+                            ShiftModeRequest.exit()
+                            router.popBack()
+                        },
+                        onNavigate = { route -> router.navigate(route) },
+                    )
+                }
+
+                SettingsCategoryPage(
+                    category = category,
+                    host = host,
+                    scrollBehavior = scrollBehavior,
+                )
+            }
+        }
     }
 }
 

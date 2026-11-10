@@ -29,12 +29,13 @@ import com.haooz.chedule.ui.navigation.EducationalImportRoute
 import com.haooz.chedule.ui.navigation.HolidaySettingsRoute
 import com.haooz.chedule.ui.navigation.LicenseRoute
 import com.haooz.chedule.ui.navigation.LocalBackupRoute
-import com.haooz.chedule.ui.navigation.PreferenceSettingsRoute
+import com.haooz.chedule.ui.navigation.SettingsCategoryRoute
 import com.haooz.chedule.ui.navigation.PrivacyPolicyRoute
 import com.haooz.chedule.ui.navigation.SettingsRoute
 import com.haooz.chedule.ui.navigation.UpdateSettingsRoute
 import com.haooz.chedule.ui.navigation.WebDavSettingsRoute
 import com.haooz.chedule.ui.navigation.WidgetIntroRoute
+import com.haooz.chedule.ui.settings.DataManagePlatform
 import com.haooz.chedule.ui.utils.ShareCodeImport
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -56,11 +57,20 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
     when (route) {
         // 鸿蒙没有应用内更新通道（应用市场分发），隐藏「更新设置」入口（同 iOS）
         AppRoute.Settings -> SettingsRoute(router = router, showUpdateSettings = false)
+        is AppRoute.SettingsCategoryDetail -> SettingsCategoryRoute(
+            router = router,
+            categoryKey = route.categoryKey,
+            // 「数据管理」二级页内嵌导入：口令侧是纯 HTTP，与下面的 ScheduleImport 同一套实现。
+            // 选文件（SAF 等价物）尚未接 ArkTS 桥，保持 Noop —— 改造前也是如此。
+            dataManage = DataManagePlatform(
+                onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
+                onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
+            ),
+        )
         AppRoute.About -> AboutRoute(router = router)
         AppRoute.Changelog -> ChangelogRoute(router)
         AppRoute.License -> LicenseRoute(router)
         AppRoute.PrivacyPolicy -> PrivacyPolicyRoute(router)
-        AppRoute.PreferenceSettings -> PreferenceSettingsRoute(router = router)
         AppRoute.UpdateSettings -> UpdateSettingsRoute(router = router)
         AppRoute.Communication -> CommunicationRoute(router)
         AppRoute.LocalBackup -> LocalBackupRoute(router = router)
