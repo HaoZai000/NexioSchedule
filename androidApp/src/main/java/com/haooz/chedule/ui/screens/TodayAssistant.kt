@@ -96,6 +96,51 @@ private fun readLastLngLat(context: Context): Pair<Double, Double>? {
     return Pair(lng, lat) // 经度在前，与写入时一致
 }
 
+/** 定位 + 拉一次天气。今日卡与壳层引导共用同一套坐标来源。 */
+private suspend fun fetchWeather(
+    context: Context,
+    hasLocationPermission: Boolean,
+    sourceKey: String,
+): WeatherPhase = withContext(Dispatchers.IO) {
+    val loc = getLastKnownLocation(context, hasLocationPermission)
+    // 无权限时回退上次存下的经纬度：城市级精度够用很久
+    val coords = if (loc != null) Pair(loc.latitude, loc.longitude)
+    else readLastLngLat(context)?.let { (lng, lat) -> Pair(lat, lng) }
+        ?: return@withContext WeatherPhase.NEEDS_LOCATION
+    val (lat, lng) = coords
+    val place = WeatherPlace(latitude = lat, longitude = lng)
+    val loaded = WeatherStore.ensureLoaded(place, WeatherRepository.Source.from(sourceKey))
+    if (loaded != null) {
+        // 数据源自己反查的城市名比 Geocoder 稳（海外、离线都不用额外权限）
+        saveLastLocation(context, "$lng,$lat", loaded.placeName)
+        WeatherPhase.IDLE
+    } else {
+        WeatherPhase.FAILED
+    }
+}
+
+/**
+ * 壳层引导：不依赖今日页也拉一次天气。
+ *
+ * 课表页顶栏同样显示天气，不能等用户切到今日页才加载。只读已缓存的定位，
+ * 不申请权限、不弹框；拉取结果仍由 [WeatherStore] 广播。
+ */
+@Composable
+fun WeatherBootstrap() {
+    val context = LocalContext.current
+    val weatherPrefs = remember { AppStorage.store("weather_prefs") }
+    val sourceKey = weatherPrefs.getString("weather_source", "fusion")
+    val privacyConsented by PrivacyConsent.consented.collectAsState()
+    // 快照被作废（改天气源 / 手动刷新）时置空，靠它把加载再走一遍
+    val snapshot by WeatherStore.snapshot.collectAsState()
+    val refreshToken by WeatherStore.refreshToken.collectAsState()
+
+    LaunchedEffect(privacyConsented, sourceKey, refreshToken, snapshot) {
+        if (!privacyConsented) return@LaunchedEffect
+        fetchWeather(context, hasLocationPermission = true, sourceKey)
+    }
+}
+
 @Composable
 fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
     val context = LocalContext.current
@@ -132,25 +177,7 @@ fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
     LaunchedEffect(hasLocationPermission, sourceKey, refreshTrigger, privacyConsented, refreshToken) {
         // 合规：用户同意隐私政策前，不进行定位与天气数据获取；同意后会因 key 变化自动重跑
         if (!privacyConsented) return@LaunchedEffect
-        withContext(Dispatchers.IO) {
-            val loc = getLastKnownLocation(context, hasLocationPermission)
-            val coords = if (loc != null) Pair(loc.latitude, loc.longitude)
-            else readLastLngLat(context)?.let { (lng, lat) -> Pair(lat, lng) }
-            if (coords == null) {
-                phase = WeatherPhase.NEEDS_LOCATION
-                return@withContext
-            }
-            val (lat, lng) = coords
-            val place = WeatherPlace(latitude = lat, longitude = lng)
-            val loaded = WeatherStore.ensureLoaded(place, WeatherRepository.Source.from(sourceKey))
-            if (loaded != null) {
-                phase = WeatherPhase.IDLE
-                // 数据源自己反查的城市名比 Geocoder 稳（海外、离线都不用额外权限）
-                saveLastLocation(context, "$lng,$lat", loaded.placeName)
-            } else {
-                phase = WeatherPhase.FAILED
-            }
-        }
+        phase = fetchWeather(context, hasLocationPermission, sourceKey)
     }
 
     val weather = remember(snapshot, phase) {

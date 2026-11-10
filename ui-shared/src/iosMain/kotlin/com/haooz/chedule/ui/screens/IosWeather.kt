@@ -54,6 +54,34 @@ fun invalidateWeatherCacheIos() {
 }
 
 /**
+ * 壳层引导：不依赖今日页也拉一次天气。
+ *
+ * 课表页顶栏同样显示天气，不能等用户切到今日页才加载。未授权定位时直接跳过，
+ * 不弹系统授权框（授权框只由今日卡上的按钮触发）。
+ */
+@Composable
+fun WeatherBootstrapIos() {
+    val weatherPrefs = remember { AppStorage.store("weather_prefs") }
+    val sourceKey = weatherPrefs.getString("weather_source", "fusion")
+    val privacyConsented by PrivacyConsent.consented.collectAsState()
+    // 快照被作废（改天气源 / 手动刷新）时置空，靠它把加载再走一遍
+    val snapshot by WeatherStore.snapshot.collectAsState()
+    val refreshToken by WeatherStore.refreshToken.collectAsState()
+    val locationClient = remember { IosLocationClient() }
+
+    LaunchedEffect(privacyConsented, sourceKey, refreshToken, snapshot) {
+        if (!privacyConsented) return@LaunchedEffect
+        if (!locationClient.isAuthorized()) return@LaunchedEffect
+        // pairOf 给的是 (latitude, longitude)
+        val coords = locationClient.requestLocation() ?: return@LaunchedEffect
+        val place = WeatherPlace(latitude = coords.first, longitude = coords.second)
+        withContext(ioDispatcher) {
+            WeatherStore.ensureLoaded(place, WeatherRepository.Source.from(sourceKey))
+        }
+    }
+}
+
+/**
  * 取天气 + 定位权限状态。
  *
  * @return `(weather, hasLocationPermission, onRequestLocation)`

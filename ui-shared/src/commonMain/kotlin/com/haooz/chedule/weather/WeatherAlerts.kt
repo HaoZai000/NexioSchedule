@@ -7,6 +7,16 @@ private val LEVEL_RANK = mapOf("红色" to 4, "橙色" to 3, "黄色" to 2, "蓝
 internal fun alertLevelWord(alert: WeatherAlert): String =
     LEVEL_WORDS.firstOrNull { (alert.level + alert.title + alert.type).contains(it) }.orEmpty()
 
+/** 预警类型短名（「大风」「台风」），等级由颜色表达，不重复进框内。 */
+internal fun alertKind(alert: WeatherAlert): String {
+    val kind = alert.type.trim().removeSuffix("预警").removeSuffix("信号").trim()
+    return when {
+        kind.isEmpty() -> "气象"
+        kind.length <= 6 -> kind
+        else -> kind.take(6)
+    }
+}
+
 /** 标题只留「类型 + 级别 + 预警」，地区在正文里已经有了。 */
 internal fun alertHeadline(alert: WeatherAlert): String {
     val pub = alert.detail.indexOf("发布")

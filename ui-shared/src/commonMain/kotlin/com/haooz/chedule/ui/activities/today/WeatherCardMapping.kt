@@ -24,6 +24,7 @@ fun WeatherSnapshot.toCardData(): WeatherData {
         sunset = today?.sunset.orEmpty(),
         sunrise = today?.sunrise.orEmpty(),
         notice = shortNotice(this),
+        alert = alerts.firstOrNull(),
         loaded = true,
     )
 }

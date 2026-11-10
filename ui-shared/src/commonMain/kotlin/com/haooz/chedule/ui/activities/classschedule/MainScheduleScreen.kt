@@ -23,9 +23,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerScope
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -94,6 +91,8 @@ import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.activities.main.PagerJumpNeighbor
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.components.HorizontalPageSwitch
+import com.haooz.chedule.ui.components.PageSwitchState
 import com.haooz.chedule.ui.components.tabletNavSamplingSignal
 import com.haooz.chedule.ui.components.CourseDetailSheet
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
@@ -106,13 +105,10 @@ import com.haooz.chedule.ui.components.scheduleRevealLayer
 import com.haooz.chedule.ui.components.text.LocalTextMotionInstant
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.utils.LocalHostNavigation
-import com.haooz.chedule.ui.utils.PagerTakeoverGestureState
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.courseCardSolidBacking
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.pagerAxisTakeoverGesture
-import com.haooz.chedule.ui.utils.rememberPagerTakeoverGestureState
 import com.haooz.chedule.ui.utils.schedulePageBackgroundColor
 import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
@@ -173,7 +169,8 @@ data class ScheduleGridGeometry(
 fun MainScheduleScreen(
     viewModel: CourseViewModel,
     settingsViewModel: SettingsViewModel,
-    pagerState: PagerState,
+    /** 翻周位置来源。 */
+    pageState: PageSwitchState,
     /** 长距跳转借位页：让相邻页临时显示目标周（见 PagerJumpNeighbor） */
     jumpNeighbor: PagerJumpNeighbor? = null,
     hiddenCourseIds: Set<String> = emptySet(),
@@ -223,9 +220,6 @@ fun MainScheduleScreen(
     // 拖课卡停在屏幕边缘热区（即将自动翻周）时为 true；供周 pager 在驻留空闲期
     // 预组合翻页要用的邻页（beyond 1→3），把组合成本挪出翻页动画帧
     edgeDwellHint: () -> Boolean = { false },
-    // 周 pager 的手势接管状态：借位跳周被手势打断时，jumpToPageSmoothly 借它
-    // 同步平移松手落页基准，避免手势被旧起点拉回跳转前的周
-    pagerGestureState: PagerTakeoverGestureState = rememberPagerTakeoverGestureState(),
     onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {},
     scheduleScrollBehavior: SharedScrollBehavior? = null,
     // 由 Activity 层传入：不是防销毁，是液态玻璃重录要在外层读滚动状态 / 弹窗开合
@@ -287,13 +281,11 @@ fun MainScheduleScreen(
     // 必须把 overScroll 的 offset 也读进来：回弹时 scrollState.value 卡在边界不变，
     // 少了它玻璃采样会冻在开始回弹那一帧。
     val overScrollState = remember { OverScrollState() }
-    val weekOverscrollX = remember { mutableFloatStateOf(0f) }
-    val glassRedrawSignal: () -> Unit = remember(pagerState, externalScrollState, overScrollState, weekOverscrollX, tabRedraw) {
+    val glassRedrawSignal: () -> Unit = remember(pageState, externalScrollState, overScrollState, tabRedraw) {
         {
             externalScrollState.value
-            pagerState.currentPageOffsetFraction
+            pageState.offsetFraction
             overScrollState.offset
-            weekOverscrollX.floatValue
             // nav 几何一变，整页内容横移，卡片玻璃要重新采样（唯一来源见该函数）
             tabletNavSamplingSignal()
             tabRedraw()
@@ -324,16 +316,16 @@ fun MainScheduleScreen(
     }
     // 供停滑后冲刷 dayBounds 版本号；仅滑动起停各写一次
     val scheduleScrollInProgress = remember { mutableStateOf(false) }
-    LaunchedEffect(pagerState, externalScrollState) {
+    LaunchedEffect(pageState, externalScrollState) {
         // 必须直接读 ScrollState：捕获 composition 期 Boolean 后 snapshotFlow 不会再观测变化
         snapshotFlow {
-            pagerState.isScrollInProgress || externalScrollState.isScrollInProgress
+            pageState.isAnimating || externalScrollState.isScrollInProgress
         }.collect {
             touchState.scrolling = it
             scheduleScrollInProgress.value = it
         }
     }
-    // 横纵双轴手势：横向由 pagerAxisTakeoverGesture 接管，纵向仍归页内 verticalScroll
+    // 横向翻周由 draggable 接管，纵向归页内 verticalScroll
     val latestIsWallpaperEditing by rememberUpdatedState(isWallpaperEditing)
     // 由顶栏自身几何纯计算（切页不变），避免 paddingValues 随 tab 变化导致位移
     val nativeBarInset = (LocalHostNavigation.current?.topBarInset ?: 0.0).dp
@@ -447,7 +439,7 @@ fun MainScheduleScreen(
 
     // snapshotFlow 避免 LaunchedEffect(currentPage) 整页重组
     LaunchedEffect(Unit) {
-        snapshotFlow { pagerState.currentPage }.collect { page ->
+        snapshotFlow { pageState.currentPage }.collect { page ->
             viewingWeek = page + 1
         }
     }
@@ -772,8 +764,13 @@ fun MainScheduleScreen(
         val todayIsHoliday = weekDayFlags[page]?.get(today)?.first ?: false
         val exemptIds = weekHolidayExemptCourseIds[page]?.get(today).orEmpty()
         val cancelledIds = weekHolidayCancelledCourseIds[page]?.get(today).orEmpty()
-        val candidates = weekFilteredCourses[page]?.get(today)?.third.orEmpty()
+        val todayInfo = weekFilteredCourses[page]?.get(today)
+        // 这一列实际显示的周次：调休日画的是被调那周的课
+        val displayWeek = todayInfo?.second ?: currentWeek
+        val candidates = todayInfo?.third.orEmpty()
         candidates.mapNotNull { course ->
+            // 「显示非本周课程」打开时同屏也有别周的课，它们不点亮
+            if (!course.isActiveInWeek(displayWeek)) return@mapNotNull null
             if (todayIsHoliday && course.id !in exemptIds) return@mapNotNull null
             if (course.id in cancelledIds) return@mapNotNull null
             val start = course.getEffectiveStartTime(sectionTimes)?.let(::parseHourMinute)
@@ -846,7 +843,10 @@ fun MainScheduleScreen(
             // 预组合策略全在 WeekPagerHost 内（滚动收拢到 1 / 停稳 2 / 边缘驻留 3），
             // beyond 翻转只重组 Host，不重建页内容 lambda。
             WeekPagerHost(
-                state = pagerState,
+                state = pageState,
+                pageCount = totalWeeks,
+                // 壁纸编辑与拖课卡期间关闭横向拖动
+                swipeEnabled = !isWallpaperEditing && draggingCourseSlots.isEmpty(),
                 dwellHint = edgeDwellHint,
                 modifier = Modifier
                     .fillMaxSize()
@@ -868,17 +868,6 @@ fun MainScheduleScreen(
                             }
                         }
                     }
-                    // 横竖主导手势（与今日页共用）：横向接管 pager，纵向仍归页内滚动
-                    .pagerAxisTakeoverGesture(
-                        pagerState = pagerState,
-                        gestureState = pagerGestureState,
-                        // 拖课卡那根手指由 blockedPointer 屏蔽；整页禁用会连「另一只手翻周」一起挡掉
-                        blockGesture = { latestIsWallpaperEditing },
-                        overscrollXState = weekOverscrollX,
-                        blockedPointer = { touchState.draggingPointerId },
-                        // 第二只手纵向滑动直接滚屏（verticalScroll 在跟被屏蔽那根手指）
-                        onVerticalScroll = { dy -> externalScrollState.dispatchRawDelta(-dy) },
-                    )
                     // 跨周调课：跟手位移与收尾放在 pager 上。课卡所在周页翻过去会被回收，
                     // 卡片自己的 pointerInput 跟着取消；pager 不重建，拖到第几周都能继续跟手。
                     .onGloballyPositioned { dragOwnerCoords[0] = it }
@@ -1558,7 +1547,7 @@ fun MainScheduleScreen(
                                     val prevShowBreak =
                                         remember { mutableStateOf(showBreakDividers) }
                                     SideEffect {
-                                        if (page == pagerState.currentPage) {
+                                        if (page == pageState.currentPage) {
                                             val changed =
                                                 prevBoundsVersion.intValue != lastDayBoundsVersion
                                                         || prevSectionHeight.floatValue != sectionHeightPx
@@ -1580,9 +1569,9 @@ fun MainScheduleScreen(
                                     // 跨周调课：翻周停下后补推一次几何。上面的 SideEffect 只在组合重跑时才推，
                                     // 而翻页停下不一定伴随重组 —— 落点会一直用上一页的周次映射，课写进错的周。
                                     LaunchedEffect(Unit) {
-                                        snapshotFlow { pagerState.isScrollInProgress }
+                                        snapshotFlow { pageState.isAnimating }
                                             .collect { scrolling ->
-                                                if (!scrolling && page == pagerState.currentPage) {
+                                                if (!scrolling && page == pageState.currentPage) {
                                                     onGridGeometryChange(buildGridGeometry())
                                                 }
                                             }
@@ -1950,42 +1939,32 @@ private fun WallpaperBounceBack(
     }
 }
 
-/**
- * 周 pager 宿主：beyond 预组合策略全部收在本函数作用域内。
- *
- * - 滚动中**组合期直读** isScrollInProgress 立即收拢到 1：与首个滚动位移帧同一次
- *   重组/测量生效（快照原子性，无竞态），翻页动画帧最多释放 1 页，不再承担
- *   17~45ms 的新周页组合尖刺
- * - 停稳 250ms 后扩到 [idleBeyond]（默认 2，边缘驻留连续翻周 3）：把下一次翻页
- *   要用的邻页组合挪进空闲帧，防抖让它落在落页弹簧收尾之后、不挤进落地帧
- *
- * ⚠ 这些状态不得泄漏到调用方：beyond 翻转只重组本函数（体积极小），调用方传入的页内容
- *   lambda 实例保持不变，已组合的周页不会被连带重组。实测把状态写在 `MainScheduleScreen`
- *   主体里，每次翻转都重建页 lambda、整批页跟着重跑组合，反而更卡。
- */
+/** 周 pager 宿主：滚动中 beyond 收拢到 1，停稳 250ms 后扩到 [idleBeyond]。 */
 @Composable
 private fun WeekPagerHost(
-    state: PagerState,
+    state: PageSwitchState,
+    pageCount: Int,
+    swipeEnabled: Boolean,
     dwellHint: () -> Boolean,
     modifier: Modifier = Modifier,
-    content: @Composable PagerScope.(page: Int) -> Unit,
+    content: @Composable (page: Int) -> Unit,
 ) {
     var idleBeyond by remember(state) { mutableIntStateOf(1) }
     LaunchedEffect(state) {
-        snapshotFlow { !state.isScrollInProgress to dwellHint() }.collectLatest { (idle, dwelling) ->
+        snapshotFlow { !state.isAnimating to dwellHint() }.collectLatest { (idle, dwelling) ->
             if (idle) {
                 delay(250.milliseconds)
                 idleBeyond = if (dwelling) 3 else 2
             }
         }
     }
-    HorizontalPager(
+    HorizontalPageSwitch(
         state = state,
+        pageCount = pageCount,
         modifier = modifier,
-        beyondViewportPageCount = if (state.isScrollInProgress) 1 else idleBeyond,
-        // 横向触摸改由 pagerAxisTakeoverGesture 驱动；纵滑主导时交给 verticalScroll
-        userScrollEnabled = false,
-        pageContent = content,
+        swipeEnabled = swipeEnabled,
+        beyondPageCount = if (state.isAnimating) 1 else idleBeyond,
+        content = content,
     )
 }
 

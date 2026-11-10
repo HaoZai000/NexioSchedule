@@ -183,8 +183,14 @@ fun ScheduleTopBar(
                     titleStartAligned = isTablet,
                     titleModifier = titleRailPadding.then(titleEndModifier),
                     scrollBehavior = scrollBehavior,
-                    // 平板左上角不放返回按钮
-                    startAction = null,
+                    // 平板左上角留给左对齐标题，天气只在手机显示
+                    startAction = if (isTablet) {
+                        null
+                    } else {
+                        { _, _ ->
+                            ScheduleWeatherBadge()
+                        }
+                    },
                     onAlphaChanged = { backdrop, _ -> onMoreMaterial(backdrop) },
                     endAction = { backdropAlpha, shadowAlpha ->
                         Row(

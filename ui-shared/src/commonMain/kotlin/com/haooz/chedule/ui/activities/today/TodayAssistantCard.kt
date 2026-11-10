@@ -65,6 +65,8 @@ import com.haooz.chedule.data.util.parseHourMinute
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.AssistantStr
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.ui.components.WeatherAlertBadge
+import com.haooz.chedule.weather.WeatherAlert
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.uishared.resources.Res
@@ -311,6 +313,8 @@ data class WeatherData(
     val sunset: String = "",
     val sunrise: String = "",
     val notice: String = "",
+    /** 当前最高级别的气象预警；无预警为 null。 */
+    val alert: WeatherAlert? = null,
     val loaded: Boolean = false,
     val needsLocation: Boolean = false,
     val apiError: Boolean = false
@@ -990,6 +994,10 @@ fun TodayAssistantCard(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
+                            weather.alert?.let { alert ->
+                                Spacer(modifier = Modifier.width(6.dp))
+                                WeatherAlertBadge(alert = alert)
+                            }
                             if (onOpenWeather != null) {
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Icon(

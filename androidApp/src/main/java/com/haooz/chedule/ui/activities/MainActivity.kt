@@ -60,6 +60,7 @@ import com.haooz.chedule.ui.navigation.rememberNavTransitionState
 import com.haooz.chedule.ui.screens.AndroidSettingsPane
 import com.haooz.chedule.ui.screens.FireworksOverlay
 import com.haooz.chedule.ui.screens.PrivacyConsentScreen
+import com.haooz.chedule.ui.screens.WeatherBootstrap
 import com.haooz.chedule.ui.screens.rememberWeather
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.AndroidUpdateController
@@ -250,6 +251,9 @@ class MainActivity : ComponentActivity() {
                         else syncSystemBars(lastStatusDark, lastNavDark)
                     }
                     Box(modifier = Modifier.fillMaxSize()) {
+                        // 壳层引导：天气在课表页顶栏也要显示，不能等切到今日页才加载
+                        WeatherBootstrap()
+
                         // ── 主界面常驻底座 ──
                         MainLayerTransition(mainTransition) {
                             AndroidCourseScheduleApp(privacyConsented = privacyAgreed)
