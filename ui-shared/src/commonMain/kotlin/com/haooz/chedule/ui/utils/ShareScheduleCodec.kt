@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.utils
 
+import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.holiday.TeachingWeekReorganizationRule
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.model.TeachingWeekReorganization
@@ -62,6 +63,7 @@ fun buildShareScheduleMap(
         times = times,
         courses = courses,
         routines = timeConfig.safeRoutines,
+        holiday = HolidayManager.exportBackupDataFor(scheduleName),
     )
 }
 
@@ -91,14 +93,16 @@ fun buildShareSchedulePayload(
     times: Map<String, Any>,
     courses: List<Course>,
     routines: List<TimeRoutine> = emptyList(),
-): Map<String, Any> = mapOf(
-    "schedule_name" to scheduleName,
-    "settings" to settings,
-    "times" to times,
-    "courses" to courses.map(::courseToShareMap),
-    // 全套作息（夏令时/冬令时）。旧版本忽略这个字段，仍按 times 建单作息，向后兼容
-    "routines" to routines,
-)
+    holiday: Map<String, Any>? = null,
+): Map<String, Any> = buildMap {
+    put("schedule_name", scheduleName)
+    put("settings", settings)
+    put("times", times)
+    put("courses", courses.map(::courseToShareMap))
+    // 全套作息（夏令时/冬令时）。旧版本忽略这个字段，仍按 times 建单作息
+    put("routines", routines)
+    if (holiday != null) put("holiday", holiday)
+}
 
 fun shareScheduleSettings(
     baseSettings: Map<String, Any>,

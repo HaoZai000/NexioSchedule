@@ -91,7 +91,7 @@ internal class BackupTransfer(private val host: RepoHost) {
         }
         ensureEmptyScheduleCourseEntries(result, names)
         materializeRowBackedKeys(result, names)
-        result.putAll(HolidayManager.exportBackupData())
+        result.putAll(HolidayManager.exportAllSchedulesBackupData(names))
         // 文件夹用清洗后的结果：历史坏数据里的幽灵课表名不该跟着备份走
         result[KEY_SCHEDULE_FOLDERS] = encodeScheduleFolders(host.getScheduleFolders())
         return result
@@ -99,7 +99,8 @@ internal class BackupTransfer(private val host: RepoHost) {
 
     fun importAllPreferences(data: Map<String, Any>) {
         val normalized = normalizeFullScheduleBackup(data)
-        withValidatedFullScheduleBackup(normalized) { holidayBackup ->
+        val legacyTarget = normalized[KEY_CURRENT_SCHEDULE_ID] as? String
+        withValidatedFullScheduleBackup(normalized, legacyTarget) { holidayBackup ->
             restoreAllPreferences(
                 data = normalized,
                 holidayBackup = holidayBackup,
@@ -125,6 +126,7 @@ internal class BackupTransfer(private val host: RepoHost) {
         teachingWeekReorganizations: List<TeachingWeekReorganizationRule>? = null,
         smartWeekend: Boolean? = null,
         showNonCurrentWeek: Boolean? = null,
+        holiday: Map<String, Any?>? = null,
     ) {
         val normalizedClassStart = classStartTime?.let {
             normalizeClassStartDate(it)
@@ -245,6 +247,11 @@ internal class BackupTransfer(private val host: RepoHost) {
         }
         smartWeekend?.let { host.setSmartWeekendFor(scheduleName, it) }
         showNonCurrentWeek?.let { host.setShowNonCurrentWeekFor(scheduleName, it) }
+        holiday?.let { raw ->
+            runCatching { HolidayManager.decodeBackupData(raw) }
+                .getOrNull()
+                ?.let { HolidayManager.restoreBackupDataFor(scheduleName, it) }
+        }
 
         // 全部写完之后再统一失效：中途失效会让后面的写读到刚清空的缓存再回填一次
         host.invalidateAllCaches()
@@ -382,7 +389,7 @@ internal class BackupTransfer(private val host: RepoHost) {
 
     private fun restoreAllPreferences(
         data: Map<String, Any>,
-        holidayBackup: HolidayManager.BackupData,
+        holidayBackup: Map<String, HolidayManager.BackupData>,
         preserveFolderMembership: Boolean,
     ) {
         host.prefs.edit {
@@ -409,7 +416,8 @@ internal class BackupTransfer(private val host: RepoHost) {
             for ((key, value) in data) {
                 if (key == HolidayManager.BACKUP_KEY ||
                     key == HolidayManager.BACKUP_EXCLUSION_KEY ||
-                    key == HolidayManager.BACKUP_BEFORE_EXCLUSION_KEY
+                    key == HolidayManager.BACKUP_BEFORE_EXCLUSION_KEY ||
+                    key == HolidayManager.BACKUP_BY_SCHEDULE_KEY
                 ) {
                     continue
                 }
@@ -442,13 +450,13 @@ internal class BackupTransfer(private val host: RepoHost) {
                 }
             }
         }
-        HolidayManager.restoreBackupData(holidayBackup)
         // 行表是真相，会整体作废：不删的话恢复完读到的还是恢复前的课表
         host.rowStore()?.let { rows ->
             runCatching { rows.invalidateAll() }
                 .onFailure { NexioLog.e(TAG, "恢复备份后作废课程行表失败，可能读到恢复前的课表", it) }
         }
         host.invalidateAllCaches()
+        HolidayManager.restoreAllSchedulesBackupData(holidayBackup, host.getScheduleNames())
         if (!preserveFolderMembership) host.migrateIntoDefaultFolder()
         // 恢复出的是另一套数据：当场重建成实体表，不留「等下次启动」的窗口
         if (host.rowStore() != null) {

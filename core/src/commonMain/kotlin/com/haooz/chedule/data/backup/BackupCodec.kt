@@ -32,6 +32,7 @@ sealed interface BackupPayload {
         val timeConfig: Any?,
         val semesterSettings: SemesterSettings?,
         val teachingWeekReorganizations: List<TeachingWeekReorganizationRule>?,
+        val holiday: Map<String, Any?>? = null,
     ) : BackupPayload
 
     data class Full(val data: Map<String, Any>) : BackupPayload
@@ -178,6 +179,8 @@ fun parseBackupPayload(json: String): BackupPayload {
             timeConfig = timeConfig,
             semesterSettings = semesterSettings,
             teachingWeekReorganizations = rules,
+            holiday = (data["holiday"] as? Map<*, *>)
+                ?.entries?.associate { (k, v) -> k.toString() to v },
         )
     }
 
@@ -192,7 +195,7 @@ fun parseBackupPayload(json: String): BackupPayload {
         )
     }
     validateFullScheduleBackupStructure(data)
-    HolidayManager.decodeBackupData(data)
+    HolidayManager.decodeAllSchedulesBackupData(data)
     return BackupPayload.Full(data)
 }
 

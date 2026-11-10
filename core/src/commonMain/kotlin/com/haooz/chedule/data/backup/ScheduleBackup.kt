@@ -602,10 +602,11 @@ sealed class RestoreResult {
 
 internal fun <T> withValidatedFullScheduleBackup(
     data: Map<String, Any>,
-    restore: (HolidayManager.BackupData) -> T,
+    legacyScheduleId: String? = null,
+    restore: (Map<String, HolidayManager.BackupData>) -> T,
 ): T {
     validateFullScheduleBackupStructure(data)
-    val holidayBackup = HolidayManager.decodeBackupData(data)
+    val holidayBackup = HolidayManager.decodeAllSchedulesBackupData(data, legacyScheduleId)
     return restore(holidayBackup)
 }
 

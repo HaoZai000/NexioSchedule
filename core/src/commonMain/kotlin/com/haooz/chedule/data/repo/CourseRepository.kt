@@ -2633,6 +2633,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         teachingWeekReorganizations: List<TeachingWeekReorganizationRule>? = null,
         smartWeekend: Boolean? = null,
         showNonCurrentWeek: Boolean? = null,
+        holiday: Map<String, Any?>? = null,
     ) {
         backup.importSingleSchedule(
             scheduleName = scheduleName,
@@ -2644,6 +2645,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
             teachingWeekReorganizations = teachingWeekReorganizations,
             smartWeekend = smartWeekend,
             showNonCurrentWeek = showNonCurrentWeek,
+            holiday = holiday,
         )
     }
 }

@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.backup.BackupFileController
 import com.haooz.chedule.data.backup.BackupFileInfo
 import com.haooz.chedule.data.backup.BackupPayload
@@ -214,7 +215,9 @@ fun LocalBackupScreen(
                                 teachingWeekReorganizations = payload.teachingWeekReorganizations,
                                 smartWeekend = payload.semesterSettings?.smartWeekend,
                                 showNonCurrentWeek = payload.semesterSettings?.showNonCurrentWeek,
+                                holiday = payload.holiday,
                             )
+                            onHolidayDataChanged()
                         }
 
                         is BackupPayload.Full -> {
@@ -383,7 +386,8 @@ fun LocalBackupScreen(
                                                     "courses" to courses.map(::courseToShareMap),
                                                     // TimeConfig → 扁平 Map（:core 的 toJsonMap，
                                                     // 等价原 Gson 反射展开；写侧再剔 null）
-                                                    "time_config" to timeConfig.toJsonMap()
+                                                    "time_config" to timeConfig.toJsonMap(),
+                                                    "holiday" to HolidayManager.exportBackupDataFor(selectedSchedule)
                                                 )
                                             }
 

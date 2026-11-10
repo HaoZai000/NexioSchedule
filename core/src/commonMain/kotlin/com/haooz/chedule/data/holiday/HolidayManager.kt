@@ -1,6 +1,7 @@
 package com.haooz.chedule.data.holiday
 
 import com.haooz.chedule.data.platform.NexioLog
+import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.platform.ScheduleEffects
 import com.haooz.chedule.data.platform.synchronizedOn
 import com.haooz.chedule.data.storage.AppStorage
@@ -32,11 +33,12 @@ import kotlinx.serialization.json.JsonPrimitive
 // ════════════════════════════════════════════════════════════════════════
 //  节假日与调休 · 存储层（加载 / 备份 / 数据源）
 //
-//  数据全部存 `holiday_settings` 一个 prefs 文件，进全量备份。
+//  数据按课表分区：每张课表一个 `holiday_settings_<课表名十六进制>` 命名空间
+//  （课表名可含 `/`，存储层拿命名空间当 prefs 文件名，故整体转十六进制）；
+//  `holiday_settings` 只留全局数据源设置。全量备份按课表导出。
 //
-//  ⚠ 落盘格式是数据兼容红线：[HolidayEntry.toJson] 产出的串会以 `entries_{年}` 为键
-//  直接落盘，字段名、字段顺序、紧凑格式必须与存量数据逐字一致（换 JSON 库时尤其注意），
-//  由 `HolidayManagerStorageTest` 用真实存量串做 round-trip 回归。
+//  [HolidayEntry.toJson] 产出的串以 `entries_{年}` 为键直接落盘，字段名、字段顺序、
+//  紧凑格式与存量数据逐字一致，由 `HolidayManagerStorageTest` 做 round-trip 回归。
 // ════════════════════════════════════════════════════════════════════════
 
 /** 节假日与调休数据。假期跳过提醒，调休按配置的课表周次和星期调度。 */
@@ -44,11 +46,16 @@ object HolidayManager {
     private const val PREFS = "holiday_settings"
     private const val KEY_PREFIX = "entries_"
     private const val KEY_VERSION = "version"
+    private const val PARTITION_NAMESPACE_PREFIX = "holiday_settings_"
+    private const val HEX_DIGITS = "0123456789abcdef"
+    private const val KEY_PARTITION_MIGRATED = "schedule_partition_migrated_v1"
 
-    // 这 3 个键必须 public：`:app` 的 CourseRepository 要跨模块过滤全量备份里的节假日键
+    // 这 4 个键必须 public：`:app` 的 CourseRepository 要跨模块过滤全量备份里的节假日键
     const val BACKUP_KEY = "holiday_entries"
     const val BACKUP_EXCLUSION_KEY = "holiday_end_course_exclusion"
     const val BACKUP_BEFORE_EXCLUSION_KEY = "holiday_before_course_exclusion"
+    /** 全量备份里按课表分区的节假日配置。 */
+    const val BACKUP_BY_SCHEDULE_KEY = "holiday_by_schedule"
 
     private const val KEY_EXCLUSION_ENABLED = "end_course_exclusion_enabled"
     private const val KEY_EXCLUSION_START_SECTION = "end_course_exclusion_start_section"
@@ -59,6 +66,16 @@ object HolidayManager {
     private const val BACKUP_SCHEMA_VERSION = 1
     private const val BACKUP_SCHEMA_VERSION_KEY = "schema_version"
     private const val KEY_FOLLOW_DATE_MIGRATED = "follow_date_migrated"
+
+    private val EXCLUSION_KEYS = setOf(
+        KEY_EXCLUSION_ENABLED, KEY_EXCLUSION_START_SECTION, KEY_EXCLUSION_END_SECTION,
+        KEY_BEFORE_EXCLUSION_ENABLED, KEY_BEFORE_EXCLUSION_START_SECTION,
+        KEY_BEFORE_EXCLUSION_END_SECTION,
+    )
+
+    /** 绑定 store 实例：AppStorage 换实例（测试 / 重置）后要重跑迁移。 */
+    @Volatile
+    private var migratedStore: KeyValueStore? = null
     private val _dataRevision = MutableStateFlow(0L)
     val dataRevision = _dataRevision.asStateFlow()
 
@@ -83,7 +100,140 @@ object HolidayManager {
     /** 保护「读 prefs → 算 → 写 prefs」的复合操作（后台迁移线程与主线程保存会交错）。 */
     private val lock = Any()
 
-    private fun store(): KeyValueStore = AppStorage.store(PREFS)
+    private fun globalStore(): KeyValueStore = AppStorage.store(PREFS)
+
+    private fun currentScheduleId(): String =
+        CourseRepository.getInstance().getCurrentScheduleId()
+
+    /**
+     * 课表名可含任意字符，而存储层会拿命名空间当 SharedPreferences 文件名做一次性导入，
+     * 文件名不允许路径分隔符 —— 统一转十六进制，保证只含 `[0-9a-f]`。
+     */
+    private fun namespaceFor(scheduleId: String): String =
+        PARTITION_NAMESPACE_PREFIX + hexOf(scheduleId)
+
+    private fun hexOf(value: String): String = buildString(value.length * 2) {
+        for (byte in value.encodeToByteArray()) {
+            val v = byte.toInt() and 0xFF
+            append(HEX_DIGITS[v ushr 4])
+            append(HEX_DIGITS[v and 0x0F])
+        }
+    }
+
+    private fun storeFor(scheduleId: String): KeyValueStore {
+        migrateToSchedulePartitionsOnce()
+        return AppStorage.store(namespaceFor(scheduleId))
+    }
+
+    private fun store(): KeyValueStore = storeFor(currentScheduleId())
+
+    /** 老全局数据归给当前课表，每张课表一份。只跑一次，可重入。 */
+    fun migrateToSchedulePartitionsOnce() {
+        val global = globalStore()
+        if (migratedStore === global && global.getBoolean(KEY_PARTITION_MIGRATED, false)) return
+        synchronizedOn(lock) {
+            if (migratedStore === global && global.getBoolean(KEY_PARTITION_MIGRATED, false)) {
+                return@synchronizedOn
+            }
+            if (!global.getBoolean(KEY_PARTITION_MIGRATED, false)) {
+                val legacy = global.all()
+                val dataKeys = legacy.keys.filter {
+                    it.startsWith(KEY_PREFIX) || it in EXCLUSION_KEYS ||
+                        it == KEY_VERSION || it == KEY_FOLLOW_DATE_MIGRATED
+                }
+                if (dataKeys.isNotEmpty()) {
+                    val target = AppStorage.store(namespaceFor(currentScheduleId()))
+                    // 同一个 store 实例时「复制 → 删源」会把刚复制的键删掉，数据留在原地即可
+                    if (target !== global) {
+                        target.edit {
+                            for (key in dataKeys) {
+                                when (val value = legacy[key]) {
+                                    is String -> putString(key, value)
+                                    is Int -> putInt(key, value)
+                                    is Boolean -> putBoolean(key, value)
+                                    is Long -> putLong(key, value)
+                                    is Float -> putFloat(key, value)
+                                }
+                            }
+                        }
+                        global.edit { dataKeys.forEach(::remove) }
+                    }
+                }
+                global.edit { putBoolean(KEY_PARTITION_MIGRATED, true) }
+            }
+            allByYearSnapshot = null
+            migratedStore = global
+        }
+    }
+
+    /** 课表改名：整份分区跟着搬。 */
+    fun onScheduleRenamed(oldId: String, newId: String) = synchronizedOn(lock) {
+        if (oldId == newId) return@synchronizedOn
+        val from = AppStorage.store(namespaceFor(oldId))
+        val to = AppStorage.store(namespaceFor(newId))
+        if (from === to) return@synchronizedOn
+        val snapshot = from.all()
+        if (snapshot.isEmpty()) return@synchronizedOn
+        to.edit {
+            for ((key, value) in snapshot) {
+                when (value) {
+                    is String -> putString(key, value)
+                    is Int -> putInt(key, value)
+                    is Boolean -> putBoolean(key, value)
+                    is Long -> putLong(key, value)
+                    is Float -> putFloat(key, value)
+                }
+            }
+        }
+        from.edit { snapshot.keys.forEach(::remove) }
+        clearSnapshot()
+    }
+
+    /** 课表删除：分区一起清掉。 */
+    fun onScheduleDeleted(id: String) = synchronizedOn(lock) {
+        val target = AppStorage.store(namespaceFor(id))
+        if (target === globalStore()) return@synchronizedOn
+        val keys = target.all().keys
+        if (keys.isNotEmpty()) target.edit { keys.forEach(::remove) }
+        clearSnapshot()
+    }
+
+    /** 开启新学期：复制当前课表的节假日配置作为新表初值。 */
+    fun onScheduleCopied(fromId: String, toId: String) = synchronizedOn(lock) {
+        if (fromId == toId) return@synchronizedOn
+        val from = AppStorage.store(namespaceFor(fromId))
+        val to = AppStorage.store(namespaceFor(toId))
+        if (from === to) return@synchronizedOn
+        val snapshot = from.all()
+        if (snapshot.isEmpty()) return@synchronizedOn
+        to.edit {
+            for ((key, value) in snapshot) {
+                when (value) {
+                    is String -> putString(key, value)
+                    is Int -> putInt(key, value)
+                    is Boolean -> putBoolean(key, value)
+                    is Long -> putLong(key, value)
+                    is Float -> putFloat(key, value)
+                }
+            }
+        }
+        clearSnapshot()
+    }
+
+    /** 切换当前课表：让按 getVersion 记忆的 UI 重新取数。 */
+    fun notifyScheduleSwitched() {
+        migrateToSchedulePartitionsOnce()
+        val target = AppStorage.store(namespaceFor(currentScheduleId()))
+        val prev = runCatching { target.getLong(KEY_VERSION, 0L) }.getOrDefault(0L)
+        val next = maxOf(Clock.System.now().toEpochMilliseconds(), prev + 1L)
+        target.edit { putLong(KEY_VERSION, next) }
+        _dataRevision.value = next
+        allByYearSnapshot = null
+    }
+
+    private fun clearSnapshot() {
+        allByYearSnapshot = null
+    }
 
     data class BackupData(
         val entries: Map<String, String>,
@@ -101,8 +251,9 @@ object HolidayManager {
 
     fun load(year: Int): List<HolidayEntry> = synchronizedOn(lock) { loadLocked(year) }
 
-    private fun loadLocked(year: Int): List<HolidayEntry> {
-        val store = store()
+    private fun loadLocked(year: Int): List<HolidayEntry> = loadLocked(store(), year)
+
+    private fun loadLocked(store: KeyValueStore, year: Int): List<HolidayEntry> {
         val key = "$KEY_PREFIX$year"
         // KeyValueStore 无可空默认值，先判存在；缺键 → 空列表
         if (!store.contains(key)) return emptyList()
@@ -133,9 +284,26 @@ object HolidayManager {
             ?.takeIf { it.store === store && it.version == version }
             ?.let { return@synchronizedOn it.entries }
         val years = storedEntryYears(store.all().keys)
-        val entries = years.associateWith { loadLocked(it) }
+        val entries = years.associateWith { loadLocked(store, it) }
         allByYearSnapshot = EntriesSnapshot(store, version, entries)
         entries
+    }
+
+    /** 指定课表的全年条目；手环按目标课表推送时用。 */
+    fun loadAllByYearFor(scheduleId: String): Map<Int, List<HolidayEntry>> {
+        migrateToSchedulePartitionsOnce()
+        return synchronizedOn(lock) {
+            val target = AppStorage.store(namespaceFor(scheduleId))
+            storedEntryYears(target.all().keys).associateWith { loadLocked(target, it) }
+        }
+    }
+
+    /** 指定课表某一年的条目。 */
+    fun loadFor(year: Int, scheduleId: String): List<HolidayEntry> {
+        migrateToSchedulePartitionsOnce()
+        return synchronizedOn(lock) {
+            loadLocked(AppStorage.store(namespaceFor(scheduleId)), year)
+        }
     }
 
     /** 按年原样导出存量 JSON，含自定义映射与跨年范围。 */
@@ -328,6 +496,68 @@ object HolidayManager {
             putLong(KEY_VERSION, newVersion)
         }
         _dataRevision.value = newVersion
+    }
+
+    /** 单课表导出：只取该课表的节假日配置。 */
+    fun exportBackupDataFor(scheduleId: String): Map<String, Any> {
+        migrateToSchedulePartitionsOnce()
+        return synchronizedOn(lock) {
+            exportBackupData(AppStorage.store(namespaceFor(scheduleId)))
+        }
+    }
+
+    /** 单课表导入：写回目标课表分区。 */
+    fun restoreBackupDataFor(scheduleId: String, data: BackupData) {
+        migrateToSchedulePartitionsOnce()
+        synchronizedOn(lock) {
+            restoreBackupData(AppStorage.store(namespaceFor(scheduleId)), data)
+            allByYearSnapshot = null
+        }
+    }
+
+    /** 全量备份导出：每张课表一份配置。 */
+    fun exportAllSchedulesBackupData(scheduleIds: List<String>): Map<String, Any> {
+        migrateToSchedulePartitionsOnce()
+        return synchronizedOn(lock) {
+            mapOf(BACKUP_BY_SCHEDULE_KEY to scheduleIds.associateWith { id ->
+                exportBackupData(AppStorage.store(namespaceFor(id)))
+            })
+        }
+    }
+
+    /** 全量备份解码：老备份的单份数据归给当前课表。 */
+    fun decodeAllSchedulesBackupData(
+        backup: Map<String, Any?>,
+        legacyScheduleId: String? = null,
+    ): Map<String, BackupData> {
+        val raw = backup[BACKUP_BY_SCHEDULE_KEY]
+            ?: return mapOf(
+                (legacyScheduleId ?: currentScheduleId()) to decodeBackupData(backup)
+            )
+        require(raw is Map<*, *>) { "Invalid holiday schedule backup" }
+        return raw.entries.associate { (key, value) ->
+            require(key is String && value is Map<*, *>) { "Invalid holiday schedule backup" }
+            key to decodeBackupData(value.entries.associate { (k, v) -> k.toString() to v })
+        }
+    }
+
+    /** 全量恢复：先清掉所有已知课表的分区，再按备份写回。 */
+    fun restoreAllSchedulesBackupData(
+        data: Map<String, BackupData>,
+        scheduleIds: List<String>,
+    ) {
+        migrateToSchedulePartitionsOnce()
+        synchronizedOn(lock) {
+            for (id in scheduleIds.distinct()) {
+                val target = AppStorage.store(namespaceFor(id))
+                val keys = target.all().keys
+                if (keys.isNotEmpty()) target.edit { keys.forEach(::remove) }
+            }
+            for ((id, backupData) in data) {
+                restoreBackupData(AppStorage.store(namespaceFor(id)), backupData)
+            }
+            allByYearSnapshot = null
+        }
     }
 
     /** 只替换节假日条目；恢复时不回退运行时版本号。 */
@@ -722,10 +952,10 @@ object HolidayManager {
     private const val NO_OVERTIME = 10
 
     fun holidaySource(): String =
-        store().getString(KEY_HOLIDAY_SOURCE, DEFAULT_SOURCE)
+        globalStore().getString(KEY_HOLIDAY_SOURCE, DEFAULT_SOURCE)
 
     fun setHolidaySource(source: String) {
-        store().edit {
+        globalStore().edit {
             putString(KEY_HOLIDAY_SOURCE, source)
         }
     }

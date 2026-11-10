@@ -1,6 +1,7 @@
 package com.haooz.chedule.data.repo
 
 import com.haooz.chedule.data.backup.decodeCourses
+import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.backup.decodeScheduleFolders
 import com.haooz.chedule.data.backup.decodeStringList
 import com.haooz.chedule.data.backup.encodeCourses
@@ -128,6 +129,7 @@ internal class ScheduleCatalog(private val host: Host) {
         // 占用周次与全局节次时间都按当前课表算
         host.invalidateTimeCaches()
         host.notifySettingsChanged()
+        HolidayManager.notifyScheduleSwitched()
     }
 
     fun addSchedule(name: String): List<String> {
@@ -199,6 +201,7 @@ internal class ScheduleCatalog(private val host: Host) {
         }
         // 绑定必须落在 edit 块外面：它写的是另一张表（另一个事务）
         host.setScheduleTimeConfigId(name, duplicatedConfigId)
+        HolidayManager.onScheduleCopied(currentId, name)
         return names
     }
 
@@ -229,7 +232,9 @@ internal class ScheduleCatalog(private val host: Host) {
         }
         // 刚绕过 setter 直接改了 prefs
         host.invalidateAllCaches()
+        HolidayManager.onScheduleDeleted(name)
         if (getCurrentScheduleId() == name) setCurrentScheduleId(names.first())
+        else HolidayManager.notifyScheduleSwitched()
         host.notifySettingsChanged()
         return names
     }
@@ -266,6 +271,8 @@ internal class ScheduleCatalog(private val host: Host) {
                 }
             }
             host.invalidateAllCaches()
+            HolidayManager.onScheduleRenamed(oldName, newName)
+            HolidayManager.notifyScheduleSwitched()
         }
         host.notifySettingsChanged()
         return names

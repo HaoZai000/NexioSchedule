@@ -71,7 +71,7 @@ class OrphanTimeConfigBackupRestoreTest {
         // 节假日三件套 + 校验回调同链路走通（与 importAllPreferences 内部管线一致）
         HolidayManager.decodeBackupData(root)
         withValidatedFullScheduleBackup(normalized) { holidayBackup ->
-            assertEquals(setOf<String>(), holidayBackup.entries.keys, "样例无节假日条目")
+            assertEquals(setOf<String>(), holidayBackup.values.single().entries.keys, "样例无节假日条目")
         }
     }
 

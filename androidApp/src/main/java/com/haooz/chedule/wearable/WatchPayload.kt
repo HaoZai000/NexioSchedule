@@ -154,7 +154,7 @@ object WatchPayload {
         // 否则手表用 holidays 推算假、用 overrides 拿答案，两个来源打架比 v4.0 更糟。
         val today = todayLocalDate()
         val (windowFirst, windowLast) = holidayWindow(repository, sid, today)
-        val entriesByYear = HolidayManager.loadAllByYear()
+        val entriesByYear = HolidayManager.loadAllByYearFor(sid)
         val flatHolidays = HolidayEntries.forFlatPush(
             entriesByYear = entriesByYear,
             today = today,

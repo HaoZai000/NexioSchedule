@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.screens
 
+import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.model.TeachingWeekReorganization
 import com.haooz.chedule.data.model.TimeConfig
@@ -349,6 +350,13 @@ fun applyScheduleData(
 
         if (settings != null) {
             scheduleViewModel.switchToSchedule(scheduleName)
+            (data["holiday"] as? Map<*, *>)?.let { raw ->
+                runCatching {
+                    HolidayManager.decodeBackupData(
+                        raw.entries.associate { (k, v) -> k.toString() to v }
+                    )
+                }.getOrNull()?.let { HolidayManager.restoreBackupDataFor(scheduleName, it) }
+            }
 
             // ⚠ 顺序与条件都是有意的：setCurrentWeek 在「周数与当前不同」时会重算并写回
             // 开学日（那是给「手动选周」设计的 rebase）。导入时两者几乎必然不等 —— 源设备
