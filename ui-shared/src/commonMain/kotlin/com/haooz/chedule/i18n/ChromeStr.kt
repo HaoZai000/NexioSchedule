@@ -98,6 +98,9 @@ object ChromeStr {
 
     val appPreferences = L("应用个性化", "Personalization")
     val updateSettingsTitle = L("更新", "Update")
+
+    /** 更新设置页（更新通道 / 下载源）。 */
+    val updatePreferencesTitle = L("更新设置", "Update Settings")
     val localBackup = L("本地备份", "Local Backup")
     val aiImport = L("AI 文本导入", "AI Text Import")
     val webImport = L("网页导入", "Web Import")
@@ -140,7 +143,7 @@ object ChromeStr {
     val importTab = L("导入", "Import")
     val exportTab = L("导出", "Export")
 
-    val classTimeSettings = L("课程时间管理", "Class Time Settings")
+    val classTimeSettings = L("上课时间", "Class Time")
     val saveFailedRetry = L("保存失败，请重试", "Save failed, please try again")
 
     // ── 路由器 ──

@@ -20,8 +20,13 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
+import com.haooz.softglass.platform.isRenderEffectSupported
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -77,6 +82,13 @@ fun DocumentPageScaffold(
     title: String,
     onBack: () -> Unit,
     recordKey: Any? = null,
+    /**
+     * 页面级背景模糊半径（dp，绘制期求值）。0 = 不模糊。
+     *
+     * 挂在**整页根节点**上（内容 + 折叠标题一起糊）：页内自己糊只能糊到内容，
+     * 标题由本组件画在上面，盖不住。口径与 morph 一致（`DETAIL_BACKDROP_BLUR_DP`）。
+     */
+    pageBlurDp: (() -> Float)? = null,
     // 第三个参数是**页面采样层本身**：顶栏玻璃按钮要拿它当 backdrop，才能真的折射内容。
     // 以前调用方各自 `rememberLayerBackdrop()` 造一个空层，渲染出来是一颗纯色圆 ——
     // 看着"没有玻璃效果"就是这个原因。
@@ -148,6 +160,19 @@ fun DocumentPageScaffold(
                     content(scrollBehavior, liquidGlassBackdrop)
                 }
 
+                // 顶栏单独糊：页内模糊只能糊到内容，标题在本层之上；
+                // 而整页一起糊又会把页内浮层（翻面的卡片）一起糊掉。所以各糊各的。
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            val blurDp = pageBlurDp?.invoke() ?: 0f
+                            renderEffect = if (blurDp > 0.01f && isRenderEffectSupported()) {
+                                val blurPx = blurDp.dp.toPx()
+                                BlurEffect(null, blurPx, blurPx, TileMode.Clamp)
+                            } else null
+                        }
+                ) {
                 ProgressiveBlurTopBar(
                     backdrop = liquidGlassBackdrop,
                     topInsetAdjustment = nativeBarInset,
@@ -182,6 +207,7 @@ fun DocumentPageScaffold(
                             }
                         } else null,
                     )
+                }
                 }
 
                 // 标题下方内容：走共用实现，与教务导入页同一段结构

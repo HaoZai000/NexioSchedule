@@ -59,6 +59,11 @@ sealed interface AppRoute {
         override val id: String get() = "update_settings"
     }
 
+    /** 更新设置（更新通道 / 下载源）。 */
+    data object UpdatePreferences : AppRoute {
+        override val id: String get() = "update_preferences"
+    }
+
     /** 问题反馈（「问题反馈」）。 */
     data object Communication : AppRoute {
         override val id: String get() = "communication"
@@ -109,7 +114,7 @@ sealed interface AppRoute {
         override val id: String get() = "webdav_settings"
     }
 
-    /** 课程时间管理（「课程时间管理」）。 */
+    /** 上课时间（「上课时间」）。 */
     data object CourseTimeSettings : AppRoute {
         override val id: String get() = "course_time_settings"
     }
@@ -161,6 +166,7 @@ sealed interface AppRoute {
             PrivacyPolicy.id -> PrivacyPolicy
             PreferenceSettings.id -> PreferenceSettings
             UpdateSettings.id -> UpdateSettings
+            UpdatePreferences.id -> UpdatePreferences
             Communication.id -> Communication
             LocalBackup.id -> LocalBackup
             AppreciateAuthor.id -> AppreciateAuthor

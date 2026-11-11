@@ -36,6 +36,7 @@ import com.haooz.chedule.ui.navigation.PreferenceSettingsRoute
 import com.haooz.chedule.ui.navigation.PrivacyPolicyRoute
 import com.haooz.chedule.ui.navigation.ScheduleSettingsRoute
 import com.haooz.chedule.ui.navigation.SettingsRoute
+import com.haooz.chedule.ui.navigation.UpdatePreferencesRoute
 import com.haooz.chedule.ui.navigation.UpdateSettingsRoute
 import com.haooz.chedule.ui.navigation.WebDavSettingsRoute
 import com.haooz.chedule.ui.navigation.WidgetIntroRoute
@@ -67,6 +68,7 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.PrivacyPolicy -> PrivacyPolicyRoute(router)
         AppRoute.PreferenceSettings -> PreferenceSettingsRoute(router = router)
         AppRoute.UpdateSettings -> UpdateSettingsRoute(router = router)
+        AppRoute.UpdatePreferences -> UpdatePreferencesRoute(router = router)
         AppRoute.Communication -> CommunicationRoute(router)
         AppRoute.Feedback -> FeedbackRoute(router)
         AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)

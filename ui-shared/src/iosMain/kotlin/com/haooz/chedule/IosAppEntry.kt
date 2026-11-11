@@ -60,6 +60,7 @@ import com.haooz.chedule.ui.navigation.PreferenceSettingsRoute
 import com.haooz.chedule.ui.navigation.PrivacyPolicyRoute
 import com.haooz.chedule.ui.navigation.ScheduleSettingsRoute
 import com.haooz.chedule.ui.navigation.SettingsRoute
+import com.haooz.chedule.ui.navigation.UpdatePreferencesRoute
 import com.haooz.chedule.ui.navigation.UpdateSettingsRoute
 import com.haooz.chedule.ui.navigation.WebDavSettingsRoute
 import com.haooz.chedule.ui.navigation.WebImportRoute
@@ -356,6 +357,7 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
         // 带注入的文档壳：iOS 用默认 Noop 能力，剪贴板注入 UIPasteboard
         AppRoute.PreferenceSettings -> PreferenceSettingsRoute(router)
         AppRoute.UpdateSettings -> UpdateSettingsRoute(router)
+        AppRoute.UpdatePreferences -> UpdatePreferencesRoute(router)
         // 本地备份：目录扫描+手动选文件都需原生文件能力。
         // ⚠ 不传会落到 NoopBackupFileController，点「手动选择文件」静默回调 null，什么都不发生。
         AppRoute.LocalBackup -> LocalBackupRoute(
@@ -424,7 +426,7 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
             onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
             onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
         )
-        // 课程时间管理 / 课程管理：iOS 没有自由小窗，传 false
+        // 上课时间 / 课程管理：iOS 没有自由小窗，传 false
         AppRoute.CourseTimeSettings -> CourseTimeSettingsRoute(router)
         AppRoute.CourseManage -> CourseManageRoute(router)
         // 教务导入（学校选择）：外壳全在 :ui-shared，无需平台能力（索引更新走共享 HttpService）。

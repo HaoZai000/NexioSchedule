@@ -156,6 +156,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.icon.extended.More
+import com.haooz.chedule.ui.activities.UpdatePreferencesScreen
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
@@ -169,6 +171,15 @@ import com.haooz.softglass.shape.addContinuousRoundRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 import top.yukonga.miuix.kmp.basic.Scaffold
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
+import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import com.haooz.chedule.ui.basic.LiquidGlassDropdownShadowPadding
 
 /**
  * 路由宿主的跨平台部分：路由跳转、状态接线、Updater 订阅，平台能力一律参数注入。
@@ -598,15 +609,100 @@ fun UpdateSettingsRoute(
     router: AppRouter,
     updateController: UpdateController = NoopUpdateController,
 ) {
+    // 页面级模糊由脚手架挂在整页根节点上（才能糊到折叠标题），这里只持有进度源
+    val pageBlur = remember { Animatable(0f) }
+    // 右上角「更多」+ 玻璃下拉。
+    // 按钮本体只能放在脚手架的 overlay 槽（页面采样层之外，否则面板采到自己 = 循环采样），
+    // 但位置与材质透明度必须跟顶栏走：所以在顶栏 endAction 里放一个 42dp 占位槽，
+    // 把它的纵坐标和顶栏材质 alpha 读出来，overlay 里的菜单照着摆（和主界面「更多」同一套做法）。
+    var moreOpen by remember { mutableStateOf(false) }
+    val moreFraction = remember { Animatable(0f) }
+    val moreSlotTopPx = remember { mutableFloatStateOf(0f) }
+    val moreMaterialAlpha = remember { mutableFloatStateOf(1f) }
+    val shadowPaddingPx = with(LocalDensity.current) { LiquidGlassDropdownShadowPadding.toPx() }
+    val fallbackAnchorTopPx = with(LocalDensity.current) {
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        (if (statusBarTop > 0.dp) statusBarTop - 20.dp else 17.dp).coerceAtLeast(0.dp).toPx()
+    }
     DocumentPageScaffold(
         title = ChromeStr.updateSettingsTitle(),
         onBack = { router.popBack() },
+        pageBlurDp = { pageBlur.value },
+        endAction = { alpha, _, _ ->
+            SideEffect { moreMaterialAlpha.floatValue = alpha }
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .onGloballyPositioned { moreSlotTopPx.floatValue = it.positionInRoot().y }
+            )
+        },
+        overlay = { backdrop ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (moreOpen) {
+                    // 点空白收起
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) { moreOpen = false }
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            clip = false
+                            // 占位槽顶边减掉阴影外扩，才是菜单内容顶边
+                            val measured = moreSlotTopPx.floatValue - shadowPaddingPx
+                            translationY = if (measured > 0f) measured else fallbackAnchorTopPx
+                        }
+                        .offset(x = 9.dp),
+                    contentAlignment = Alignment.TopEnd,
+                ) {
+                    LiquidGlassDropdownMenu(
+                        show = moreOpen,
+                        backdrop = backdrop,
+                        fraction = moreFraction,
+                        onDismiss = { moreOpen = false },
+                        onExpand = { moreOpen = true },
+                        triggerIcon = MiuixIcons.More,
+                        triggerContentDescription = CommonStr.more(),
+                        materialAlpha = moreMaterialAlpha.floatValue,
+                    ) {
+                        LiquidGlassDropdownMenuItem(
+                            text = ChromeStr.updatePreferencesTitle(),
+                            onClick = {
+                                moreOpen = false
+                                router.navigate(AppRoute.UpdatePreferences)
+                            },
+                        )
+                    }
+                }
+            }
+        },
     ) { scrollBehavior, backdrop ->
         UpdateSettingsScreen(
             scrollBehavior = scrollBehavior,
             liquidGlassBackdrop = backdrop,
             updateController = updateController,
+            pageBlur = pageBlur,
             onOpenChangelog = { router.navigate(AppRoute.Changelog) },
+        )
+    }
+}
+
+/** 更新设置路由（更新通道 / 下载源）。 */
+@Composable
+fun UpdatePreferencesRoute(router: AppRouter) {
+    DocumentPageScaffold(
+        title = ChromeStr.updatePreferencesTitle(),
+        onBack = { router.popBack() },
+    ) { scrollBehavior, backdrop ->
+        UpdatePreferencesScreen(
+            scrollBehavior = scrollBehavior,
+            liquidGlassBackdrop = backdrop,
         )
     }
 }
@@ -1131,12 +1227,8 @@ private fun modeTabLabel(mode: ScheduleDataManageMode): String = when (mode) {
     ScheduleDataManageMode.Backup -> ChromeStr.scheduleBackup()
 }
 
-// ── 最后两个路由壳：二级页转场 + 卡片快照 ──
-// 一级列表之上叠一层「背景缩放 + 模糊」；二级编辑页渲染在 Scaffold **外面**（否则会被顶栏裁掉），
-// 快捷菜单还要在模糊层之外再叠一层卡片快照。结构必须整体搬，不能只搬 Screen。
-
 /**
- * 课程时间管理。
+ * 上课时间。
  *
  * 比普通文档页多两层结构：外层 `Box` 做「背景缩放 + 模糊」动画；
  * ⚠ 二级编辑页 `TimeConfigEditScreen` 必须渲染在 `Scaffold` 外面，否则会被顶栏裁掉。

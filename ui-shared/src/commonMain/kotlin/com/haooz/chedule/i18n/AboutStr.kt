@@ -98,6 +98,24 @@ object AboutStr {
     /** 更新检查异常时的日志文案。 */
     val checkUpdateFailed = L("检查更新失败", "Failed to check for updates")
     val upToDate = L("当前已是最新版本", "Up to date")
+    /** 更新页版本卡正面：状态行（没有新版本时） */
+    val heroNoUpdate = L("暂无更新", "No updates")
+
+    /** 更新页版本卡正面：状态行（正在检查时） */
+    val heroChecking = L("检查中…", "Checking…")
+
+    /** 更新页版本卡背面：新版本没有写更新说明时的占位 */
+    val updateHasNoNotes = L("这个版本没有附更新说明", "This release has no notes")
+
+    /** 更新页版本卡背面：跳转完整更新日志。 */
+    val viewFullChangelog = L("查看全部更新日志", "View Full Changelog")
+
+    /** 更新页版本卡背面：本次更新的条目数。 */
+    val changelogItemCount = L("共 %d 项", "%d items")
+
+    /** 更新页版本卡背面：条目超出卡片可容纳数量。 */
+    val changelogMoreItems = L("还有 %d 项…", "and %d more…")
+
     val moreSettings = L("更多设置", "More Settings")
     val stableChannel = L("稳定版", "Stable")
     val updateChannel = L("更新通道", "Update Channel")

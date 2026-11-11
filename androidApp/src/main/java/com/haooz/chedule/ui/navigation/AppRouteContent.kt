@@ -122,6 +122,8 @@ fun AppRouteContent(
             )
         }
 
+        AppRoute.UpdatePreferences -> UpdatePreferencesRoute(router = router)
+
         AppRoute.LocalBackup -> {
             val context = LocalContext.current
             LocalBackupRoute(
