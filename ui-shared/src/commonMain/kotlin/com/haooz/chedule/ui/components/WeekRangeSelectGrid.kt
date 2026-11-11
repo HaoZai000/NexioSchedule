@@ -24,6 +24,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -34,7 +36,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import com.haooz.softglass.shape.continuousClip
@@ -44,7 +45,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 周次选择网格。
  *
  * - 单击：切换该周
- * - 按住滑动：从起点周拖到终点周，把二者之间的连续周次**并入**已选集合；
+ * - **长按震动后**再滑动：从起点周拖到终点周，把二者之间的连续周次**并入**已选集合；
  *   例如先滑 1→8，再滑 10→14，结果为 1~8 且 10~14（已占用周自动跳过）
  *
  * 滑选始终追加、不会反选：起点周即使已选中，拖完该区间仍保持选中。
@@ -118,49 +119,51 @@ fun WeekRangeSelectGrid(
                 if (!enabled) return@pointerInput
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    val downWeek = weekAt(down.position)
-                    if (downWeek == null || downWeek in occupiedWeeksState.value) {
-                        // 等待抬起，避免误消费
+                    // 落到空格子或已占用周：等抬手，不消费（原来就在这里干等）
+                    val hitWeek = weekAt(down.position)
+                    if (hitWeek == null || hitWeek in occupiedWeeksState.value) {
                         do {
                             val event = awaitPointerEvent()
                         } while (event.changes.any { it.pressed })
                         return@awaitEachGesture
                     }
+                    val downWeek: Int = hitWeek
 
-                    var currentWeek: Int = downWeek
-                    var dragging = false
-                    // 每次新手势都读最新已选集合，保证多段滑选是累加而不是被旧空集覆盖
+                    // 阶段一：等长按。**这段不消费任何事件** —— 手指一滑父级滚动立刻接管，
+                    // 于是「上滑滚页面」和「滑选周次」不会再抢同一个手势。
+                    var longPressed = false
+                    val upOrCancel = try {
+                        withTimeout(viewConfiguration.longPressTimeoutMillis) {
+                            waitForUpOrCancellation()
+                        }
+                    } catch (_: PointerEventTimeoutCancellationException) {
+                        longPressed = true
+                        null
+                    }
+                    if (!longPressed) {
+                        // 没长按就结束了：抬起即点选切换；被父级消费（滚走了）则什么都不做
+                        if (upOrCancel != null) onToggleWeekState.value(downWeek)
+                        return@awaitEachGesture
+                    }
+
+                    // 阶段二：长按成立 → 震一下，从这里开始接管事件（滚动被锁住）。
+                    // 每次新手势现读已选集合，保证多段滑选是累加而不是被旧快照覆盖。
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     val dragBase = selectedWeeksState.value
-
+                    var currentWeek = downWeek
                     while (true) {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull { it.id == down.id }
                             ?: event.changes.firstOrNull()
-                        if (change == null) break
-
-                        if (!change.pressed) {
-                            if (!dragging) {
-                                // 点选：抬起时若几乎未移动则切换
-                                onToggleWeekState.value(downWeek)
-                            }
-                            break
-                        }
-
-                        val delta = change.position - down.position
-                        if (!dragging && (abs(delta.x) > viewConfiguration.touchSlop ||
-                                abs(delta.y) > viewConfiguration.touchSlop)
-                        ) {
-                            dragging = true
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onReplaceWeeksState.value(dragBase + rangeSelection(downWeek, downWeek))
-                            change.consume()
-                        }
-
-                        if (dragging) {
-                            change.consume()
-                            val week = weekAt(change.position) ?: currentWeek
-                            if (week != currentWeek) {
-                                currentWeek = week
+                        if (change == null || !change.pressed) break
+                        change.consume()
+                        val week = weekAt(change.position) ?: currentWeek
+                        if (week != currentWeek) {
+                            currentWeek = week
+                            if (week == downWeek) {
+                                // 滑回起点：区间塌成单周，等于什么都没加
+                                onReplaceWeeksState.value(dragBase)
+                            } else {
                                 // 手指划过每一个周次格震动一次
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onReplaceWeeksState.value(dragBase + rangeSelection(downWeek, week))
