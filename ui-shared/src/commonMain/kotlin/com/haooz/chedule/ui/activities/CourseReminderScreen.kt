@@ -67,6 +67,7 @@ import com.haooz.chedule.i18n.ReminderStr
 import com.haooz.chedule.ui.basic.AiSparkleIcon
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -502,7 +503,7 @@ fun CourseReminderScreen(
                     contentPadding = PaddingValues(
                         start = tabletHorizontalPadding,
                         top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                            (if (isTablet) 24.dp else 12.dp),
+                            pageTopExtra(isTablet, hasSmallTitle = false),
                         end = tabletHorizontalPadding,
                         bottom = 120.dp
                     ),

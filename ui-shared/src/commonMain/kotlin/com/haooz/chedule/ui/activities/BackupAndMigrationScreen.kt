@@ -57,6 +57,7 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.ScheduleImportConfirmDialog
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
@@ -237,7 +238,7 @@ fun BackupAndMigrationScreen(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
                 top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                    (if (isTablet) 12.dp else 0.dp) + topExtra,
+                    pageTopExtra(isTablet, hasSmallTitle = true) + topExtra,
                 bottom = 60.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)

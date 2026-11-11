@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.platform.AppreciationFetcher
 import com.haooz.chedule.data.platform.AppreciationItem
 import com.haooz.chedule.i18n.AboutStr
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.uishared.resources.Res
@@ -141,7 +142,7 @@ fun AppreciateAuthorScreen(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
                     top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        (if (isTablet) 24.dp else 12.dp),
+                        pageTopExtra(isTablet, hasSmallTitle = false),
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

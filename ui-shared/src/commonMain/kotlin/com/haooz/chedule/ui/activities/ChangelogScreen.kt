@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.utils.screenWidthDp
@@ -94,7 +95,7 @@ fun ChangelogScreen(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
                     top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        (if (isTablet) 24.dp else 12.dp),
+                        pageTopExtra(isTablet, hasSmallTitle = false),
                     bottom = 60.dp
                 )
         ) {

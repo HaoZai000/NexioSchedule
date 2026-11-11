@@ -65,6 +65,7 @@ import com.haooz.chedule.data.platform.randomUuidV4
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SwitchStr
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.rememberCourseColors
 import com.haooz.chedule.ui.utils.CourseSorting
@@ -240,7 +241,8 @@ fun CourseManageScreen(
 
                 val resolvedTopPadding = contentTopPadding
                     ?: (paddingValues.calculateTopPadding() +
-                        CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp)
+                        CollapsibleTopAppBarDefaults.CollapsedHeight +
+                        pageTopExtra(isTablet, hasSmallTitle = false))
 
                 if (groupedCourses.isEmpty()) {
                     // 空状态

@@ -40,6 +40,7 @@ import com.haooz.chedule.data.platform.FeedbackClient
 import com.haooz.chedule.data.platform.FeedbackKind
 import com.haooz.chedule.data.platform.currentDeviceInfo
 import com.haooz.chedule.i18n.FeedbackStr
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
@@ -138,7 +139,7 @@ fun FeedbackScreen(
                     end = horizontalPadding,
                     top = paddingValues.calculateTopPadding() +
                         CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        (if (isTablet) 12.dp else 0.dp) +
+                        pageTopExtra(isTablet, hasSmallTitle = false) +
                         topExtra,
                     bottom = 132.dp,
                 ),

@@ -36,6 +36,7 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.ui.components.FeedbackKindLabel
 import com.haooz.chedule.ui.components.FeedbackStageBar
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
@@ -104,7 +105,9 @@ fun FeedbackHistoryScreen(
             contentPadding = PaddingValues(
                 start = horizontalPadding,
                 end = horizontalPadding,
-                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 8.dp,
+                top = paddingValues.calculateTopPadding() +
+                    CollapsibleTopAppBarDefaults.CollapsedHeight +
+                    pageTopExtra(isTablet, hasSmallTitle = false),
                 bottom = 60.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),

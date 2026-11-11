@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.today.weatherIconRes
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.weather.LifeIndex
@@ -133,7 +134,7 @@ fun WeatherScreen(
                     end = horizontalPadding,
                     top = paddingValues.calculateTopPadding() + contentTopPadding +
                         CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        (if (isTablet) 24.dp else 12.dp),
+                        pageTopExtra(isTablet, hasSmallTitle = false),
                     bottom = 60.dp,
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

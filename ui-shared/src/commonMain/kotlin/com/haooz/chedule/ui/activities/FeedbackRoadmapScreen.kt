@@ -33,6 +33,7 @@ import com.haooz.chedule.data.platform.RoadmapRecord
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.ui.components.FeedbackKindLabel
 import com.haooz.chedule.ui.components.FeedbackStageBar
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -104,7 +105,8 @@ fun FeedbackRoadmapScreen(
             contentPadding = PaddingValues(
                 start = horizontalPadding,
                 end = horizontalPadding,
-                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + topExtra,
+                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
+                    pageTopExtra(isTablet, hasSmallTitle = false) + topExtra,
                 bottom = 60.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),

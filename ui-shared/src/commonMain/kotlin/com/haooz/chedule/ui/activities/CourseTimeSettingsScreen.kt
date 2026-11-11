@@ -50,6 +50,7 @@ import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.i18n.TimeCfgStr
 import com.haooz.chedule.i18n.orDefaultName
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -177,7 +178,7 @@ fun CourseTimeSettingsScreen(
                     contentPadding = PaddingValues(
                         start = tabletHorizontalPadding,
                         top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                            (if (isTablet) 24.dp else 12.dp),
+                            pageTopExtra(isTablet, hasSmallTitle = true),
                         end = tabletHorizontalPadding,
                         bottom = 60.dp
                     ),

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.i18n.L
 import com.haooz.chedule.i18n.L10n
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
@@ -481,7 +482,9 @@ fun PrivacyPolicyScreen(
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
+                    top = paddingValues.calculateTopPadding() +
+                        CollapsibleTopAppBarDefaults.CollapsedHeight +
+                        pageTopExtra(isTablet, hasSmallTitle = false),
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

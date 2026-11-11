@@ -54,6 +54,7 @@ import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.cardRevealLayer
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.rememberCardRevealState
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.courseToShareMap
@@ -271,7 +272,7 @@ fun LocalBackupScreen(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
                 top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                    (if (isTablet) 24.dp else 12.dp),
+                    pageTopExtra(isTablet, hasSmallTitle = false),
                 bottom = 120.dp
             ),
         ) {

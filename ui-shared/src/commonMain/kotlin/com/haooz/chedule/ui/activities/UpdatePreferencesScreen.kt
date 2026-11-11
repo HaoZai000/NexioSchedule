@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
@@ -99,7 +100,7 @@ fun UpdatePreferencesScreen(
                     end = horizontalPadding,
                     top = paddingValues.calculateTopPadding() +
                         CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        (if (isTablet) 24.dp else 12.dp),
+                        pageTopExtra(isTablet, hasSmallTitle = false),
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

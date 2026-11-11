@@ -42,6 +42,7 @@ import com.haooz.chedule.data.util.formatDateTimeMinute
 import com.haooz.chedule.data.util.localDateTimeAt
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.MiscStr
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.scheduleViewModel
@@ -255,7 +256,7 @@ fun WebDavSettingsScreen(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
                     top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        (if (isTablet) 12.dp else 0.dp),
+                        pageTopExtra(isTablet, hasSmallTitle = true),
                     bottom = 120.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

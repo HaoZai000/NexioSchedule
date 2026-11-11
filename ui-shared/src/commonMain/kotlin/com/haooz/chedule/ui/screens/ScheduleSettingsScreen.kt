@@ -31,6 +31,7 @@ import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.i18n.TimeCfgStr
 import com.haooz.chedule.i18n.orDefaultName
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.utils.ShiftModeRequest
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.ui.components.CardExpand
@@ -146,7 +147,8 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     top = paddingValues.calculateTopPadding() +
-                        CollapsibleTopAppBarDefaults.CollapsedHeight + 8.dp,
+                        CollapsibleTopAppBarDefaults.CollapsedHeight +
+                        pageTopExtra(isTablet, hasSmallTitle = false),
                     end = tabletHorizontalPadding,
                     bottom = nativeChromeInset?.plus(24.dp) ?: 60.dp,
                 ),

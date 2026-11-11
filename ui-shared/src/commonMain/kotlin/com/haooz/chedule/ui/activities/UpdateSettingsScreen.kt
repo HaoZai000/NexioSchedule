@@ -3,6 +3,7 @@ package com.haooz.chedule.ui.activities
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.utils.HostNavigationState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -423,7 +424,7 @@ fun UpdateSettingsScreen(
                         start = tabletHorizontalPadding,
                         end = tabletHorizontalPadding,
                         top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                            (if (isTablet) 24.dp else 12.dp),
+                            pageTopExtra(isTablet, hasSmallTitle = false),
                         bottom = 60.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)

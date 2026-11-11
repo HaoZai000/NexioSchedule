@@ -44,6 +44,7 @@ import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -177,7 +178,7 @@ fun AiImportScreen(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
                     top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        (if (isTablet) 12.dp else 0.dp),
+                        pageTopExtra(isTablet, hasSmallTitle = true),
                     bottom = 120.dp
                 )
         ) {
