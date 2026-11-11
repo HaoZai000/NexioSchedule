@@ -15,20 +15,7 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-/**
- * 从哪里抄的：小米时钟 `miuix.navigation.OverlayView`（`BottomNavigator` 里的那颗选中胶囊）。
- *
- * 位置模型**不是** translationX + 固定宽度，而是 left / right 两条边界各挂一条弹簧：
- * 切换时“先到的边”用快弹簧、“落后的边”用慢弹簧，位移途中宽度先被撑开再收回来。
- *
- * 原版一个 folme state 配多套 `AnimConfig`（EaseStyle 随时切），这里照抄这个结构：
- * 两个 [Channel] 各自持有 target + 当前刚度/阻尼，按需切参数，由一个帧循环统一推进。
- * 之所以不用 `Animatable`：拖动时目标每帧都变，`animateTo` 要每帧重启一次动画协程；
- * 直接积分同一个弹簧既没有重启开销，也天然是原版那种“目标一直在动、弹簧一直在追”的行为。
- *
- * 弹簧参数按 `ω = sqrt(stiffness)`、`c = 2ζω` 落到物理形式，与 `spring(stiffness, dampingRatio)`
- * 手感等价（数值沿用接入前那套）。
- */
+/** miuix选中胶囊 */
 internal class CapsuleSelector(
     private val scope: CoroutineScope,
     /** 胶囊静止宽度（一格 tab 减去两侧内缩）。tab 数变化时整体重建，不做插值。 */

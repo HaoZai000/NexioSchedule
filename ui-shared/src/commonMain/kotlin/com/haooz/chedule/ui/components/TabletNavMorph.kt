@@ -104,15 +104,15 @@ class TabletNavMorphMotion(
         val rY: Float
         if (target == 0f) { // 展开回侧栏
             dX = 0.97f
-            rX = 0.2f
+            rX = 0.26f
             // 纵向压到 0.72：面板长到底时底缘要明显冲过终点再缩回
             dY = 0.72f
-            rY = 0.4f
+            rY = 0.5f
         } else { // 收成顶栏
             dX = 0.82f
-            rX = 0.4f
+            rX = 0.5f
             dY = 0.97f
-            rY = 0.2f
+            rY = 0.26f
         }
         // 总进度不参与错落，容器 / 页面避让 / 形状都读它
         masterX.configure(dX, rX, target)

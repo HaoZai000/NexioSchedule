@@ -149,13 +149,13 @@ private val TabletNavSideItemHeight = 52.dp
 private val TabletNavItemRowGap = 4.dp
 
 /** 顶栏 → 回侧栏：等面板长到底再弹，否则会撞在半路上 */
-private const val LANDING_DELAY_MS = 200L
+private const val LANDING_DELAY_MS = 240L
 
 /** 侧栏条目里图标与文字的间距 */
 private val TabletNavLabelGap = 12.dp
 
 /** 顶栏胶囊 */
-private val TabletNavTopBarHeight = 50.dp
+private val TabletNavTopBarHeight = 48.dp
 private val TabletNavTopBarPad = 4.dp
 private val TabletNavTopBarButtonWidth = 48.dp
 private val TabletNavTopBarTabWidth = 78.dp
@@ -281,7 +281,7 @@ fun TabletNavSideBar(
                 animate(
                     initialValue = 0f,
                     targetValue = 1f,
-                    animationSpec = tween(190, easing = LinearOutSlowInEasing),
+                    animationSpec = tween(210, easing = LinearOutSlowInEasing),
                 ) { v, _ -> TabletNavSideState.landBounce.floatValue = v }
                 // 回程别再弹一次：阻尼 0.85 只是平稳收回，不产生第二下
                 animate(
@@ -726,15 +726,18 @@ fun TabletNavSideBar(
             }
         }
 
-        // 「收成顶栏 / 回侧栏」：侧栏里钉在右上角，折叠时只淡出、不位移
-        //（面板右缘在动，它不能跟着左滑）；进顶栏形态则一路滑到胶囊最左边那颗。
+        // 「收成顶栏 / 回侧栏」：侧栏里钉在**当前**面板右缘（展开是整宽、折叠是图标轨），
+        // 所以收窄时它跟着右缘一起左移、同时淡出，而不是原地消失；
+        // 进顶栏形态则一路滑到胶囊最左边那颗。
         Box(
             modifier = Modifier
                 .offset {
                     // 横移吃整条弹簧（跟胶囊一起冲出去回弹），纵向提前收尾
                     val slide = tabletNavSlideProgress()
                     val settle = tabletNavSettleProgress()
-                    val fromX = panelStartInsetPx + expandedPanelPx - maskPadPx - buttonFromPx
+                    // 起点跟面板右缘走：sideWidthProvider 里已经叠了展开弹簧，
+                    // 收窄时按钮随右缘内收 —— 尺寸不变，只改这一条的 X
+                    val fromX = panelStartInsetPx + sideWidthProvider() - maskPadPx - buttonFromPx
                     val fromY = sideTopPx + maskPadPx + (sideItemHeightPx - buttonFromPx) / 2f
                     val toX = (hostWidthPx - capsuleWidthPx) / 2f + topBarPadPx
                     val toY = topPaddingPx
@@ -769,7 +772,9 @@ fun TabletNavSideBar(
                             indication = null,
                         ) { TabletNavSideState.topBarMode = true }
                     } else {
-                        Modifier.blockTouchInput()
+                        // 折叠后它已经滑进图标轨、alpha 也归零：这时候还整条吞事件，
+                        // 会把轨道上那颗条目点成死区。只有还看得见的时候才吃。
+                        Modifier.blockTouchInput { TabletNavSideState.expandProgress.floatValue > 0.02f }
                     }
                 ),
             contentAlignment = Alignment.Center,
@@ -1012,11 +1017,17 @@ private fun TabletNavTopBarInteraction(
     )
 }
 
-/** 淡出后的层不再接命中：避免隔空点到看不见的按钮。Initial pass 先于内部 clickable。 */
-private fun Modifier.blockTouchInput(): Modifier = pointerInput(Unit) {
+/**
+ * 淡出后的层不再接命中：避免隔空点到看不见的按钮。Initial pass 先于内部 clickable。
+ *
+ * [active] 在**事件到达那一刻**求值（不是组合期），所以用它按动画进度开关不会引起重组 ——
+ * 别改成在组合期判断状态，那会让整棵树跟着动画每帧重组。
+ */
+private fun Modifier.blockTouchInput(active: () -> Boolean = { true }): Modifier = pointerInput(Unit) {
     awaitPointerEventScope {
         while (true) {
-            awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            if (active()) event.changes.forEach { it.consume() }
         }
     }
 }
