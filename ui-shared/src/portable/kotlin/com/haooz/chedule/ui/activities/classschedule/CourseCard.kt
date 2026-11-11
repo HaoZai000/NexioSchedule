@@ -22,8 +22,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,9 +78,6 @@ import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -168,14 +168,9 @@ fun CourseCard(
     touchState: ScheduleTouchState? = null,
     onClick: () -> Unit,
     onLongPressStart: (cardLeft: Float, cardTop: Float, width: Float, height: Float) -> Unit = { _, _, _, _ -> },
-    onDragStart: () -> Unit = {},
-    onDrag: (offsetX: Float, offsetY: Float) -> Unit = { _, _ -> },
-    onDragEnd: () -> Unit = {},
-    /** 拖拽被系统/布局回收打断（不是用户松手）：只收浮层，不写库 */
-    onDragCancel: () -> Unit = {},
-    onMenuDismiss: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val scope = rememberCoroutineScope()
     val sectionCount = course.endSection - course.startSection + 1
     val cardHeight = (customCardHeightDp ?: (sectionCount * cardHeightPerSection)).dp
     // 柔光两条采样源：静态壁纸（网格）与实时录制（浮层）
@@ -192,7 +187,6 @@ fun CourseCard(
      */
     val layeredSurface = glassSourceReady
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
-    val scope = rememberCoroutineScope()
     val localDensity = LocalDensity.current
     // 滚动/翻页信号：让玻璃的采样原点按帧跟手（见 LocalGlassRedrawSignal 注释）
     val glassRedraw = LocalGlassRedrawSignal.current
@@ -460,11 +454,6 @@ fun CourseCard(
                         onSinkChange = { sinkPressed = it },
                         onLongPressStart = onLongPressStart,
                         onClick = onClick,
-                        onDragStart = onDragStart,
-                        onDrag = onDrag,
-                        onDragEnd = onDragEnd,
-                        onDragCancel = onDragCancel,
-                        onMenuDismiss = onMenuDismiss,
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -549,11 +538,6 @@ fun CourseCard(
                     onSinkChange = { sinkPressed = it },
                     onLongPressStart = onLongPressStart,
                     onClick = onClick,
-                    onDragStart = onDragStart,
-                    onDrag = onDrag,
-                    onDragEnd = onDragEnd,
-                    onDragCancel = onDragCancel,
-                    onMenuDismiss = onMenuDismiss,
                 )
         ) {
             CardContent(
@@ -579,16 +563,11 @@ fun CourseCard(
 }
 
 /**
- * 课程卡手势：有壁纸 / 无壁纸两条渲染路径共用同一实现，避免各改一份产生漂移。
+ * 课程卡手势：只判定轻点 / 长按，并把长按后的指针登记给页面级 tracker。
  *
- * - 轻点（位移 < 8dp）→ [onClick]
- * - 长按 320ms → [onLongPressStart] 弹菜单，随后移动即进拖拽态（浮层跟手）
- * - 拖拽态里位移超过容差（8dp）才算真的拖起来：此时才 [onDragStart]（点亮跟手高光）
- *   并 [onMenuDismiss] 收菜单（[dragEnabled] 为 false 时这两步都不发生）
- * - 长按前横滑主导 / 位移超容差 / 多指按下 → 放弃本次手势，把滚动让给 Pager
- *
- * ⚠ [dragEnabled] = false 时菜单**不随移动收起**：这类课唯一的操作入口就是菜单，
- * 手指抖一下就把菜单收掉等于没法用。松手后菜单继续留在屏幕上等用户点。
+ * 课卡住在周 pager 的页里，翻周时整页平移、隔周后页会被回收；跟手与松手落课必须
+ * 由挂在 pager 上的 tracker 用 root 坐标接管。课卡不碰之后的任何事件，也就不需要
+ * 交接、双写、重复收尾那一套兜底。
  */
 private fun Modifier.courseCardGesture(
     course: Course,
@@ -599,189 +578,60 @@ private fun Modifier.courseCardGesture(
     scope: CoroutineScope,
     dragEnabled: Boolean,
     onSinkChange: (Boolean) -> Unit,
-    onLongPressStart: (left: Float, top: Float, width: Float, height: Float) -> Unit,
+    onLongPressStart: (Float, Float, Float, Float) -> Unit,
     onClick: () -> Unit,
-    onDragStart: () -> Unit,
-    onDrag: (offsetX: Float, offsetY: Float) -> Unit,
-    onDragEnd: () -> Unit,
-    onDragCancel: () -> Unit,
-    onMenuDismiss: () -> Unit,
 ): Modifier = pointerInput(course, dragEnabled) {
     awaitEachGesture {
+        // 不消费 down：页内 scrollable 要用这个 down 当滚动起点，无论在主 pass 还是
+        // Initial pass 消费它，当前页都会滚不动（后者连翻周重建都恢复不了）。
+        // 阻止拖课时误滚由 tracker 在「真拖起来」后的移动帧上消费，抬手帧始终不消费。
         val down = awaitFirstDown(requireUnconsumed = false)
-        down.consume()
         onSinkChange(true)
-        val downPosition = down.position
-        val slop = 8.dp.toPx()
+        val slop = viewConfiguration.touchSlop
         val horizontalSlop = 5.dp.toPx()
-        var isLongPress = false
-        var isDragging = false
-        var menuShown = false
-        // 拖拽已经接管 / 已经收过尾。节点被回收时 finally 只兜底一次，正常松手不重复收尾。
-        var dragOwned = false
-        var dragClosed = false
+        val downRoot = rootOf(coordinates, down.position)
+        var settled = false
+        var tap = false
 
-        /**
-         * 指针位置换算到 root 坐标。
-         *
-         * ⚠ 浮层挂在 root 上、锚点 [bounds] 也是 root 坐标，而 [androidx.compose.ui.input.pointer.PointerInputChange.position]
-         * 是**课卡本地**坐标。课卡住在周 pager 的页里：翻周（页平移一屏）、页内上下滚，
-         * 手指不动本地坐标也会变 —— 直接拿本地差值会让浮层反向飞出一屏（翻页即「丢失」），
-         * 上下滚则越拖越偏（不跟手）。换算到 root 后只剩手指自身位移。
-         */
-        fun rootPosition(local: Offset): Offset {
-            val coords = coordinates[0]
-            return if (coords != null && coords.isAttached) coords.localToRoot(local) else local
-        }
-
-        val downRoot = rootPosition(downPosition)
-        val longPressJob = scope.launch {
+        // 计时只做一件事：确认长按并把指针交给 tracker。之后课卡不再处理事件。
+        val timer = scope.launch {
             delay(320.milliseconds)
-            // 多指（三指截图等）不当成长按
-            if (touchState?.multiTouch == true) return@launch
-            isLongPress = true
+            if (settled || touchState?.multiTouch == true) return@launch
+            settled = true
             onSinkChange(false)
-            menuShown = true
             refreshBounds()
+            if (dragEnabled && touchState != null) touchState.begin(down.id, course.id, downRoot)
             onLongPressStart(bounds[0], bounds[1], bounds[2], bounds[3])
         }
         try {
-            while (true) {
-                // 菜单/拖拽需要拦穿透用 Main pass；否则 Final pass 让父级滚动先处理
-                val pass =
-                    if (menuShown || isDragging) PointerEventPass.Main else PointerEventPass.Final
-                val event = awaitPointerEvent(pass)
-                // 只认按下时那根指针：其余手指的事件不消费，留给页面翻周手势
-                // （跨周调课要一只手拖课、另一只手翻周）
-                val change = event.changes.firstOrNull { it.id == down.id }
-                if (change == null) {
-                    // 指针不在事件里 = 被系统取消（翻页时合成 cancel / 手势被抢）。
-                    // 必须收尾，否则浮层 offset 冻在最后一帧、卡在屏幕外。
-                    if (dragOwned) {
-                        dragClosed = true
-                        val trackerOwns = touchState != null &&
-                            (touchState.dragTrackerActive || touchState.dragEndHandled)
-                        if (!trackerOwns) onDragCancel()
-                    }
-                    break
-                }
-
+            // 320ms 内抬手 = 轻点；横滑主导 / 位移超容差 = 让给翻页与滚动
+            while (!settled) {
+                val change = awaitPointerEvent(PointerEventPass.Final)
+                    .changes.firstOrNull { it.id == down.id } ?: break
                 if (!change.pressed) {
-                    onSinkChange(false)
-                    when {
-                        isDragging -> {
-                            // 页面级 tracker 已接管 / 已收尾：位移与落点都归它，
-                            // 这里再调一次 onDragEnd 会把同一次拖拽写两遍
-                            val st = touchState
-                            val trackerOwns = st != null &&
-                                (st.dragTrackerActive || st.dragEndHandled)
-                            when {
-                                trackerOwns -> dragClosed = true
-                                menuShown -> {
-                                    // 菜单还在、还没到「真拖起来」：把抖动带出的偏移归零，菜单继续留着
-                                    onDrag(0f, 0f)
-                                    dragClosed = true
-                                }
-
-                                else -> {
-                                    dragClosed = true
-                                    onDragEnd()
-                                }
-                            }
-                        }
-
-                        menuShown -> Unit
-                        else -> {
-                            change.consume()
-                            // 多指时不点击：系统手势（三指截图）拦截后 Compose 会补发一个
-                            // 合成的「全部抬起」事件，看起来和松手一样，只能靠页面级多指标记区分
-                            val multiTouch = touchState?.multiTouch == true
-                            if (!isLongPress && !multiTouch &&
-                                (change.position - downPosition).getDistance() < slop
-                            ) onClick()
-                        }
-                    }
+                    tap = (change.position - down.position).getDistance() < slop
                     break
                 }
-
-                val pos = change.position
-                // 长按前用本地位移：页面惯性/另只手滚屏时内容在手指下跑，
-                // 本地坐标能如实反映「手指相对卡片动了」，避免把滚动当成长按/拖拽。
-                val localDx = pos.x - downPosition.x
-                val localDy = pos.y - downPosition.y
-                val localMoved = Offset(localDx, localDy).getDistance()
-                // 长按后（真拖拽）用 root 位移：翻周/滚动时本地坐标会被整页平移污染
-                val rootNow = rootPosition(pos)
-                val dx = rootNow.x - downRoot.x
-                val dy = rootNow.y - downRoot.y
-                val moved = Offset(dx, dy).getDistance()
-
-                // 长按前横滑主导 → 交给 Pager 翻页
-                if (!isLongPress && !isDragging && !menuShown &&
-                    abs(localDx) > horizontalSlop && abs(localDx) > abs(localDy) * 1.2f
-                ) {
-                    onSinkChange(false)
-                    break
-                }
-                // 长按前位移超容差 → 取消长按
-                if (!isLongPress && localMoved > slop) {
-                    onSinkChange(false)
-                    change.consume()
-                    break
-                }
-                // 菜单已弹出：手指一动就进「拖拽态」，浮层开始跟手。
-                // ⚠ 这里**不**调 onDragStart —— 它点亮的是跟手高光，抖动几像素就亮
-                //   会很廉价；高光留给下面真正「拖起来」的那一刻。
-                // ⚠ dragEnabled = false（自定义时间课）时整段跳过：菜单留在原地等用户点
-                if (dragEnabled && menuShown && !isDragging) {
-                    isDragging = true
-                    dragOwned = true
-                    onSinkChange(false)
-                    // 登记拖拽占用的指针：翻页手势只屏蔽这一根，另一只手仍能翻周
-                    val st = touchState
-                    if (st != null) {
-                        // 起拖前的根坐标：tracker 用它把位移算成「相对按下时」，
-                        // 这样交接触手时浮层不会跳。翻转/滚动都不影响 root 差值。
-                        st.draggingPointerId = down.id
-                        st.draggingCourseId = course.id
-                        st.draggingDownRoot = downRoot
-                        st.dragStarted = false
-                        st.dragTrackerActive = false
-                        st.dragEndHandled = false
-                    }
-                }
-                // 位移超容差 = 真的拖起来了：此刻收菜单，并点亮跟手高光
-                if (dragEnabled && menuShown && moved > slop) {
-                    menuShown = false
-                    touchState?.dragStarted = true
-                    onDragStart()
-                    onMenuDismiss()
-                }
-                // 页面级 tracker 接管后，卡片不再上报位移（两边都算会翻倍）
-                if (dragEnabled && isDragging && touchState?.dragTrackerActive != true) {
-                    onDrag(dx, dy)
-                }
-                change.consume()
+                val dx = change.position.x - down.position.x
+                val dy = change.position.y - down.position.y
+                if (abs(dx) > horizontalSlop && abs(dx) > abs(dy) * 1.2f) break
+                if (hypot(dx, dy) > slop) break
+            }
+            if (!settled) {
+                settled = true
+                onSinkChange(false)
+                if (tap && touchState?.multiTouch != true) onClick()
             }
         } finally {
-            longPressJob.cancel()
-            // 课卡所在周页被 pager 回收时协程直接 cancel，走不到上面的抬起分支：
-            // 浮层不收尾会永远停在最后一帧。页面级 tracker 还活着时由它收尾（它能跨周跟手），
-            // 只有 tracker 没接管才在这里兜底；且只取消、不写库。
-            if (dragOwned && !dragClosed) {
-                val trackerOwns = touchState != null &&
-                    (touchState.dragTrackerActive || touchState.dragEndHandled)
-                if (!trackerOwns) onDragCancel()
-            }
-            if (touchState != null &&
-                !touchState.dragTrackerActive && !touchState.dragEndHandled &&
-                touchState.draggingPointerId == down.id
-            ) {
-                touchState.clearDragTracking()
-            }
-
+            timer.cancel()
         }
     }
+}
+
+/** 卡片本地坐标 → root：翻周 / 页内滚动都不会污染位移。 */
+private fun rootOf(coordinates: Array<LayoutCoordinates?>, local: Offset): Offset {
+    val coords = coordinates[0]
+    return if (coords != null && coords.isAttached) coords.localToRoot(local) else local
 }
 
 @Composable

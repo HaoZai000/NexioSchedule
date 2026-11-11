@@ -139,11 +139,6 @@ fun DayColumn(
     showTeacher: Boolean = true,
     draggingSlotsState: DraggingSlotsState? = null,
     onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, currentWeek: Int) -> Unit = { _, _, _, _, _, _, -> },
-    onCourseDragStart: (courseId: String) -> Unit = { _ -> },
-    onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
-    onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
-    onCourseDragCancel: (courseId: String) -> Unit = { _ -> },
-    onCourseMenuDismiss: () -> Unit = {},
     // 非 state：滑动中跳过逐帧坐标计算
     touchState: ScheduleTouchState? = null,
     // 页面层统一读取，避免每列挂 prefs 监听
@@ -346,11 +341,6 @@ fun DayColumn(
 
                 onCourseClick = onCourseClick,
                 onCourseLongPress = onCourseLongPress,
-                onCourseDragStart = onCourseDragStart,
-                onCourseDrag = onCourseDrag,
-                onCourseDragEnd = onCourseDragEnd,
-                onCourseDragCancel = onCourseDragCancel,
-                onCourseMenuDismiss = onCourseMenuDismiss,
                 onPendingChange = onPendingChange
             )
         }
@@ -390,11 +380,6 @@ private fun CourseCardsLayer(
     viewportBottomDp: Float = Float.MAX_VALUE,
     onCourseClick: (Course) -> Unit,
     onCourseLongPress: (Course, Float, Float, Float, Float, Int) -> Unit,
-    onCourseDragStart: (String) -> Unit,
-    onCourseDrag: (String, Float, Float) -> Unit,
-    onCourseDragEnd: (String) -> Unit,
-    onCourseDragCancel: (String) -> Unit,
-    onCourseMenuDismiss: () -> Unit,
     onPendingChange: (Int, Int) -> Unit
 ) {
     val courseRenderDataList = remember(
@@ -545,9 +530,6 @@ private fun CourseCardsLayer(
                                 onCourseLongPress(course, left, top, width, height, currentWeek)
                             }
                         },
-                        onMenuDismiss = {
-                            onCourseMenuDismiss()
-                        },
                     )
                 }
             } else {
@@ -593,21 +575,6 @@ private fun CourseCardsLayer(
                                     onCourseLongPress(course, left, top, width, height, currentWeek)
                                 }
                             },
-                            onDragStart = {
-                                onCourseDragStart(course.id)
-                            },
-                            onDrag = { offsetX, offsetY ->
-                                onCourseDrag(course.id, offsetX, offsetY)
-                            },
-                            onDragEnd = {
-                                onCourseDragEnd(course.id)
-                            },
-                            onDragCancel = {
-                                onCourseDragCancel(course.id)
-                            },
-                            onMenuDismiss = {
-                                onCourseMenuDismiss()
-                            }
                         )
                     }
                 }

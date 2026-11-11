@@ -1156,17 +1156,14 @@ internal fun CourseScheduleAppMainContent(
                                                                     shortcutMenuAllowCopy = scheduleViewMode != ScheduleViewMode.TIMELINE
                                                                 },
                                                                 onCourseDragStart = { _ ->
-                                                                    // 拖过位移阈值才到这里（卡片侧 moved > slop 才回调），
-                                                                    // 跟手高光从这一刻才亮，紧接着 onCourseMenuDismiss 收菜单
+                                                                    // tracker 判定位移超 touchSlop 才回调：亮高光、收菜单、算落点
                                                                     isFloatingCardDragging = true
-                                                                    refreshPendingDropTarget()
-                                                                },
-                                                                onCourseMenuDismiss = {
                                                                     shortcutMenuVisible = false
                                                                     coroutineScope.launch {
                                                                         delay(220.milliseconds)
                                                                         shortcutMenuCourse = null
                                                                     }
+                                                                    refreshPendingDropTarget()
                                                                 },
                                                                 onCourseDrag = { _, offsetX, offsetY ->
                                                                     // 跨周调课：卡片停在屏幕左右边缘热区 → 自动翻周
@@ -1206,7 +1203,7 @@ internal fun CourseScheduleAppMainContent(
                                                                     // 翻周/滚动后几何可能已换页：落点按最新几何重算一次，
                                                                     // 否则松手会落到上一页的格子（跨周写错周）
                                                                     refreshPendingDropTarget()
-                                                                    // 只结束拖拽浮层；菜单关闭交给 onCourseMenuDismiss
+                                                                    // 只结束拖拽浮层；菜单已在起拖时收掉
                                                                     val source = if (dropAborted) null else draggedCardCourse
                                                                     val target = pendingDropTarget
                                                                     val week = draggedWeek

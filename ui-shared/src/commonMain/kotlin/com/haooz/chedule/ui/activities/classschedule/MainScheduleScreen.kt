@@ -194,7 +194,6 @@ fun MainScheduleScreen(
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
     onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
     onCourseDragCancel: (courseId: String) -> Unit = { _ -> },
-    onCourseMenuDismiss: () -> Unit = {},
     wallpaperBitmap: ImageBitmap? = null,
     wallpaperOffset: Offset = Offset.Zero,
     wallpaperScale: Float = 1f,
@@ -277,9 +276,7 @@ fun MainScheduleScreen(
     val scheduleEndSpacer = nativeChromeInset?.plus(80.dp) ?: 175.dp
     val screenWidthPx = with(density) { screenWidthDp().dp.toPx() }
     val screenHeightPx = with(density) { screenHeightDp().dp.toPx() }
-    // 位置信号：卡片的玻璃在各自 draw 里画，而滚动/翻页/超出回弹只平移祖先图层。
-    // 必须把 overScroll 的 offset 也读进来：回弹时 scrollState.value 卡在边界不变，
-    // 少了它玻璃采样会冻在开始回弹那一帧。
+    // 位置信号：卡片的玻璃在各自 draw 里画，而滚动/翻页/超出回弹只平移祖先图层
     val overScrollState = remember { OverScrollState() }
     val glassRedrawSignal: () -> Unit = remember(pageState, externalScrollState, overScrollState, tabRedraw) {
         {
@@ -297,6 +294,7 @@ fun MainScheduleScreen(
     val dragOwnerCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     // 指针协程的 key 只有 touchState：回调一律经 rememberUpdatedState 取最新，
     // 否则每次重组都重启手势，拖到一半直接断
+    val latestOnCourseDragStart = rememberUpdatedState(onCourseDragStart)
     val latestOnCourseDrag = rememberUpdatedState(onCourseDrag)
     val latestOnCourseDragEnd = rememberUpdatedState(onCourseDragEnd)
     val latestOnCourseDragCancel = rememberUpdatedState(onCourseDragCancel)
@@ -304,13 +302,11 @@ fun MainScheduleScreen(
     // 手指还没抬就没人收尾，浮层会留到别的页面上去。这里兜底取消。
     DisposableEffect(touchState) {
         onDispose {
-            val activeDragId = touchState.draggingCourseId
-            val hadDrag = touchState.draggingPointerId != null || touchState.dragTrackerActive
-            // endDragTracking 会留下 dragEndHandled：课卡侧的 finally 同帧收尾时
-            // 看到它就不会再 cancel 一次
-            touchState.endDragTracking()
-            if (hadDrag && activeDragId != null) {
-                latestOnCourseDragCancel.value(activeDragId)
+            // 整页被销毁（切 tab 且主 pager 回收本页）时 tracker 协程也没了：
+            // 手指还没抬就没人收尾，浮层会留到别的页面上去。
+            if (touchState.pointerId != null) {
+                touchState.courseId?.let { latestOnCourseDragCancel.value(it) }
+                touchState.clear()
             }
         }
     }
@@ -845,36 +841,23 @@ fun MainScheduleScreen(
             WeekPagerHost(
                 state = pageState,
                 pageCount = totalWeeks,
-                // 壁纸编辑与拖课卡期间关闭横向拖动
-                swipeEnabled = !isWallpaperEditing && draggingCourseSlots.isEmpty(),
+                // 拖课时只屏蔽按住卡片的那根指针
+                swipeEnabled = !isWallpaperEditing,
+                blockedPointerId = { touchState.pointerId },
+                // 第一根手指按住浮层不放时，页内 verticalScroll 的手势流不会结束；
+                // 第二只手的纵向位移由 pager 层直接喂给共享 ScrollState（不拿滚动互斥锁）
+                onVerticalScroll = { dy -> externalScrollState.dispatchRawDelta(-dy) },
                 dwellHint = edgeDwellHint,
                 modifier = Modifier
                     .fillMaxSize()
-                    // 页面级多指统计：多指（如三指下滑截图）时抑制卡片点击/长按
-                    .pointerInput(touchState) {
-                        awaitPointerEventScope {
-                            var active = false
-                            while (true) {
-                                val downCount = awaitPointerEvent(PointerEventPass.Initial)
-                                    .changes.count { it.pressed }
-                                if (downCount == 0) {
-                                    // 全部抬起：不清零，让最后一帧仍能被卡片读到「本手势是多指」
-                                    active = false
-                                } else {
-                                    if (!active) touchState.multiTouch = false
-                                    if (downCount > 1) touchState.multiTouch = true
-                                    active = true
-                                }
-                            }
-                        }
-                    }
-                    // 跨周调课：跟手位移与收尾放在 pager 上。课卡所在周页翻过去会被回收，
-                    // 卡片自己的 pointerInput 跟着取消；pager 不重建，拖到第几周都能继续跟手。
+                    // 跨周调课唯一的跟手源：挂在 pager 上，翻周 / 页回收都不重建。
+                    // 多指统计也在这里，少一个 pointerInput 节点。
                     .onGloballyPositioned { dragOwnerCoords[0] = it }
                     .courseDragOwnerGesture(
                         touchState = touchState,
                         coordinates = dragOwnerCoords,
                         onDrag = { id, dx, dy -> latestOnCourseDrag.value(id, dx, dy) },
+                        onDragStart = { id -> latestOnCourseDragStart.value(id) },
                         onDragEnd = { id -> latestOnCourseDragEnd.value(id) },
                         onDragCancel = { id -> latestOnCourseDragCancel.value(id) },
                     ),
@@ -1453,11 +1436,6 @@ fun MainScheduleScreen(
                                                 showClassroom = showClassroom,
                                                 showTeacher = showTeacher,
                                                 draggingSlotsState = draggingSlotsState,
-                                                onCourseDragStart = onCourseDragStart,
-                                                onCourseDrag = onCourseDrag,
-                                                onCourseDragEnd = onCourseDragEnd,
-                                                onCourseDragCancel = onCourseDragCancel,
-                                                onCourseMenuDismiss = onCourseMenuDismiss,
                                                 isDark = scheduleIsDark,
                                                 modifier = Modifier
                                                     .weight(1f)
@@ -1946,6 +1924,9 @@ private fun WeekPagerHost(
     pageCount: Int,
     swipeEnabled: Boolean,
     dwellHint: () -> Boolean,
+    blockedPointerId: () -> PointerId? = { null },
+    /** 第二只手在拖课期间纵向滚动页内容（见 HorizontalPageSwitch.onVerticalScroll） */
+    onVerticalScroll: ((Float) -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: @Composable (page: Int) -> Unit,
 ) {
@@ -1963,6 +1944,8 @@ private fun WeekPagerHost(
         pageCount = pageCount,
         modifier = modifier,
         swipeEnabled = swipeEnabled,
+        blockedPointerId = blockedPointerId,
+        onVerticalScroll = onVerticalScroll,
         beyondPageCount = if (state.isAnimating) 1 else idleBeyond,
         content = content,
     )
@@ -2178,75 +2161,79 @@ private fun AnimatedDropTargetMask(
 }
 
 /**
- * 跨周调课：拖拽跟手与收尾的页面级归属。
+ * 跨周调课：页面级唯一的跟手与收尾来源。
  *
- * 为什么不能留在课卡上：
- *  - 课卡住在周 pager 的页里，翻周时整页平移，卡片本地坐标跟着变一屏 → 浮层飞走；
- *  - 页内滚动同理 → 浮层越拖越偏；
- *  - 翻到隔周后源页会被 pager 回收，卡片上的 pointerInput 被取消 → 跟手直接断。
- *
- * 这里挂在 pager 上（跨周不重建），用 root 坐标算「相对按下时」的位移。
- * 指针由课卡在起拖时登记（[ScheduleTouchState.draggingPointerId]），tracker 只认这一根；
- * 接管后 consume 掉它的位移，避免源页被回收后 verticalScroll 把拖动当滚动。
- * 收尾也归这里：真拖起来过 → [onDragEnd] 按落点写库；只是菜单上的手抖 →
- * 偏移归零、菜单留着（[onDrag] 传 0）。
+ * 挂在 pager 上（跨周不重建），用 root 坐标算「相对按下时」的位移：翻周时整页平移、
+ * 页内滚动都会污染课卡本地坐标，换到 root 后只剩手指自身位移。课卡只负责长按并调
+ * [ScheduleTouchState.begin] 登记指针，之后不再处理事件；真拖起来后才 consume 这根指针，
+ * 长按刚起浮层时页面仍可正常滚动。
  */
 private fun Modifier.courseDragOwnerGesture(
     touchState: ScheduleTouchState,
     coordinates: Array<LayoutCoordinates?>,
     onDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit,
+    onDragStart: (courseId: String) -> Unit,
     onDragEnd: (courseId: String) -> Unit,
     onDragCancel: (courseId: String) -> Unit,
 ): Modifier = pointerInput(touchState) {
     awaitPointerEventScope {
-        var trackedId: PointerId? = null
+        val slop = viewConfiguration.touchSlop
+        var gestureActive = false
+        var tracking = false
         var startRoot = Offset.Zero
         while (true) {
-            // Initial：课卡在 Main 处理，这里先拿到本帧事件
+            // Initial：先于课卡 / verticalScroll / 翻页手势拿到本帧事件
             val event = awaitPointerEvent(PointerEventPass.Initial)
-            val dragId = touchState.draggingPointerId
-            if (dragId == null) {
-                trackedId = null
+
+            // 多指统计：三指截图等系统手势拦掉误触发的点击与长按
+            val pressed = event.changes.count { it.pressed }
+            if (pressed == 0) {
+                gestureActive = false
+            } else {
+                if (!gestureActive) touchState.multiTouch = false
+                if (pressed > 1) touchState.multiTouch = true
+                gestureActive = true
+            }
+
+            val id = touchState.pointerId
+            if (id == null) {
+                tracking = false
                 continue
             }
-            val change = event.changes.firstOrNull { it.id == dragId }
+            val change = event.changes.firstOrNull { it.id == id }
             if (change == null) {
-                // 指针从事件流里消失（系统取消）：已接管的必须收尾，别把浮层冻在屏上
-                if (trackedId == dragId) {
-                    val id = touchState.draggingCourseId
-                    if (id != null) {
-                        if (touchState.dragStarted) onDragCancel(id)
-                        else onDrag(id, 0f, 0f)
-                    }
-                    touchState.endDragTracking()
-                    trackedId = null
+                // 指针从事件流消失（系统 cancel）：别把浮层冻在最后一帧
+                touchState.courseId?.let { cid ->
+                    if (touchState.dragStarted) onDragCancel(cid) else onDrag(cid, 0f, 0f)
                 }
+                touchState.clear()
+                tracking = false
                 continue
             }
-            if (trackedId != dragId) {
-                trackedId = dragId
-                // 用按下时的 root 位置当零点：课卡在 E0 上报过的位移与这里同源，交接不跳
-                startRoot = touchState.draggingDownRoot
-                    ?: dragOwnerRoot(coordinates, change.position)
-                touchState.dragTrackerActive = true
+            if (!tracking) {
+                tracking = true
+                startRoot = touchState.downRoot ?: dragOwnerRoot(coordinates, change.position)
             }
+            val root = dragOwnerRoot(coordinates, change.position)
+            val dx = root.x - startRoot.x
+            val dy = root.y - startRoot.y
+
             if (!change.pressed) {
-                // 先回调（要读最后的 offset/落点）再清状态，否则课卡侧看不出已收尾
-                val id = touchState.draggingCourseId
-                if (id != null) {
-                    if (touchState.dragStarted) onDragEnd(id) else onDrag(id, 0f, 0f)
+                touchState.courseId?.let { cid ->
+                    // 只是菜单上的手抖：偏移归零、菜单留着；真拖起来才按落点写库
+                    if (touchState.dragStarted) onDragEnd(cid) else onDrag(cid, 0f, 0f)
                 }
-                touchState.endDragTracking()
-                trackedId = null
-                change.consume()
+                touchState.clear()
+                tracking = false
                 continue
             }
-            val id = touchState.draggingCourseId
-            if (id != null) {
-                val rootNow = dragOwnerRoot(coordinates, change.position)
-                onDrag(id, rootNow.x - startRoot.x, rootNow.y - startRoot.y)
+            if (!touchState.dragStarted && Offset(dx, dy).getDistance() > slop) {
+                touchState.dragStarted = true
+                touchState.courseId?.let(onDragStart)
             }
-            change.consume()
+            touchState.courseId?.let { onDrag(it, dx, dy) }
+            // 只有真拖起来才拦位移：
+            if (touchState.dragStarted) change.consume()
         }
     }
 }
