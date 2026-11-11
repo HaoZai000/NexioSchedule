@@ -55,8 +55,10 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 
@@ -314,31 +316,38 @@ internal fun FeedbackPlaceholder(
     onAction: () -> Unit = {},
 ) {
     val theme = MiuixTheme.colorScheme
-    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(24.dp)) {
-        if (title.isNotBlank()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        insideMargin = PaddingValues(top = 18.dp, bottom = 14.dp, start = 14.dp, end = 14.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (title.isNotBlank()) {
+                Text(
+                    text = title,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                )
+            }
             Text(
-                text = title,
-                style = MiuixTheme.textStyles.title2,
-                color = theme.onSurface,
-                modifier = Modifier.fillMaxWidth(),
+                text = text,
+                fontSize = 14.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 textAlign = TextAlign.Center,
             )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-        Text(
-            text = text,
-            style = MiuixTheme.textStyles.body2,
-            color = theme.onSurfaceVariantSummary,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
-        )
-        if (actionText.isNotBlank()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            TextButton(
-                text = actionText,
-                onClick = onAction,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (actionText.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    text = actionText,
+                    onClick = onAction,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }

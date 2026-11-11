@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.screens.LocalTabletSettingsPaneChrome
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
@@ -121,6 +122,8 @@ fun DocumentPageScaffold(
     val nativeChrome = LocalNativeDocumentChrome.current
     val nativeBarInset = (nativeChrome?.barInset ?: 0.0).dp
     val showNavigationActions = nativeChrome == null
+    // 二级页不画返回按钮；endAction 不受影响
+    val paneChrome = LocalTabletSettingsPaneChrome.current
     val tintArgb = MiuixTheme.colorScheme.primary.toArgb().toLong()
     SideEffect {
         nativeChrome?.title = title
@@ -206,11 +209,13 @@ fun DocumentPageScaffold(
                     CollapsibleTopAppBar(
                         title = title,
                         largeTitle = title,
+                        // 右栏标题锁折叠态
+                        showLargeTitle = if (paneChrome.forceCollapsedTitle) false else null,
                         modifier = Modifier,
                         scrollBehavior = scrollBehavior,
                         materialState = material,
                         contentPadding = {},
-                        startAction = if (showNavigationActions) {
+                        startAction = if (showNavigationActions && paneChrome.showBackButton) {
                             { backdropAlpha, shadowAlpha ->
                                 LiquidTopBarButton(
                                     onClick = onBack,

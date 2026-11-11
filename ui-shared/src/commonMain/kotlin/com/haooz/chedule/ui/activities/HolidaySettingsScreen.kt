@@ -1367,8 +1367,6 @@ private fun TeachingWeekdayRangeSelector(
                     else if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHighest
                     else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
                 val textColor = when {
-                    // 选中格文字取 onPrimary（非莫奈时即白，行为不变；莫奈 primary 亮度不定，
-                    // 死白对比可能不足）
                     selected -> MiuixTheme.colorScheme.onPrimary
                     enabled -> MiuixTheme.colorScheme.onSurfaceVariantSummary
                     else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.4f)
@@ -1724,10 +1722,6 @@ private fun InfoDropdown(
             contentDescription = null,
             colorFilter = ColorFilter.tint(infoColor),
             modifier = Modifier
-                // CenterEnd 会把图标贴到 36dp Box 的右边缘，而这个 Box 是 fillMaxWidth
-                // Row 的末项、没有尾部 padding，结果图标右边缘与列表内容右边缘重合、
-                // 看着是顶在边上。让出 8dp（其余行的内容都有内边距，视觉上才齐平）；
-                // padding 套在 size 外层，36dp 的可点区域保持不变。
                 .padding(end = 8.dp)
                 .size(20.dp)
                 .onSizeChanged { triggerSize = it }

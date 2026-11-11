@@ -40,6 +40,7 @@ import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.SwitchStr
 import com.haooz.chedule.ui.activities.classschedule.SectionColumn
 import com.haooz.chedule.ui.components.HorizontalPageSwitch
+import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.components.PageSwitchState
 import com.haooz.chedule.ui.components.ShiftDayColumn
 import com.haooz.chedule.ui.components.text.material.Text as Text
@@ -132,6 +133,8 @@ fun ShiftScheduleScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // 平板侧栏避让：与普通课表页一致，pager 容器保持全屏，每页自己留白
+                .then(LocalPageStartPadding.current)
                 .then(
                     if (scheduleScrollBehavior != null) Modifier.nestedScroll(scheduleScrollBehavior.nestedScrollConnection)
                     else Modifier

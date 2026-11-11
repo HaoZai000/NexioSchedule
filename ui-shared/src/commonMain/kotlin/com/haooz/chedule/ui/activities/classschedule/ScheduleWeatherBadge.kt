@@ -15,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.ui.activities.today.toCardData
 import com.haooz.chedule.ui.activities.today.weatherIconRes
 import com.haooz.chedule.ui.components.WeatherAlertBadge
 import com.haooz.chedule.ui.components.text.miuix.Text
@@ -22,22 +23,21 @@ import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.weather.WeatherStore
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.painterResource
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 课表页顶栏左侧的天气条：图标 + 当前温度 + 最高级别预警徽标，点击进天气详情。
  *
- * 数据只读 [WeatherStore]（今日卡与详情页的同一个来源）；没有实况时整条不画。
+ * 数据只读 [WeatherStore]，且**必须**走 [toCardData] —— 今日卡用的是同一套映射与取整，
+ * 这里直接读快照会因 `roundToInt` 与日夜判定口径不同，出现两页温度/图标对不上的问题。
  */
 @Composable
 internal fun ScheduleWeatherBadge(modifier: Modifier = Modifier) {
     val snapshot by WeatherStore.snapshot.collectAsState()
-    val current = snapshot ?: return
-    val now = current.now
-    val tempC = now.tempC ?: return
-    val alert = current.alerts.firstOrNull()
+    // 与今日卡一致：没有可用的实况就不画
+    val weather = snapshot?.toCardData() ?: return
+    if (!weather.loaded || weather.temperature.isNaN()) return
     val router = LocalAppRouter.current
 
     Row(
@@ -49,19 +49,21 @@ internal fun ScheduleWeatherBadge(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Image(
-            painter = painterResource(weatherIconRes(now.text, isNight = now.isDay == false)),
+            painter = painterResource(
+                weatherIconRes(weather.weatherType, isNight = weather.isNight())
+            ),
             contentDescription = null,
             modifier = Modifier.size(22.dp),
         )
         Text(
-            text = "${tempC.roundToInt()}°",
+            text = "${weather.temperature.toInt()}°",
             style = MiuixTheme.textStyles.body2,
             fontSize = 17.sp,
             fontWeight = FontWeight.Medium,
             color = MiuixTheme.colorScheme.onSurface,
             maxLines = 1,
         )
-        if (alert != null) {
+        weather.alert?.let { alert ->
             WeatherAlertBadge(alert = alert)
         }
     }

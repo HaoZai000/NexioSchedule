@@ -77,7 +77,6 @@ import com.haooz.chedule.ui.utils.NativeDocumentBottomBar
 import com.haooz.chedule.ui.utils.NativeDocumentBottomBarEffect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.ui.web.NoopWebHost
 import com.haooz.chedule.ui.web.WebHost
 import com.haooz.chedule.ui.web.WebHostConfig
@@ -157,10 +156,7 @@ fun WebViewScreen(
     val nativeChrome = LocalNativeDocumentChrome.current
     // 76dp = Swift 侧底栏高度（44 按钮 + 上下 10 内边距 + 12 让位），给网页留出底部让位
     val bottomBarHeight = 76.dp
-    val tabletHorizontalPadding = if (isTablet) {
-        val widthDp = screenWidthDp()
-        ((widthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 0.dp
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
     var loadingProgress by remember { mutableFloatStateOf(0f) }
     // 顶栏采样色：宿主逐帧上报（Android = PixelCopy）；null = 该平台没有这个能力，不画色带
     var topColor by remember { mutableStateOf<Color?>(null) }
@@ -488,7 +484,7 @@ fun WebViewScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                    .padding(horizontal = 16.dp + tabletHorizontalPadding)
+                    .padding(horizontal = tabletHorizontalPadding)
                     // 与首页底栏同一套底部间距算法
                     .padding(bottom = bottomFloatingPadding())
                     .fillMaxWidth()
@@ -646,7 +642,7 @@ private fun WebAlertDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 20.dp + tabletHorizontalPadding)
+                .padding(horizontal = tabletHorizontalPadding)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
@@ -702,7 +698,7 @@ private fun WebPromptDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 20.dp + tabletHorizontalPadding)
+                .padding(horizontal = tabletHorizontalPadding)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
@@ -777,7 +773,7 @@ private fun WebSelectionDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 20.dp + tabletHorizontalPadding)
+                .padding(horizontal = tabletHorizontalPadding)
                 .heightIn(max = 400.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
@@ -862,7 +858,7 @@ private fun CourseTablePickerDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 20.dp + tabletHorizontalPadding)
+                .padding(horizontal = tabletHorizontalPadding)
                 .heightIn(max = 400.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {

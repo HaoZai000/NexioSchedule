@@ -128,10 +128,7 @@ fun SchoolSelectionScreen(
     }
 
     val isTablet = screenWidthDp() >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val widthDp = screenWidthDp()
-        ((widthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 0.dp
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
     Column(
         modifier = modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)

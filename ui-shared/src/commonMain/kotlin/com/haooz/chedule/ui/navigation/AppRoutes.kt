@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -53,6 +54,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
@@ -1343,7 +1345,15 @@ fun CourseTimeSettingsRoute(
     // 二级编辑页的玻璃层是独立的（与一级页不共享采样源）
     val editLiquidGlassBackdrop = rememberLayerBackdrop()
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // 形变的坐标基准必须是「本页在窗口里的实际矩形」：平板右栏只占一栏，
+    // 拿窗口尺寸当 screenWidth、拿窗口坐标当卡片坐标，起落点会整体偏出一栏。
+    var pageBoundsInWindow by remember { mutableStateOf(Rect.Zero) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { pageBoundsInWindow = it.boundsInWindow() }
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1389,6 +1399,11 @@ fun CourseTimeSettingsRoute(
         if (currentPage == "edit") {
             editingConfig?.let { config ->
                 val bounds = editingCardBounds
+                // 编辑页在本页坐标里的可用区域：顶部还要让出原生栏（consumeWindowInsets 会下推内容）。
+                val pageTopInsetPx = with(density) { nativeBarInset.toPx() }
+                val pageWidthPx = pageBoundsInWindow.width.takeIf { it > 0f } ?: screenWidth
+                val pageHeightPx = (pageBoundsInWindow.height - pageTopInsetPx)
+                    .takeIf { it > 0f } ?: screenHeight
                 Box(Modifier.fillMaxSize().consumeWindowInsets(PaddingValues(top = nativeBarInset))) {
                     TimeConfigEditScreen(
                         timeConfig = config,
@@ -1421,12 +1436,13 @@ fun CourseTimeSettingsRoute(
                             }
                             listRefreshTrigger++
                         },
-                        cardLeft = bounds?.left ?: 0f,
-                        cardTop = bounds?.top ?: 0f,
-                        cardWidth = bounds?.width ?: screenWidth,
-                        cardHeight = bounds?.height ?: (screenHeight * 0.2f),
-                        screenWidth = screenWidth,
-                        screenHeight = screenHeight,
+                        // 卡片给的是窗口坐标，换算到本页左上角再交给形变
+                        cardLeft = (bounds?.left ?: 0f) - pageBoundsInWindow.left,
+                        cardTop = (bounds?.top ?: 0f) - pageBoundsInWindow.top - pageTopInsetPx,
+                        cardWidth = bounds?.width ?: pageWidthPx,
+                        cardHeight = bounds?.height ?: (pageHeightPx * 0.2f),
+                        screenWidth = pageWidthPx,
+                        screenHeight = pageHeightPx,
                         screenCornerRadius = screenCornerRadius,
                         cardStartCornerRadius = 20f,
                         cardSnapshot = cardSnapshot,

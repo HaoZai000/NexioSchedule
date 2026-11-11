@@ -426,7 +426,7 @@ private class SkipDrawNode(
  *
  * @return 剩余时长与该尾段映射到 0..1 的局部 easing
  */
-private fun settleOnGlobalCurve(
+internal fun settleOnGlobalCurve(
     fromProgress: Float,
     toProgress: Float,
     fullEasing: Easing,

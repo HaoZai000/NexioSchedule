@@ -35,6 +35,7 @@ import com.haooz.chedule.i18n.L
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.main.CourseScheduleApp
 import com.haooz.chedule.ui.activities.today.TodayAssistantCard
+import com.haooz.chedule.ui.screens.LocalTabletSettingsPaneRouteContent
 import com.haooz.chedule.ui.navigation.AboutRoute
 import com.haooz.chedule.ui.navigation.AiImportRoute
 import com.haooz.chedule.ui.navigation.AppNavHost
@@ -216,7 +217,13 @@ internal fun NexioIosMain(host: IosAppHost) {
             NexioLog.i("IosBootstrap", "AppFiles/NSFileManager 自检：${if (ok) "OK" else "内容不一致"}")
         }.onFailure { NexioLog.e("IosBootstrap", "AppFiles 自检失败：${it.message}", it) }
     }
-    CompositionLocalProvider(LocalAppRouter provides router) {
+    CompositionLocalProvider(
+        LocalAppRouter provides router,
+        // 平板设置右栏用自己的局部 router
+        LocalTabletSettingsPaneRouteContent provides { paneRouter, route ->
+            NexioIosRouteContent(paneRouter, route)
+        },
+    ) {
         Box(Modifier.fillMaxSize()) {
             // 壳层引导：天气在课表页顶栏也要显示，不能等切到今日页才加载
             WeatherBootstrapIos()

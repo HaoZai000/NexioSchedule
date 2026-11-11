@@ -13,6 +13,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,33 +33,36 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.holiday.HolidayEntry
 import com.haooz.chedule.data.util.lengthOfMonth
 import com.haooz.chedule.data.util.todayLocalDate
-import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
-import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.utils.FeatureLog
@@ -76,7 +80,6 @@ import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -85,12 +88,10 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.All
-import top.yukonga.miuix.kmp.icon.extended.Backup
-import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
+import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.FavoritesFill
 import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
@@ -98,13 +99,12 @@ import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.TopBarMaterialThreshold
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import androidx.compose.ui.graphics.Color as ComposeColor
 
 // 解析失败时回退到今天，避免弹窗初值出现非法日期
 internal fun parseDate(dateStr: String): Triple<Int, Int, Int> {
@@ -134,6 +134,8 @@ private fun SettingsEntryRow(
     icon: @Composable () -> Unit,
     expanded: Boolean? = null,
     endText: String? = null,
+    /** 平板左栏：右栏正显示本行对应的页面时保持按压态。 */
+    selected: Boolean = false,
     onClick: () -> Unit,
 ) {
     val rotation by animateFloatAsState(
@@ -142,6 +144,28 @@ private fun SettingsEntryRow(
         label = "settingsEntryRotation",
     )
     val interactionSource = remember { MutableInteractionSource() }
+    // 按住不放：MiuixIndication 只认 PressInteraction，位置不参与绘制。
+    // 选中行自己也是可点的：真实点击的 Release 会把按压态清掉，而 selected 没变、
+    // 本 effect 不会重启 —— 所以松手后要补一次按下，否则点一下当前项高亮就没了。
+    LaunchedEffect(selected) {
+        if (!selected) return@LaunchedEffect
+        var press = PressInteraction.Press(Offset.Zero)
+        interactionSource.emit(press)
+        try {
+            launch {
+                interactionSource.interactions.collect { interaction ->
+                    val released = interaction is PressInteraction.Release ||
+                        interaction is PressInteraction.Cancel
+                    if (!released || interaction == press) return@collect
+                    press = PressInteraction.Press(Offset.Zero)
+                    interactionSource.emit(press)
+                }
+            }
+            awaitCancellation()
+        } finally {
+            withContext(NonCancellable) { interactionSource.emit(PressInteraction.Release(press)) }
+        }
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -311,9 +335,6 @@ fun SettingsScreen(
     /** 搜索状态（由路由持有：搜索框挂在页面采样层外，与列表共享同一份状态） */
     searchState: SettingsSearchState? = null,
     // ── 平台注入（宿主提供；桌面/iOS 用默认空实现）──
-    // 平板两栏外壳的 8 个平台专有 dest 接线留在宿主，本页只负责转交槽位。
-    /** 平台专有设置面板（8 个 dest）由宿主渲染；null 显示占位 */
-    androidPane: (@Composable (TabletSettingsDest) -> Unit)? = null,
     /** 提醒页「测试通知」动作（Android 发超级岛/实时活动） */
     onSendTestNotification: () -> Unit = {},
     /** 是否超级岛设备（决定「测试通知」按钮文案） */
@@ -338,6 +359,14 @@ fun SettingsScreen(
      * 是否显示「排班模式」入口。
      * ⚠ 传 false 时 `isShiftMode` 必为 false，只需挡「进入」两处，「退出」也一并挡掉以防状态被外部置起。
      */
+    /** 非 null 时入口交给平板右栏局部栈；手机端走全局路由。 */
+    onOpenRoute: ((AppRoute) -> Unit)? = null,
+    /** 平板左栏：右栏栈底页面（三级页压在它上面时本栏仍保持按压态）。 */
+    selectedRoute: AppRoute? = null,
+    /** 关掉搜索占位与结果层。 */
+    showSearch: Boolean = true,
+    /** 直接指定列表顶部内边距。 */
+    listTopPaddingOverride: Dp? = null,
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -350,6 +379,8 @@ fun SettingsScreen(
     val hapticFeedback = LocalHapticFeedback.current
     // LocalAppRouter.current 是 @Composable 调用，必须在组合层取（各入口共用）
     val settingsRouter = LocalAppRouter.current
+    // 唯一入口：手机端推全局路由，平板左栏改推右栏局部栈
+    val openRoute: (AppRoute) -> Unit = onOpenRoute ?: settingsRouter::navigate
 
 
     // 平板：设置页左右两栏，原地静态切换
@@ -363,8 +394,6 @@ fun SettingsScreen(
             onExitShiftMode = onExitShiftMode,
             onEnterShiftMode = onEnterShiftMode,
             liquidGlassBackdrop = liquidGlassBackdrop,
-            // —— 8 个平台专有 dest，由宿主 androidPane 槽位渲染 ——
-            androidPane = androidPane,
             onSendTestNotification = onSendTestNotification,
             isIslandSupported = isIslandSupported,
             testActionLabel = testActionLabel,
@@ -386,7 +415,7 @@ fun SettingsScreen(
     val search = searchState ?: remember { SettingsSearchState() }
     val searchQuery = search.query
     val searchExpanded = search.expanded
-    val searchEnabled = !isShiftMode
+    val searchEnabled = showSearch && !isShiftMode
     // 点开搜索框时收起大标题（与教务导入页同一交互）
     LaunchedEffect(searchExpanded) {
         if (searchExpanded) settingsScrollBehavior?.collapse() else search.query = ""
@@ -420,10 +449,12 @@ fun SettingsScreen(
                     listState.firstVisibleItemScrollOffset > materialThresholdPx
             }.collect { search.listScrolled = it }
         }
-        val listTopPadding = paddingValues.calculateTopPadding() +
-            CollapsibleTopAppBarDefaults.CollapsedHeight +
-            pageTopExtra(isTablet, hasSmallTitle = false) +
-            (if (searchEnabled) SettingsSearchBarBlockHeight else 0.dp)
+        val listTopPadding = listTopPaddingOverride ?: (
+            paddingValues.calculateTopPadding() +
+                CollapsibleTopAppBarDefaults.CollapsedHeight +
+                pageTopExtra(isTablet, hasSmallTitle = false) +
+                (if (searchEnabled) SettingsSearchBarBlockHeight else 0.dp)
+            )
 
         Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -468,8 +499,9 @@ fun SettingsScreen(
                         summary = basicSummary,
                         icon = { ScheduleSettingsIcon() },
                         expanded = null,
+                        selected = selectedRoute == AppRoute.ScheduleSettings,
                         onClick = {
-                            settingsRouter.navigate(AppRoute.ScheduleSettings)
+                            openRoute(AppRoute.ScheduleSettings)
                         },
                     )
                 }
@@ -485,17 +517,19 @@ fun SettingsScreen(
                             SettingsEntryRow(
                                 title = SettingsStr.courseReminder(),
                                 icon = { CourseReminderIcon() },
+                                selected = selectedRoute == AppRoute.CourseReminder,
                                 onClick = {
                                     FeatureLog.reminder("open")
-                                    settingsRouter.navigate(AppRoute.CourseReminder)
+                                    openRoute(AppRoute.CourseReminder)
                                 }
                             )
                             SettingsEntryRow(
                                 title = SettingsStr.homeScreenWidget(),
                                 icon = { HomeScreenWidgetIcon() },
+                                selected = selectedRoute == AppRoute.WidgetIntro,
                                 onClick = {
                                     FeatureLog.widget("open")
-                                    settingsRouter.navigate(AppRoute.WidgetIntro)
+                                    openRoute(AppRoute.WidgetIntro)
                                 }
                             )
                         }
@@ -566,30 +600,31 @@ fun SettingsScreen(
                         Column(
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
-                            val dataManageRouter = LocalAppRouter.current
                             SettingsEntryRow(
                                 title = SettingsStr.appPreferences(),
                                 icon = { PersonalizationIcon() },
+                                selected = selectedRoute == AppRoute.PreferenceSettings,
                                 onClick = {
                                     FeatureLog.preference("open")
-                                    dataManageRouter.navigate(AppRoute.PreferenceSettings)
+                                    openRoute(AppRoute.PreferenceSettings)
                                 }
                             )
                             SettingsEntryRow(
                                 title = SettingsStr.importExport(),
                                 icon = { ImportExportIcon() },
+                                selected = selectedRoute == AppRoute.ImportExport,
                                 onClick = {
                                     FeatureLog.import("open")
-                                    dataManageRouter.navigate(AppRoute.ImportExport)
+                                    openRoute(AppRoute.ImportExport)
                                 }
                             )
                             SettingsEntryRow(
                                 title = SettingsStr.scheduleBackup(),
                                 icon = { BackupSyncIcon() },
+                                selected = selectedRoute == AppRoute.ScheduleBackup,
                                 onClick = {
                                     FeatureLog.backup("open_backup")
-                                    dataManageRouter.navigate(AppRoute.ScheduleBackup)
+                                    openRoute(AppRoute.ScheduleBackup)
                                 }
                             )
                         }
@@ -606,32 +641,33 @@ fun SettingsScreen(
                         Column(
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
-                            val appRouter = LocalAppRouter.current
                             // iOS 走 App Store 更新 → 宿主传 showUpdateSettings=false，入口整个不渲染
                             CardExpand(visible = showUpdateSettings) {
                                 SettingsEntryRow(
                                     title = SettingsStr.updateSettings(),
                                     icon = { UpdateSettingsIcon() },
+                                    selected = selectedRoute == AppRoute.UpdateSettings,
                                     onClick = {
                                         FeatureLog.update("open")
-                                        appRouter.navigate(AppRoute.UpdateSettings)
+                                        openRoute(AppRoute.UpdateSettings)
                                     }
                                 )
                             }
                             SettingsEntryRow(
                                 title = SettingsStr.aboutApp(),
                                 icon = { AboutAppIcon() },
+                                selected = selectedRoute == AppRoute.About,
                                 onClick = {
                                     FeatureLog.about("open")
-                                    appRouter.navigate(AppRoute.About)
+                                    openRoute(AppRoute.About)
                                 }
                             )
                             SettingsEntryRow(
                                 title = SettingsStr.destAppreciate(),
                                 icon = { DonateIcon() },
+                                selected = selectedRoute == AppRoute.AppreciateAuthor,
                                 onClick = {
-                                    appRouter.navigate(AppRoute.AppreciateAuthor)
+                                    openRoute(AppRoute.AppreciateAuthor)
                                 }
                             )
                         }
@@ -645,8 +681,9 @@ fun SettingsScreen(
                         SettingsEntryRow(
                             title = SettingsStr.destCommunication(),
                             icon = { CommunicationIcon() },
+                            selected = selectedRoute == AppRoute.Communication,
                             onClick = {
-                                settingsRouter.navigate(AppRoute.Communication)
+                                openRoute(AppRoute.Communication)
                             }
                         )
                     }
@@ -687,7 +724,7 @@ fun SettingsScreen(
                 scrollBehavior = settingsScrollBehavior,
                 onEntryClick = { entry ->
                     search.expanded = false
-                    settingsRouter.navigate(entry.route)
+                    openRoute(entry.route)
                 },
             )
         }

@@ -50,6 +50,7 @@ import com.haooz.chedule.ui.activities.main.CourseScheduleApp
 import com.haooz.chedule.ui.activities.main.bitmapRecycler
 import com.haooz.chedule.ui.activities.today.TodayAssistantCard
 import com.haooz.chedule.ui.components.SharedFileIntent
+import com.haooz.chedule.ui.screens.LocalTabletSettingsPaneRouteContent
 import com.haooz.chedule.ui.navigation.AppNavHost
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouteContent
@@ -239,7 +240,13 @@ class MainActivity : ComponentActivity() {
                         pendingRoute = null
                     }
                 }
-                CompositionLocalProvider(LocalAppRouter provides router) {
+                CompositionLocalProvider(
+                    LocalAppRouter provides router,
+                    // 平板设置右栏用自己的局部 router
+                    LocalTabletSettingsPaneRouteContent provides { paneRouter, route ->
+                        AppRouteContent(paneRouter, route)
+                    },
+                ) {
                     // 子页盖住主界面时状态栏改跟应用主题，退出后恢复主界面深浅
                     var systemBarsFirstPass by remember { mutableStateOf(true) }
                     LaunchedEffect(router.hasOverlay) {

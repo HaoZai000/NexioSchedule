@@ -8,6 +8,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
@@ -16,6 +17,15 @@ import top.yukonga.miuix.kmp.layout.DialogContentLayout
 import top.yukonga.miuix.kmp.layout.DialogDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
+
+/**
+ * 浮层专用的整窗采样层，由分栏宿主（平板左列表 + 右详情）provide。
+ *
+ * 页面级 backdrop 只录当前栏的内容，浮层居中压在两栏之上时，落在另一栏的部分会采样到
+ * 空层（黑）。分栏宿主在根节点挂 `layerBackdrop` 后 provide 这一层，[OverlayDialog] 优先用它。
+ * 非分栏场景保持 null，行为与原来完全一致。
+ */
+val LocalOverlayDialogBackdrop = staticCompositionLocalOf<GlassBackdrop?> { null }
 
 /**
  * A dialog with a title, a summary, and other contents.
@@ -63,6 +73,8 @@ fun OverlayDialog(
     content: @Composable () -> Unit,
 ) {
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    // 分栏宿主给了整窗层就用它，否则沿用调用方的页面级层
+    val backdrop = LocalOverlayDialogBackdrop.current ?: liquidGlassBackdrop
 
     DialogContentLayout(
         show = show,
@@ -85,7 +97,7 @@ fun OverlayDialog(
                 hostContent()
             }
         },
-        liquidGlassBackdrop = liquidGlassBackdrop,
+        liquidGlassBackdrop = backdrop,
         isDark = isDark,
         enablePredictiveBackGesture = enablePredictiveBackGesture,
         modifier = modifier,
