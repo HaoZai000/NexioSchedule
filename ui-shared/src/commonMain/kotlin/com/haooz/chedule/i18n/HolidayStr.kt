@@ -29,31 +29,47 @@ object HolidayStr {
 
     // ---- 通用 ----
     val monthN = L("%d月", "%d")
+    val prevMonth = L("上个月", "Previous month")
+    val nextMonth = L("下个月", "Next month")
+    val makeupConnector = L("补", "→")
+    val pickDateShort = L("选择日期", "Pick date")
     val weekWeekdayN = L("第%d周%s", "Week %d %s")
     val dateOutOfRange = L("日期超出范围", "Date out of range")
     val dateUnavailable = L("日期不可用", "Date unavailable")
     val dateRangeTo = L(" 至 %s", " to %s")
     val yearLabel = L("年份", "Year")
     val nameLabel = L("名称", "Name")
-    val startDateLabel = L("开始日期", "Start Date")
-    val endDateLabel = L("结束日期", "End Date")
     val adjustedDateLabel = L("调休日期", "Adjusted Workday Date")
     val startLabel = L("开始", "Start")
     val endLabel = L("结束", "End")
     val sectionRangeLabel = L("节次范围", "Section Range")
     val sectionRangeN = L("第%d-%d节", "Periods %d-%d")
 
+    // ---- 页面分段 ----
+    val tabAnnual = L("年度安排", "This Year")
+    val tabOther = L("其他操作", "More")
+
     // ---- 节假日 / 调休工作日 ----
-    val holidaysTitle = L("节假日", "Holidays")
-    val holidaysDesc = L(
-        "• 处于假期范围内的日期不会发送课程提醒\n• 可在此手动添加或编辑放假日期",
-        "• No course reminders are sent for dates within a holiday\n• Add or edit holiday dates here manually",
+    val annualTitle = L("假期与调休", "Holidays & Adjusted Days")
+    val annualDesc = L(
+        "• 假期日期不会发送课程提醒\n• 调休日按补课安排调度课程",
+        "• No course reminders are sent on holiday dates\n• Adjusted workdays follow the configured makeup classes",
     )
-    val workswapTitle = L("调休工作日", "Adjusted Workdays")
-    val workswapDesc = L(
-        "• 原本的日常休息日因调休需要补课\n• 可在此指定某一天作为补班课程安排",
-        "• Regular rest days require makeup classes due to schedule adjustments\n• Designate a day here for makeup course arrangements",
+    val typeHolidayTag = L("假", "Off")
+    val typeWorkswapTag = L("班", "Work")
+    val holidayCountN = L("%d 个假期", "%d holidays")
+    val workswapCountN = L("%d 个调休日", "%d adjusted workdays")
+    val totalDaysN = L("共 %d 天", "%d days")
+    val yearMonthN = L("%d年%d月", "%d/%d")
+    val holidayDateRangeLabel = L("假期日期", "Holiday Dates")
+    val rangePickHint = L("点选开始日和结束日", "Pick a start and end date")
+    val emptyAnnualHint = L("本年度还没有假期或调休", "No holidays or adjusted days for this year")
+    val emptyAnnualDesc = L(
+        "一键导入法定节假日与补班安排",
+        "Import statutory holidays and makeup days in one tap, editable afterwards",
     )
+    val importForYearN = L("导入 %d 年法定节假日", "Import %d statutory holidays")
+    val syncingLabel = L("同步中…", "Syncing…")
     val defaultHolidayName = L("节假日", "Holiday")
     val defaultWorkswapName = L("调休工作日", "Adjusted workday")
     val addHoliday = L("添加节假日", "Add Holiday")

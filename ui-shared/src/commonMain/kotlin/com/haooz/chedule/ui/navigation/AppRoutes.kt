@@ -77,6 +77,7 @@ import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.FeedbackStr
+import com.haooz.chedule.i18n.HolidayStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.activities.AboutScreen
@@ -772,6 +773,14 @@ fun HolidaySettingsRoute(
     var year by remember { mutableIntStateOf(currentDate.year) }
     var entries by remember { mutableStateOf(HolidayManager.load(year)) }
     var loading by remember { mutableStateOf(false) }
+    // 两个分段同层切换（年度安排 / 其他操作），横向平移翻页，不新增页面层级
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val pageSwitch = rememberPageSwitchState(0)
+    LaunchedEffect(selectedTab) { pageSwitch.animateTo(selectedTab) }
+    // 抓起冻住胶囊滑块；松手强制吸附
+    var pillFreezeKey by remember { mutableIntStateOf(0) }
+    var pillAlignKey by remember { mutableIntStateOf(0) }
+    val isTablet = isTabletWidth()
 
     fun reload() {
         entries = HolidayManager.load(year)
@@ -808,6 +817,26 @@ fun HolidaySettingsRoute(
     DocumentPageScaffold(
         title = ChromeStr.holidaysTitle(),
         onBack = { router.popBack() },
+        headerOverlay = { backdrop, scrollBehavior ->
+            CapsuleSegmentedControl(
+                options = listOf(
+                    HolidayStr.tabAnnual(),
+                    HolidayStr.tabOther(),
+                ),
+                selectedIndex = selectedTab,
+                onSelect = { selectedTab = it },
+                selectOnPress = true,
+                freezeKey = pillFreezeKey,
+                alignKey = pillAlignKey,
+                backdrop = backdrop,
+                scrollBehavior = scrollBehavior,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // 与大标题之间留 8dp
+                    .padding(top = 8.dp)
+                    .padding(horizontal = if (isTablet) 20.dp else 16.dp),
+            )
+        },
         endAction = { backdropAlpha, shadowAlpha, backdrop ->
             if (loading) {
                 Box(
@@ -834,18 +863,35 @@ fun HolidaySettingsRoute(
             }
         },
     ) { scrollBehavior, backdrop ->
-        HolidaySettingsScreen(
-            scrollBehavior = scrollBehavior,
-            liquidGlassBackdrop = backdrop,
-            year = year,
-            entries = entries,
-            onYearChange = { newYear ->
-                year = newYear
-                reload()
+        HorizontalPageSwitch(
+            state = pageSwitch,
+            pageCount = 2,
+            modifier = Modifier.fillMaxSize(),
+            // 手势接管：停住滑块
+            onGestureStart = { pillFreezeKey++ },
+            // 松手回灌落点并吸附滑块
+            onGestureEnd = { page ->
+                selectedTab = page
+                pillAlignKey++
             },
-            reload = { reload() },
-            onHolidayDataChanged = onHolidayDataChanged,
-        )
+        ) { page ->
+            HolidaySettingsScreen(
+                scrollBehavior = scrollBehavior,
+                liquidGlassBackdrop = backdrop,
+                year = year,
+                entries = entries,
+                onYearChange = { newYear ->
+                    year = newYear
+                    reload()
+                },
+                reload = { reload() },
+                onHolidayDataChanged = onHolidayDataChanged,
+                tab = page,
+                topExtra = 64.dp,
+                syncing = loading,
+                onSync = { requestYear(year) },
+            )
+        }
     }
 }
 

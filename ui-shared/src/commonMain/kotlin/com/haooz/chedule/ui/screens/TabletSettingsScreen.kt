@@ -68,6 +68,7 @@ import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.FeedbackStr
+import com.haooz.chedule.i18n.HolidayStr
 import com.haooz.chedule.i18n.L10n
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
@@ -82,8 +83,11 @@ import com.haooz.chedule.ui.activities.WebDavSettingsScreen
 import com.haooz.chedule.ui.activities.WidgetIntroScreen
 import com.haooz.chedule.ui.basic.LiquidGlassTextButton
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.components.CapsuleSegmentedControl
 import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.chedule.ui.components.HorizontalPageSwitch
 import com.haooz.chedule.ui.components.LocalPageStartPadding
+import com.haooz.chedule.ui.components.rememberPageSwitchState
 import com.haooz.chedule.ui.components.tabletNavChromeTitleSlot
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.navigation.AppRoute
@@ -1727,19 +1731,61 @@ private fun TabletHolidayPane(
     LaunchedEffect(Unit) { onUpdateReady { latestUpdate() } }
     LaunchedEffect(loading) { onLoadingChange(loading) }
 
-    HolidaySettingsScreen(
-        scrollBehavior = scrollBehavior,
-        liquidGlassBackdrop = liquidGlassBackdrop,
-        year = year,
-        entries = entries,
-        onYearChange = { y ->
-            year = y
-            entries = HolidayManager.load(y)
-        },
-        reload = { entries = HolidayManager.load(year) },
-        onTeachingWeekReorganizationsChanged = onTeachingWeekReorganizationsChanged,
-        onHolidayDataChanged = {
-            onHolidayDataChanged()
-        },
-    )
+    // 与手机端同一套两段式：年度安排 / 其他操作，横向平移翻页
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val pageSwitch = rememberPageSwitchState(0)
+    LaunchedEffect(selectedTab) { pageSwitch.animateTo(selectedTab) }
+    var pillFreezeKey by remember { mutableIntStateOf(0) }
+    var pillAlignKey by remember { mutableIntStateOf(0) }
+    Box(modifier = Modifier.fillMaxSize()) {
+        HorizontalPageSwitch(
+            state = pageSwitch,
+            pageCount = 2,
+            modifier = Modifier.fillMaxSize(),
+            onGestureStart = { pillFreezeKey++ },
+            onGestureEnd = { page ->
+                selectedTab = page
+                pillAlignKey++
+            },
+        ) { page ->
+            HolidaySettingsScreen(
+                scrollBehavior = scrollBehavior,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                year = year,
+                entries = entries,
+                onYearChange = { y ->
+                    year = y
+                    entries = HolidayManager.load(y)
+                },
+                reload = { entries = HolidayManager.load(year) },
+                onTeachingWeekReorganizationsChanged = onTeachingWeekReorganizationsChanged,
+                onHolidayDataChanged = {
+                    onHolidayDataChanged()
+                },
+                tab = page,
+                topExtra = 64.dp,
+                syncing = loading,
+                onSync = { doUpdate() },
+            )
+        }
+        val backdrop = liquidGlassBackdrop
+        if (backdrop != null) {
+            CapsuleSegmentedControl(
+                options = listOf(
+                    HolidayStr.tabAnnual(),
+                    HolidayStr.tabOther(),
+                ),
+                selectedIndex = selectedTab,
+                onSelect = { selectedTab = it },
+                selectOnPress = true,
+                freezeKey = pillFreezeKey,
+                alignKey = pillAlignKey,
+                backdrop = backdrop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .padding(horizontal = 20.dp),
+            )
+        }
+    }
 }

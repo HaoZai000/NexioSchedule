@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -72,14 +73,20 @@ import com.haooz.chedule.i18n.orDefaultName
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.chedule.ui.components.DateRangeCalendar
+import com.haooz.chedule.ui.components.DualDateCalendar
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.floor
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import kotlinx.datetime.isoDayNumber
+import kotlinx.datetime.todayIn
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -121,11 +128,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
-private val YEAR_RANGE = 2024..2035
-
-private fun monthLabel(value: Int): String = HolidayStr.monthN(value)
-private fun dayLabel(value: Int): String = CommonStr.dateN(value)
-
 // commonMain 没有 JVM 的 String.format（原来是 "%04d-%02d-%02d".format(...)），改用 padStart 手写零填充日期
 private fun isoDate(year: Int, month: Int, day: Int): String =
     "${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}"
@@ -139,6 +141,13 @@ fun HolidaySettingsScreen(
     onYearChange: (Int) -> Unit,
     reload: () -> Unit,
     onTeachingWeekReorganizationsChanged: () -> Unit = {},
+    /** 本页对应的分段：0 年度安排 / 1 其他操作（横向 pager 一页一个实例） */
+    tab: Int = 0,
+    /** 分段控件占掉的高度，列表要让它 */
+    topExtra: Dp = 0.dp,
+    /** 网络同步进行中：空态导入按钮据此显示进度 */
+    syncing: Boolean = false,
+    onSync: () -> Unit = {},
     // 节假日/调休/教学周数据变更后的平台副作用（重排提醒 + 勿扰 + 刷新小部件）。
     // 由 Android 宿主注入：CourseReminderHelper.onHolidayDataChanged(context)。
     // 不直接调 reminder 模块 —— 那是 Android 专有的（内部要 Context，桌面/iOS 无此概念）。
@@ -183,11 +192,8 @@ fun HolidaySettingsScreen(
     var endYear by remember { mutableIntStateOf(year) }
     var endMonth by remember { mutableIntStateOf(1) }
     var endDay by remember { mutableIntStateOf(1) }
-    // UI 依旧显示「第几周 + 星期几」，但这只是**当前课表**下的投影：
-    // 存档的是绝对日期（followDate），换课表时按新课表的学期开始时间重算 → 周次自动变。
-    var followWeek by remember { mutableStateOf("1") }
-    var followWeekManuallySelected by remember { mutableStateOf(false) }
-    var followWeekday by remember { mutableStateOf("1") }
+    // 调休日「补哪天的课」直接在日历上选绝对日期
+    var followDateValue by remember { mutableStateOf<LocalDate?>(null) }
     var showTeachingWeekRuleDialog by remember { mutableStateOf(false) }
     var showTeachingWeekPicker by remember { mutableStateOf(false) }
     var showTeachingWeekDeleteConfirm by remember { mutableStateOf(false) }
@@ -200,31 +206,6 @@ fun HolidaySettingsScreen(
     // 周次选择器是从教学周弹窗里点开的二级弹窗，在弹窗作用域之外读不到
     // LocalSheetContentBackdrop，需要这样把弹窗内容 backdrop 拿出来给它做模糊采样。
     val teachingWeekSheetBackdropHolder = remember { BackdropHolder() }
-
-    // 根据开始日期计算其对应课表的默认周次
-    fun weekOfDate(year: Int, month: Int, day: Int): String {
-        return try {
-            val date = LocalDate(year, month, day)
-            TeachingWeekReorganization.mapDate(
-                semesterStartDate,
-                date,
-                teachingWeekReorganizations,
-            ).week.coerceIn(1L, currentTotalWeeks.toLong()).toInt()
-        } catch (_: Exception) {
-            1
-        }.toString()
-    }
-
-    /** 当前课表下「第 week 周 星期 weekday」对应的那一天 —— 把 UI 上的周次落回绝对日期 */
-    fun dateOfTeachingWeek(week: Int, weekday: Int): LocalDate? =
-        runCatching {
-            TeachingWeekReorganization.dateForPosition(
-                semesterStartDate,
-                week,
-                weekday,
-                teachingWeekReorganizations,
-            )
-        }.getOrNull()
 
     fun originalWeekDate(week: Int, weekday: Int): LocalDate? =
         TeachingWeekReorganization.dateForPosition(
@@ -333,19 +314,24 @@ fun HolidaySettingsScreen(
         editingEntry = null
         editingEntryStorageYear = year
         name = ""
-        startYear = year
-        startMonth = 1
-        startDay = 1
-        endYear = year
-        endMonth = 1
-        endDay = 1
-        followWeek = if (type == HolidayManager.TYPE_WORKSWAP) {
-            weekOfDate(startYear, startMonth, startDay)
+        // 默认落在「今天」：同一年直接用今天；查看其他年份时沿用今天的月日（按该年月长收敛），
+        // 不要退回 1 月 1 日 —— 一打开就停在一月并不是用户想添加的日期
+        val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+        val defaultDate = if (today.year == year) {
+            today
         } else {
-            "1"
+            val day = today.dayOfMonth.coerceAtMost(
+                LocalDate(year, today.monthNumber, 1).lengthOfMonth()
+            )
+            LocalDate(year, today.monthNumber, day)
         }
-        followWeekday = "1"
-        followWeekManuallySelected = false
+        startYear = defaultDate.year
+        startMonth = defaultDate.monthNumber
+        startDay = defaultDate.dayOfMonth
+        endYear = defaultDate.year
+        endMonth = defaultDate.monthNumber
+        endDay = defaultDate.dayOfMonth
+        followDateValue = null
         showDialog = true
     }
 
@@ -374,21 +360,10 @@ fun HolidaySettingsScreen(
                 .firstOrNull { it.date == entry.date && it.type == HolidayManager.TYPE_WORKSWAP }
                 ?.takeIf { it.followLocalDate() != null }
         } else null
-        // 已存的绝对日期 → 老数据的 (周次,星期) → 建议值，统一按**当前课表**投影成 (周次,星期)
-        val initialFollow = entry.followLocalDate()
+        // 已存的绝对日期 → 老数据的 (周次,星期) → 建议值
+        followDateValue = entry.followLocalDate()
             ?: followDate(entry.followWeek.toString(), entry.followWeekday.toString())
             ?: suggestion?.followLocalDate()
-        if (initialFollow != null) {
-            val position = TeachingWeekReorganization.mapDate(
-                semesterStartDate, initialFollow, teachingWeekReorganizations
-            )
-            followWeek = position.week.coerceIn(1L, currentTotalWeeks.toLong()).toString()
-            followWeekday = (position.weekday ?: initialFollow.dayOfWeek.isoDayNumber).toString()
-        } else {
-            followWeek = weekOfDate(startYear, startMonth, startDay)
-            followWeekday = "1"
-        }
-        followWeekManuallySelected = entry.followLocalDate() != null
         showDialog = true
     }
 
@@ -408,16 +383,9 @@ fun HolidaySettingsScreen(
             showToast(HolidayStr.endBeforeStart())
             return
         }
-        val week = followWeek.toIntOrNull()?.takeIf { it > 0 } ?: -1
-        val weekday = followWeekday.toIntOrNull()?.takeIf { it in 1..7 } ?: -1
-        if (!isHoliday && (week !in 1..currentTotalWeeks || weekday !in 1..7)) {
-            showToast(HolidayStr.selectValidFollow())
-            return
-        }
-        // UI 上的「第 X 周 星期 Y」只是当前课表的投影，落库一律转成绝对日期
-        val followDateValue = if (isHoliday) null else dateOfTeachingWeek(week, weekday)
+        // 调休日必须选「补哪天的课」：直接落绝对日期
         if (!isHoliday && followDateValue == null) {
-            showToast(HolidayStr.followWeekNoDate())
+            showToast(HolidayStr.selectValidFollow())
             return
         }
         // 按开始日期所属年份落库，避免 UI 选中年与日期年不一致时 workSwap 查不到
@@ -433,7 +401,7 @@ fun HolidaySettingsScreen(
             name = name.ifBlank { if (isHoliday) HolidayStr.defaultHolidayName() else HolidayStr.defaultWorkswapName() },
             type = dialogType,
             // 存绝对日期；旧字段 followWeek/followWeekday 一律不再写入
-            followDate = followDateValue?.toString() ?: "",
+            followDate = if (isHoliday) "" else followDateValue?.toString().orEmpty(),
             custom = true,
         )
         val saved = HolidayManager.updateEntries(affectedYears) { current ->
@@ -479,9 +447,19 @@ fun HolidaySettingsScreen(
         editingEntry = null
     }
 
-    val listState = rememberLazyListState()
-    val holidayEntries = entries.filter { it.type == HolidayManager.TYPE_HOLIDAY }
-    val workswapEntries = entries.filter { it.type == HolidayManager.TYPE_WORKSWAP }
+    // 每个分段是 pager 里独立的一页，滚动位置天然互不影响
+    val listState = remember { LazyListState() }
+    // 假期与调休合成一条年度时间线：用户关心的是「哪天放、哪天补」，不是它们属于哪类数据
+    val annualEntries = remember(entries) {
+        entries.sortedWith(compareBy({ it.date }, { it.type }))
+    }
+    // 年份跟着课表走：整个学期跨过哪些年，就允许配哪些年
+    val semesterEndDate = semesterStartDate.plusDays((currentTotalWeeks * 7L - 1).coerceAtLeast(0L))
+    val yearRange = semesterStartDate.year..semesterEndDate.year
+    // 今天落在学期之外时，把选中月份拉回学期范围内
+    LaunchedEffect(yearRange, year) {
+        if (year !in yearRange) onYearChange(year.coerceIn(yearRange.first, yearRange.last))
+    }
     val isTablet = isTabletWidth()
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
@@ -545,181 +523,175 @@ fun HolidaySettingsScreen(
             contentPadding = PaddingValues(
                 tabletHorizontalPadding,
                 padding.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                    (if (isTablet) 24.dp else 12.dp),
+                    topExtra + pageTopExtra(isTablet, hasSmallTitle = tab == 1),
                 tabletHorizontalPadding,
                 60.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                DataManagementCard(
-                    year = year,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    onYearChange = onYearChange,
-                )
-            }
-
-            item {
-                SectionTitleRow(
-                    text = HolidayStr.holidaysTitle(),
-                    description = HolidayStr.holidaysDesc(),
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                )
-                if (holidayEntries.isNotEmpty()) {
-                    HolidayEntriesCard(
-                        entries = holidayEntries,
-                        onEdit = { startEditing(it) },
+            if (tab == 0) {
+                item {
+                    DataManagementCard(
+                        year = year,
+                        yearRange = yearRange,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        onYearChange = onYearChange,
                     )
-                    Spacer(modifier = Modifier.fillMaxWidth().height(12.dp))
                 }
-                AddEntryCard(
-                    type = HolidayManager.TYPE_HOLIDAY,
-                    onAdd = { startAdding(HolidayManager.TYPE_HOLIDAY) },
-                )
-            }
 
-            item {
-                SectionTitleRow(
-                    text = HolidayStr.workswapTitle(),
-                    description = HolidayStr.workswapDesc(),
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                )
-                if (workswapEntries.isNotEmpty()) {
-                    HolidayEntriesCard(
-                        entries = workswapEntries,
-                        onEdit = { startEditing(it) },
+                item {
+                    SectionTitleRow(
+                        text = HolidayStr.annualTitle(),
+                        description = HolidayStr.annualDesc(),
+                        liquidGlassBackdrop = liquidGlassBackdrop,
                     )
-                    Spacer(modifier = Modifier.fillMaxWidth().height(12.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (annualEntries.isNotEmpty()) {
+                            AnnualEntriesCard(
+                                entries = annualEntries,
+                                onEdit = { startEditing(it) },
+                            )
+                        } else {
+                            // 空态放在「添加」之前：先告诉用户这里为什么是空的，再给一键导入
+                            EmptyAnnualCard(
+                                year = year,
+                                syncing = syncing,
+                                onSync = onSync,
+                            )
+                        }
+                        AnnualAddCard(
+                            onAddHoliday = { startAdding(HolidayManager.TYPE_HOLIDAY) },
+                            onAddWorkswap = { startAdding(HolidayManager.TYPE_WORKSWAP) },
+                        )
+                    }
                 }
-                AddEntryCard(
-                    type = HolidayManager.TYPE_WORKSWAP,
-                    onAdd = { startAdding(HolidayManager.TYPE_WORKSWAP) },
-                )
             }
 
-            item {
-                SectionTitleRow(
-                    text = HolidayStr.reorgTitle(),
-                    description = HolidayStr.reorgDesc(),
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                )
-                CardExpand(visible = teachingWeekReorganizations.isNotEmpty()) {
+            if (tab == 1) {
+                item {
+                    SectionTitleRow(
+                        text = HolidayStr.reorgTitle(),
+                        description = HolidayStr.reorgDesc(),
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                    )
+                    CardExpand(visible = teachingWeekReorganizations.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(0.dp),
+                        ) {
+                            Column {
+                                teachingWeekReorganizations.forEachIndexed { index, rule ->
+                                    val firstRange = formatDateRange(
+                                        rule.firstOriginalWeek,
+                                        rule.firstStartWeekday,
+                                        rule.firstEndWeekday,
+                                    )
+                                    val secondRange = formatDateRange(
+                                        rule.secondOriginalWeek,
+                                        rule.secondStartWeekday,
+                                        rule.secondEndWeekday,
+                                    )
+                                    val targetWeek = originalWeekDate(rule.firstOriginalWeek, 1)?.let {
+                                        TeachingWeekReorganization.mapDate(
+                                            semesterStartDate,
+                                            it,
+                                            teachingWeekReorganizations,
+                                        ).week
+                                    }
+                                    ArrowPreference(
+                                        title = HolidayStr.reorgRuleN(index + 1),
+                                        summary = HolidayStr.originalWeekN(rule.firstOriginalWeek) + " $firstRange + " +
+                                            HolidayStr.originalWeekN(rule.secondOriginalWeek) + " $secondRange → " +
+                                            (targetWeek?.let { HolidayStr.teachingWeekN(it) } ?: HolidayStr.dateOutOfRange()),
+                                        onClick = { startEditingTeachingWeekRule(index) },
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.fillMaxWidth().height(12.dp))
+                    }
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         insideMargin = PaddingValues(0.dp),
                     ) {
-                        Column {
-                            teachingWeekReorganizations.forEachIndexed { index, rule ->
-                                val firstRange = formatDateRange(
-                                    rule.firstOriginalWeek,
-                                    rule.firstStartWeekday,
-                                    rule.firstEndWeekday,
-                                )
-                                val secondRange = formatDateRange(
-                                    rule.secondOriginalWeek,
-                                    rule.secondStartWeekday,
-                                    rule.secondEndWeekday,
-                                )
-                                val targetWeek = originalWeekDate(rule.firstOriginalWeek, 1)?.let {
-                                    TeachingWeekReorganization.mapDate(
-                                        semesterStartDate,
-                                        it,
-                                        teachingWeekReorganizations,
-                                    ).week
+                        ArrowPreference(
+                            title = HolidayStr.addReorgRule(),
+                            onClick = { startAddingTeachingWeekRule() },
+                        )
+                    }
+                }
+
+                item {
+                    SectionTitleRow(
+                        text = HolidayStr.exclusionTitle(),
+                        description = HolidayStr.exclusionDesc(),
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                    )
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp),
+                    ) {
+                        SwitchPreference(
+                            title = HolidayStr.beforeExclusionTitle(),
+                            checked = beforeCourseExclusion.enabled,
+                            onCheckedChange = { enabled ->
+                                val updated = beforeCourseExclusion.copy(enabled = enabled)
+                                if (HolidayManager.saveBeforeCourseExclusion(updated)) {
+                                    onHolidayDataChanged()
                                 }
-                                ArrowPreference(
-                                    title = HolidayStr.reorgRuleN(index + 1),
-                                    summary = HolidayStr.originalWeekN(rule.firstOriginalWeek) + " $firstRange + " +
-                                        HolidayStr.originalWeekN(rule.secondOriginalWeek) + " $secondRange → " +
-                                        (targetWeek?.let { HolidayStr.teachingWeekN(it) } ?: HolidayStr.dateOutOfRange()),
-                                    onClick = { startEditingTeachingWeekRule(index) },
-                                )
-                            }
-                        }
+                            },
+                        )
+                        ArrowPreference(
+                            title = HolidayStr.sectionRangeLabel(),
+                            summary = HolidayStr.sectionRangeN(beforeCourseExclusion.startSection, beforeCourseExclusion.endSection),
+                            onClick = {
+                                if (configuredSectionCount <= 0) {
+                                    showToast(HolidayStr.noSectionsConfigured())
+                                } else {
+                                    editingBeforeCourseExclusion = true
+                                    val maxSection = configuredSectionCount
+                                    pendingStartSection = beforeCourseExclusion.startSection
+                                        .coerceIn(1, maxSection)
+                                    pendingEndSection = beforeCourseExclusion.endSection
+                                        .coerceIn(pendingStartSection, maxSection)
+                                    showSectionRangeDialog = true
+                                }
+                            },
+                        )
                     }
                     Spacer(modifier = Modifier.fillMaxWidth().height(12.dp))
-                }
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(0.dp),
-                ) {
-                    ArrowPreference(
-                        title = HolidayStr.addReorgRule(),
-                        onClick = { startAddingTeachingWeekRule() },
-                    )
-                }
-            }
-
-            item {
-                SectionTitleRow(
-                    text = HolidayStr.exclusionTitle(),
-                    description = HolidayStr.exclusionDesc(),
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                )
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(0.dp),
-                ) {
-                    SwitchPreference(
-                        title = HolidayStr.beforeExclusionTitle(),
-                        checked = beforeCourseExclusion.enabled,
-                        onCheckedChange = { enabled ->
-                            val updated = beforeCourseExclusion.copy(enabled = enabled)
-                            if (HolidayManager.saveBeforeCourseExclusion(updated)) {
-                                onHolidayDataChanged()
-                            }
-                        },
-                    )
-                    ArrowPreference(
-                        title = HolidayStr.sectionRangeLabel(),
-                        summary = HolidayStr.sectionRangeN(beforeCourseExclusion.startSection, beforeCourseExclusion.endSection),
-                        onClick = {
-                            if (configuredSectionCount <= 0) {
-                                showToast(HolidayStr.noSectionsConfigured())
-                            } else {
-                                editingBeforeCourseExclusion = true
-                                val maxSection = configuredSectionCount
-                                pendingStartSection = beforeCourseExclusion.startSection
-                                    .coerceIn(1, maxSection)
-                                pendingEndSection = beforeCourseExclusion.endSection
-                                    .coerceIn(pendingStartSection, maxSection)
-                                showSectionRangeDialog = true
-                            }
-                        },
-                    )
-                }
-                Spacer(modifier = Modifier.fillMaxWidth().height(12.dp))
-                Card(
-                    cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(0.dp),
-                ) {
-                    SwitchPreference(
-                        title = HolidayStr.endExclusionTitle(),
-                        checked = endCourseExclusion.enabled,
-                        onCheckedChange = { enabled ->
-                            val updated = endCourseExclusion.copy(enabled = enabled)
-                            if (HolidayManager.saveEndCourseExclusion(updated)) {
-                                onHolidayDataChanged()
-                            }
-                        },
-                    )
-                    ArrowPreference(
-                        title = HolidayStr.sectionRangeLabel(),
-                        summary = HolidayStr.sectionRangeN(endCourseExclusion.startSection, endCourseExclusion.endSection),
-                        onClick = {
-                            if (configuredSectionCount <= 0) {
-                                showToast(HolidayStr.noSectionsConfigured())
-                            } else {
-                                editingBeforeCourseExclusion = false
-                                val maxSection = configuredSectionCount
-                                pendingStartSection = endCourseExclusion.startSection.coerceIn(1, maxSection)
-                                pendingEndSection = endCourseExclusion.endSection
-                                    .coerceIn(pendingStartSection, maxSection)
-                                showSectionRangeDialog = true
-                            }
-                        },
-                    )
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp),
+                    ) {
+                        SwitchPreference(
+                            title = HolidayStr.endExclusionTitle(),
+                            checked = endCourseExclusion.enabled,
+                            onCheckedChange = { enabled ->
+                                val updated = endCourseExclusion.copy(enabled = enabled)
+                                if (HolidayManager.saveEndCourseExclusion(updated)) {
+                                    onHolidayDataChanged()
+                                }
+                            },
+                        )
+                        ArrowPreference(
+                            title = HolidayStr.sectionRangeLabel(),
+                            summary = HolidayStr.sectionRangeN(endCourseExclusion.startSection, endCourseExclusion.endSection),
+                            onClick = {
+                                if (configuredSectionCount <= 0) {
+                                    showToast(HolidayStr.noSectionsConfigured())
+                                } else {
+                                    editingBeforeCourseExclusion = false
+                                    val maxSection = configuredSectionCount
+                                    pendingStartSection = endCourseExclusion.startSection.coerceIn(1, maxSection)
+                                    pendingEndSection = endCourseExclusion.endSection
+                                        .coerceIn(pendingStartSection, maxSection)
+                                    showSectionRangeDialog = true
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -746,28 +718,19 @@ fun HolidaySettingsScreen(
         startYear = startYear,
         startMonth = startMonth,
         startDay = startDay,
-        onStartYearChange = {
-            startYear = it
-            if (dialogType == HolidayManager.TYPE_WORKSWAP && !followWeekManuallySelected) followWeek = weekOfDate(startYear, startMonth, startDay)
-        },
-        onStartMonthChange = {
-            startMonth = it
-            if (dialogType == HolidayManager.TYPE_WORKSWAP && !followWeekManuallySelected) followWeek = weekOfDate(startYear, startMonth, startDay)
-        },
-        onStartDayChange = {
-            startDay = it
-            if (dialogType == HolidayManager.TYPE_WORKSWAP && !followWeekManuallySelected) followWeek = weekOfDate(startYear, startMonth, startDay)
-        },
+        onStartYearChange = { startYear = it },
+        onStartMonthChange = { startMonth = it },
+        onStartDayChange = { startDay = it },
         endYear = endYear,
         endMonth = endMonth,
         endDay = endDay,
         onEndYearChange = { endYear = it },
         onEndMonthChange = { endMonth = it },
         onEndDayChange = { endDay = it },
-        followWeek = followWeek,
-        followWeekday = followWeekday,
-        onFollowWeekChange = { followWeek = it; followWeekManuallySelected = true },
-        onFollowWeekdayChange = { followWeekday = it },
+        followDate = followDateValue,
+        onFollowDateChange = { followDateValue = it },
+        yearRange = yearRange,
+        dualStartsOnSecondary = editingEntry != null,
         canDelete = editingEntry != null,
         onDeleteClick = { showDeleteConfirm = true },
         onDismiss = { showDialog = false },
@@ -1806,6 +1769,7 @@ private fun InfoDropdown(
 @Composable
 private fun DataManagementCard(
     year: Int,
+    yearRange: IntRange,
     liquidGlassBackdrop: GlassBackdrop?,
     onYearChange: (Int) -> Unit,
 ) {
@@ -1819,15 +1783,13 @@ private fun DataManagementCard(
     ) {
         OverlayDropdownMenu(
             entry = DropdownEntry(
-                listOf(year - 1, year, year + 1)
-                    .filter { it in YEAR_RANGE }
-                    .map { selectedYear ->
-                        DropdownItem(
-                            text = selectedYear.toString(),
-                            selected = selectedYear == year,
-                            onClick = { onYearChange(selectedYear) },
-                        )
-                    }
+                yearRange.map { selectedYear ->
+                    DropdownItem(
+                        text = selectedYear.toString(),
+                        selected = selectedYear == year,
+                        onClick = { onYearChange(selectedYear) },
+                    )
+                }
             ),
             title = HolidayStr.yearLabel(),
             collapseOnSelection = true,
@@ -1838,7 +1800,50 @@ private fun DataManagementCard(
 }
 
 @Composable
-private fun HolidayEntriesCard(
+private fun EmptyAnnualCard(
+    year: Int,
+    syncing: Boolean,
+    onSync: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        insideMargin = PaddingValues(top = 18.dp, bottom = 14.dp, start = 14.dp, end = 14.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = HolidayStr.emptyAnnualHint(),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                color = MiuixTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = HolidayStr.emptyAnnualDesc(),
+                fontSize = 14.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onSync,
+                enabled = !syncing,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    if (syncing) HolidayStr.syncingLabel()
+                    else HolidayStr.importForYearN(year)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnnualEntriesCard(
     entries: List<HolidayEntry>,
     onEdit: (HolidayEntry) -> Unit,
 ) {
@@ -1848,14 +1853,14 @@ private fun HolidayEntriesCard(
     ) {
         Column {
             entries.forEach { entry ->
-                EntryRow(entry = entry, onEdit = onEdit)
+                AnnualEntryRow(entry = entry, onEdit = onEdit)
             }
         }
     }
 }
 
 @Composable
-private fun EntryRow(
+private fun AnnualEntryRow(
     entry: HolidayEntry,
     onEdit: (HolidayEntry) -> Unit,
 ) {
@@ -1865,7 +1870,29 @@ private fun EntryRow(
             else HolidayStr.defaultWorkswapName
         ),
         summary = entrySummary(entry),
+        endActions = { EntryTypeTag(entry.type) },
         onClick = { onEdit(entry) },
+    )
+}
+
+/** 假期 / 调休的类型标签：合并成一条时间线后靠它区分两类数据 */
+@Composable
+private fun EntryTypeTag(type: Int) {
+    val isHoliday = type == HolidayManager.TYPE_HOLIDAY
+    val color = if (isHoliday) {
+        MiuixTheme.colorScheme.primary
+    } else {
+        MiuixTheme.colorScheme.onSurfaceVariantActions
+    }
+    Text(
+        text = if (isHoliday) HolidayStr.typeHolidayTag() else HolidayStr.typeWorkswapTag(),
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
+        color = color,
+        modifier = Modifier
+            .clip(ContinuousCapsule())
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 8.dp, vertical = 2.dp),
     )
 }
 
@@ -1913,15 +1940,21 @@ private fun entrySummary(entry: HolidayEntry): String {
 }
 
 @Composable
-private fun AddEntryCard(type: Int, onAdd: () -> Unit) {
-    val isHoliday = type == HolidayManager.TYPE_HOLIDAY
+private fun AnnualAddCard(
+    onAddHoliday: () -> Unit,
+    onAddWorkswap: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         insideMargin = PaddingValues(0.dp),
     ) {
         ArrowPreference(
-            title = if (isHoliday) HolidayStr.addHoliday() else HolidayStr.addWorkswap(),
-            onClick = onAdd,
+            title = HolidayStr.addHoliday(),
+            onClick = onAddHoliday,
+        )
+        ArrowPreference(
+            title = HolidayStr.addWorkswap(),
+            onClick = onAddWorkswap,
         )
     }
 }
@@ -1947,10 +1980,12 @@ private fun EntryEditDialog(
     onEndYearChange: (Int) -> Unit,
     onEndMonthChange: (Int) -> Unit,
     onEndDayChange: (Int) -> Unit,
-    followWeek: String,
-    followWeekday: String,
-    onFollowWeekChange: (String) -> Unit,
-    onFollowWeekdayChange: (String) -> Unit,
+    followDate: LocalDate?,
+    onFollowDateChange: (LocalDate) -> Unit,
+    /** 允许翻到哪几年：当前年 ±1 */
+    yearRange: IntRange,
+    /** 编辑已有调休时默认落在绿色（补课日），新增时默认蓝色（调休日） */
+    dualStartsOnSecondary: Boolean,
     canDelete: Boolean,
     onDeleteClick: () -> Unit,
     onDismiss: () -> Unit,
@@ -2028,126 +2063,71 @@ private fun EntryEditDialog(
                 )
             }
 
-            Column {
-                SmallTitle(
-                    text = if (isHoliday) HolidayStr.startDateLabel() else HolidayStr.adjustedDateLabel(),
-                )
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    // 滚轮上下自留白：0 会让首尾两行贴卡片边缘
-                    insideMargin = PaddingValues(vertical = 16.dp),
-                    colors = CardDefaults.defaultColors(
-                        color = cardColor,
-                        contentColor = MiuixTheme.colorScheme.onSurface,
-                    ),
-                ) {
-                    DatePickerRow(
-                        year = startYear,
-                        month = startMonth,
-                        day = startDay,
-                        onYearChange = onStartYearChange,
-                        onMonthChange = onStartMonthChange,
-                        onDayChange = onStartDayChange,
+            if (!isHoliday) {
+                Column {
+                    SmallTitle(
+                        text = HolidayStr.adjustedDateLabel(),
                     )
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        // 日历自带内间距，Card 不再加边距，避免两边叠加
+                        insideMargin = PaddingValues(0.dp),
+                        colors = CardDefaults.defaultColors(
+                            color = cardColor,
+                            contentColor = MiuixTheme.colorScheme.onSurface,
+                        ),
+                    ) {
+                        DualDateCalendar(
+                            primaryDate = LocalDate(startYear, startMonth, startDay),
+                            secondaryDate = followDate,
+                            onPrimaryChange = { date ->
+                                onStartYearChange(date.year)
+                                onStartMonthChange(date.monthNumber)
+                                onStartDayChange(date.dayOfMonth)
+                            },
+                            onSecondaryChange = { date -> onFollowDateChange(date) },
+                            weekdayLabels = HolidayStr.weekdayChars.map { it() },
+                            monthTitle = { y, m -> HolidayStr.yearMonthN(y, m) },
+                            resetKey = show,
+                            yearRange = yearRange,
+                            startWithSecondary = dualStartsOnSecondary,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
 
             if (isHoliday) {
                 Column {
                     SmallTitle(
-                        text = HolidayStr.endDateLabel(),
+                        text = HolidayStr.holidayDateRangeLabel(),
                     )
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(vertical = 16.dp),
+                        // 日历自带内间距，Card 不再加边距，避免两边叠加
+                        insideMargin = PaddingValues(0.dp),
                         colors = CardDefaults.defaultColors(
                             color = cardColor,
                             contentColor = MiuixTheme.colorScheme.onSurface,
                         ),
                     ) {
-                        DatePickerRow(
-                            year = endYear,
-                            month = endMonth,
-                            day = endDay,
-                            onYearChange = onEndYearChange,
-                            onMonthChange = onEndMonthChange,
-                            onDayChange = onEndDayChange,
+                        DateRangeCalendar(
+                            startDate = LocalDate(startYear, startMonth, startDay),
+                            endDate = LocalDate(endYear, endMonth, endDay),
+                            weekdayLabels = HolidayStr.weekdayChars.map { it() },
+                            monthTitle = { y, m -> HolidayStr.yearMonthN(y, m) },
+                            resetKey = show,
+                            yearRange = yearRange,
+                            modifier = Modifier.fillMaxWidth(),
+                            onRangeChange = { start, end ->
+                                onStartYearChange(start.year)
+                                onStartMonthChange(start.monthNumber)
+                                onStartDayChange(start.dayOfMonth)
+                                onEndYearChange(end.year)
+                                onEndMonthChange(end.monthNumber)
+                                onEndDayChange(end.dayOfMonth)
+                            },
                         )
-                    }
-                }
-            }
-
-            if (!isHoliday) {
-                Column {
-                    // 推算日期与小标题同行、右对齐：用户要核对「补的是哪一天」，别塞进卡片
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        SmallTitle(
-                            text = HolidayStr.followCourseLabel(),
-                            modifier = Modifier.weight(1f),
-                        )
-                        val date = followDate(followWeek, followWeekday)
-                        if (date != null) {
-                            Text(
-                                "${date.year}/${date.monthNumber}/${date.dayOfMonth}",
-                                style = MiuixTheme.textStyles.body1.copy(
-                                    fontSize = 15.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                ),
-                                modifier = Modifier.padding(end = 12.dp),
-                            )
-                        }
-                    }
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(vertical = 16.dp),
-                        colors = CardDefaults.defaultColors(
-                            color = cardColor,
-                            contentColor = MiuixTheme.colorScheme.onSurface,
-                        ),
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                NumberPicker(
-                                    followWeek.toIntOrNull()?.coerceAtLeast(1) ?: 1,
-                                    { onFollowWeekChange(it.toString()) },
-                                    range = 1..52,
-                                    visibleItemCount = 3,
-                                    itemHeight = 44.dp,
-                                    textStyle = pickerTextStyle(),
-                                    label = { CommonStr.weekN(it) },
-                                    modifier = Modifier.weight(1f),
-                                )
-                                NumberPicker(
-                                    followWeekday.toIntOrNull()?.coerceIn(1, 7) ?: 1,
-                                    { onFollowWeekdayChange(it.toString()) },
-                                    range = 1..7,
-                                    visibleItemCount = 3,
-                                    itemHeight = 44.dp,
-                                    textStyle = pickerTextStyle(),
-                                    label = { HolidayStr.weekdays[it - 1]() },
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                            // 国家级数据只说「哪天补班」，不说「补哪天的课」，上面是推算出来的预填值，
-                            // 各校安排未必一致 —— 明确告诉用户：以学校通知为准，保存后才生效。
-                            Text(
-                                HolidayStr.followPrefillNote(),
-                                style = MiuixTheme.textStyles.body1.copy(
-                                    fontSize = 13.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                ),
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp),
-                            )
-                        }
                     }
                 }
             }
@@ -2234,67 +2214,6 @@ private fun EntryEditDialog(
                 sheetContent()
             }
         }
-    }
-}
-
-/**
- * 年月日三列滚轮（卡片内容；标题由调用方的 SmallTitle 承担）。
- *
- * ⚠ `day` 会随年/月被 clamp 回当月天数 —— 从大月滚到小月不能留下非法日期，
- * 这个逻辑别在搬移时丢掉。
- */
-@Composable
-private fun DatePickerRow(
-    year: Int,
-    month: Int,
-    day: Int,
-    onYearChange: (Int) -> Unit,
-    onMonthChange: (Int) -> Unit,
-    onDayChange: (Int) -> Unit,
-) {
-    val maxDay = LocalDate(year, month, 1).lengthOfMonth()
-    val currentYear = remember { todayLocalDate().year }
-    val yearRange = (currentYear - 1)..(currentYear + 1)
-    Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        NumberPicker(
-            year,
-            { newYear ->
-                onYearChange(newYear)
-                onDayChange(day.coerceAtMost(LocalDate(newYear, month, 1).lengthOfMonth()))
-            },
-            range = yearRange,
-            visibleItemCount = 3,
-            itemHeight = 44.dp,
-            textStyle = pickerTextStyle(),
-            modifier = Modifier.weight(1f),
-        )
-        NumberPicker(
-            month,
-            { newMonth ->
-                onMonthChange(newMonth)
-                onDayChange(day.coerceAtMost(LocalDate(year, newMonth, 1).lengthOfMonth()))
-            },
-            range = 1..12,
-            visibleItemCount = 3,
-            itemHeight = 44.dp,
-            textStyle = pickerTextStyle(),
-            label = { monthLabel(it) },
-            modifier = Modifier.weight(1f),
-        )
-        NumberPicker(
-            day,
-            { newDay -> onDayChange(newDay.coerceIn(1, maxDay)) },
-            range = 1..maxDay,
-            visibleItemCount = 3,
-            itemHeight = 44.dp,
-            textStyle = pickerTextStyle(),
-            label = { dayLabel(it) },
-            modifier = Modifier.weight(1f),
-        )
     }
 }
 
