@@ -11,6 +11,18 @@
     <!-- 用于天气按当前位置查询（优先精确 GPS，回退粗略网络定位） -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- 导出到手表：BLE 扫描 + 连接。neverForLocation 表示扫描结果不用于推断位置 -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Android 11 及以下没有 BLUETOOTH_SCAN/CONNECT，靠旧权限 + 定位权限扫描 -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"
         tools:ignore="RequestInstallPackagesPolicy" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"

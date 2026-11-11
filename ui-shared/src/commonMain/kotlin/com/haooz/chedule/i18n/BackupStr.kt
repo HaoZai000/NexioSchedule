@@ -102,6 +102,28 @@ object BackupStr {
     val wearableExportFailed = L("生成课表文件失败，请重试", "Failed to build the schedule file. Please try again")
     val exportEmptyScheduleN = L("「%s」课表为空，无法导出", "Schedule \"%s\" is empty and cannot be exported")
 
+    // ---- 导出到手表（蓝牙） ----
+
+    val exportToWatch = L("导出到手表", "Export to Watch")
+    val exportToWatchSummary = L("通过蓝牙把课表发送到手表", "Send the schedule to your watch over Bluetooth")
+    val watchSyncTitle = L("导出到手表", "Export to Watch")
+    val watchSyncHint = L("选择要发送到的手表", "Pick the watch to send to")
+    val watchSyncHintN = L("将「%s」发送到手表", "Send \"%s\" to your watch")
+    val watchSyncScanning = L("正在搜索附近的手表…", "Searching for nearby watches…")
+    val watchSyncEmpty = L(
+        "没有找到手表。请确认手表端已打开 Nexio 并停留在首页，且两边蓝牙都已开启。",
+        "No watch found. Make sure Nexio is open on the watch, and Bluetooth is on for both devices.",
+    )
+    val watchSyncRescan = L("重新搜索", "Search again")
+    val watchSyncSendAction = L("发送", "Send")
+    val watchSyncSentAction = L("已发送", "Sent")
+    val watchSyncSendingN = L("正在发送到 %s…", "Sending to %s…")
+    val watchSyncSuccessN = L("已发送到「%s」，手表端会自动刷新课表", "Sent to \"%s\". The watch will refresh on its own.")
+    val watchSyncScanFailed = L("搜索失败，请重试", "Search failed. Please try again.")
+    val watchSyncFailedGeneric = L("发送失败，请重试", "Send failed. Please try again.")
+    val watchSyncUnsupported = L("当前平台不支持导出到手表", "This platform cannot export to a watch")
+    val watchSyncPermissionDenied = L("需要蓝牙权限才能搜索手表", "Bluetooth permission is required to find your watch")
+
     // ---- 同步到日历 ----
 
     val syncToCalendar = L("同步到日历", "Sync to Calendar")

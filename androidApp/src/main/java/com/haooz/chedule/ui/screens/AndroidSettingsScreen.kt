@@ -47,6 +47,7 @@ import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.haooz.chedule.wearable.WearableScheduleSync
+import com.haooz.chedule.wearable.rememberWatchSyncController
 import com.haooz.chedule.widget.WidgetUpdateCache
 import java.net.HttpURLConnection
 import java.net.URL
@@ -203,6 +204,7 @@ fun AndroidSettingsScreen(
                     onExportToWearable = { name ->
                         WearableScheduleSync.exportToWearable(context, name)
                     },
+                    watchSyncController = rememberWatchSyncController(),
                     onSyncToCalendar = syncToCalendar,
                 )
 

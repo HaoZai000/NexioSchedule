@@ -56,7 +56,10 @@ import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.chedule.ui.components.NoopWatchSyncController
 import com.haooz.chedule.ui.components.ScheduleImportConfirmDialog
+import com.haooz.chedule.ui.components.WatchSyncController
+import com.haooz.chedule.ui.components.WatchSyncSheet
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
@@ -131,6 +134,8 @@ fun BackupAndMigrationScreen(
     onShareSchedule: (scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit = { _, _ -> },
     /** 导出到手环（Android 专有；未连接/不支持时返回 null） */
     onExportToWearable: suspend (scheduleName: String) -> String? = { null },
+    /** 导出到手表（蓝牙）：扫描 + 分片推送，宿主注入；未注入的平台走占位实现 */
+    watchSyncController: WatchSyncController = NoopWatchSyncController,
     /** 同步到系统日历（Android 专有；未实现的平台保持默认值 → 点按只提示不支持） */
     onSyncToCalendar: suspend (scheduleName: String) -> CalendarSyncResult = { CalendarSyncResult.Unsupported },
 ) {
@@ -176,6 +181,8 @@ fun BackupAndMigrationScreen(
 
     var showShareExportConfirmDialog by remember { mutableStateOf(false) }
     var isSharingExport by remember { mutableStateOf(false) }
+    // 导出到手表：面板常驻挂载（靠 show 驱动），发送途中切走也不会中断传输
+    var showWatchSyncSheet by remember { mutableStateOf(false) }
 
     /** 选一个 JSON 备份/课表文件读入；控制器已按原文案处理取消与读取失败 */
     fun pickJsonFile() {
@@ -543,6 +550,17 @@ fun BackupAndMigrationScreen(
                                     }
                                 }
                             )
+                            ArrowPreference(
+                                title = BackupStr.exportToWatch(),
+                                summary = BackupStr.exportToWatchSummary(),
+                                onClick = {
+                                    if (selectedExportSchedule.isBlank()) {
+                                        showToast(BackupStr.selectScheduleToShareFirst())
+                                    } else {
+                                        showWatchSyncSheet = true
+                                    }
+                                }
+                            )
                         }
                     }
                 }
@@ -609,6 +627,14 @@ fun BackupAndMigrationScreen(
             showImportConfirmDialog = false
             pendingImportData = null
         }
+    )
+
+    // 导出到手表：蓝牙扫描 + 分片推送。常驻挂载，关闭只切 show，避免传输被组合销毁打断
+    WatchSyncSheet(
+        show = showWatchSyncSheet,
+        scheduleName = selectedExportSchedule,
+        controller = watchSyncController,
+        onDismiss = { showWatchSyncSheet = false },
     )
 
     // 始终挂载、靠 show 驱动：避免 if 卸载导致关闭无退出动画
