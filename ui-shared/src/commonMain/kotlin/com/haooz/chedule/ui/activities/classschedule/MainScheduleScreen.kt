@@ -226,6 +226,11 @@ fun MainScheduleScreen(
     externalShowCourseDetail: MutableState<Boolean> = mutableStateOf(false),
     externalSelectedCourse: MutableState<Course?> = mutableStateOf(null),
     externalSelectedCourses: MutableState<List<Course>> = mutableStateOf(emptyList()),
+    /**
+     * 越界状态：主界面注入同一实例，顶栏（Scaffold topBar 槽）与内容才读得到同一份越界量。
+     * 独立使用时默认自建一份。
+     */
+    overScrollState: OverScrollState = remember { OverScrollState() },
 ) {
     val cardAlpha = appearance.cardAlpha
     // 周页 lambda 只捕获稳定容器；update 必须在组合期同步写
@@ -277,7 +282,6 @@ fun MainScheduleScreen(
     val screenWidthPx = with(density) { screenWidthDp().dp.toPx() }
     val screenHeightPx = with(density) { screenHeightDp().dp.toPx() }
     // 位置信号：卡片的玻璃在各自 draw 里画，而滚动/翻页/超出回弹只平移祖先图层
-    val overScrollState = remember { OverScrollState() }
     val glassRedrawSignal: () -> Unit = remember(pageState, externalScrollState, overScrollState, tabRedraw) {
         {
             externalScrollState.value

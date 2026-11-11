@@ -1,8 +1,5 @@
 package com.haooz.chedule.ui.navigation
 
-import androidx.compose.ui.unit.Dp
-import com.haooz.chedule.ui.components.CapsuleSegmentedControl
-import com.haooz.chedule.data.platform.FeedbackKind
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -10,10 +7,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -49,11 +50,17 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.backup.BackupFileController
@@ -64,6 +71,7 @@ import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.model.TimeConfig
 import com.haooz.chedule.data.platform.DiagnosticRecorder
+import com.haooz.chedule.data.platform.FeedbackKind
 import com.haooz.chedule.data.platform.HttpTimeouts
 import com.haooz.chedule.data.platform.NoopDiagnosticRecorder
 import com.haooz.chedule.data.platform.NoopReminderController
@@ -76,18 +84,14 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.ChromeStr
+import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.i18n.HolidayStr
 import com.haooz.chedule.i18n.WeatherStr
-import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.activities.AboutScreen
 import com.haooz.chedule.ui.activities.AiImportScreen
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
 import com.haooz.chedule.ui.activities.BackupAndMigrationScreen
-import com.haooz.chedule.ui.activities.weather.WeatherScreen
-import com.haooz.chedule.ui.components.HorizontalPageSwitch
-import com.haooz.chedule.ui.components.rememberPageSwitchState
-import com.haooz.chedule.weather.WeatherStore
 import com.haooz.chedule.ui.activities.CalendarSyncResult
 import com.haooz.chedule.ui.activities.ChangelogScreen
 import com.haooz.chedule.ui.activities.CommunicationScreen
@@ -99,7 +103,6 @@ import com.haooz.chedule.ui.activities.EducationalImportScreen
 import com.haooz.chedule.ui.activities.FeedbackHistoryScreen
 import com.haooz.chedule.ui.activities.FeedbackRoadmapScreen
 import com.haooz.chedule.ui.activities.FeedbackScreen
-import com.haooz.chedule.ui.activities.rememberFeedbackFormState
 import com.haooz.chedule.ui.activities.HolidaySettingsScreen
 import com.haooz.chedule.ui.activities.LicenseScreen
 import com.haooz.chedule.ui.activities.LocalBackupScreen
@@ -107,6 +110,7 @@ import com.haooz.chedule.ui.activities.PreferenceSettingsScreen
 import com.haooz.chedule.ui.activities.PrivacyPolicyScreen
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.TimeConfigCardBounds
+import com.haooz.chedule.ui.activities.UpdatePreferencesScreen
 import com.haooz.chedule.ui.activities.UpdateSettingsScreen
 import com.haooz.chedule.ui.activities.WebDavSettingsScreen
 import com.haooz.chedule.ui.activities.WebImportScreen
@@ -115,17 +119,27 @@ import com.haooz.chedule.ui.activities.WidgetCustomizeRequest
 import com.haooz.chedule.ui.activities.WidgetIntroScreen
 import com.haooz.chedule.ui.activities.main.RenderSettingsPane
 import com.haooz.chedule.ui.activities.main.SettingsPaneArgs
+import com.haooz.chedule.ui.activities.rememberFeedbackFormState
+import com.haooz.chedule.ui.activities.weather.WeatherScreen
+import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
+import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
+import com.haooz.chedule.ui.basic.LiquidGlassDropdownShadowPadding
 import com.haooz.chedule.ui.basic.LiquidGlassTextButton
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ShortcutMenu
 import com.haooz.chedule.ui.basic.ShortcutMenuItem
+import com.haooz.chedule.ui.components.CapsuleSegmentedControl
 import com.haooz.chedule.ui.components.DocumentPageScaffold
+import com.haooz.chedule.ui.components.HorizontalPageSwitch
+import com.haooz.chedule.ui.components.rememberPageSwitchState
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
-import com.haooz.chedule.ui.screens.ScheduleSettingsScreen
 import com.haooz.chedule.ui.screens.CourseEditScreen
+import com.haooz.chedule.ui.screens.ScheduleSettingsScreen
+import com.haooz.chedule.ui.screens.SettingsSearchHeader
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
+import com.haooz.chedule.ui.screens.rememberSettingsSearchState
 import com.haooz.chedule.ui.theme.rememberAppThemeController
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
@@ -148,45 +162,129 @@ import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.scheduleViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
 import com.haooz.chedule.viewmodel.shiftViewModel
+import com.haooz.chedule.weather.WeatherStore
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import com.haooz.softglass.platform.isRenderEffectSupported
+import com.haooz.softglass.shape.addContinuousRoundRect
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.extended.More
-import com.haooz.chedule.ui.activities.UpdatePreferencesScreen
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
+import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Update
+import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import com.haooz.softglass.shape.addContinuousRoundRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
-import top.yukonga.miuix.kmp.basic.Scaffold
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
-import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
-import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
-import com.haooz.chedule.ui.basic.LiquidGlassDropdownShadowPadding
 
 /**
  * 路由宿主的跨平台部分：路由跳转、状态接线、Updater 订阅，平台能力一律参数注入。
  *
  * ⚠ 本文件不能改名 `AppRouteContent.kt`：`:androidApp` 同包已有一个同名文件，两边会生成同一 facade 类 `AppRouteContentKt`，编译期静默通过，但 D8/R8 打 dex 时同名 class 冲突只留一个，本文件路由全部 `NoSuchMethodError`，Android/iOS 都闪退。往 `:ui-shared` 加文件前先查 `:androidApp` 同包有无同名 `.kt`；Android 侧同名包装加 `Android` 前缀（如 `AndroidWebHost`）。
  */
+
+// ── 路由间共用的结构件 ──
+
+/**
+ * 纯文档壳页面：标题 + 返回 + 只消费 scrollBehavior 的正文。
+ *
+ * 这类页面没有平台触点，`:androidApp` 直接调对应路由，不需要额外包装。
+ */
+@Composable
+private fun DocumentRoute(
+    title: String,
+    router: AppRouter,
+    content: @Composable (scrollBehavior: SharedScrollBehavior) -> Unit,
+) {
+    DocumentPageScaffold(title = title, onBack = { router.popBack() }) { scrollBehavior, _ ->
+        content(scrollBehavior)
+    }
+}
+
+/** 分段控件在标题下方 8dp；平板两侧 20dp，手机 16dp。 */
+@Composable
+private fun segmentControlModifier(): Modifier =
+    Modifier
+        .fillMaxWidth()
+        .padding(top = 8.dp)
+        .padding(horizontal = if (isTabletWidth()) 20.dp else 16.dp)
+
+/** 底部主操作按钮：贴底居中，左右比正文再收 16dp，并避开导航栏。 */
+@Composable
+private fun BoxScope.BottomActionButton(
+    text: String,
+    backdrop: GlassBackdrop,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val horizontalPadding = if (isTabletWidth()) 20.dp else 16.dp
+    LiquidGlassTextButton(
+        text = text,
+        enabled = enabled,
+        backdrop = backdrop,
+        onClick = onClick,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .padding(
+                start = horizontalPadding + 16.dp,
+                end = horizontalPadding + 16.dp,
+            )
+            .navigationBarsPadding()
+            .padding(bottom = 20.dp),
+    )
+}
+
+/**
+ * 顶栏刷新按钮：载入中换成转圈，否则是 28dp 图标的玻璃按钮。
+ *
+ * [backdrop] 必须传页面真实采样层 —— 空层渲染出来只是一颗纯色圆，没有玻璃效果。
+ */
+@Composable
+private fun RefreshTopBarAction(
+    loading: Boolean,
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    backdrop: GlassBackdrop,
+    backdropAlpha: Float,
+    shadowAlpha: Float,
+) {
+    if (loading) {
+        Box(
+            modifier = Modifier
+                // 转圈比图标小一圈，左移上移做视觉居中
+                .offset(x = (-6).dp, y = (-4).dp)
+                .size(40.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    } else {
+        LiquidTopBarButton(
+            onClick = onClick,
+            backdrop = backdrop,
+            icon = icon,
+            contentDescription = contentDescription,
+            iconSize = 28.dp,
+            backdropAlpha = backdropAlpha,
+            shadowAlpha = shadowAlpha,
+        )
+    }
+}
 
 /**
  * 教务导入路由（学校 / 适配器选择）。
@@ -257,13 +355,10 @@ fun AboutRoute(
     )
 }
 
-// ── 纯文档壳路由：DocumentPageScaffold + 单个 Screen，零平台触点 ──
-// 五个形状完全一样（标题 + 返回 + 正文），Android 侧不需要 `Android*` 包装，`:androidApp` 直接调这里。
-
 /** 更新日志路由。 */
 @Composable
 fun ChangelogRoute(router: AppRouter) {
-    DocumentPageScaffold(title = ChromeStr.changelog(), onBack = { router.popBack() }) { scrollBehavior, _ ->
+    DocumentRoute(title = ChromeStr.changelog(), router = router) { scrollBehavior ->
         ChangelogScreen(scrollBehavior = scrollBehavior)
     }
 }
@@ -271,7 +366,7 @@ fun ChangelogRoute(router: AppRouter) {
 /** 开源协议路由。 */
 @Composable
 fun LicenseRoute(router: AppRouter) {
-    DocumentPageScaffold(title = ChromeStr.openSourceLicenses(), onBack = { router.popBack() }) { scrollBehavior, _ ->
+    DocumentRoute(title = ChromeStr.openSourceLicenses(), router = router) { scrollBehavior ->
         LicenseScreen(scrollBehavior = scrollBehavior)
     }
 }
@@ -279,7 +374,7 @@ fun LicenseRoute(router: AppRouter) {
 /** 隐私政策路由。 */
 @Composable
 fun PrivacyPolicyRoute(router: AppRouter) {
-    DocumentPageScaffold(title = ChromeStr.privacyPolicy(), onBack = { router.popBack() }) { scrollBehavior, _ ->
+    DocumentRoute(title = ChromeStr.privacyPolicy(), router = router) { scrollBehavior ->
         PrivacyPolicyScreen(scrollBehavior = scrollBehavior)
     }
 }
@@ -296,14 +391,12 @@ fun CommunicationRoute(router: AppRouter) {
     }
 }
 
-/** 应用内反馈路由 */
+/** 应用内反馈路由。 */
 @Composable
 fun FeedbackRoute(router: AppRouter) {
     val state = rememberFeedbackFormState()
     val scope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
-    val isTablet = isTabletWidth()
-    val horizontalPadding = if (isTablet) 20.dp else 16.dp
 
     DocumentPageScaffold(
         title = FeedbackStr.title(),
@@ -317,18 +410,14 @@ fun FeedbackRoute(router: AppRouter) {
                     onSelect = { i -> state.kind = if (i == 0) FeedbackKind.Bug else FeedbackKind.Feature },
                     backdrop = backdrop,
                     scrollBehavior = scrollBehavior,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        // 与大标题之间留 8dp
-                        .padding(top = 8.dp)
-                        .padding(horizontal = horizontalPadding),
+                    modifier = segmentControlModifier(),
                 )
             }
         },
         overlay = { backdrop ->
             // 成功态由页面内的卡片给出口，底部不再压一个提交按钮
             if (state.submittedId == null) {
-                LiquidGlassTextButton(
+                BottomActionButton(
                     text = if (state.submitting) FeedbackStr.submitting() else FeedbackStr.submit(),
                     enabled = state.canSubmit,
                     backdrop = backdrop,
@@ -342,15 +431,6 @@ fun FeedbackRoute(router: AppRouter) {
                             }
                         }
                     },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(
-                            start = horizontalPadding + 16.dp,
-                            end = horizontalPadding + 16.dp,
-                        )
-                        .navigationBarsPadding()
-                        .padding(bottom = 20.dp),
                 )
             }
         },
@@ -386,8 +466,6 @@ fun FeedbackHistoryRoute(router: AppRouter) {
 @Composable
 fun FeedbackRoadmapRoute(router: AppRouter) {
     var roadmapFilter by remember { mutableStateOf<FeedbackKind?>(null) }
-    val isTablet = isTabletWidth()
-    val horizontalPadding = if (isTablet) 20.dp else 16.dp
 
     DocumentPageScaffold(
         title = FeedbackStr.roadmapTitle(),
@@ -414,11 +492,7 @@ fun FeedbackRoadmapRoute(router: AppRouter) {
                 },
                 backdrop = backdrop,
                 scrollBehavior = scrollBehavior,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    // 与大标题之间留 8dp
-                    .padding(top = 8.dp)
-                    .padding(horizontal = horizontalPadding),
+                modifier = segmentControlModifier(),
             )
         },
     ) { scrollBehavior, _ ->
@@ -433,7 +507,7 @@ fun FeedbackRoadmapRoute(router: AppRouter) {
 /** 捐赠支持路由。 */
 @Composable
 fun AppreciateAuthorRoute(router: AppRouter) {
-    DocumentPageScaffold(title = ChromeStr.donate(), onBack = { router.popBack() }) { scrollBehavior, _ ->
+    DocumentRoute(title = ChromeStr.donate(), router = router) { scrollBehavior ->
         AppreciateAuthorScreen(scrollBehavior = scrollBehavior)
     }
 }
@@ -441,15 +515,14 @@ fun AppreciateAuthorRoute(router: AppRouter) {
 /**
  * 天气详情路由。
  *
- * 零平台触点：数据由 [com.haooz.chedule.weather.WeatherStore] 提供（今日卡先落地），
- * 定位权限、刷新都在数据层，本页只画。所以 Android / iOS 都能直接调这一个函数。
+ * 零平台触点：数据由 [WeatherStore] 提供（今日卡先落地），定位权限与刷新都在数据层，
+ * 本页只画。Android / iOS 都能直接调这一个函数。
  */
 @Composable
 fun WeatherRoute(router: AppRouter) {
-    // ⚠ recordKey 不能省：`layerBackdrop` 在 recordKey == null 时会**每帧**把整页录进图层
-    // （滚动时整页画两遍 + 顶栏玻璃每帧重采样），天气页上下滑动掉帧的主因就是这个。
-    // 指纹只要覆盖"会让被采样像素变的东西"：数据、载入态、主题底色。
-    // 折叠动画那部分由脚手架自己的 mustRecord（draw 期比较 heightOffset）负责。
+    // recordKey 不能省：layerBackdrop 在 recordKey == null 时会每帧把整页录进图层
+    //（滚动时整页画两遍 + 顶栏玻璃每帧重采样）。指纹只需覆盖会让被采样像素变化的东西：
+    // 数据、载入态、主题底色；折叠动画由脚手架自己的 mustRecord 负责。
     val snapshot by WeatherStore.snapshot.collectAsState()
     val loading by WeatherStore.loading.collectAsState()
     val surface = MiuixTheme.colorScheme.surface
@@ -457,8 +530,7 @@ fun WeatherRoute(router: AppRouter) {
     val scope = rememberCoroutineScope()
     val refresh: () -> Unit = { scope.launch { WeatherStore.requestRefresh() } }
 
-    // iOS 原生文档页的顶栏按钮由 Swift 画，Compose 顶栏看不到 —— 照抄教务导入的做法，
-    // 把同一个动作发布给原生 chrome（symbol 用系统的刷新图标）。
+    // iOS 原生文档页的顶栏由 Swift 画，Compose 顶栏看不到，因此把同一动作发布给原生 chrome。
     NativeDocumentActionEffect(
         NativeDocumentAction(
             symbol = "arrow.clockwise",
@@ -474,43 +546,26 @@ fun WeatherRoute(router: AppRouter) {
         onBack = { router.popBack() },
         recordKey = recordKey,
         endAction = { backdropAlpha, shadowAlpha, backdrop ->
-            // 与「教务导入」那颗一模一样：真实采样层当 backdrop（空层渲染出来是纯色圆，
-            // 这就是之前"没有玻璃效果"的原因）、28dp 图标、载入中换成 20dp 转圈。
-            // 唯一区别是图标用 Refresh。
-            if (loading) {
-                Box(
-                    modifier = Modifier
-                        .offset(x = (-6).dp, y = (-4).dp)
-                        .size(40.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            } else {
-                LiquidTopBarButton(
-                    onClick = refresh,
-                    backdrop = backdrop,
-                    icon = MiuixIcons.Normal.Refresh,
-                    contentDescription = CommonStr.update(),
-                    iconSize = 28.dp,
-                    backdropAlpha = backdropAlpha,
-                    shadowAlpha = shadowAlpha,
-                )
-            }
+            RefreshTopBarAction(
+                loading = loading,
+                icon = MiuixIcons.Normal.Refresh,
+                contentDescription = CommonStr.update(),
+                onClick = refresh,
+                backdrop = backdrop,
+                backdropAlpha = backdropAlpha,
+                shadowAlpha = shadowAlpha,
+            )
         },
     ) { scrollBehavior, _ ->
         WeatherScreen(scrollBehavior = scrollBehavior)
     }
 }
 
-// ── 带能力注入的文档壳路由：壳在 commonMain，平台能力走参数 ──
-
 /**
- * 设置（二级页）
+ * 设置（二级页）。
+ *
  * ⚠ 平板（rail）仍走 pager 内嵌那套，不经过这里。
- * 壳用 [DocumentPageScaffold]：返回按钮、折叠标题、页内采样层、iOS 原生 chrome 都由它给，
+ * 壳用 [DocumentPageScaffold]：返回按钮、折叠标题、页内采样层、iOS 原生 chrome 都由它给。
  *
  * @param settingsPane 宿主装配（Android = `AndroidSettingsScreen`，iOS = `IosSettingsScreen`）；
  *   null 时回落到共享 [SettingsScreen] 默认装配。
@@ -522,17 +577,22 @@ fun SettingsRoute(
     settingsPane: (@Composable (SettingsPaneArgs) -> Unit)? = null,
 ) {
     val shiftViewModel = shiftViewModel()
-    // 排班模式状态直接读 VM：本页可能从普通模式进、也可能从排班模式进
+    // 本页可能从普通模式进、也可能从排班模式进，状态直接读 VM
     val isShiftMode by shiftViewModel.isShiftMode.collectAsState()
     // 设置页始终跟应用主题、不被壁纸锁深色。主题必须包住整个 DocumentPageScaffold：
-    // 顶栏材质、玻璃返回按钮、页面底色都在脚手架里取色，包在内容层里会让它们继续用外层主题。
+    // 顶栏材质、玻璃返回按钮、页面底色都在脚手架里取色，包在内容层里会继续用外层主题。
     val settingsThemeController =
         rememberAppThemeController(isDark = isAppDarkTheme())
+    // 搜索框挂在 headerOverlay（页面采样层之外），否则它自己会被录进采样层，玻璃折射到自己。
+    val searchState = rememberSettingsSearchState()
     MiuixTheme(controller = settingsThemeController) {
         CompositionLocalProvider(LocalForcedDarkTheme provides null) {
             DocumentPageScaffold(
                 title = CommonStr.settings(),
                 onBack = { router.popBack() },
+                headerOverlay = if (isShiftMode) null else { backdrop, _ ->
+                    SettingsSearchHeader(state = searchState, backdrop = backdrop)
+                },
             ) { scrollBehavior, backdrop ->
                 RenderSettingsPane(
                     settingsPane,
@@ -552,9 +612,9 @@ fun SettingsRoute(
                             router.popBack()
                         },
                         navBarStyle = "standard",
-                        // DocumentPageScaffold 的 scrollBehavior：顶栏折叠与列表滚动共用一个
                         settingsScrollBehavior = scrollBehavior,
                         liquidGlassBackdrop = backdrop,
+                        searchState = searchState,
                         showUpdateSettings = showUpdateSettings,
                     ),
                 )
@@ -587,7 +647,7 @@ fun PreferenceSettingsRoute(
         title = ChromeStr.appPreferences(),
         onBack = { router.popBack() },
     ) { scrollBehavior, backdrop ->
-        // 偏好设置页可能改主题 → 系统栏要跟着刷新
+        // 本页可能改主题，系统栏要跟着刷新
         val isDark = isAppDarkTheme()
         LaunchedEffect(isDark) { onThemeDarkChanged(isDark) }
         PreferenceSettingsScreen(
@@ -612,13 +672,16 @@ fun UpdateSettingsRoute(
 ) {
     // 页面级模糊由脚手架挂在整页根节点上（才能糊到折叠标题），这里只持有进度源
     val pageBlur = remember { Animatable(0f) }
-    // 右上角「更多」+ 玻璃下拉。
-    // 按钮本体只能放在脚手架的 overlay 槽（页面采样层之外，否则面板采到自己 = 循环采样），
-    // 但位置与材质透明度必须跟顶栏走：所以在顶栏 endAction 里放一个 42dp 占位槽，
-    // 把它的纵坐标和顶栏材质 alpha 读出来，overlay 里的菜单照着摆（和主界面「更多」同一套做法）。
+    // 右上角「更多」+ 玻璃下拉。触发器由组件自己画（收起态那颗圆），这里只维护开合状态。
     var moreOpen by remember { mutableStateOf(false) }
     val moreFraction = remember { Animatable(0f) }
     val moreSlotTopPx = remember { mutableFloatStateOf(0f) }
+    val moreSlotRightPx = remember { mutableFloatStateOf(0f) }
+    // 浮层自己的位置也要记：占位槽和浮层都在页面里，页面入场滑动时两者一起平移，
+    // 只有「相对差值」才是稳定的。直接拿槽的 root 坐标当位移，平移会被算两遍。
+    val overlayLeftPx = remember { mutableFloatStateOf(0f) }
+    val overlayTopPx = remember { mutableFloatStateOf(0f) }
+    val overlayWidthPx = remember { mutableFloatStateOf(0f) }
     val moreMaterialAlpha = remember { mutableFloatStateOf(1f) }
     val shadowPaddingPx = with(LocalDensity.current) { LiquidGlassDropdownShadowPadding.toPx() }
     val fallbackAnchorTopPx = with(LocalDensity.current) {
@@ -629,12 +692,16 @@ fun UpdateSettingsRoute(
         title = ChromeStr.updateSettingsTitle(),
         onBack = { router.popBack() },
         pageBlurDp = { pageBlur.value },
-        endAction = { alpha, _, _ ->
-            SideEffect { moreMaterialAlpha.floatValue = alpha }
+        endAction = { barAlpha, _, _ ->
+            SideEffect { moreMaterialAlpha.floatValue = barAlpha }
             Box(
                 modifier = Modifier
                     .size(42.dp)
-                    .onGloballyPositioned { moreSlotTopPx.floatValue = it.positionInRoot().y }
+                    .onGloballyPositioned {
+                        val pos = it.positionInRoot()
+                        moreSlotTopPx.floatValue = pos.y
+                        moreSlotRightPx.floatValue = pos.x + it.size.width
+                    }
             )
         },
         overlay = { backdrop ->
@@ -653,13 +720,27 @@ fun UpdateSettingsRoute(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .onGloballyPositioned {
+                            val pos = it.positionInRoot()
+                            overlayLeftPx.floatValue = pos.x
+                            overlayTopPx.floatValue = pos.y
+                            overlayWidthPx.floatValue = it.size.width.toFloat()
+                        }
                         .graphicsLayer {
                             clip = false
-                            // 占位槽顶边减掉阴影外扩，才是菜单内容顶边
-                            val measured = moreSlotTopPx.floatValue - shadowPaddingPx
+                            // 占位槽顶边减掉阴影外扩，才是菜单内容顶边（相对浮层，去掉页面平移）
+                            val measured = moreSlotTopPx.floatValue - overlayTopPx.floatValue - shadowPaddingPx
                             translationY = if (measured > 0f) measured else fallbackAnchorTopPx
                         }
-                        .offset(x = 9.dp),
+                        .offset {
+                            IntOffset(
+                                x = (
+                                    moreSlotRightPx.floatValue -
+                                        (overlayLeftPx.floatValue + overlayWidthPx.floatValue)
+                                    ).roundToInt() + LiquidGlassDropdownShadowPadding.roundToPx(),
+                                y = 0,
+                            )
+                        },
                     contentAlignment = Alignment.TopEnd,
                 ) {
                     LiquidGlassDropdownMenu(
@@ -780,7 +861,6 @@ fun HolidaySettingsRoute(
     // 抓起冻住胶囊滑块；松手强制吸附
     var pillFreezeKey by remember { mutableIntStateOf(0) }
     var pillAlignKey by remember { mutableIntStateOf(0) }
-    val isTablet = isTabletWidth()
 
     fun reload() {
         entries = HolidayManager.load(year)
@@ -830,37 +910,19 @@ fun HolidaySettingsRoute(
                 alignKey = pillAlignKey,
                 backdrop = backdrop,
                 scrollBehavior = scrollBehavior,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    // 与大标题之间留 8dp
-                    .padding(top = 8.dp)
-                    .padding(horizontal = if (isTablet) 20.dp else 16.dp),
+                modifier = segmentControlModifier(),
             )
         },
         endAction = { backdropAlpha, shadowAlpha, backdrop ->
-            if (loading) {
-                Box(
-                    modifier = Modifier
-                        .offset(x = (-6).dp, y = (-4).dp)
-                        .size(40.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        progress = null,
-                    )
-                }
-            } else {
-                LiquidTopBarButton(
-                    onClick = { requestYear(year) },
-                    backdrop = backdrop,
-                    icon = MiuixIcons.Normal.Update,
-                    contentDescription = CommonStr.update(),
-                    iconSize = 28.dp,
-                    backdropAlpha = backdropAlpha,
-                    shadowAlpha = shadowAlpha,
-                )
-            }
+            RefreshTopBarAction(
+                loading = loading,
+                icon = MiuixIcons.Normal.Update,
+                contentDescription = CommonStr.update(),
+                onClick = { requestYear(year) },
+                backdrop = backdrop,
+                backdropAlpha = backdropAlpha,
+                shadowAlpha = shadowAlpha,
+            )
         },
     ) { scrollBehavior, backdrop ->
         HorizontalPageSwitch(
@@ -895,10 +957,6 @@ fun HolidaySettingsRoute(
     }
 }
 
-// ── 带额外元素的页面路由：底部悬浮按钮 / 引导弹窗 / 顶栏按钮 ──
-// 共同形状：DocumentPageScaffold + 一个 Screen，平台能力全部走参数；
-// Android 注入真实能力，桌面/iOS 用默认值（按钮不显示 / 空实现）。
-
 /**
  * 桌面小部件引导路由。
  *
@@ -917,8 +975,6 @@ fun WidgetIntroRoute(
         { _, _, _ -> },
 ) {
     val hapticFeedback = LocalHapticFeedback.current
-    val isTablet = isTabletWidth()
-    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
     var showGuideDialog by remember { mutableStateOf(false) }
     // 自定义浮层铺满整屏（含状态栏），所以挂在脚手架外侧，而不是页面内容里
     var customizeRequest by remember { mutableStateOf<WidgetCustomizeRequest?>(null) }
@@ -933,22 +989,13 @@ fun WidgetIntroRoute(
             title = ChromeStr.widgetsTitle(),
             onBack = { router.popBack() },
             overlay = { backdrop ->
-                LiquidGlassTextButton(
+                BottomActionButton(
                     text = ChromeStr.addToHomeScreen(),
+                    backdrop = backdrop,
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                         showGuideDialog = true
                     },
-                    backdrop = backdrop,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(
-                            start = tabletHorizontalPadding + 16.dp,
-                            end = tabletHorizontalPadding + 16.dp
-                        )
-                        .navigationBarsPadding()
-                        .padding(bottom = 20.dp),
                 )
                 OverlayDialog(
                     title = ChromeStr.addWidgetTitle(),
@@ -1037,27 +1084,15 @@ fun CourseReminderRoute(
     testActionLabel: String = ChromeStr.testNotification(),
     onSendTestNotification: (() -> Unit)? = null,
 ) {
-    val isTablet = isTabletWidth()
-    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
-
     DocumentPageScaffold(
         title = ChromeStr.courseReminders(),
         onBack = { router.popBack() },
         overlay = { backdrop ->
             if (onSendTestNotification != null) {
-                LiquidGlassTextButton(
+                BottomActionButton(
                     text = testActionLabel,
-                    onClick = onSendTestNotification,
                     backdrop = backdrop,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(
-                            start = tabletHorizontalPadding + 16.dp,
-                            end = tabletHorizontalPadding + 16.dp
-                        )
-                        .navigationBarsPadding()
-                        .padding(bottom = 20.dp),
+                    onClick = onSendTestNotification,
                 )
             }
         },
@@ -1103,7 +1138,6 @@ fun WebDavSettingsRoute(
         title = ChromeStr.webdavBackup(),
         onBack = { router.popBack() },
         overlay = { backdrop ->
-            // 两颗独立文字玻璃按钮，与其他页面底部主操作同一套写法
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -1189,13 +1223,13 @@ fun BackupAndMigrationRoute(
     val switchable = switchableModes.size > 1
     val pageCount = switchableModes.size.coerceAtLeast(1)
     val initialPage = switchableModes.indexOf(mode).coerceIn(0, pageCount - 1)
-    // [selectedTab] 由胶囊与页面手势松手写入。
+    // selectedTab 由胶囊与页面手势松手写入
     var selectedTab by remember(mode) { mutableIntStateOf(initialPage) }
     val pageSwitch = rememberPageSwitchState(initialPage)
     LaunchedEffect(switchable, selectedTab, pageCount) {
         if (switchable) pageSwitch.animateTo(selectedTab.coerceIn(0, pageCount - 1))
     }
-    // 抓起冻住滑块；松手强制吸附。
+    // 抓起冻住滑块；松手强制吸附
     var pillFreezeKey by remember(mode) { mutableIntStateOf(0) }
     var pillAlignKey by remember(mode) { mutableIntStateOf(0) }
     val goToPage: (Int) -> Unit = { index ->
@@ -1206,7 +1240,6 @@ fun BackupAndMigrationRoute(
     } else {
         ChromeStr.importExport()
     }
-    val horizontalPadding = if (isTabletWidth()) 20.dp else 16.dp
     DocumentPageScaffold(
         title = title,
         onBack = { router.popBack() },
@@ -1221,10 +1254,7 @@ fun BackupAndMigrationRoute(
                     alignKey = pillAlignKey,
                     backdrop = backdrop,
                     scrollBehavior = scrollBehavior,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                        .padding(horizontal = horizontalPadding),
+                    modifier = segmentControlModifier(),
                 )
             }
         } else null,
@@ -1276,8 +1306,8 @@ private fun modeTabLabel(mode: ScheduleDataManageMode): String = when (mode) {
 /**
  * 上课时间。
  *
- * 比普通文档页多两层结构：外层 `Box` 做「背景缩放 + 模糊」动画；
- * ⚠ 二级编辑页 `TimeConfigEditScreen` 必须渲染在 `Scaffold` 外面，否则会被顶栏裁掉。
+ * 比普通文档页多一层结构：外层 `Box` 做「背景模糊」动画；
+ * ⚠ 二级编辑页 [TimeConfigEditScreen] 必须渲染在 [DocumentPageScaffold] 外面，否则会被顶栏裁掉。
  *
  * @param isInFreeformWindow Android 读宿主 `MainActivity` 的 Compose 状态（子页拿不到自己的 Activity 回调）；桌面/iOS 没有这个概念，传 false。
  */
@@ -1291,7 +1321,7 @@ fun CourseTimeSettingsRoute(
     val repository = remember { CourseRepository() }
     val coroutineScope = rememberCoroutineScope()
 
-    // 屏幕尺寸（px）：与 CourseManageRoute 同口径读 Compose 容器尺寸，跨平台一致
+    // 与课程管理页同口径读 Compose 容器尺寸，跨平台一致
     val screenWidth = windowInfo.containerSize.width.toFloat()
     val screenHeight = windowInfo.containerSize.height.toFloat()
     // 圆角：Android 读系统真实圆角（自由小窗固定 20dp）；iOS/桌面返回 0 = 不裁切
@@ -1305,11 +1335,10 @@ fun CourseTimeSettingsRoute(
     var editingRoutineId by remember { mutableStateOf<Long?>(null) }
     var editingCardBounds by remember { mutableStateOf<TimeConfigCardBounds?>(null) }
     var listRefreshTrigger by remember { mutableIntStateOf(0) }
-
-    // Retained source-card drawing; the list page owns the underlying layer.
+    // 列表页持有卡片本体，这里只留快照完成转场
     var cardSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
 
-    // 页面级模糊动画（连贯动画只保留下层模糊，缩放已去掉）
+    // 页面级背景模糊
     val managePageBlurRadius = remember { Animatable(0f) }
     // 二级编辑页的玻璃层是独立的（与一级页不共享采样源）
     val editLiquidGlassBackdrop = rememberLayerBackdrop()
@@ -1319,8 +1348,8 @@ fun CourseTimeSettingsRoute(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    // 用 renderEffect 模糊，避免动画时重组
-                    //（:backdrop 的 isRenderEffectSupported 跨平台；不支持时返回 null = 不模糊）
+                    // 用 renderEffect 在绘制阶段求半径，避免动画时重组
+                    //（isRenderEffectSupported 跨平台；不支持时返回 null = 不模糊）
                     val blurRadiusPx = managePageBlurRadius.value * density.density
                     renderEffect = if (blurRadiusPx > 0f && isRenderEffectSupported()) {
                         BlurEffect(null, blurRadiusPx, blurRadiusPx, TileMode.Clamp)
@@ -1328,37 +1357,35 @@ fun CourseTimeSettingsRoute(
                 }
                 .background(MiuixTheme.colorScheme.surface)
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                DocumentPageScaffold(
-                    title = ChromeStr.classTimeSettings(),
-                    onBack = { router.popBack() },
-                ) { scrollBehavior, liquidGlassBackdrop ->
-                    CourseTimeSettingsScreen(
-                        onEditRoutine = { routine, baseConfig, bounds ->
-                            editingExitStarted = false
-                            editingConfig = baseConfig.effectiveFor(routine.id)
-                            editingRoutineId = routine.id
-                            editingCardBounds = bounds
-                            cardSnapshot = bounds.snapshot
-                            coroutineScope.launch {
-                                if (editingExitStarted || currentPage != "edit") return@launch
-                                managePageBlurRadius.animateTo(
-                                    targetValue = 16f,
-                                    animationSpec = tween(540, easing = OobeQuartOutEasing)
-                                )
-                            }
-                            currentPage = "edit"
-                        },
-                        refreshTrigger = listRefreshTrigger,
-                        scrollBehavior = scrollBehavior,
-                        liquidGlassBackdrop = liquidGlassBackdrop,
-                        morphActive = currentPage == "edit",
-                    )
-                }
+            DocumentPageScaffold(
+                title = ChromeStr.classTimeSettings(),
+                onBack = { router.popBack() },
+            ) { scrollBehavior, liquidGlassBackdrop ->
+                CourseTimeSettingsScreen(
+                    onEditRoutine = { routine, baseConfig, bounds ->
+                        editingExitStarted = false
+                        editingConfig = baseConfig.effectiveFor(routine.id)
+                        editingRoutineId = routine.id
+                        editingCardBounds = bounds
+                        cardSnapshot = bounds.snapshot
+                        coroutineScope.launch {
+                            if (editingExitStarted || currentPage != "edit") return@launch
+                            managePageBlurRadius.animateTo(
+                                targetValue = 16f,
+                                animationSpec = tween(540, easing = OobeQuartOutEasing)
+                            )
+                        }
+                        currentPage = "edit"
+                    },
+                    refreshTrigger = listRefreshTrigger,
+                    scrollBehavior = scrollBehavior,
+                    liquidGlassBackdrop = liquidGlassBackdrop,
+                    morphActive = currentPage == "edit",
+                )
             }
         }
 
-        // 编辑页面渲染在 Scaffold 外面
+        // 编辑页渲染在脚手架外面
         if (currentPage == "edit") {
             editingConfig?.let { config ->
                 val bounds = editingCardBounds
@@ -1403,10 +1430,10 @@ fun CourseTimeSettingsRoute(
                         screenCornerRadius = screenCornerRadius,
                         cardStartCornerRadius = 20f,
                         cardSnapshot = cardSnapshot,
-                        // 新建配置的 FAB 形态已移除，二级页永远从列表卡片展开
+                        // FAB 新建形态已移除，二级页只从列表卡片展开
                         isFabCreation = false,
                         onDeleteRoutine = { routineId ->
-                            // 删除会换掉生效作息，重排提醒等都在 repository 里一并做完
+                            // 删除会换掉生效作息，重排提醒等由 repository 一并完成
                             repository.deleteRoutine(routineId)
                             listRefreshTrigger++
                         },
@@ -1438,7 +1465,6 @@ fun CourseManageRoute(
     val settingsViewModel = settingsViewModel()
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
 
-    // 编辑页状态
     var showEditScreen by remember { mutableStateOf(false) }
     var selectedCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
     var cardLeft by remember { mutableFloatStateOf(0f) }
@@ -1452,7 +1478,6 @@ fun CourseManageRoute(
     var shrinkingCourseIds by remember { mutableStateOf(setOf<String>()) }
     var pendingAutoExitDeleteIds by remember { mutableStateOf(setOf<String>()) }
 
-    // Shortcut菜单状态
     var showShortcutMenu by remember { mutableStateOf(false) }
     var shortcutMenuPosition by remember { mutableStateOf(Offset.Zero) }
     var shortcutMenuCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
@@ -1465,7 +1490,6 @@ fun CourseManageRoute(
     var shortcutMenuSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
     var editingCourse by remember { mutableStateOf<Course?>(null) }
 
-    // 删除确认弹窗状态
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var pendingDeleteCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
 
@@ -1498,7 +1522,7 @@ fun CourseManageRoute(
         }
     }
 
-    // 返回键关闭菜单（嵌套返回拦截：菜单开着时由它接管，否则交给 AppNavHost 的返回）
+    // 菜单开着时由它接管返回，否则交给 AppNavHost
     NavigationBackHandlerFor(
         enabled = showShortcutMenu,
         onBackCompleted = { showShortcutMenu = false },
@@ -1521,7 +1545,7 @@ fun CourseManageRoute(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    // renderEffect 在绘制阶段赋半径，避免动画每帧重组整页（同 CourseScheduleApp）
+                    // renderEffect 在绘制阶段赋半径，避免动画每帧重组整页
                     val blurAnim =
                         if (shortcutMenuBlurRadius.value > 0.01f) shortcutMenuBlurRadius.value
                         else managePageBlurRadius.value
@@ -1534,73 +1558,71 @@ fun CourseManageRoute(
                 }
                 .background(MiuixTheme.colorScheme.surface)
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                DocumentPageScaffold(
-                    title = ChromeStr.courseManage(),
-                    onBack = { router.popBack() },
-                ) { scrollBehavior, liquidGlassBackdrop ->
-                    SideEffect { managePageBackdrop = liquidGlassBackdrop }
-                    CourseManageScreen(
-                        scrollBehavior = scrollBehavior,
-                        hiddenCourseIds = hiddenCourseIds,
-                        shrinkingCourseIds = shrinkingCourseIds,
-                        sectionTimes = sectionTimes,
-                        onDialogVisibilityChanged = { courseDialogVisible = it },
-                        onNewCourseCreated = { course ->
-                            courseViewModel.addCourse(course)
-                            createdCourseIds = createdCourseIds + course.id
-                        },
-                        onCourseUpdated = { oldName, course ->
-                            courseViewModel.updateCoursesByName(oldName, course)
-                        },
-                        onEditDismiss = {
-                            editingCourse = null
-                        },
-                        pendingEditCourse = editingCourse,
-                        onCourseLongPressLayer = { courses, left, top, width, height, snapshot ->
-                            shortcutMenuCourses = courses
-                            shortcutMenuPosition = Offset(left, top)
-                            shortcutMenuCardWidth = width
-                            shortcutMenuCardHeight = height
-                            shortcutMenuSnapshot = snapshot
-                            showShortcutMenu = true
-                        },
-                        onDeleteCourses = { courses ->
-                            coroutineScope.launch {
-                                courses.forEach { course ->
-                                    courseViewModel.deleteCourse(course.id)
-                                }
+            DocumentPageScaffold(
+                title = ChromeStr.courseManage(),
+                onBack = { router.popBack() },
+            ) { scrollBehavior, liquidGlassBackdrop ->
+                SideEffect { managePageBackdrop = liquidGlassBackdrop }
+                CourseManageScreen(
+                    scrollBehavior = scrollBehavior,
+                    hiddenCourseIds = hiddenCourseIds,
+                    shrinkingCourseIds = shrinkingCourseIds,
+                    sectionTimes = sectionTimes,
+                    onDialogVisibilityChanged = { courseDialogVisible = it },
+                    onNewCourseCreated = { course ->
+                        courseViewModel.addCourse(course)
+                        createdCourseIds = createdCourseIds + course.id
+                    },
+                    onCourseUpdated = { oldName, course ->
+                        courseViewModel.updateCoursesByName(oldName, course)
+                    },
+                    onEditDismiss = {
+                        editingCourse = null
+                    },
+                    pendingEditCourse = editingCourse,
+                    onCourseLongPressLayer = { courses, left, top, width, height, snapshot ->
+                        shortcutMenuCourses = courses
+                        shortcutMenuPosition = Offset(left, top)
+                        shortcutMenuCardWidth = width
+                        shortcutMenuCardHeight = height
+                        shortcutMenuSnapshot = snapshot
+                        showShortcutMenu = true
+                    },
+                    onDeleteCourses = { courses ->
+                        coroutineScope.launch {
+                            courses.forEach { course ->
+                                courseViewModel.deleteCourse(course.id)
                             }
-                        },
-                        deleteConfirmShow = showDeleteConfirmDialog,
-                        deleteConfirmCourses = pendingDeleteCourses,
-                        onDeleteConfirmDismiss = { showDeleteConfirmDialog = false },
-                        onCourseClick = { courses, left, top, width, height, snapshot, color, alpha ->
-                            coroutineScope.launch {
-                                selectedCourses = courses
-                                cardLeft = left
-                                cardTop = top
-                                cardWidth = width
-                                cardHeight = height
-                                cardColor = color
-                                cardAlpha = alpha
-                                cardSnapshot = snapshot
-                                hiddenCourseIds = courses.map { it.id }.toSet()
-                                // 打开即视为编辑过
-                                editedCourseIds = editedCourseIds + courses.map { it.id }
+                        }
+                    },
+                    deleteConfirmShow = showDeleteConfirmDialog,
+                    deleteConfirmCourses = pendingDeleteCourses,
+                    onDeleteConfirmDismiss = { showDeleteConfirmDialog = false },
+                    onCourseClick = { courses, left, top, width, height, snapshot, color, alpha ->
+                        coroutineScope.launch {
+                            selectedCourses = courses
+                            cardLeft = left
+                            cardTop = top
+                            cardWidth = width
+                            cardHeight = height
+                            cardColor = color
+                            cardAlpha = alpha
+                            cardSnapshot = snapshot
+                            hiddenCourseIds = courses.map { it.id }.toSet()
+                            // 打开即视为编辑过
+                            editedCourseIds = editedCourseIds + courses.map { it.id }
 
-                                showEditScreen = true
-                                launch {
-                                    managePageBlurRadius.animateTo(
-                                        targetValue = 16f,
-                                        animationSpec = tween(540, easing = OobeQuartOutEasing)
-                                    )
-                                }
+                            showEditScreen = true
+                            launch {
+                                managePageBlurRadius.animateTo(
+                                    targetValue = 16f,
+                                    animationSpec = tween(540, easing = OobeQuartOutEasing)
+                                )
                             }
-                        },
-                        liquidGlassBackdrop = liquidGlassBackdrop,
-                    )
-                }
+                        }
+                    },
+                    liquidGlassBackdrop = liquidGlassBackdrop,
+                )
             }
         }
 
@@ -1680,7 +1702,7 @@ fun CourseManageRoute(
             )
         }
 
-        // Shortcut菜单遮罩层
+        // Shortcut 菜单遮罩 + 卡片快照
         if (showShortcutMenu || shortcutMenuBlurRadius.value > 0.01f) {
             val snapshot = shortcutMenuSnapshot
             val cardLeftPx = shortcutMenuPosition.x
@@ -1688,7 +1710,6 @@ fun CourseManageRoute(
             val cardW = shortcutMenuCardWidth
             val cardH = shortcutMenuCardHeight
 
-            // 点击空白区域关闭菜单
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1698,11 +1719,11 @@ fun CourseManageRoute(
                     ) { showShortcutMenu = false }
             )
 
-            // 卡片快照（清晰，在最顶层）
+            // 卡片快照不参与模糊，画在最顶层
             if (snapshot != null && cardW > 0f && cardH > 0f) {
                 TransitionLayerImage(
                     snapshot = snapshot,
-                    contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                    contentScale = ContentScale.FillBounds,
                     modifier = Modifier
                         .offset(
                             x = with(density) { cardLeftPx.toDp() },
@@ -1731,7 +1752,6 @@ fun CourseManageRoute(
             }
         }
 
-        // Shortcut菜单
         ShortcutMenu(
             show = showShortcutMenu,
             items = listOf(

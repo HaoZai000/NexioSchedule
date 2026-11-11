@@ -74,7 +74,6 @@ import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.CardExpand
-import com.haooz.chedule.ui.components.rememberTopBarMaterialAlpha
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.background.BgEffectBackground
 import com.haooz.chedule.ui.effects.miuix.rememberBlurBackdrop
@@ -114,6 +113,7 @@ import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -257,6 +257,8 @@ fun AboutScreen(
         }
     }
 
+    // 材质出现时机与全站统一（滚过 10dp）；那套 340dp 进度只留给背景动效
+    val material = rememberTopBarMaterialState(scrollBehavior)
     Scaffold(
         modifier = Modifier.consumeWindowInsets(PaddingValues(top = nativeBarInset)),
         topBar = {
@@ -265,17 +267,17 @@ fun AboutScreen(
                 backdrop = liquidGlassBackdrop,
                 topInsetAdjustment = nativeBarInset,
                 noTopStatusBar = hostVerticalBarEdge(),
-                // 无材质档没有模糊层：遮罩跟着返回按钮的材质一起出现（本页按 scrollProgress 才上材质）
-                maskAlpha = rememberTopBarMaterialAlpha(scrollProgress >= 1f),
+                // 无材质档没有模糊层：遮罩跟着返回按钮的材质一起出现
+                maskAlpha = material.alpha,
             ) {
                 CollapsibleTopAppBar(
                     title = AboutStr.aboutApp(),
                     largeTitle = AboutStr.aboutApp(),
                     showLargeTitle = false,
                     showSmallTitle = scrollProgress > 0.5f,
-                    showShadow = scrollProgress >= 1f,
                     modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
                     scrollBehavior = scrollBehavior,
+                    materialState = material,
                     contentPadding = {},
                     startAction = if (embedded || nativeChrome != null) null else { backdropAlpha, shadowAlpha ->
                         LiquidTopBarButton(

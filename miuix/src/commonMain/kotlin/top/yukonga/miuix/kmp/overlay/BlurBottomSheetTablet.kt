@@ -71,6 +71,8 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
+import top.yukonga.miuix.kmp.layout.TopBarMaterialHideSpec
+import top.yukonga.miuix.kmp.layout.TopBarMaterialShowSpec
 import top.yukonga.miuix.kmp.layout.rememberCollapsibleTopAppBarState
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
@@ -354,11 +356,8 @@ private fun BlurBottomSheetTabletContent(
                 val topBarMaterial = remember { SheetTopBarMaterial(backdropAlpha, shadowAlpha) }
                 LaunchedEffect(showButtonShadow) {
                     val target = if (showButtonShadow) 1f else 0f
-                    val spec = if (showButtonShadow) {
-                        folmeSpring(damping = 1.0f, response = 0.6f)
-                    } else {
-                        folmeSpring<Float>(damping = 1.0f, response = 0.4f)
-                    }
+                    // 弹簧唯一来源：miuix layout/TopBarMaterial.kt（与全站顶栏同一套手感）
+                    val spec = if (showButtonShadow) TopBarMaterialShowSpec else TopBarMaterialHideSpec
                     launch { shadowAlpha.animateTo(target, spec) }
                     launch { backdropAlpha.animateTo(target, spec) }
                 }

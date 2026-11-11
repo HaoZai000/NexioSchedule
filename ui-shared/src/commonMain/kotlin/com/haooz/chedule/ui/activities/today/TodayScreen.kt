@@ -376,9 +376,13 @@ fun TodayScreen(
     todayAssistantCard: (@Composable (TodayAssistantCardData) -> Unit)? = null,
     /** 课表页当前呈现方式：时间轴时今日页也换成时间轴（外观弹窗里那个开关，两页共用） */
     scheduleViewMode: ScheduleViewMode = ScheduleViewMode.WEEK,
+    /**
+     * 越界状态：主界面注入同一实例，顶栏（Scaffold topBar 槽）与内容才读得到同一份越界量。
+     * 独立使用时默认自建一份。
+     */
+    overScrollState: OverScrollState = remember { OverScrollState() },
 ) {
     val todayIsDark = isAppDarkTheme()
-    val overScrollState = remember { OverScrollState() }
     // 当前页的列表状态：draw 期直接读，滚动时同步失效；不要用异步 tick（会晚一帧、看起来在跳）
     val currentListState = remember { mutableStateOf<LazyListState?>(null) }
     val baseGlassSignal: () -> Unit = remember(pageState, overScrollState, tabRedraw, settingsScrollBehavior) {

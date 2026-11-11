@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -28,8 +30,8 @@ import androidx.compose.ui.unit.dp
 import com.haooz.softglass.platform.isRenderEffectSupported
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.dp
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
@@ -40,12 +42,24 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
+import top.yukonga.miuix.kmp.layout.LocalTopBarMaterial
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 import top.yukonga.miuix.kmp.utils.OverScrollState
+
+/**
+ * 顶部糊带基准高度（不含状态栏）：
+ */
+internal val PageBlurBaseHeight: Dp = 72.dp
+
+/**
+ * 顶部糊带在「有头部组件」时的额外高度。
+ */
+internal val HeaderComponentBlurExtra: Dp = 72.dp
 
 /**
  * 标题下方内容（分段控件、搜索框等）的**唯一**定位实现
@@ -135,6 +149,8 @@ fun DocumentPageScaffold(
     }
 
     CompositionLocalProvider(LocalOverScrollState provides pageOverScrollState) {
+        // 本页唯一材质状态：按钮玻璃 / 阴影走全站同一判据（遮罩不接，本页遮罩常驻）
+        val material = rememberTopBarMaterialState(scrollBehavior)
         Scaffold(
             modifier = Modifier
                 .background(backgroundColor)
@@ -175,6 +191,15 @@ fun DocumentPageScaffold(
                 ) {
                 ProgressiveBlurTopBar(
                     backdrop = liquidGlassBackdrop,
+                    // 有头部组件（搜索框 / 分段控件）时糊带加高，盖住组件再淡出
+                    height = if (headerOverlay == null) {
+                        Dp.Unspecified
+                    } else {
+                        PageBlurBaseHeight +
+                            (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() -
+                                nativeBarInset).coerceAtLeast(0.dp) +
+                            HeaderComponentBlurExtra
+                    },
                     topInsetAdjustment = nativeBarInset,
                     noTopStatusBar = hostVerticalBarEdge(),
                 ) {
@@ -183,6 +208,7 @@ fun DocumentPageScaffold(
                         largeTitle = title,
                         modifier = Modifier,
                         scrollBehavior = scrollBehavior,
+                        materialState = material,
                         contentPadding = {},
                         startAction = if (showNavigationActions) {
                             { backdropAlpha, shadowAlpha ->
@@ -216,11 +242,31 @@ fun DocumentPageScaffold(
                         paddingValues = paddingValues,
                         scrollBehavior = scrollBehavior,
                     ) {
-                        headerOverlay.invoke(liquidGlassBackdrop, scrollBehavior)
+                        // 头部组件（搜索框 / 分段胶囊）与顶栏按钮读同一份材质 → 同帧出现
+                        CompositionLocalProvider(LocalTopBarMaterial provides material) {
+                            headerOverlay.invoke(liquidGlassBackdrop, scrollBehavior)
+                        }
                     }
                 }
 
-                overlay?.invoke(this, liquidGlassBackdrop)
+                if (overlay != null) {
+                    // 浮层也吃页面级模糊：更新页翻开更新日志时，右上角那颗下拉
+                    // 是叠在整页之上的，不跟着糊就会突兀地停在糊掉的页面上
+                    val rootScope = this
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                val blurDp = pageBlurDp?.invoke() ?: 0f
+                                renderEffect = if (blurDp > 0.01f && isRenderEffectSupported()) {
+                                    val blurPx = blurDp.dp.toPx()
+                                    BlurEffect(null, blurPx, blurPx, TileMode.Clamp)
+                                } else null
+                            }
+                    ) {
+                        overlay.invoke(rootScope, liquidGlassBackdrop)
+                    }
+                }
             }
         }
     }

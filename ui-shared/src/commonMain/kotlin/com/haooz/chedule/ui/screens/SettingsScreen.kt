@@ -2,9 +2,12 @@ package com.haooz.chedule.ui.screens
 
 // ⚠ 本文件不得出现 android.* / androidx.activity / androidx.core；平台能力做成注入参数。
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -25,13 +28,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -39,6 +44,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -89,6 +95,7 @@ import top.yukonga.miuix.kmp.icon.extended.FavoritesFill
 import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.TopBarMaterialThreshold
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -189,7 +196,7 @@ private fun SettingsEntryRow(
 
 /** 设置入口图标底板：28dp 方块 + 8dp 连续圆角，底色取色板（莫奈取色时统一 primary）。 */
 @Composable
-private fun SettingsEntryIcon(accent: Color, content: @Composable (Color) -> Unit) {
+internal fun SettingsEntryIcon(accent: Color, content: @Composable (Color) -> Unit) {
     val resolver = rememberSettingsAccentResolver()
     val shape = remember { ContinuousRoundedRectangle(8.dp) }
     Box(
@@ -205,7 +212,7 @@ private fun SettingsEntryIcon(accent: Color, content: @Composable (Color) -> Uni
 
 /** 矢量图标。 */
 @Composable
-private fun VectorEntryIcon(imageVector: ImageVector, accent: Color) {
+internal fun VectorEntryIcon(imageVector: ImageVector, accent: Color) {
     SettingsEntryIcon(accent) { tint ->
         Icon(
             imageVector = imageVector,
@@ -218,7 +225,7 @@ private fun VectorEntryIcon(imageVector: ImageVector, accent: Color) {
 
 /** composeResources 里的自定义图标。 */
 @Composable
-private fun DrawableEntryIcon(resource: DrawableResource, accent: Color) {
+internal fun DrawableEntryIcon(resource: DrawableResource, accent: Color) {
     SettingsEntryIcon(accent) { tint ->
         Image(
             painter = painterResource(resource),
@@ -231,61 +238,61 @@ private fun DrawableEntryIcon(resource: DrawableResource, accent: Color) {
 
 /** 课程表图标。 */
 @Composable
-private fun ScheduleSettingsIcon() {
+internal fun ScheduleSettingsIcon() {
     VectorEntryIcon(MiuixIcons.Months, SettingsAccents.Blue)
 }
 
 /** 课程提醒图标。 */
 @Composable
-private fun CourseReminderIcon() {
+internal fun CourseReminderIcon() {
     DrawableEntryIcon(Res.drawable.ic_settings_reminders, SettingsAccents.Red)
 }
 
 /** 桌面小部件图标。 */
 @Composable
-private fun HomeScreenWidgetIcon() {
+internal fun HomeScreenWidgetIcon() {
     VectorEntryIcon(MiuixIcons.All, SettingsAccents.Green)
 }
 
 /** 导入导出图标。 */
 @Composable
-private fun ImportExportIcon() {
+internal fun ImportExportIcon() {
     DrawableEntryIcon(Res.drawable.ic_settings_data, SettingsAccents.Orange)
 }
 
 /** 备份与同步图标。 */
 @Composable
-private fun BackupSyncIcon() {
+internal fun BackupSyncIcon() {
     VectorEntryIcon(MiuixIcons.CloudFill, SettingsAccents.Blue)
 }
 
 /** 应用个性化图标。 */
 @Composable
-private fun PersonalizationIcon() {
+internal fun PersonalizationIcon() {
     DrawableEntryIcon(Res.drawable.ic_settings_personalization, SettingsAccents.Purple)
 }
 
 /** 更新图标。 */
 @Composable
-private fun UpdateSettingsIcon() {
+internal fun UpdateSettingsIcon() {
     DrawableEntryIcon(Res.drawable.ic_settings_update, SettingsAccents.Green)
 }
 
 /** 关于应用图标。 */
 @Composable
-private fun AboutAppIcon() {
+internal fun AboutAppIcon() {
     DrawableEntryIcon(Res.drawable.ic_settings_about, SettingsAccents.Gray)
 }
 
 /** 捐赠支持图标。 */
 @Composable
-private fun DonateIcon() {
+internal fun DonateIcon() {
     VectorEntryIcon(MiuixIcons.FavoritesFill, SettingsAccents.Red)
 }
 
 /** 问题反馈图标。 */
 @Composable
-private fun CommunicationIcon() {
+internal fun CommunicationIcon() {
     DrawableEntryIcon(Res.drawable.ic_settings_feedback, SettingsAccents.Blue)
 }
 
@@ -301,6 +308,8 @@ fun SettingsScreen(
     navBarStyle: String = "standard",
     settingsScrollBehavior: SharedScrollBehavior? = null,
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
+    /** 搜索状态（由路由持有：搜索框挂在页面采样层外，与列表共享同一份状态） */
+    searchState: SettingsSearchState? = null,
     // ── 平台注入（宿主提供；桌面/iOS 用默认空实现）──
     // 平板两栏外壳的 8 个平台专有 dest 接线留在宿主，本页只负责转交槽位。
     /** 平台专有设置面板（8 个 dest）由宿主渲染；null 显示占位 */
@@ -374,6 +383,15 @@ fun SettingsScreen(
         ?.takeIf { it.showsNativeTabBar && !isTablet }
         ?.bottomBarInset?.toFloat()?.dp
 
+    val search = searchState ?: remember { SettingsSearchState() }
+    val searchQuery = search.query
+    val searchExpanded = search.expanded
+    val searchEnabled = !isShiftMode
+    // 点开搜索框时收起大标题（与教务导入页同一交互）
+    LaunchedEffect(searchExpanded) {
+        if (searchExpanded) settingsScrollBehavior?.collapse() else search.query = ""
+    }
+
     Scaffold(
         topBar = {}
     ) { paddingValues ->
@@ -386,20 +404,44 @@ fun SettingsScreen(
                     .nestedScroll(it.nestedScrollConnection)
             } ?: Modifier
         }
+        val searchResults = if (searchExpanded) searchSettings(searchQuery) else emptyList()
+        // 搜索时设置项整体淡出，让位给结果层
+        val contentAlpha by animateFloatAsState(
+            targetValue = if (searchExpanded) 0f else 1f,
+            animationSpec = tween(durationMillis = 180),
+            label = "settingsSearchContentAlpha",
+        )
+        // 材质出现时机与全站统一（滚过 10dp），不再「动 2px 就亮」。
+        // 搜索框在页面采样层外（路由的 headerOverlay），这里只把「是否滚过阈值」告诉它。
+        val materialThresholdPx = with(LocalDensity.current) { TopBarMaterialThreshold.toPx() }
+        LaunchedEffect(listState, search, materialThresholdPx) {
+            snapshotFlow {
+                listState.firstVisibleItemIndex > 0 ||
+                    listState.firstVisibleItemScrollOffset > materialThresholdPx
+            }.collect { search.listScrolled = it }
+        }
+        val listTopPadding = paddingValues.calculateTopPadding() +
+            CollapsibleTopAppBarDefaults.CollapsedHeight +
+            pageTopExtra(isTablet, hasSmallTitle = false) +
+            (if (searchEnabled) SettingsSearchBarBlockHeight else 0.dp)
+
+        Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
             modifier = Modifier
-                .then(scrollBehaviorModifier)
                 .fillMaxSize()
                 .overScrollVertical()
                 .scrollEndHaptic(
                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
-                ),
+                )
+                .graphicsLayer { alpha = contentAlpha }
+                // 采样连接必须最贴近列表：顺序与备份页 / 节假日页一致。
+                // 反了（nestedScroll 在外、overScroll 在内）会让越界拉伸算进 consumed，
+                // 把 contentOffset 顶成正值，之后要先把这截「还清」材质才亮 —— 就是「滑挺远才出玻璃」。
+                .then(scrollBehaviorModifier),
             contentPadding = PaddingValues(
                 start = tabletHorizontalPadding,
-                top = paddingValues.calculateTopPadding() +
-                    CollapsibleTopAppBarDefaults.CollapsedHeight +
-                    pageTopExtra(isTablet, hasSmallTitle = false),
+                top = listTopPadding,
                 end = tabletHorizontalPadding,
                 bottom = nativeChromeInset?.plus(24.dp) ?: 60.dp
             ),
@@ -612,5 +654,44 @@ fun SettingsScreen(
             }
         }
 
+        // 搜索时压一层透明手势层，挡住已经淡出的设置列表
+        if (searchEnabled && searchExpanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                awaitPointerEvent().changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+            )
+        }
+
+        // 搜索结果覆盖层：展开时淡入，标题收起后紧跟搜索框
+        AnimatedVisibility(
+            visible = searchEnabled && searchExpanded,
+            enter = fadeIn(animationSpec = tween(durationMillis = 150)),
+            exit = fadeOut(animationSpec = tween(durationMillis = 150)),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            SettingsSearchResults(
+                groups = searchResults,
+                query = searchQuery,
+                topPadding = paddingValues.calculateTopPadding() +
+                    CollapsibleTopAppBarDefaults.CollapsedHeight +
+                    pageTopExtra(isTablet, hasSmallTitle = false) +
+                    SettingsSearchBarBlockHeight + 4.dp,
+                horizontalPadding = tabletHorizontalPadding,
+                scrollBehavior = settingsScrollBehavior,
+                onEntryClick = { entry ->
+                    search.expanded = false
+                    settingsRouter.navigate(entry.route)
+                },
+            )
+        }
+
+        }
     }
 }

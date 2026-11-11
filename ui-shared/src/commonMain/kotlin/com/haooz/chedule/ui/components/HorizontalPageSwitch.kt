@@ -111,12 +111,16 @@ private fun Modifier.horizontalPageDragGesture(
         var lastT = 0L
         var velocity = 0f
         var dragging = false
+        // 本次手势一旦纵向滚动就锁死为纵向：否则「先上滑再下滑」时，
+        // totalY 回到起点附近会让 |dx| > |dy| 成立，翻页把正在下滑的手势抢走。
+        var verticalClaimed = false
 
         fun finish() {
             if (dragging) onGestureEnd(state.release(-velocity / pageWidthPx, pageWidthPx))
             dragging = false
             pointer = null
             velocity = 0f
+            verticalClaimed = false
         }
 
         while (true) {
@@ -151,6 +155,7 @@ private fun Modifier.horizontalPageDragGesture(
                 lastY = downY
                 lastT = change.uptimeMillis
                 velocity = 0f
+                verticalClaimed = false
             }
             if (!change.pressed) {
                 finish()
@@ -162,7 +167,7 @@ private fun Modifier.horizontalPageDragGesture(
             lastY = change.position.y
             if (!dragging) {
                 // 纵向主导时整段留给 verticalScroll，不抢上下滑
-                if (abs(totalX) > slop && abs(totalX) > abs(totalY) * 1.2f) {
+                if (!verticalClaimed && abs(totalX) > slop && abs(totalX) > abs(totalY) * 1.2f) {
                     dragging = true
                     state.beginDrag()
                     onGestureStart()
@@ -180,6 +185,9 @@ private fun Modifier.horizontalPageDragGesture(
                     // 万一页内手势协程恢复，不会同一根手指滚两遍。
                     verticalScrollSink.value?.invoke(dy)
                     change.consume()
+                } else if (blocked == null && abs(totalY) > slop) {
+                    // 纵向滚动已接管本次手势，之后就算手指拐回来也不翻页
+                    verticalClaimed = true
                 }
             } else {
                 val dx = change.position.x - lastX

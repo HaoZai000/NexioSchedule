@@ -117,6 +117,7 @@ import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
@@ -292,32 +293,6 @@ private val TabletPaneBlurHeight: Dp
     @Composable get() {
         return 80.dp + mainWindowTopInset()
     }
-
-/**
- * 本栏顶部表面色遮罩 / 右上角按钮共用的 alpha。判定与手机 [CollapsibleTopAppBar] 的
- * showButtonShadow 一致：contentOffset（向下滚为负）超过 10dp，或未滚动时底部越界。
- * 不吸收顶部橡皮筋；回弹只清越界，不把已滚动量抹掉。
- */
-@Composable
-private fun rememberPaneMaskAlpha(contentOffset: Float): Float {
-    val density = LocalDensity.current
-    val overScroll = LocalOverScrollState.current
-    val scrollThresholdPx = with(density) { 10.dp.toPx() }
-    val showMask =
-        contentOffset < -scrollThresholdPx ||
-                (contentOffset >= 0f && overScroll.offset < 0f)
-    val maskAnim = remember { Animatable(0f) }
-    LaunchedEffect(showMask) {
-        val spec =
-            if (showMask) folmeSpring(damping = 1.0f, response = 0.6f)
-            else folmeSpring<Float>(damping = 1.0f, response = 0.4f)
-        maskAnim.animateTo(
-            targetValue = if (showMask) 1f else 0f,
-            animationSpec = spec,
-        )
-    }
-    return maskAnim.value
-}
 
 /**
  * 本栏顶部：渐变模糊与表面色遮罩均常驻。
@@ -670,9 +645,9 @@ fun TabletSettingsScreen(
                     // 反馈表单状态：内容在下方 when 里、提交按钮在底部玻璃层，同一次组合内共用一份
                     val feedbackFormState = rememberFeedbackFormState()
                     val feedbackScope = rememberCoroutineScope()
-                    // 右上角按钮与右栏顶遮罩共用同一 alpha（contentOffset 向下滚为负）
-                    val rightMaskAlpha =
-                        rememberPaneMaskAlpha(rightScrollBehavior.state.contentOffset)
+                    // 右上角按钮的材质走全站统一判据（含越界污染自愈）；本栏遮罩仍常驻
+                    val rightMaterial = rememberTopBarMaterialState(rightScrollBehavior)
+                    val rightMaskAlpha = rightMaterial.alpha
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1013,8 +988,8 @@ fun TabletSettingsScreen(
                                         icon = MiuixIcons.Normal.Update,
                                         contentDescription = CommonStr.update(),
                                         iconSize = 28.dp,
-                                        backdropAlpha = rightMaskAlpha,
-                                        shadowAlpha = rightMaskAlpha,
+                                        backdropAlpha = rightMaskAlpha(),
+                                        shadowAlpha = rightMaskAlpha(),
                                     )
                                 }
                             }
@@ -1041,8 +1016,8 @@ fun TabletSettingsScreen(
                                         x = 2.dp,
                                         y = 0.dp
                                     ) else DpOffset.Zero,
-                                    backdropAlpha = rightMaskAlpha,
-                                    shadowAlpha = rightMaskAlpha,
+                                    backdropAlpha = rightMaskAlpha(),
+                                    shadowAlpha = rightMaskAlpha(),
                                 )
                             }
                         }

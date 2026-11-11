@@ -46,7 +46,6 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.LocalChromeStartInset
-import com.haooz.chedule.ui.components.rememberTopBarMaterialAlpha
 import com.haooz.chedule.ui.components.tabletNavRailStartPadding
 import com.haooz.chedule.ui.components.text.miuix.Text
 import com.haooz.chedule.ui.theme.scheduleAccentColor
@@ -69,6 +68,7 @@ import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight
 import top.yukonga.miuix.kmp.layout.NoStatusBarBlurReduction
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val DAY_NAMES = listOf(
@@ -156,6 +156,8 @@ fun ScheduleTopBar(
         statusBarHeight > 0.dp -> 120.dp + statusBarHeight
         else -> 160.dp
     }
+    // 本页唯一材质状态：渐变遮罩与按钮玻璃读同一个实例
+    val material = rememberTopBarMaterialState(scrollBehavior)
     // 组合期读 currentHeightPx 会拿到未测量的值，星期行会慢一帧就位；改布局期读
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
@@ -164,7 +166,7 @@ fun ScheduleTopBar(
         resampleKey = blurResampleKey,
         sampleTrack = blurSampleTrack,
         // 无材质档没有模糊层，遮罩是顶栏唯一的材质：跟按钮背景一起出现
-        maskAlpha = rememberTopBarMaterialAlpha(scrollBehavior),
+        maskAlpha = material.alpha,
     ) {
         Box {
             // 平板：标题避让左侧侧栏后左对齐（手机仍居中）
@@ -183,6 +185,7 @@ fun ScheduleTopBar(
                     titleStartAligned = isTablet,
                     titleModifier = titleRailPadding.then(titleEndModifier),
                     scrollBehavior = scrollBehavior,
+                    materialState = material,
                     // 平板左上角留给左对齐标题，天气只在手机显示
                     startAction = if (isTablet) {
                         null

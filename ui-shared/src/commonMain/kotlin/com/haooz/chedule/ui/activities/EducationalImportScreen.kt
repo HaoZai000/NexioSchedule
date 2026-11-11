@@ -105,6 +105,7 @@ import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -274,6 +275,8 @@ fun EducationalImportScreen(
                 }
             }
 
+            // 本页唯一材质状态：按钮玻璃走全站同一判据（本页遮罩常驻，不接 maskAlpha）
+            val material = rememberTopBarMaterialState(scrollBehavior)
             ProgressiveBlurTopBar(
                 backdrop = liquidGlassBackdrop,
                 height = blurHeight,
@@ -285,6 +288,7 @@ fun EducationalImportScreen(
                     showLargeTitle = true,
                     modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
                     scrollBehavior = scrollBehavior,
+                    materialState = material,
                     contentPadding = {},
                     onAlphaChanged = { bd, sh ->
                         searchBackdropAlpha = bd

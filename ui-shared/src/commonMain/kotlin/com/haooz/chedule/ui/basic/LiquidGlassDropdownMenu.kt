@@ -362,14 +362,24 @@ fun LiquidGlassDropdownMenu(
                 .size(width = width, height = height)
                 // 面板自身的 root 位置：菜单项靠它把 boundsInRoot 换算成面板局部坐标
                 .onGloballyPositioned { dragSelectState.panelTopInRoot = it.boundsInRoot().top }
-                // 跟手滑选：挂在面板上而非 42dp 触发图标，手指按下后要能一路滑到任意一项
-                .dropdownPanelDragSelect(
-                    state = dragSelectState,
-                    fraction = { fraction.value },
-                    hapticFeedback = hapticFeedback
+                .then(
+                    // 纯面板模式（触发器画在外部，如顶栏那颗按钮）完全收起时，这块 42dp 透明壳
+                    // 与外部触发器完全重合，若仍挂着手势就会把那边的点击吃掉 —— 表现为"按钮点不动"。
+                    // 收起且无动画时整段手势都不挂；其余状态（展开、收回动画、自带触发器）行为不变。
+                    if (triggerIcon == null && !show && f <= 0.001f) {
+                        Modifier
+                    } else {
+                        Modifier
+                            // 跟手滑选：挂在面板上而非 42dp 触发图标，手指按下后要能一路滑到任意一项
+                            .dropdownPanelDragSelect(
+                                state = dragSelectState,
+                                fraction = { fraction.value },
+                                hapticFeedback = hapticFeedback
+                            )
+                            // 拖动手势：放在 clip 之前，不受圆角裁剪影响
+                            .then(interactiveHighlight.gestureModifier)
+                    }
                 )
-                // 拖动手势：放在 clip 之前，不受圆角裁剪影响
-                .then(interactiveHighlight.gestureModifier)
                 .drawBehind {
                     // 与顶栏液态玻璃按钮同一套阴影：环形（外圈减内圈）+ 模糊/外扩随材质衰减。用
                     // materialVisible 而非 materialAlpha：展开后即使顶栏材质透明也要有阴影。

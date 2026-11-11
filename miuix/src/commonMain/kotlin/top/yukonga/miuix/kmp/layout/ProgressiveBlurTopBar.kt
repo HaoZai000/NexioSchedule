@@ -193,8 +193,8 @@ fun ProgressiveBlurTopBar(
             topInsetAdjustment).coerceAtLeast(0.dp)
         when {
             // 顶部压根没有状态栏（折叠屏折叠态）：别按「被导航栏吃完」那套撑到 120.dp
-            noTopStatusBar -> 80.dp - NoStatusBarBlurReduction
-            statusBarHeight > 0.dp -> 80.dp + statusBarHeight
+            noTopStatusBar -> 72.dp - NoStatusBarBlurReduction
+            statusBarHeight > 0.dp -> 72.dp + statusBarHeight
             else -> 120.dp
         }
     }

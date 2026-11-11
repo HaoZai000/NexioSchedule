@@ -731,6 +731,10 @@ fun TabletNavSideBar(
         // 进顶栏形态则一路滑到胶囊最左边那颗。
         Box(
             modifier = Modifier
+                // 明确压在面板之上：胶囊态里 TabletNavTopBarInteraction 的手势层带
+                // zIndex(2f)（只作用于面板内部），这颗是外层兄弟，给 1 保证
+                // 最左「回侧栏」圆钮的命中优先级，绘制顺序与原来一致（本就最后画）。
+                .zIndex(1f)
                 .offset {
                     // 横移吃整条弹簧（跟胶囊一起冲出去回弹），纵向提前收尾
                     val slide = tabletNavSlideProgress()
@@ -772,9 +776,15 @@ fun TabletNavSideBar(
                             indication = null,
                         ) { TabletNavSideState.topBarMode = true }
                     } else {
-                        // 折叠后它已经滑进图标轨、alpha 也归零：这时候还整条吞事件，
-                        // 会把轨道上那颗条目点成死区。只有还看得见的时候才吃。
-                        Modifier.blockTouchInput { TabletNavSideState.expandProgress.floatValue > 0.02f }
+                        // 折叠态这颗按钮随面板右缘滑进 84dp 图标轨，几何上正好压在左上
+                        // 「展开/折叠」按钮的图标上（fromX = inset + 84 - 8 - 52 = 36dp）。
+                        // alpha 虽为 0，但只要挂着 pointerInput 它就在命中链里，左上角
+                        // 就点不动 —— 症状即「收起以后展不开」。折叠态它没有任何功能，
+                        // 干脆一个指针节点都不挂：Compose 的 hit path 只收带
+                        // PointerInputModifier 的节点，事件会直接落到下面左上那颗按钮。
+                        // ⚠ 别改回 blockTouchInput + active 谓词：「不消费」拦不住这层
+                        // Initial-pass 节点，实测仍会把展开点击吃掉。
+                        Modifier
                     }
                 ),
             contentAlignment = Alignment.Center,
@@ -1020,14 +1030,13 @@ private fun TabletNavTopBarInteraction(
 /**
  * 淡出后的层不再接命中：避免隔空点到看不见的按钮。Initial pass 先于内部 clickable。
  *
- * [active] 在**事件到达那一刻**求值（不是组合期），所以用它按动画进度开关不会引起重组 ——
- * 别改成在组合期判断状态，那会让整棵树跟着动画每帧重组。
+ * 只给「已经滑出胶囊的条目」这类纯死区用；**不要**拿它挡左上折叠按钮 —— 见
+ * 右上那颗按钮的 else 分支注释。
  */
-private fun Modifier.blockTouchInput(active: () -> Boolean = { true }): Modifier = pointerInput(Unit) {
+private fun Modifier.blockTouchInput(): Modifier = pointerInput(Unit) {
     awaitPointerEventScope {
         while (true) {
-            val event = awaitPointerEvent(PointerEventPass.Initial)
-            if (active()) event.changes.forEach { it.consume() }
+            awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
         }
     }
 }

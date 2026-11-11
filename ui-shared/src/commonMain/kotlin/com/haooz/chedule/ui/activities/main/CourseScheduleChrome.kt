@@ -40,7 +40,6 @@ import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownShadowPadding
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.LocalChromeStartInset
-import com.haooz.chedule.ui.components.rememberTopBarMaterialAlpha
 import com.haooz.chedule.ui.components.tabletNavRailStartPadding
 import com.haooz.chedule.ui.theme.rememberAppThemeController
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
@@ -57,6 +56,7 @@ import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -320,6 +320,8 @@ internal fun SettingsTopBar(
 
     // 平板设置：渐变画在 TabletSettingsScreen 内容层，这里不再叠全宽遮罩
     val settingsNativeBarInset = (LocalHostNavigation.current?.topBarInset ?: 0.0).dp
+    // 本页唯一材质状态：按钮玻璃走全站同一判据（本页遮罩常驻，不接 maskAlpha）
+    val material = rememberTopBarMaterialState(scrollBehavior)
     MiuixTheme(controller = settingsBarController) {
         ProgressiveBlurTopBar(
             backdrop = liquidGlassBackdrop,
@@ -337,6 +339,7 @@ internal fun SettingsTopBar(
                 showSmallTitle = if (isTablet) true else null,
                 modifier = Modifier.zIndex(1f),
                 scrollBehavior = if (isTablet) null else scrollBehavior,
+                materialState = material,
                 titleModifier = if (titleEndPadding > 0.dp) {
                     Modifier.padding(end = titleEndPadding)
                 } else {
@@ -389,6 +392,8 @@ internal fun TodayTopBar(
     val titleText = if (isToday) ChromeStr.todayIsDow(dayOfWeekName) else dayOfWeekName
     val todayNativeBarInset = (LocalHostNavigation.current?.topBarInset ?: 0.0).dp
 
+    // 本页唯一材质状态：渐变遮罩与按钮玻璃读同一个实例
+    val material = rememberTopBarMaterialState(scrollBehavior)
     // 隐藏时 alpha=0 但仍测量，保证 currentHeightPx 启动即就位
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
@@ -398,13 +403,14 @@ internal fun TodayTopBar(
         resampleKey = blurResampleKey,
         sampleTrack = blurSampleTrack,
         // 无材质档没有模糊层，遮罩是顶栏唯一的材质：跟按钮背景一起出现
-        maskAlpha = rememberTopBarMaterialAlpha(scrollBehavior),
+        maskAlpha = material.alpha,
     ) {
         CollapsibleTopAppBar(
             title = titleText,
             largeTitle = titleText,
             modifier = Modifier.zIndex(1f),
             scrollBehavior = scrollBehavior,
+            materialState = material,
             // 平板：标题避让左侧侧栏后左对齐（手机仍居中）
             titleStartAligned = isTabletLiquidGlass,
             titleModifier = titleRailPadding.then(

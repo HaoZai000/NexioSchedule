@@ -150,6 +150,7 @@ import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
@@ -529,6 +530,8 @@ fun SwitchScheduleScreen(
             topBar = {
                 // 内嵌分栏：标题/操作由外层顶栏承载，这里不画系统式顶栏
                 if (!embedded) {
+                // 本页唯一材质状态：按钮玻璃走全站同一判据（本页遮罩常驻，不接 maskAlpha）
+                val material = rememberTopBarMaterialState(scrollBehavior)
                 ProgressiveBlurTopBar(
                     backdrop = liquidGlassBackdrop,
                     topInsetAdjustment = nativeBarInset,
@@ -539,6 +542,7 @@ fun SwitchScheduleScreen(
                         largeTitle = displayTitle,
                         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
                         scrollBehavior = scrollBehavior,
+                        materialState = material,
                         contentPadding = {},
                         startAction = if (nativeNavigation) null else { backdropAlpha, shadowAlpha ->
                             LiquidTopBarButton(

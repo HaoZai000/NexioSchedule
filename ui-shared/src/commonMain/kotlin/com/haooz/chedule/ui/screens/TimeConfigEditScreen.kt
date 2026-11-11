@@ -105,6 +105,7 @@ import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import com.haooz.softglass.shape.continuousSurface
@@ -566,6 +567,8 @@ fun TimeConfigEditScreen(
             ) {
                 Scaffold(
                     topBar = {
+                        // 本页唯一材质状态：按钮玻璃走全站同一判据（本页遮罩常驻，不接 maskAlpha）
+                        val material = rememberTopBarMaterialState(scrollBehavior)
                         ProgressiveBlurTopBar(
                             backdrop = liquidGlassBackdrop!!,
                             // Native controls stay above the morph; preserve the existing inset contract.
@@ -579,6 +582,7 @@ fun TimeConfigEditScreen(
                                     WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
                                 ),
                                 scrollBehavior = scrollBehavior,
+                                materialState = material,
                                 contentPadding = {},
                                 startAction = if (usesNativeControls) null else { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(

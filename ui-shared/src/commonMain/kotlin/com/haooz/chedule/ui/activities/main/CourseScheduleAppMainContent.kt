@@ -152,6 +152,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.MiuixPopupHost
 
 /**
@@ -1005,6 +1006,8 @@ internal fun CourseScheduleAppMainContent(
                                                             todayAssistantCard = todayAssistantCard,
                                                             // 视图模式与课表页共用同一个开关
                                                             scheduleViewMode = scheduleViewMode,
+                                                            // 顶栏与内容共用同一份越界状态（顶栏材质判据需要）
+                                                            overScrollState = mainOverScrollState,
                                                         )
                                                     }
                                                 }
@@ -1032,6 +1035,8 @@ internal fun CourseScheduleAppMainContent(
                                                                 settingsViewModel = settingsViewModel,
                                                                 pageState = weekPageState,
                                                                 scheduleViewMode = scheduleViewMode,
+                                                                // 顶栏与内容共用同一份越界状态（顶栏材质判据需要）
+                                                                overScrollState = mainOverScrollState,
                                                                 jumpNeighbor = weekJumpNeighbor,
                                                                 hiddenCourseIds = hiddenCourseIds,
                                                                 draggingCourseSlots = draggingCourseSlots,
@@ -2196,6 +2201,8 @@ internal fun CourseScheduleAppMainContent(
                 CompositionLocalProvider(
                     LocalForcedDarkTheme provides effectiveForcedDark,
                     LocalChromeStartInset provides startInsetDp,
+                    // 顶栏槽与内容槽共用一个越界实例：材质判据的「顶部下拉回弹」才成立
+                    LocalOverScrollState provides mainOverScrollState,
                 ) {
                     scaffoldContent()
                     // 平板：胶囊/侧栏叠层（不占 Scaffold bottomBar，内容可正常滚动）

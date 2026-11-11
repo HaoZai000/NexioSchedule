@@ -107,6 +107,7 @@ import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.softglass.shape.continuousBorder
 import com.haooz.softglass.shape.continuousClip
@@ -350,6 +351,8 @@ fun CourseEditScreen(
                     modifier = Modifier.consumeWindowInsets(PaddingValues(top = nativeBarInset)),
                     topBar = {
 
+                        // 本页唯一材质状态：按钮玻璃走全站同一判据（本页遮罩常驻，不接 maskAlpha）
+                        val material = rememberTopBarMaterialState(scrollBehavior)
                         ProgressiveBlurTopBar(
                             backdrop = liquidGlassBackdrop!!,
                             topInsetAdjustment = nativeBarInset,
@@ -360,6 +363,7 @@ fun CourseEditScreen(
                                 largeTitle = courseName,
                                 modifier = horizontalSafeInsets,
                                 scrollBehavior = scrollBehavior,
+                                materialState = material,
                                 contentPadding = {},
                                 startAction = if (embedded || nativeChrome != null) null else {
                                     { backdropAlpha, shadowAlpha ->

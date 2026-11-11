@@ -78,6 +78,8 @@ import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.TopBarMaterialThreshold
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -207,6 +209,8 @@ fun CourseDetailScreen(
                     .fillMaxSize()
                     .graphicsLayer { alpha = s.contentAlpha }
             ) {
+                // 按钮玻璃走全站统一判据（本页遮罩常驻，不接 maskAlpha）
+                val material = rememberTopBarMaterialState(scrollBehavior)
                 Scaffold(
                     topBar = {
                         ProgressiveBlurTopBar(
@@ -220,6 +224,7 @@ fun CourseDetailScreen(
                                     WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
                                 ),
                                 scrollBehavior = scrollBehavior,
+                                materialState = material,
                                 contentPadding = {},
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
@@ -256,7 +261,7 @@ fun CourseDetailScreen(
                             // 程序化滚动不走 nestedScroll：监听 listState 同步 contentOffset 与标题栏
                             var isProgrammaticScroll by remember { mutableStateOf(false) }
                             var lastCollapsed by remember { mutableStateOf(false) }
-                            val scrollThresholdPx = with(density) { 10.dp.toPx() }
+                            val scrollThresholdPx = with(density) { TopBarMaterialThreshold.toPx() }
                             LaunchedEffect(listState) {
                                 snapshotFlow {
                                     listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset

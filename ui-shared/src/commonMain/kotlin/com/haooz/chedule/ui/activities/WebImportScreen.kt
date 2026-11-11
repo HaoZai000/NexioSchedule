@@ -134,8 +134,8 @@ fun WebImportScreen(
         }
         val statusBarHeight = WindowInsets.statusBars
             .asPaddingValues().calculateTopPadding()
-        val blurHeight = statusBarHeight +
-            top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight + 40.dp
+        val blurHeight = com.haooz.chedule.ui.components.PageBlurBaseHeight +
+            (statusBarHeight - nativeBarInset).coerceAtLeast(0.dp)
         val contentTopInset = paddingValues.calculateTopPadding() + nativeBarInset
         // 顶栏与底部胶囊共用：录的是 WebView Offscreen 层
         val webContentBackdrop = com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop()
@@ -197,7 +197,11 @@ fun WebImportScreen(
                 webHostFactory = webHostFactory,
             )
 
-            // iOS 顶栏归系统，Compose 渐变模糊顶栏整条不画
+            // iOS 顶栏归系统，Compose 渐变模糊顶栏整条不画。
+            //
+            // ⚠ 刻意例外（全站唯一）：本页的「顶栏」是教务网页自己的色条，App 只在其上叠两颗按钮，
+            // 所以 `blurAlpha = 0` + `showShadow = false` —— 既没有模糊带也没有按钮玻璃，
+            // 不参与「滚动出材质」那条链。新增页面别照抄这里，统一走 DocumentPageScaffold。
             if (nativeChrome == null) ProgressiveBlurTopBar(
                 backdrop = webContentBackdrop,
                 height = blurHeight,

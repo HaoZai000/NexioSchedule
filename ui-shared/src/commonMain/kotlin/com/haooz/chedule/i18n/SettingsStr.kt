@@ -3,6 +3,10 @@ package com.haooz.chedule.i18n
 /** 设置页（手机页 + 平板双栏页）文案 */
 object SettingsStr {
 
+    // ---- 搜索 ----
+    val searchSettings = L("搜索设置项", "Search settings")
+    val searchNoResults = L("未找到相关设置", "No matching settings")
+
     // ---- 分区标题 ----
     val basicSettings = L("基本设置", "General")
     val featuresSection = L("特色功能", "Features")

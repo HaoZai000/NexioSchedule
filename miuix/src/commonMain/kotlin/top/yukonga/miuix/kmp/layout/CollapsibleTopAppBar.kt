@@ -341,6 +341,13 @@ fun CollapsibleTopAppBar(
     showLargeTitle: Boolean? = null,
     showSmallTitle: Boolean? = null,
     showShadow: Boolean? = null,
+    /**
+     * 页面级共享的材质状态。
+     *
+     * 传同一个实例给本组件与 [ProgressiveBlurTopBar.maskAlpha]，材质才会「一起出现、一起消失」；
+     * 传 null 时内部按 [rememberTopBarMaterialState] 自算一份（旧调用点行为不变）。
+     */
+    materialState: TopBarMaterialState? = null,
     /** 标题色；默认随主题。WebView 页可按页面顶色传黑白 */
     titleColor: Color = MiuixTheme.colorScheme.onSurface,
     /** 标题左对齐（默认居中）。平板端需要避让左侧侧栏并左对齐时传 true */
@@ -411,35 +418,25 @@ fun CollapsibleTopAppBar(
     val density = LocalDensity.current
     // 最近一次上报给 scrollBehavior / contentPadding 的顶栏高度，避免同值重复写状态
     val lastReportedHeight = remember { intArrayOf(-1) }
-    val scrollShadowThresholdPx = with(density) { 10.dp.toPx() }
+    val scrollShadowThresholdPx = with(density) { TopBarMaterialThreshold.toPx() }
     // overScrollState 只作身份键：offset 在 derivedStateOf 内部读，本身就会被订阅。
     // 若把它也写进 remember 键，回弹期间每一帧都要重建整个 derivedStateOf。
     val showButtonShadow = remember(scrollBehavior, showShadow, effectiveShowLargeTitle, overScrollState) {
         derivedStateOf {
             if (showShadow != null) return@derivedStateOf showShadow
-            // contentOffset 是累计滚动量，回到顶部才自然归零（onPostFling 不再清零），
-            // 触底回弹不会让按钮材质消失。
-            val contentOffset = scrollBehavior?.state?.contentOffset ?: 0f
-            val overscrollOffset = overScrollState.offset
-            // 正常滚动检测：内容滚动超过 10dp 即触发（阈值调低，更易触发）
-            if (contentOffset < -scrollShadowThresholdPx) return@derivedStateOf true
-            // 向下回弹检测：内容在顶部且向下回弹（overscrollOffset < 0）
-            if (contentOffset >= 0f && overscrollOffset < 0f) return@derivedStateOf true
-            false
+            // 判据本体只有一份（含「越界污染累计量」的自愈夹取），见 TopBarMaterial.kt
+            isTopBarMaterialVisible(
+                contentOffset = scrollBehavior?.state?.contentOffset ?: 0f,
+                thresholdPx = scrollShadowThresholdPx,
+                overScrollOffset = overScrollState.offset,
+            )
         }
     }
-    val shadowAlpha = remember { Animatable(if (showButtonShadow.value) 1f else 0f) }
-    val backdropAlpha = remember { Animatable(if (showButtonShadow.value) 1f else 0f) }
-    LaunchedEffect(showButtonShadow.value) {
-        val target = if (showButtonShadow.value) 1f else 0f
-        val spec = if (showButtonShadow.value) {
-            folmeSpring(damping = 1.0f, response = 0.6f)
-        } else {
-            folmeSpring<Float>(damping = 1.0f, response = 0.4f)
-        }
-        launch { shadowAlpha.animateTo(target, spec) }
-        launch { backdropAlpha.animateTo(target, spec) }
-    }
+    // 材质 alpha：调用方传入共享实例时（页面级唯一），按钮玻璃与渐变遮罩同进同出；
+    // 没传就内部自算一份，保持旧调用点的行为。
+    val material = materialState ?: rememberTopBarMaterialState(showButtonShadow.value)
+    val backdropAlpha = material.alpha
+    val shadowAlpha = material.alpha
     LaunchedEffect(showButtonShadow.value) {
         state?.showButtonShadow = showButtonShadow.value
     }
@@ -469,7 +466,7 @@ fun CollapsibleTopAppBar(
 
     // 调用方首帧只能拿到兜底初值（表现为「更多」先亮一帧材质才正常）
     SideEffect {
-        onAlphaChanged(backdropAlpha.value, shadowAlpha.value)
+        onAlphaChanged(backdropAlpha(), shadowAlpha())
     }
 
     Box {
@@ -483,7 +480,7 @@ fun CollapsibleTopAppBar(
                             .layoutId("startAction")
                             .zIndex(2f),
                     ) {
-                        startAction(backdropAlpha.value, shadowAlpha.value)
+                        startAction(backdropAlpha(), shadowAlpha())
                     }
                 }
                 Box(
@@ -513,7 +510,7 @@ fun CollapsibleTopAppBar(
                             .layoutId("endAction")
                             .zIndex(2f),
                     ) {
-                        endAction(backdropAlpha.value, shadowAlpha.value)
+                        endAction(backdropAlpha(), shadowAlpha())
                     }
                 }
                 if (effectiveShowLargeTitle) {

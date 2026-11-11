@@ -53,6 +53,7 @@ import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.TopBarMaterialThreshold
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -101,7 +102,7 @@ fun SchoolSelectionScreen(
     var isProgrammaticScroll by remember { mutableStateOf(false) }
 
     // 程序化滚动（字母条/搜索）不经过 nestedScroll，需监听 listState 同步 contentOffset 和标题栏收起
-    val scrollThresholdPx = with(LocalDensity.current) { 10.dp.toPx() }
+    val scrollThresholdPx = with(LocalDensity.current) { TopBarMaterialThreshold.toPx() }
     var lastCollapsed by remember { mutableStateOf(false) }
     LaunchedEffect(listState) {
         snapshotFlow {
@@ -109,7 +110,8 @@ fun SchoolSelectionScreen(
         }.collect { (index, offset) ->
             val state = scrollBehavior?.state ?: return@collect
             val shouldShow = index > 0 || offset > scrollThresholdPx
-            // 同步 contentOffset 用于按钮阴影
+            // 同步 contentOffset：父级（教务导入）顶栏材质读的就是这个累计量。
+            // 判据是「严格小于阈值」，所以这里多给 1px，保证下一次求值必然翻成 true。
             if (shouldShow && state.contentOffset >= -scrollThresholdPx) {
                 state.contentOffset = -scrollThresholdPx - 1f
             } else if (!shouldShow && state.contentOffset < 0f) {

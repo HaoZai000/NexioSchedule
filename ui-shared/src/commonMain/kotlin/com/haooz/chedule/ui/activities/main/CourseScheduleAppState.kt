@@ -80,6 +80,7 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.utils.OverScrollState
 
 /**
  * 课表主界面的全部可变状态与交互逻辑。
@@ -155,6 +156,13 @@ class CourseScheduleAppState {
     var settingsScrollBehavior: SharedScrollBehavior? = null
     var todayScrollBehavior: SharedScrollBehavior? = null
     var scheduleScrollBehavior: SharedScrollBehavior? = null
+
+    /**
+     * 首页越界状态：顶栏画在 `Scaffold(topBar)` 槽、内容在 content 槽，两者必须读**同一个**
+     * `LocalOverScrollState` 实例，顶栏材质判据的「停在顶部向下回弹」那一支才活。
+     * 只建一份（同一时刻只有一页在滚），由 [CourseScheduleAppMainContent] 提供给整棵 Scaffold。
+     */
+    val mainOverScrollState: OverScrollState = OverScrollState()
     lateinit var mainContentNestedScroll: NestedScrollConnection
 
     // ── 2. 每次重组同步的当前值（别在这边写）────────────────────────────────

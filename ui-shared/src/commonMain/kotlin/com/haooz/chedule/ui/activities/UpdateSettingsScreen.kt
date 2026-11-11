@@ -148,16 +148,16 @@ private val HeroCardMaxWidth = 440.dp
 private const val HeroFlipDegrees = 180f
 
 /** 翻转时下潜的深度（相对卡片高度）：U 的谷底离原位有多深 */
-private const val HeroFlipDipRatio = 0.7f
+private const val HeroFlipDipRatio = 0.65f
 
 /** 相机距离（乘以 density 转成像素）：越小透视越猛 */
 private const val HeroFlipCamera = 40f
 
 /** 开卡动效时长（位移 + 翻转同一段）。 */
-private const val HeroOpenMotionMs = 540
+private const val HeroOpenMotionMs = 560
 
 /** 收卡动效时长：回程略快，点外面时手感更利落。 */
-private const val HeroCloseMotionMs = 380
+private const val HeroCloseMotionMs = 420
 
 /** 状态胶囊的柔光 shader 缓存键（尺寸与其它玻璃件不同，不能共用 uniform）。 */
 private const val HeroPillGlassKey = "NexioSoftGlassLiveHeroPill"

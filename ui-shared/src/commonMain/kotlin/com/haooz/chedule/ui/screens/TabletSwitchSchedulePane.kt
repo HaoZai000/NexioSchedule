@@ -76,6 +76,7 @@ import top.yukonga.miuix.kmp.icon.extended.AddFolder
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -156,8 +157,9 @@ fun TabletSwitchSchedulePane(
 
         // 左栏内容层：供顶栏渐变模糊采样
         val leftBackdrop = rememberLayerBackdrop()
-        // 顶栏遮罩与标题栏按钮共用同一 alpha（设置页同款）
-        val maskAlpha = rememberPaneMaskAlpha(-leftScrollPx)
+        // 标题栏按钮材质走全站统一判据（含越界污染自愈）；本栏遮罩仍常驻
+        val paneMaterial = rememberTopBarMaterialState(contentOffsetProvider = { -leftScrollPx })
+        val maskAlpha = paneMaterial.alpha
 
         Row(modifier = Modifier.fillMaxSize()) {
             // —— 左栏：切换课表列表 ——
@@ -220,8 +222,8 @@ fun TabletSwitchSchedulePane(
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
                                 .padding(start = 12.dp),
-                            backdropAlpha = maskAlpha,
-                            shadowAlpha = maskAlpha,
+                            backdropAlpha = maskAlpha(),
+                            shadowAlpha = maskAlpha(),
                         )
                     }
                     Text(
@@ -250,8 +252,8 @@ fun TabletSwitchSchedulePane(
                             icon = MiuixIcons.Add,
                             contentDescription = CommonStr.add(),
                             iconSize = 24.dp,
-                            backdropAlpha = maskAlpha,
-                            shadowAlpha = maskAlpha,
+                            backdropAlpha = maskAlpha(),
+                            shadowAlpha = maskAlpha(),
                         )
                         LiquidTopBarButton(
                             onClick = {
@@ -262,8 +264,8 @@ fun TabletSwitchSchedulePane(
                             icon = MiuixIcons.AddFolder,
                             contentDescription = SwitchStr.newFolder(),
                             iconSize = 26.dp,
-                            backdropAlpha = maskAlpha,
-                            shadowAlpha = maskAlpha,
+                            backdropAlpha = maskAlpha(),
+                            shadowAlpha = maskAlpha(),
                         )
                     }
                     }
@@ -319,32 +321,6 @@ fun TabletSwitchSchedulePane(
                 .background(dividerColor)
         )
     }
-}
-
-/**
- * 顶栏遮罩 / 标题栏按钮共用的 alpha，判定与设置页 [TabletSettingsScreen] 完全一致：
- * - contentOffset（向下滚为负）超过 10dp
- * - 或未滚动时的底部越界
- */
-@Composable
-private fun rememberPaneMaskAlpha(contentOffset: Float): Float {
-    val density = LocalDensity.current
-    val overScroll = LocalOverScrollState.current
-    val scrollThresholdPx = with(density) { 10.dp.toPx() }
-    val showMask =
-        contentOffset < -scrollThresholdPx ||
-            (contentOffset >= 0f && overScroll.offset < 0f)
-    val maskAnim = remember { Animatable(0f) }
-    LaunchedEffect(showMask) {
-        val spec =
-            if (showMask) folmeSpring(damping = 1.0f, response = 0.6f)
-            else folmeSpring<Float>(damping = 1.0f, response = 0.4f)
-        maskAnim.animateTo(
-            targetValue = if (showMask) 1f else 0f,
-            animationSpec = spec,
-        )
-    }
-    return maskAnim.value
 }
 
 /** 顶栏常驻表面色渐变遮罩 + 常驻渐变模糊：与设置页 TabletPaneTopChrome 一致 */

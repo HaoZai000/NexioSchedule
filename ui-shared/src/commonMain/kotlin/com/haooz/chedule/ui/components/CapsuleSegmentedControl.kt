@@ -64,6 +64,9 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.LocalTopBarMaterial
+import top.yukonga.miuix.kmp.layout.TopBarMaterialState
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 
 /** 分段控件自己的一块玻璃，尺寸与底栏胶囊不同 ⇒ uniform 必须独立 */
@@ -80,6 +83,8 @@ fun CapsuleSegmentedControl(
     containerHeight: Dp = 42.dp,
     /** 顶栏滚动状态；为 null 时胶囊恒为静止态。 */
     scrollBehavior: SharedScrollBehavior? = null,
+    /** 所在页顶栏那一份材质状态；默认读页面下发的 [LocalTopBarMaterial]，保证与返回键同帧出现。 */
+    material: TopBarMaterialState? = null,
     /** 按下即回调 [onSelect]；默认松手回调。 */
     selectOnPress: Boolean = false,
     /** 每递增一次，滑块停在当前位置、速度归零。 */
@@ -97,28 +102,14 @@ fun CapsuleSegmentedControl(
     val density = LocalDensity.current
     val hapticFeedback = LocalHapticFeedback.current
 
-    val overScrollState = LocalOverScrollState.current
-    val shadowThresholdPx = with(density) { 10.dp.toPx() }
     val shadowMaxBlurPx = with(density) { 10.dp.toPx() }
-    val showMaterial by remember(scrollBehavior, overScrollState) {
-        derivedStateOf {
-            val offset = scrollBehavior?.state?.contentOffset ?: 0f
-            offset < -shadowThresholdPx || (offset >= 0f && overScrollState.offset < 0f)
-        }
-    }
-    val initialAlpha = if (showMaterial) 1f else 0f
-    val backdropAlpha = remember { Animatable(initialAlpha) }
-    val shadowAlpha = remember { Animatable(initialAlpha) }
-    LaunchedEffect(showMaterial) {
-        val target = if (showMaterial) 1f else 0f
-        val spec = if (showMaterial) {
-            folmeSpring<Float>(damping = 1.0f, response = 0.6f)
-        } else {
-            folmeSpring<Float>(damping = 1.0f, response = 0.4f)
-        }
-        launch { backdropAlpha.animateTo(target, spec) }
-        launch { shadowAlpha.animateTo(target, spec) }
-    }
+    // 材质 alpha 与所在页顶栏读**同一个实例**（唯一来源见 miuix TopBarMaterial）：
+    // 顶栏返回键与胶囊必须同帧出现，各算一份必然差一帧。
+    val materialState = material
+        ?: LocalTopBarMaterial.current
+        ?: rememberTopBarMaterialState(scrollBehavior)
+    val backdropAlpha = materialState.alpha
+    val shadowAlpha = materialState.alpha
 
     // 容器玻璃：与底栏同一份材质配方（BarFill + BrightLargeTone + Mirror 模糊）
     val glassBlur = AppMaterialSettings.glassBlurDp()
@@ -222,8 +213,8 @@ fun CapsuleSegmentedControl(
                 .fillMaxWidth()
                 .height(containerHeight)
                 .drawBehind {
-                    val shadowProgress = shadowAlpha.value
-                    val glassProgress = backdropAlpha.value.coerceIn(0f, 1f)
+                    val shadowProgress = shadowAlpha()
+                    val glassProgress = backdropAlpha().coerceIn(0f, 1f)
                     val outline = capsuleShape().createOutline(size, layoutDirection, this@drawBehind)
                     if (shadowProgress > 0.01f) {
                         val shadowPath = Path().apply {
@@ -253,7 +244,7 @@ fun CapsuleSegmentedControl(
                         shadow = null,
                         shape = capsuleShape,
                         effects = pillEffects,
-                        layerBlock = { alpha = backdropAlpha.value },
+                        layerBlock = { alpha = backdropAlpha() },
                         onDrawSurface = if (glassEffectsOn) null else pillSurface,
                     ),
             )

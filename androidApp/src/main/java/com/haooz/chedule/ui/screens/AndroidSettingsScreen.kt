@@ -68,6 +68,7 @@ fun AndroidSettingsPane(args: com.haooz.chedule.ui.activities.main.SettingsPaneA
         navBarStyle = args.navBarStyle,
         settingsScrollBehavior = args.settingsScrollBehavior,
         liquidGlassBackdrop = args.liquidGlassBackdrop,
+        searchState = args.searchState,
         showUpdateSettings = args.showUpdateSettings,
     )
 }
@@ -89,6 +90,8 @@ fun AndroidSettingsScreen(
     navBarStyle: String = "standard",
     settingsScrollBehavior: SharedScrollBehavior? = null,
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
+    /** 搜索状态（由路由持有并挂在页面采样层外） */
+    searchState: com.haooz.chedule.ui.screens.SettingsSearchState? = null,
     /** 是否显示「更新」入口（Android 恒 true；iOS 走 App Store 传 false） */
     showUpdateSettings: Boolean = true,
 ) {
@@ -109,6 +112,7 @@ fun AndroidSettingsScreen(
         navBarStyle = navBarStyle,
         settingsScrollBehavior = settingsScrollBehavior,
         liquidGlassBackdrop = liquidGlassBackdrop,
+        searchState = searchState,
         androidPane = { dest ->
             // 同步到日历：缺权限时点一下就地申请（导出面板用，launcher 只注册这一个）
             val syncToCalendar = rememberCalendarSyncAction()
