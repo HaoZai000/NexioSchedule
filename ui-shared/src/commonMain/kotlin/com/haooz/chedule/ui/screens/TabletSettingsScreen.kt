@@ -189,7 +189,7 @@ enum class TabletSettingsDest {
 object TabletSettingsUiState {
     var selected by mutableStateOf(TabletSettingsDest.Semester)
 
-    /** 课程时间管理的编辑屏是否打开：打开时叠层不画右栏标题，避免与编辑屏标题重合 */
+    /** 上课时间的编辑屏是否打开：打开时叠层不画右栏标题，避免与编辑屏标题重合 */
     var timeEditorOpen by mutableStateOf(false)
 }
 
@@ -438,7 +438,7 @@ fun TabletSettingsScreen(
     var onWebDavTestConnection by remember { mutableStateOf({}) }
     var holidayLoading by remember { mutableStateOf(false) }
     var onHolidayUpdate by remember { mutableStateOf({}) }
-    // 课程时间管理：右栏叠编辑屏
+    // 上课时间：右栏叠编辑屏
     val courseRepository = remember { com.haooz.chedule.data.repo.CourseRepository() }
     var editingTimeConfig by remember { mutableStateOf<TimeConfig?>(null) }
     var editingTimeRoutineId by remember { mutableStateOf<Long?>(null) }
@@ -1046,7 +1046,7 @@ fun TabletSettingsScreen(
                         else -> {}
                     }
 
-                    // 课程时间管理：右栏叠编辑屏，从底部滑入/滑出（对齐 BlurBottomSheet 曲线时长，无透明度变化）
+                    // 上课时间：右栏叠编辑屏，从底部滑入/滑出（对齐 BlurBottomSheet 曲线时长，无透明度变化）
                     if (editingTimeConfig != null) {
                         Box(
                             modifier = Modifier

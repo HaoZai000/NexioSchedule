@@ -121,11 +121,11 @@ final class NativeHeaderSmokeTests: XCTestCase {
         settle()
     }
 
-    /// 展开「课程表」总览卡片。
+    /// 展开「课表管理」总览卡片。
     private func expandScheduleSettings() {
-        if item("课程时间管理").isHittable { return }
+        if item("上课时间").isHittable { return }
         let card = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@", "课程表")).firstMatch
+            .matching(NSPredicate(format: "label CONTAINS %@", "课表管理")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(card.isHittable, app.debugDescription)
         card.tap()
@@ -372,7 +372,7 @@ final class NativeHeaderSmokeTests: XCTestCase {
         nativeBack()
         // 设置已是压栈的二级页：退回偏好设置后落在设置页，本身就是原生文档壳
         requireNativeHeader("设置")
-        XCTAssertTrue(item("课程表").exists, app.debugDescription)
+        XCTAssertTrue(item("课表管理").exists, app.debugDescription)
     }
 
     func testHolidayNativeActionAndRotation() throws {
@@ -583,8 +583,8 @@ final class NativeHeaderSmokeTests: XCTestCase {
         try requirePhoneWidthSettings()
         showSettings()
         expandScheduleSettings()
-        open("课程时间管理")
-        requireNativeHeader("课程时间管理")
+        open("上课时间")
+        requireNativeHeader("上课时间")
         XCTAssertEqual(app.navigationBars.buttons.count, 1)
         XCTAssertTrue(item("作息方案").exists)
         let sectionY = open("课表节数")
@@ -593,7 +593,7 @@ final class NativeHeaderSmokeTests: XCTestCase {
         capture("Time settings - section dialog above native chrome")
         item("取消").tap()
         settle()
-        requireNativeHeader("课程时间管理")
+        requireNativeHeader("上课时间")
         XCTAssertEqual(item("课表节数").frame.minY, sectionY, accuracy: 3)
         let leadingFrame = app.navigationBars.buttons.element(boundBy: 0).frame
         let routineSummary = app.staticTexts.matching(NSPredicate(format:
@@ -622,7 +622,7 @@ final class NativeHeaderSmokeTests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         cancel.tap()
         settle()
-        requireNativeHeader("课程时间管理")
+        requireNativeHeader("上课时间")
         XCTAssertEqual(app.keyboards.count, 0, "Morph editor keyboard remained after cancellation")
         XCTAssertEqual(item("课表节数").frame.minY, sectionY, accuracy: 3,
                        "Editor exit changed retained settings geometry")
@@ -635,14 +635,14 @@ final class NativeHeaderSmokeTests: XCTestCase {
         requireNativeHeader("编辑作息")
         app.navigationBars.buttons["保存并关闭"].tap()
         settle()
-        requireNativeHeader("课程时间管理")
+        requireNativeHeader("上课时间")
         XCTAssertEqual(item("课表节数").frame.minY, sectionY, accuracy: 3,
                        "Save exit changed the source-card layout")
         capture("Time settings - native save completed original reverse morph")
         nativeBack()
         XCTAssertTrue(settingsEntry.isHittable, app.debugDescription)
-        if !item("课程时间管理").isHittable { expandScheduleSettings() }
-        XCTAssertTrue(item("课程时间管理").isHittable, app.debugDescription)
+        if !item("上课时间").isHittable { expandScheduleSettings() }
+        XCTAssertTrue(item("上课时间").isHittable, app.debugDescription)
         XCTAssertFalse(app.navigationBars.buttons["返回"].exists)
     }
 
@@ -650,7 +650,7 @@ final class NativeHeaderSmokeTests: XCTestCase {
         try requirePhoneWidthSettings()
         showSettings()
         expandScheduleSettings()
-        open("课程时间管理")
+        open("上课时间")
         let routine = app.staticTexts.matching(NSPredicate(format:
             "label == %@ OR label ENDSWITH %@", "始终生效", "生效")).firstMatch
         XCTAssertTrue(routine.exists && routine.isHittable)
@@ -669,8 +669,8 @@ final class NativeHeaderSmokeTests: XCTestCase {
         settle()
         XCTAssertTrue(settingsEntry.isHittable,
                       "Parent back tap during editor exit did not restore the settings page")
-        if !item("课程时间管理").isHittable { expandScheduleSettings() }
-        XCTAssertTrue(item("课程时间管理").isHittable, app.debugDescription)
+        if !item("上课时间").isHittable { expandScheduleSettings() }
+        XCTAssertTrue(item("上课时间").isHittable, app.debugDescription)
         XCTAssertFalse(app.navigationBars.buttons["返回"].exists)
         capture("Time settings - rapid native cancel and parent back without disabled controls")
     }

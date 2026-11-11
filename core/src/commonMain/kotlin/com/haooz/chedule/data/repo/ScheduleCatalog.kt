@@ -201,6 +201,18 @@ internal class ScheduleCatalog(private val host: Host) {
         }
         // 绑定必须落在 edit 块外面：它写的是另一张表（另一个事务）
         host.setScheduleTimeConfigId(name, duplicatedConfigId)
+        // 设置的真相是 schedule 行
+        host.rowStore()?.let { rows ->
+            rows.settingsOf(currentId)?.let { src ->
+                rows.writeSettings(name, currentWeek = null, totalWeeks = src.totalWeeks, classStart = null)
+            }
+            rows.displaySettingsOf(currentId)?.let { srcDisplay ->
+                rows.writeSmartWeekend(name, srcDisplay.smartWeekend)
+                rows.writeShowNonCurrentWeek(name, srcDisplay.showNonCurrentWeek)
+            }
+        }
+        // 行是绕过仓库直写的，scheduleSettingsCache 里可能还存着建行那一刻的旧值 —— 全库作废一次
+        host.invalidateAllCaches()
         HolidayManager.onScheduleCopied(currentId, name)
         return names
     }

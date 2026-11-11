@@ -10,7 +10,7 @@ object DesktopStr {
     val privacyPolicy = L("隐私政策", "Privacy Policy")
     val communication = L("问题反馈", "Report a Problem")
     val schoolSelection = L("教务导入 · 选择学校", "Academic System Import · Select School")
-    val courseTimeSettings = L("课程时间管理", "Class Time Settings")
+    val courseTimeSettings = L("上课时间", "Class Time")
     val appreciateAuthor = L("赞赏作者", "Donate & Support")
     val addCourse = L("添加课程（弹窗）", "Add course (dialog)")
     val widgetIntro = L("桌面小部件介绍", "Widgets intro")
