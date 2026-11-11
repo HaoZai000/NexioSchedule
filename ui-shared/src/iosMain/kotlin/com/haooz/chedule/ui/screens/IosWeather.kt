@@ -20,6 +20,7 @@ import com.haooz.chedule.weather.WeatherRepository
 import com.haooz.chedule.weather.WeatherStore
 import kotlin.coroutines.resume
 import kotlinx.cinterop.useContents
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import platform.CoreLocation.CLLocation
@@ -64,19 +65,26 @@ fun WeatherBootstrapIos() {
     val weatherPrefs = remember { AppStorage.store("weather_prefs") }
     val sourceKey = weatherPrefs.getString("weather_source", "fusion")
     val privacyConsented by PrivacyConsent.consented.collectAsState()
-    // 快照被作废（改天气源 / 手动刷新）时置空，靠它把加载再走一遍
-    val snapshot by WeatherStore.snapshot.collectAsState()
+    // 快照被作废（改天气源 / 手动刷新）时自增，靠它把循环重启一遍
     val refreshToken by WeatherStore.refreshToken.collectAsState()
     val locationClient = remember { IosLocationClient() }
 
-    LaunchedEffect(privacyConsented, sourceKey, refreshToken, snapshot) {
+    LaunchedEffect(privacyConsented, sourceKey, refreshToken) {
         if (!privacyConsented) return@LaunchedEffect
         if (!locationClient.isAuthorized()) return@LaunchedEffect
-        // pairOf 给的是 (latitude, longitude)
-        val coords = locationClient.requestLocation() ?: return@LaunchedEffect
-        val place = WeatherPlace(latitude = coords.first, longitude = coords.second)
-        withContext(ioDispatcher) {
-            WeatherStore.ensureLoaded(place, WeatherRepository.Source.from(sourceKey))
+        // 前台循环：第一轮就是「打开应用 → 判定缓存是否过期」。
+        // iOS 退到后台几秒内进程就被挂起，`delay` 的计时也跟着停 ——
+        // 回来时若已过截止时间会立刻续上，于是自然得到「后台不检测、回来才补一次」。
+        while (true) {
+            // pairOf 给的是 (latitude, longitude)
+            val coords = locationClient.requestLocation() ?: return@LaunchedEffect
+            val place = WeatherPlace(latitude = coords.first, longitude = coords.second)
+            // 数据源每轮现读：设置页改源后不一定会重组到这里
+            val key = weatherPrefs.getString("weather_source", "fusion")
+            withContext(ioDispatcher) {
+                WeatherStore.ensureLoaded(place, WeatherRepository.Source.from(key))
+            }
+            delay(WeatherStore.nextCheckDelayMs())
         }
     }
 }
@@ -111,8 +119,10 @@ fun rememberWeatherIos(): Triple<WeatherData, Boolean, () -> Unit> {
         }
         // pairOf 给的是 (latitude, longitude)，别跟 Android 的 (lng, lat) 混了
         val place = WeatherPlace(latitude = coords.first, longitude = coords.second)
+        // 现读数据源，别用组合期捕获的那份（改源后可能还没重组）
+        val key = weatherPrefs.getString("weather_source", "fusion")
         val loaded = withContext(ioDispatcher) {
-            WeatherStore.ensureLoaded(place, WeatherRepository.Source.from(sourceKey))
+            WeatherStore.ensureLoaded(place, WeatherRepository.Source.from(key))
         }
         phase = if (loaded != null) IosWeatherPhase.IDLE else IosWeatherPhase.FAILED
     }

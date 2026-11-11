@@ -18,6 +18,10 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import androidx.activity.compose.LocalActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -39,6 +43,7 @@ import com.haooz.chedule.weather.WeatherPlace
 import com.haooz.chedule.weather.WeatherRepository
 import com.haooz.chedule.weather.WeatherStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /** 卡片自己的三种"没有数据"状态，有快照时全被覆盖。 */
@@ -96,12 +101,17 @@ private fun readLastLngLat(context: Context): Pair<Double, Double>? {
     return Pair(lng, lat) // 经度在前，与写入时一致
 }
 
-/** 定位 + 拉一次天气。今日卡与壳层引导共用同一套坐标来源。 */
+/**
+ * 定位 + 拉一次天气。今日卡与壳层引导共用同一套坐标来源。
+ *
+ * 数据源**每次现读**：调用点都是一次性 lambda，捕获的 `sourceKey` 在设置页改源后
+ * 不一定跟着重组，带着旧值去拉等于把刚改的设置顶回去。
+ */
 private suspend fun fetchWeather(
     context: Context,
     hasLocationPermission: Boolean,
-    sourceKey: String,
 ): WeatherPhase = withContext(Dispatchers.IO) {
+    val sourceKey = AppStorage.store("weather_prefs").getString("weather_source", "fusion")
     val loc = getLastKnownLocation(context, hasLocationPermission)
     // 无权限时回退上次存下的经纬度：城市级精度够用很久
     val coords = if (loc != null) Pair(loc.latitude, loc.longitude)
@@ -128,16 +138,26 @@ private suspend fun fetchWeather(
 @Composable
 fun WeatherBootstrap() {
     val context = LocalContext.current
-    val weatherPrefs = remember { AppStorage.store("weather_prefs") }
-    val sourceKey = weatherPrefs.getString("weather_source", "fusion")
     val privacyConsented by PrivacyConsent.consented.collectAsState()
-    // 快照被作废（改天气源 / 手动刷新）时置空，靠它把加载再走一遍
-    val snapshot by WeatherStore.snapshot.collectAsState()
+    // 快照被作废（改天气源 / 手动刷新）时自增，靠它把循环重启一遍
     val refreshToken by WeatherStore.refreshToken.collectAsState()
+    val activity = LocalActivity.current
 
-    LaunchedEffect(privacyConsented, sourceKey, refreshToken, snapshot) {
+    LaunchedEffect(privacyConsented, refreshToken, activity) {
         if (!privacyConsented) return@LaunchedEffect
-        fetchWeather(context, hasLocationPermission = true, sourceKey)
+        // LocalActivity 给的是 Activity，生命周期能力在 LifecycleOwner 上
+        val owner = activity as? LifecycleOwner ?: return@LaunchedEffect
+        // 只在 RESUMED（真正在前台）时循环：退到后台这个协程就被取消，
+        // 「应用关着就不检测」是靠这一条实现的，不是靠定时任务里判断时间。
+        // 回到前台会重新进来，第一轮就是「打开应用时判定缓存是否过期」。
+        owner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                val phase = fetchWeather(context, hasLocationPermission = true)
+                // 连坐标都没有就别空转：等今日卡片的按钮授权，那时 refreshToken 会变、本 effect 重跑
+                if (phase == WeatherPhase.NEEDS_LOCATION) return@repeatOnLifecycle
+                delay(WeatherStore.nextCheckDelayMs())
+            }
+        }
     }
 }
 
@@ -145,7 +165,8 @@ fun WeatherBootstrap() {
 fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
     val context = LocalContext.current
     val weatherPrefs = remember { AppStorage.store("weather_prefs") }
-    // 源改了要重拉；旧的 "caiyun"/"itboy" 由 Source.from 统一回落到融合源，无需迁移
+    // 只当「源改了要重拉」的信号用（旧值 "caiyun"/"itboy" 由 Source.from 回落，无需迁移）；
+    // 真正传给数据层的是 fetchWeather 里现读的那份，避免这里捕获到过期值
     val sourceKey = weatherPrefs.getString("weather_source", "fusion")
     // 合规：可观察的隐私同意状态；未同意前不定位/不查询，同意后自动重新执行
     val privacyConsented by PrivacyConsent.consented.collectAsState()
@@ -177,7 +198,7 @@ fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
     LaunchedEffect(hasLocationPermission, sourceKey, refreshTrigger, privacyConsented, refreshToken) {
         // 合规：用户同意隐私政策前，不进行定位与天气数据获取；同意后会因 key 变化自动重跑
         if (!privacyConsented) return@LaunchedEffect
-        phase = fetchWeather(context, hasLocationPermission, sourceKey)
+        phase = fetchWeather(context, hasLocationPermission)
     }
 
     val weather = remember(snapshot, phase) {
