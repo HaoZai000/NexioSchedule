@@ -487,11 +487,10 @@ object IslandNotificationHelper {
                 val actionInfo = JSONObject().apply {
                     put("actionTitle", AndroidNotifStr.dndAction())
                     put("actionIntentType", 2)
-                    // 测试课已并入 isInClass，与真实课共用同一条按钮链路
                     put(
                         "actionIntent",
-                        "intent:#Intent;action=${ClassDndReceiver.ACTION_TOGGLE};" +
-                            "component=${context.packageName}/.reminder.ClassDndReceiver;end"
+                        "intent:#Intent;action=${ClassDndToggleReceiver.ACTION_TOGGLE};" +
+                            "component=${context.packageName}/.reminder.ClassDndToggleReceiver;end"
                     )
                 }
                 put("actionInfo", actionInfo)

@@ -361,6 +361,7 @@ fun CourseReminderScreen(
     var tempInClassLeadMinutes by remember { mutableIntStateOf(inClassLeadMinutes) }
 
     val masterEnabled = preClassReminder || nextDayReminder
+    val dndSupported = reminderController.supportsDnd()
     // 总开关关闭时联动关掉子开关：勿扰 + 课中提醒（与下节课/次日提醒置 false 同一策略）
     val disableMasterDependentSwitches = {
         settingsViewModel.setClassDndEnabled(false)
@@ -671,7 +672,7 @@ fun CourseReminderScreen(
                                     }
                                 )
                             }
-                            SwitchPreference(
+                            if (dndSupported) SwitchPreference(
                                 title = ReminderStr.autoDnd(),
                                 summary = if (!dndPermissionGranted) {
                                     ReminderStr.autoDndNeedsPermission()
@@ -692,8 +693,6 @@ fun CourseReminderScreen(
                                     rlog("reminder_service", "start_after_dnd")
                                 }
                             )
-                            // 总开关开启时档位始终可见：通知/超级岛上的「上课勿扰」按钮也能切换勿扰开关
-                            // 总开关关闭时整页子项折叠，档位一并隐藏
                             val selectMode: (Int) -> Unit = { mode ->
                                 rlog("dnd_mode_select", "mode=$mode")
                                 settingsViewModel.setClassDndMode(mode)
@@ -731,7 +730,7 @@ fun CourseReminderScreen(
                                     )
                                 )
                             }
-                            CardExpand(visible = masterEnabled) {
+                            if (dndSupported) CardExpand(visible = masterEnabled) {
                                 OverlayDropdownMenu(
                                     title = ReminderStr.dndModeTitle(),
                                     entry = modeEntry,

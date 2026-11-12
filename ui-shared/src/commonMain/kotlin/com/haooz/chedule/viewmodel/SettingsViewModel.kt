@@ -178,7 +178,7 @@ class SettingsViewModel : ViewModel() {
     private val _classDndEnabled = MutableStateFlow(repository.getClassDndEnabled())
     val classDndEnabled: StateFlow<Boolean> = _classDndEnabled.asStateFlow()
 
-    // 0=勿扰，1=静音
+    // 0=勿扰，1=静音，2=优先
     private val _classDndMode = MutableStateFlow(repository.getClassDndMode())
     val classDndMode: StateFlow<Int> = _classDndMode.asStateFlow()
 

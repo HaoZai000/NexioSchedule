@@ -95,6 +95,8 @@ class AndroidReminderController(private val context: Context) : ReminderControll
 
     override fun isDndPermissionGranted(): Boolean = ClassDndHelper.isDndPermissionGranted(context)
 
+    override fun supportsDnd(): Boolean = true
+
     // ————————————————————————— 超级岛 / Shizuku —————————————————————————
 
     override fun isIslandSupported(): Boolean = IslandNotificationHelper.isIslandSupported(context)

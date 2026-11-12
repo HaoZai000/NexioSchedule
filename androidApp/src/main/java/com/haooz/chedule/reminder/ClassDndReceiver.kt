@@ -1,7 +1,4 @@
-/**
- * 上课勿扰广播接收器。
- * 三类来源：ACTION_TOGGLE（通知/超级岛按钮）、ACTION_CLASS_START（上课精确闹钟）、ACTION_CLASS_END（下课精确闹钟）。
- */
+/** 上课勿扰闹钟接收器：仅接收本应用排期的上课 / 下课广播。 */
 package com.haooz.chedule.reminder
 
 import android.content.BroadcastReceiver
@@ -13,20 +10,13 @@ class ClassDndReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "ClassDndReceiver"
 
-        /** 通知按钮：切换「上课自动开启勿扰」 */
-        const val ACTION_TOGGLE = "com.haooz.chedule.ACTION_CLASS_DND_TOGGLE"
-        /** 上课：进入勿扰 */
         const val ACTION_CLASS_START = "com.haooz.chedule.ACTION_CLASS_DND_START"
-        /** 下课：退出勿扰 */
         const val ACTION_CLASS_END = "com.haooz.chedule.ACTION_CLASS_DND_END"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
-            ACTION_TOGGLE -> {
-                NexioLog.d(TAG, "Toggle class DND from notification")
-                ClassDndHelper.toggleFromNotification(context)
-            }
+            ClassDndToggleReceiver.ACTION_TOGGLE -> ClassDndHelper.toggleFromNotification(context)
             ACTION_CLASS_START, ACTION_CLASS_END -> {
                 NexioLog.d(TAG, "Class ${if (intent.action == ACTION_CLASS_START) "start" else "end"} alarm, syncing DND state")
                 ClassDndHelper.applyCurrentState(context)

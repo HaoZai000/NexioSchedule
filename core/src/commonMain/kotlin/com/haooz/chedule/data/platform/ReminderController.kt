@@ -38,6 +38,9 @@ interface ReminderController {
     /** 是否已授予「免打扰访问权限」（自动开勿扰的前提） */
     fun isDndPermissionGranted(): Boolean
 
+    /** 该平台能否改写系统勿扰状态 */
+    fun supportsDnd(): Boolean = false
+
     // —— 超级岛 / Shizuku ——
 
     /** 设备是否支持超级岛（非 HyperOS 返回 false） */

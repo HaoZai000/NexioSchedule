@@ -148,15 +148,23 @@
             android:name=".reminder.CourseStartReceiver"
             android:exported="false" />
 
-        <!-- 上课勿扰：接收实况通知/超级岛按钮与上课、下课闹钟（exported：需要系统通知栏发送广播） -->
+        <!-- 上课勿扰闹钟：仅本应用排期 -->
         <receiver
             android:name=".reminder.ClassDndReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.haooz.chedule.ACTION_CLASS_DND_START" />
+                <action android:name="com.haooz.chedule.ACTION_CLASS_DND_END" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 通知 / 超级岛按钮：由系统通知栏发送，必须导出 -->
+        <receiver
+            android:name=".reminder.ClassDndToggleReceiver"
             android:exported="true"
             tools:ignore="ExportedReceiver">
             <intent-filter>
                 <action android:name="com.haooz.chedule.ACTION_CLASS_DND_TOGGLE" />
-                <action android:name="com.haooz.chedule.ACTION_CLASS_DND_START" />
-                <action android:name="com.haooz.chedule.ACTION_CLASS_DND_END" />
             </intent-filter>
         </receiver>
 

@@ -1,6 +1,5 @@
 package com.haooz.chedule.data.repo
 
-import com.haooz.chedule.data.appearance.AppearancePrefs
 import com.haooz.chedule.data.backup.encodeCourses
 import com.haooz.chedule.data.backup.encodeScheduleFolders
 import com.haooz.chedule.data.backup.encodeStringList
@@ -20,30 +19,18 @@ import com.haooz.chedule.data.model.TimeConfig
 import com.haooz.chedule.data.model.truncateNote
 import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_CLASS_START_TIME
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_CLASS_DND
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_CLASS_DND_MODE
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_COURSES
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_CURRENT_SCHEDULE_ID
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_CURRENT_TIME_CONFIG_ID
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_CURRENT_WEEK
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_DEFAULT_FOLDER_MIGRATED
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_DEFAULT_HOMEPAGE
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_ISLAND_NOTIFICATION
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_NEXT_DAY_REMINDER
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_NEXT_DAY_REMINDER_HOUR
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_NEXT_DAY_REMINDER_MINUTE
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_PRE_CLASS_REMINDER
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_PRE_CLASS_REMINDER_MINUTES
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_SCHEDULE_FOLDERS
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_SCHEDULE_NAMES
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_SHIFT_MODE
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_SHIFT_SELECTED_SCHEDULES
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_SHOW_NON_CURRENT_WEEK
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_SMART_WEEKEND
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_TEACHING_WEEK_REORGANIZATIONS
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_TIME_CONFIG_IDS
 import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_TOTAL_WEEKS
-import com.haooz.chedule.data.repo.CourseRepository.Companion.KEY_WIDGET_PADDING_MODE
 import com.haooz.chedule.data.repo.CourseRepository.Companion.MAX_TOTAL_WEEKS
 import com.haooz.chedule.data.repo.CourseRepository.Companion.SCHEDULE_KEY_PREFIX
 import com.haooz.chedule.data.repo.CourseRepository.Companion.SCHEDULE_TIME_CONFIG_PREFIX
@@ -58,20 +45,19 @@ import com.haooz.chedule.data.util.toJsonElement
  * 只负责「数据在键值快照与实体表之间搬一个来回」；格式定义与结构校验在 `ScheduleBackup`。
  *
  * 两条硬约定：
- * - **键值里的键先全部带走，表管的那些再由表覆盖**。遍历键值不是为了给表数据兜底，
- *   而是为了不必维护一份「还有哪些键要备份」的清单 —— 漏一个就是静默丢数据。
- *   反过来，表既然管了这些键，就只有表说了算：表答不出就把键从备份里删掉，
- *   不拿键值里的旧副本顶上（那是会过期的第二真相，恢复时按旧值写回去）。
+ * - **只带走课表内容键**（[isScheduleContentKey]）；提醒 / 小组件 / 个性化 / 外观等设备本地设置
+ *   既不导出，恢复时也不覆盖本机。表管的键由 [materializeRowBackedKeys] 物化，表答不出就删键，
+ *   不拿键值里的旧副本顶上。
  * - **恢复后立刻重建实体表**。留一个「等下次启动再迁」的窗口，窗口里读表读到的是刚被清空的行。
  */
 internal class BackupTransfer(private val host: RepoHost) {
 
-    /** 导出一份全量备份：课表数据 + 节假日/调休。外观与提醒等设备本地设置不进备份。 */
+    /** 导出一份全量备份：课表数据 + 节假日/调休。 */
     fun exportAllPreferences(): Map<String, Any> {
         val names = host.getScheduleNames()
         val result = mutableMapOf<String, Any>()
         for ((key, value) in host.prefs.all()) {
-            if (isCombinationBackupKey(key) || isAppFeatureBackupKey(key)) continue
+            if (!isScheduleContentKey(key)) continue
             when (value) {
                 is String -> result[key] = value
                 is Int -> result[key] = value
@@ -407,11 +393,8 @@ internal class BackupTransfer(private val host: RepoHost) {
             if (preserveFolderMembership) putBoolean(KEY_DEFAULT_FOLDER_MIGRATED, true)
             else remove(KEY_DEFAULT_FOLDER_MIGRATED)
             remove(KEY_CURRENT_SCHEDULE_ID)
-            remove(KEY_SHIFT_MODE)
-            remove(KEY_SHIFT_SELECTED_SCHEDULES)
             remove(KEY_TIME_CONFIG_IDS)
             remove(KEY_CURRENT_TIME_CONFIG_ID)
-            remove(KEY_DEFAULT_HOMEPAGE)
 
             for ((key, value) in data) {
                 if (key == HolidayManager.BACKUP_KEY ||
@@ -421,8 +404,7 @@ internal class BackupTransfer(private val host: RepoHost) {
                 ) {
                     continue
                 }
-                // 外观与提醒等设备本地设置不进备份，恢复时也不覆盖本机的对应配置
-                if (isCombinationBackupKey(key) || isAppFeatureBackupKey(key)) continue
+                if (!isScheduleContentKey(key)) continue
                 when (value) {
                     is String -> putString(key, value)
                     is Boolean -> putBoolean(key, value)
@@ -493,29 +475,13 @@ internal class BackupTransfer(private val host: RepoHost) {
         return TimeConfig.sanitize(0L, parsed)
     }
 
-    // ── 不进备份的键 ──────────────────────────────────────────────────────────
+    // ── 备份白名单 ────────────────────────────────────────────────────────────
 
-    /**
-     * 外观键不进全量备份。外观已迁到 [AppearancePrefs] 的独立存储，
-     * 这里保留判定只为兜住历史备份里混入的旧键（`combination_*` / `comb_*` / `wallpaper_*`）。
-     */
-    private fun isCombinationBackupKey(key: String): Boolean =
-        key == AppearancePrefs.FILE_STYLE_KEY ||
-            key.startsWith("combination_") ||
-            key.startsWith("comb_") ||
-            key.startsWith("wallpaper_")
-
-    /** 提醒、勿扰、小组件等跟设备强相关的设置不进全量备份。 */
-    private fun isAppFeatureBackupKey(key: String): Boolean =
-        key == KEY_PRE_CLASS_REMINDER ||
-            key == KEY_PRE_CLASS_REMINDER_MINUTES ||
-            key == KEY_NEXT_DAY_REMINDER ||
-            key == KEY_NEXT_DAY_REMINDER_HOUR ||
-            key == KEY_NEXT_DAY_REMINDER_MINUTE ||
-            key == KEY_ISLAND_NOTIFICATION ||
-            key == KEY_CLASS_DND ||
-            key == KEY_CLASS_DND_MODE ||
-            key == KEY_WIDGET_PADDING_MODE
+    private fun isScheduleContentKey(key: String): Boolean =
+        key.startsWith(SCHEDULE_KEY_PREFIX) ||
+            key.startsWith(TIME_CONFIG_PREFIX) ||
+            key == KEY_CURRENT_SCHEDULE_ID ||
+            key == KEY_CURRENT_TIME_CONFIG_ID
 
     private companion object {
         const val TAG = "BackupTransfer"

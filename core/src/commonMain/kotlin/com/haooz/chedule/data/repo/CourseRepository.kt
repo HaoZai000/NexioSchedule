@@ -5,7 +5,6 @@ import com.haooz.chedule.data.backup.decodeStringList
 import com.haooz.chedule.data.backup.encodeStringList
 import com.haooz.chedule.data.backup.encodeTimeConfig
 import com.haooz.chedule.data.backup.parseTimeConfigSnapshotOrNull
-import com.haooz.chedule.data.backup.weekNotes
 import com.haooz.chedule.data.holiday.HolidayEntry
 import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.holiday.TeachingWeekPosition
@@ -463,7 +462,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         internal const val KEY_NEXT_DAY_REMINDER_MINUTE = "next_day_reminder_minute"
         internal const val KEY_ISLAND_NOTIFICATION = "island_notification"
         internal const val KEY_CLASS_DND = "class_dnd_enabled"
-        /** 上课时启用的系统勿扰档位：0=勿扰模式 (DND, NONE)，1=静音模式 (SILENT, PRIORITY，闹钟仍响) */
+        /** 0=勿扰 (FILTER_NONE)，1=静音 (RINGER_SILENT)，2=优先 (FILTER_PRIORITY) */
         internal const val KEY_CLASS_DND_MODE = "class_dnd_mode"
         internal const val KEY_SHIFT_MODE = "shift_mode_enabled"
         internal const val KEY_SHIFT_SELECTED_SCHEDULES = "shift_selected_schedules"
@@ -1748,7 +1747,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         prefs.edit { putBoolean(KEY_CLASS_DND, enabled) }
     }
 
-    /** 0=勿扰 1=静音(闹钟仍响) 2=优先；默认 1 不影响查看通知 */
+    /** 0=勿扰 1=静音 2=优先；默认 1，通知仍可查看 */
     fun getClassDndMode(): Int {
         return safeGetInt(KEY_CLASS_DND_MODE, 1)
     }
