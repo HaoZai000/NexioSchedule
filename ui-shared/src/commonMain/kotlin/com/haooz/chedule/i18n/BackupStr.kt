@@ -53,7 +53,7 @@ object BackupStr {
     val localBackup = L("本地备份", "Local Backup")
     val localBackupSummary = L("备份课表数据到设备存储", "Back up schedule data to device storage")
     val webDavBackup = L("WebDAV 云同步", "WebDAV Cloud Sync")
-    val webDavBackupSummary = L("配置WebDAV后可云同步/恢复", "Configure WebDAV for cloud sync and restore")
+    val webDavBackupSummary = L("配置服务器地址与应用密码", "Set the server address and app password")
     val lastOperationAtN = L("上次操作：%s", "Last operation: %s")
     val noOperationYet = L("未操作", "No operations yet")
     val restore = L("恢复", "Restore")
@@ -185,4 +185,54 @@ object BackupStr {
     val icsFileImportSummary = L("从日程文件导入课程", "Import courses from a calendar file")
     val noScheduleData = L("暂无课表数据", "No schedule data")
     val noBackupRecords = L("暂无备份记录", "No backup records yet")
+
+    // ---- 备份中心 ----
+
+    val backedUpToday = L("今天已备份", "Backed up today")
+    val backedUpYesterday = L("昨天备份", "Backed up yesterday")
+    val backedUpDaysN = L("%d 天前备份", "Backed up %d days ago")
+    val restoring = L("恢复中…", "Restoring…")
+    val loadingBackup = L("读取备份…", "Reading backup…")
+    val neverSynced = L("尚未同步", "Never synced")
+    val statusProtected = L("已保护", "Protected")
+    val statusSuggested = L("建议备份", "Backup suggested")
+    val statusStale = L("备份较旧", "Backup outdated")
+    val statusNoBackup = L("尚未备份", "No backup yet")
+    val headlineNoBackup = L("还没有备份", "No backups yet")
+    val headlineToday = L("今天已备份", "Backed up today")
+    val headlineYesterday = L("昨天备份", "Backed up yesterday")
+    val headlineDaysN = L("%d 天前备份", "Backed up %d days ago")
+    val statusLastBackupN = L("上次备份 %s", "Last backup %s")
+    val statusCountsN = L("本机 %d 份 / 云端 %d 份", "%d on device / %d in cloud")
+    val localRecordDetailN = L("%d 个课表 · 本机", "%d schedules · on device")
+    val cloudRecordDetail = L("全部课表 · 云端", "All schedules · in cloud")
+    val restoreFromFile = L("从文件恢复", "Restore from file")
+    val targetSection = L("备份到", "Back up to")
+    val targetLocal = L("本机", "This device")
+    val targetCloud = L("云端", "Cloud")
+    val targetBoth = L("两者都", "Both")
+    val targetLocalHint = L("将写入本机存储", "Will be saved on this device")
+    val targetCloudHint = L("将上传到 WebDAV", "Will be uploaded to WebDAV")
+    val targetBothHint = L("将同时写入本机和 WebDAV", "Will be saved on this device and uploaded to WebDAV")
+    val cloudOnlyFullMode = L("云端备份固定为全部课表", "Cloud backups always include all schedules")
+    val configureWebDavFirst = L("请先配置 WebDAV 服务器", "Configure the WebDAV server first")
+    val backupLocalOk = L("本机：备份成功", "This device: backup saved")
+    val backupLocalFailedN = L("本机：备份失败 %s", "This device: backup failed %s")
+    val backupCloudOk = L("云端：备份成功", "Cloud: upload succeeded")
+    val backupCloudFailedN = L("云端：备份失败 %s", "Cloud: upload failed %s")
+    val showAllN = L("查看全部 %d 份记录", "Show all %d records")
+    val showLess = L("收起", "Show less")
+    val localBackupUnsupported = L("当前平台不支持本机备份", "Local backups are unavailable on this platform")
+    val cloudConfiguredN = L("已连接 · 上次 %s", "Connected · last %s")
+    val fullRestoreDiffN = L(
+        "全量备份，包含 %d 个课表。与当前数据相比：新增 %d 个、覆盖 %d 个、移除 %d 个。",
+        "Full backup with %d schedules. Compared with current data: %d added, %d overwritten, %d removed.",
+    )
+    val fullRestoreWarning = L(
+        "恢复会先清除现有全部课表与时间配置，再整体覆盖为备份内容。",
+        "Restoring clears all current schedules and time settings, then overwrites them with the backup.",
+    )
+    val snapshotNote = L("恢复前会先保存当前数据为本机备份。", "Current data will be saved as a local backup first.")
+    val noSnapshotNote = L("未开启恢复前快照，恢复后不可撤销。", "No pre-restore snapshot is enabled; restoring cannot be undone.")
+    val snapshotFailedN = L("恢复前快照失败，已取消恢复：%s", "Pre-restore snapshot failed; restore cancelled: %s")
 }

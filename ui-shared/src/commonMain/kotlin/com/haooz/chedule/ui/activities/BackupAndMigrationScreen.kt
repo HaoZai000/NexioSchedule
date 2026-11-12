@@ -1,7 +1,4 @@
-/**
- * 备份与迁移页面 - Screen。平台专有能力（文件选择/另存为、口令分享/抓取、手环推送、
- * 节假日变更后重排提醒）全部由宿主注入，见各参数注释。
- */
+/** 课表导入 / 导出页面；平台专有能力由宿主注入，见各参数注释。 */
 package com.haooz.chedule.ui.activities
 
 import androidx.compose.foundation.layout.Arrangement
@@ -32,7 +29,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.backup.NoopScheduleFileController
 import com.haooz.chedule.data.backup.ScheduleFileController
-import com.haooz.chedule.data.backup.WebDavManager
 import com.haooz.chedule.data.backup.encodeBackupJson
 import com.haooz.chedule.data.backup.parseFullScheduleJson
 import com.haooz.chedule.data.backup.parseIcsFile
@@ -47,11 +43,8 @@ import com.haooz.chedule.data.model.TeachingWeekReorganization
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.repo.DayScheduleResolver
-import com.haooz.chedule.data.util.formatDateTimeMinute
 import com.haooz.chedule.data.util.formatIcsTimestamp
-import com.haooz.chedule.data.util.localDateTimeAt
 import com.haooz.chedule.data.util.plusDays
-import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
@@ -100,11 +93,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
-/** 课表导入 / 导出 / 备份 三种页面模式 */
+/** 课表导入 / 导出两种页面模式。 */
 enum class ScheduleDataManageMode {
     Import,
     Export,
-    Backup,
 }
 
 /** 课表导入 / 导出 / 备份页面；由 [mode] 决定展示内容，入口页共用。 */
@@ -150,15 +142,6 @@ fun BackupAndMigrationScreen(
 
     val isTablet = isTabletWidth()
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
-
-    // 恢复成功后的提醒重排是平台副作用，走注入
-    val webDavManager = remember { WebDavManager { onHolidayDataChanged() } }
-    val lastSyncTimeMs = webDavManager.lastSyncTime
-    val lastSyncSummary = remember(lastSyncTimeMs, AppLanguage.resolved) {
-        // 格式只含数字与固定分隔符、不受 Locale 影响（:core 手写等价格式化）。
-        if (lastSyncTimeMs > 0L) BackupStr.lastOperationAtN(localDateTimeAt(lastSyncTimeMs).formatDateTimeMinute())
-        else BackupStr.noOperationYet()
-    }
 
     var showImportConfirmDialog by remember { mutableStateOf(false) }
     var pendingImportData by remember { mutableStateOf<Map<String, Any>?>(null) }
@@ -567,36 +550,6 @@ fun BackupAndMigrationScreen(
                 }
             }
 
-            if (mode == ScheduleDataManageMode.Backup) {
-                item {
-                    SmallTitle(
-                        text = BackupStr.backupSection(),
-                    )
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(0.dp)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
-                            val appRouter = LocalAppRouter.current
-                            ArrowPreference(
-                                title = BackupStr.localBackup(),
-                                summary = BackupStr.localBackupSummary(),
-                                onClick = {
-                                    appRouter.navigate(AppRoute.LocalBackup)
-                                }
-                            )
-                            ArrowPreference(
-                                title = BackupStr.webDavBackup(),
-                                summary = if (webDavManager.isConfigured()) lastSyncSummary else BackupStr.webDavBackupSummary(),
-                                onClick = {
-                                    appRouter.navigate(AppRoute.WebDavSettings)
-                                }
-                            )
-                        }
-                    }
-                }
-            }
         }
     }
 

@@ -69,10 +69,6 @@ sealed interface AppRoute {
         override val id: String get() = "communication"
     }
 
-    /** 本地备份（「本地备份」）。 */
-    data object LocalBackup : AppRoute {
-        override val id: String get() = "local_backup"
-    }
 
     /** 捐赠支持（「捐赠支持」）。 */
     data object AppreciateAuthor : AppRoute {
@@ -168,7 +164,6 @@ sealed interface AppRoute {
             UpdateSettings.id -> UpdateSettings
             UpdatePreferences.id -> UpdatePreferences
             Communication.id -> Communication
-            LocalBackup.id -> LocalBackup
             AppreciateAuthor.id -> AppreciateAuthor
             ScheduleBackup.id -> ScheduleBackup
             ImportExport.id -> ImportExport

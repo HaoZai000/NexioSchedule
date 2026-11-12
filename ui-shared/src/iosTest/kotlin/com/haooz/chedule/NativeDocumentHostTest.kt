@@ -174,7 +174,6 @@ class NativeDocumentHostTest {
             AppRoute.AppreciateAuthor to "捐赠支持",
             AppRoute.PreferenceSettings to "应用个性化",
             AppRoute.UpdateSettings to "更新",
-            AppRoute.LocalBackup to "本地备份",
             AppRoute.AiImport to "AI 文本导入",
             AppRoute.WidgetIntro to "桌面小部件",
             AppRoute.CourseReminder to "课程提醒",
@@ -207,7 +206,7 @@ class NativeDocumentHostTest {
         assertTrue(host.router.popBack())
         assertEquals(listOf(backup), host.nativeRouteIds)
         host.completeNativePop(1)
-        host.router.navigate(AppRoute.LocalBackup)
+        host.router.navigate(AppRoute.WebDavSettings)
         assertEquals(2, host.nativeRouteIds.size)
         assertEquals(0, host.router.depth)
     }

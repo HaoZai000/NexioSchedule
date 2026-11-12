@@ -87,6 +87,7 @@ import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.util.todayLocalDate
+import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.FeedbackStr
@@ -96,6 +97,8 @@ import com.haooz.chedule.ui.activities.AboutScreen
 import com.haooz.chedule.ui.activities.AiImportScreen
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
 import com.haooz.chedule.ui.activities.BackupAndMigrationScreen
+import com.haooz.chedule.ui.activities.BackupBottomActionState
+import com.haooz.chedule.ui.activities.BackupCenterScreen
 import com.haooz.chedule.ui.activities.CalendarSyncResult
 import com.haooz.chedule.ui.activities.ChangelogScreen
 import com.haooz.chedule.ui.activities.CommunicationScreen
@@ -109,7 +112,6 @@ import com.haooz.chedule.ui.activities.FeedbackRoadmapScreen
 import com.haooz.chedule.ui.activities.FeedbackScreen
 import com.haooz.chedule.ui.activities.HolidaySettingsScreen
 import com.haooz.chedule.ui.activities.LicenseScreen
-import com.haooz.chedule.ui.activities.LocalBackupScreen
 import com.haooz.chedule.ui.activities.PreferenceSettingsScreen
 import com.haooz.chedule.ui.activities.PrivacyPolicyScreen
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
@@ -803,27 +805,37 @@ fun UpdatePreferencesRoute(router: AppRouter) {
     }
 }
 
-/**
- * 本地备份路由。
- *
- * @param backupFileController Android 注入 `AndroidBackupFileController(context)`（SAF 选文件 + 目录扫描读写）；桌面/iOS 用默认 [NoopBackupFileController]。
- * @param onHolidayDataChanged 全量恢复成功后的平台副作用（重排提醒等），Android 宿主注入。
- */
+/** 备份中心路由；本机文件能力由宿主注入，未注入的平台只显示云端记录。 */
 @Composable
-fun LocalBackupRoute(
+fun BackupCenterRoute(
     router: AppRouter,
     backupFileController: BackupFileController = NoopBackupFileController,
     onHolidayDataChanged: () -> Unit = {},
 ) {
+    val hapticFeedback = LocalHapticFeedback.current
+    // 立即备份画在页面外的浮层上（玻璃要折射页面内容），状态由页面写入
+    val bottomAction = remember { BackupBottomActionState() }
     DocumentPageScaffold(
-        title = ChromeStr.localBackup(),
+        title = ChromeStr.scheduleBackup(),
         onBack = { router.popBack() },
+        overlay = { backdrop ->
+            BottomActionButton(
+                text = bottomAction.busy ?: BackupStr.backupNow(),
+                enabled = bottomAction.enabled,
+                backdrop = backdrop,
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                    bottomAction.onBackup?.invoke()
+                },
+            )
+        },
     ) { scrollBehavior, backdrop ->
-        LocalBackupScreen(
+        BackupCenterScreen(
             scrollBehavior = scrollBehavior,
             liquidGlassBackdrop = backdrop,
             backupFileController = backupFileController,
             onHolidayDataChanged = onHolidayDataChanged,
+            bottomAction = bottomAction,
         )
     }
 }
@@ -1119,16 +1131,7 @@ fun CourseReminderRoute(
     }
 }
 
-/**
- * WebDAV 云同步设置路由：顶栏「测试连接」（[DocumentPageScaffold] 的 endAction）+
- * 底部「同步到云端 / 从云端恢复」（overlay 里直接两颗 [LiquidGlassTextButton]）。
- *
- * ⚠ 底部按钮必须画在 `overlay` 里，不能挪进 [WebDavSettingsScreen]：本页内容整体在录制层内，
- * 按钮自己又采样同一层 backdrop，放进去就是自采自，直接崩。
- *
- * 按钮的点击与忙碌态由 Screen 反抛（`onBackupRestoreReady` / `onBusyStateChange`），本路由只持有并渲染。
- * @param onHolidayDataChanged 云端恢复后的平台副作用（重排提醒 / 勿扰 / 小组件），Android 宿主注入。
- */
+/** WebDAV 配置路由：只管服务器参数与测试连接，备份/恢复统一在备份中心。 */
 @Composable
 fun WebDavSettingsRoute(
     router: AppRouter,
@@ -1136,10 +1139,6 @@ fun WebDavSettingsRoute(
 ) {
     var connected by remember { mutableStateOf(false) }
     var onTestConnection by remember { mutableStateOf({}) }
-    var backingUp by remember { mutableStateOf(false) }
-    var restoring by remember { mutableStateOf(false) }
-    var onBackup by remember { mutableStateOf({}) }
-    var onRestore by remember { mutableStateOf({}) }
 
     NativeDocumentActionEffect(NativeDocumentAction(
         symbol = if (connected) "checkmark" else "play.fill",
@@ -1151,34 +1150,6 @@ fun WebDavSettingsRoute(
     DocumentPageScaffold(
         title = ChromeStr.webdavBackup(),
         onBack = { router.popBack() },
-        overlay = { backdrop ->
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = if (isTabletWidth()) 28.dp else 24.dp)
-                    .navigationBarsPadding()
-                    .padding(bottom = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Box(Modifier.weight(1f)) {
-                    LiquidGlassTextButton(
-                        text = if (backingUp) ChromeStr.backingUp() else ChromeStr.backupToCloud(),
-                        onClick = onBackup,
-                        backdrop = backdrop,
-                        primary = true,
-                    )
-                }
-                Box(Modifier.weight(1f)) {
-                    LiquidGlassTextButton(
-                        text = if (restoring) ChromeStr.restoring() else ChromeStr.restoreFromCloud(),
-                        onClick = onRestore,
-                        backdrop = backdrop,
-                        primary = true,
-                    )
-                }
-            }
-        },
         endAction = { backdropAlpha, shadowAlpha, backdrop ->
             LiquidTopBarButton(
                 onClick = { onTestConnection() },
@@ -1196,24 +1167,16 @@ fun WebDavSettingsRoute(
             scrollBehavior = scrollBehavior,
             onConnectedChange = { connected = it },
             onTestConnectionReady = { onTestConnection = it },
-            onBackupRestoreReady = { backup, restore ->
-                onBackup = backup
-                onRestore = restore
-            },
-            onBusyStateChange = { b, r ->
-                backingUp = b
-                restoring = r
-            },
             onHolidayDataChanged = onHolidayDataChanged,
         )
     }
 }
 
 /**
- * 课表导入 / 导出 / 备份（共用 [BackupAndMigrationScreen]，只差 [mode]）。
+ * 课表导入 / 导出（共用 [BackupAndMigrationScreen]，只差 [mode]）。
  *
  * [switchableModes] 非空时启用「导入导出」胶囊切换页；留空为单模式页。
- * 三个入口必须走路由，不能是独立 Activity。
+ * 入口必须走路由，不能是独立 Activity。
  *
  * @param scheduleFileController Android 注入 `AndroidScheduleFileController(context)`；iOS/桌面用 [NoopScheduleFileController]（点导入会提示不可用）。
  */
@@ -1250,11 +1213,7 @@ fun BackupAndMigrationRoute(
     val goToPage: (Int) -> Unit = { index ->
         selectedTab = index.coerceIn(0, pageCount - 1)
     }
-    val title = if (mode == ScheduleDataManageMode.Backup && !switchable) {
-        ChromeStr.scheduleBackup()
-    } else {
-        ChromeStr.importExport()
-    }
+    val title = ChromeStr.importExport()
     DocumentPageScaffold(
         title = title,
         onBack = { router.popBack() },
@@ -1316,7 +1275,6 @@ fun BackupAndMigrationRoute(
 private fun modeTabLabel(mode: ScheduleDataManageMode): String = when (mode) {
     ScheduleDataManageMode.Import -> ChromeStr.importTab()
     ScheduleDataManageMode.Export -> ChromeStr.exportTab()
-    ScheduleDataManageMode.Backup -> ChromeStr.scheduleBackup()
 }
 
 /**

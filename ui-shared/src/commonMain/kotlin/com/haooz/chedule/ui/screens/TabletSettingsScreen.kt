@@ -51,6 +51,7 @@ import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.navigation.AppreciateAuthorRoute
 import com.haooz.chedule.ui.navigation.BackupAndMigrationRoute
+import com.haooz.chedule.ui.navigation.BackupCenterRoute
 import com.haooz.chedule.ui.navigation.ChangelogRoute
 import com.haooz.chedule.ui.navigation.CommunicationRoute
 import com.haooz.chedule.ui.navigation.CourseManageRoute
@@ -63,7 +64,6 @@ import com.haooz.chedule.ui.navigation.FeedbackRoute
 import com.haooz.chedule.ui.navigation.HolidaySettingsRoute
 import com.haooz.chedule.ui.navigation.LicenseRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
-import com.haooz.chedule.ui.navigation.LocalBackupRoute
 import com.haooz.chedule.ui.navigation.NAV_BG_DIM
 import com.haooz.chedule.ui.navigation.NAV_ENTER_DURATION
 import com.haooz.chedule.ui.navigation.NAV_ENTER_EASING
@@ -130,7 +130,6 @@ private fun DefaultTabletSettingsPaneRouteContent(router: AppRouter, route: AppR
         AppRoute.CourseTimeSettings -> CourseTimeSettingsRoute(router)
         AppRoute.CourseManage -> CourseManageRoute(router)
         AppRoute.WidgetIntro -> WidgetIntroRoute(router)
-        AppRoute.LocalBackup -> LocalBackupRoute(router)
         AppRoute.WebDavSettings -> WebDavSettingsRoute(router)
         AppRoute.AiImport -> AiImportRoute(router)
         AppRoute.EducationalImport -> EducationalImportRoute(router)
@@ -142,10 +141,7 @@ private fun DefaultTabletSettingsPaneRouteContent(router: AppRouter, route: AppR
                 ScheduleDataManageMode.Export,
             ),
         )
-        AppRoute.ScheduleBackup -> BackupAndMigrationRoute(
-            router = router,
-            mode = ScheduleDataManageMode.Backup,
-        )
+        AppRoute.ScheduleBackup -> BackupCenterRoute(router = router)
         // Settings 会套娃；Weather / WebImport 无兜底实现
         AppRoute.Settings,
         AppRoute.Weather,

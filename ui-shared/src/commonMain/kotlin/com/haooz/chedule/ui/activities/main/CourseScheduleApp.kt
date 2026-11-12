@@ -52,6 +52,7 @@ import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.LanguageStore
+import com.haooz.chedule.ui.activities.BackupAutomation
 import com.haooz.chedule.ui.activities.today.TodayAssistantCardData
 import com.haooz.chedule.ui.components.SharedFileIntent
 import com.haooz.chedule.ui.components.TabletNavSamplingTracker
@@ -305,6 +306,7 @@ fun CourseScheduleApp(
         }
 
         // ── 5. 副作用：云同步 / 生命周期刷新 ───────────────────────────────────
+        LaunchedEffect(Unit) { BackupAutomation.start() }
         LaunchedEffect(privacyConsented) {
             if (!privacyConsented) return@LaunchedEffect
             val syncManager = SyncManager.getInstance()

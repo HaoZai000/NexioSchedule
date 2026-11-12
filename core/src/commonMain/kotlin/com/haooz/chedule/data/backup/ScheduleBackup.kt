@@ -440,6 +440,49 @@ class WebDavManager(
         }
     }
 
+    /** 下载指定备份的 data 段，只解析不写库，供恢复前预览。 */
+    suspend fun downloadBackupData(backupId: String): Result<Map<String, Any>> = withContext(ioDispatcher) {
+        try {
+            val response = http.request(
+                method = "GET",
+                url = backupFileUrl(backupId),
+                headers = authHeaders(),
+            )
+            if (!response.isSuccessful) {
+                return@withContext Result.failure<Map<String, Any>>(
+                    Exception(if (response.code == 404) "备份文件不存在" else "下载备份失败: ${response.code}")
+                )
+            }
+            val body = response.text.ifEmpty { "{}" }
+            @Suppress("UNCHECKED_CAST")
+            val root = runCatching {
+                jsonToPlainValue(parseJsonObject(body)) as? Map<String, Any>
+            }.getOrNull() ?: emptyMap()
+            @Suppress("UNCHECKED_CAST")
+            val data = root["data"] as? Map<String, Any> ?: emptyMap()
+            if (data.isEmpty()) Result.failure(Exception("备份数据为空")) else Result.success(data)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** 按指定记录恢复；[restoreLatestBackup] 仍保持「只取最新一份」的原有语义。 */
+    suspend fun restoreBackup(backupId: String, repository: CourseRepository): RestoreResult =
+        withContext(ioDispatcher) {
+            val data = downloadBackupData(backupId).getOrElse {
+                return@withContext RestoreResult.Error(it.message ?: "下载备份失败")
+            }
+            try {
+                repository.importAllPreferences(data)
+                onHolidayDataChanged()
+                lastSyncTime = Clock.System.now().toEpochMilliseconds()
+                RestoreResult.Success(BackupInfo(backupId, "").backupTime)
+            } catch (e: Exception) {
+                NexioLog.e(TAG, "Restore exception", e)
+                RestoreResult.Error("恢复异常: ${e.message}")
+            }
+        }
+
     // ============ 备份列表 ============
 
     suspend fun listBackups(): List<BackupInfo> = withContext(ioDispatcher) {

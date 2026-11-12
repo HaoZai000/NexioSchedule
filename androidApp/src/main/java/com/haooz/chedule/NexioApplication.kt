@@ -75,6 +75,9 @@ class NexioApplication : Application() {
         }
         // 课程变更后的平台副作用
         ScheduleEffects.init(AndroidScheduleEffects(this))
+        com.haooz.chedule.ui.activities.BackupAutomation.install(
+            com.haooz.chedule.ui.utils.AndroidBackupFileController(this)
+        )
         // 同步预测性返回动画开关到全局单例。
         PredictiveBackSettings.enabled = AppStorage.store("app_preferences")
             .getBoolean(PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION, true)

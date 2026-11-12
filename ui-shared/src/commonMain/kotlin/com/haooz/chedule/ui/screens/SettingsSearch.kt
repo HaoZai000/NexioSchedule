@@ -419,12 +419,6 @@ internal fun settingsSearchIndex(): List<SettingsSearchEntry> = buildList {
     add(entry(backup, SettingsStr.scheduleBackup(), AppRoute.ScheduleBackup))
     add(
         entry(
-            backup, BackupStr.localBackup(), AppRoute.LocalBackup,
-            summary = BackupStr.localBackupSummary(), section = backupSection,
-        )
-    )
-    add(
-        entry(
             backup, BackupStr.webDavBackup(), AppRoute.WebDavSettings,
             summary = BackupStr.webDavBackupSummary(), section = backupSection,
         )

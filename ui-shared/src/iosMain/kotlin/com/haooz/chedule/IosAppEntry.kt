@@ -32,6 +32,7 @@ import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.CourseStorage
 import com.haooz.chedule.data.platform.toByteArray
 import com.haooz.chedule.i18n.L
+import com.haooz.chedule.ui.activities.BackupAutomation
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.main.CourseScheduleApp
 import com.haooz.chedule.ui.activities.today.TodayAssistantCard
@@ -43,6 +44,7 @@ import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.navigation.AppreciateAuthorRoute
 import com.haooz.chedule.ui.navigation.BackupAndMigrationRoute
+import com.haooz.chedule.ui.navigation.BackupCenterRoute
 import com.haooz.chedule.ui.navigation.ChangelogRoute
 import com.haooz.chedule.ui.navigation.WeatherRoute
 import com.haooz.chedule.ui.navigation.CommunicationRoute
@@ -56,7 +58,6 @@ import com.haooz.chedule.ui.navigation.FeedbackRoute
 import com.haooz.chedule.ui.navigation.HolidaySettingsRoute
 import com.haooz.chedule.ui.navigation.LicenseRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
-import com.haooz.chedule.ui.navigation.LocalBackupRoute
 import com.haooz.chedule.ui.navigation.PreferenceSettingsRoute
 import com.haooz.chedule.ui.navigation.PrivacyPolicyRoute
 import com.haooz.chedule.ui.navigation.ScheduleSettingsRoute
@@ -194,6 +195,7 @@ internal fun NexioIosMain(host: IosAppHost) {
     val consented by PrivacyConsent.consented.collectAsState()
     // 统计上报：已同意的回访用户，冷启动即上报（active + 一次性 install），对齐 Android onCreate
     LaunchedEffect(Unit) {
+        BackupAutomation.install(backupFileController)
         if (PrivacyConsent.hasConsented()) {
             StatsReporter.reportActive()
             StatsReporter.reportInstallOnce()
@@ -365,12 +367,10 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.PreferenceSettings -> PreferenceSettingsRoute(router)
         AppRoute.UpdateSettings -> UpdateSettingsRoute(router)
         AppRoute.UpdatePreferences -> UpdatePreferencesRoute(router)
-        // 本地备份：目录扫描+手动选文件都需原生文件能力。
-        // ⚠ 不传会落到 NoopBackupFileController，点「手动选择文件」静默回调 null，什么都不发生。
-        AppRoute.LocalBackup -> LocalBackupRoute(
+        // 备份中心：目录扫描+选文件都需原生文件能力，不传会落到 Noop 控制器。
+        AppRoute.ScheduleBackup -> BackupCenterRoute(
             router = router,
             backupFileController = backupFileController,
-            // 全量恢复会写节假日数据 → 重排提醒
             onHolidayDataChanged = onHolidayDataChanged,
         )
         AppRoute.AiImport -> AiImportRoute(
@@ -420,14 +420,6 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
             router = router,
             mode = ScheduleDataManageMode.Import,
             switchableModes = listOf(ScheduleDataManageMode.Import, ScheduleDataManageMode.Export),
-            scheduleFileController = fileController,
-            onHolidayDataChanged = onHolidayDataChanged,
-            onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
-            onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
-        )
-        AppRoute.ScheduleBackup -> BackupAndMigrationRoute(
-            router = router,
-            mode = ScheduleDataManageMode.Backup,
             scheduleFileController = fileController,
             onHolidayDataChanged = onHolidayDataChanged,
             onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },

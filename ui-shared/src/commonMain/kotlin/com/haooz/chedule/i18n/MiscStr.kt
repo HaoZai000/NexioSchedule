@@ -61,11 +61,6 @@ object MiscStr {
     // ---- WebDAV 设置页 ----
 
     val lastOperationN = L("上次操作：%s", "Last operation: %s")
-    val backingUpStatus = L("正在备份…", "Backing up…")
-    val restoringStatus = L("正在恢复…", "Restoring…")
-    val processingStatus = L("处理中…", "Processing…")
-    val backupSuccessN = L("备份成功：%s", "Backup successful: %s")
-    val restoreSuccessN = L("恢复成功：%s", "Restore successful: %s")
     val connectionFailed = L("连接失败", "Connection failed")
     val serverConfigSection = L("服务器配置", "Server Configuration")
     val serverAddress = L("服务器地址", "Server address")
@@ -85,7 +80,7 @@ object MiscStr {
     )
     val backupRestoreNotesTitle = L("备份与恢复说明", "Backup and Restore Notes")
     val backupRestoreNotesDetail = L(
-        "同步到云端：将全部课表数据上传为带时间戳的文件，每次备份独立保存，不覆盖历史备份。\n\n从云端恢复：下载最新的备份文件覆盖本地数据。恢复前请先备份当前数据。",
-        "Sync to cloud: all schedule data is uploaded as timestamped files. Each backup is saved independently and never overwrites previous ones.\n\nRestore from cloud: the latest backup file is downloaded and overwrites local data. Back up your current data before restoring.",
+        "本页只配置服务器。备份、上传与恢复都在「备份与同步」页完成，在那里可以选择备份到本机、云端或两者。",
+        "This page only configures the server. Backups, uploads and restores happen on the Backup & Sync page, where you choose whether to save to this device, the cloud or both.",
     )
 }

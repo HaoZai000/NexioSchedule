@@ -20,6 +20,7 @@ import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.navigation.AppreciateAuthorRoute
 import com.haooz.chedule.ui.navigation.BackupAndMigrationRoute
+import com.haooz.chedule.ui.navigation.BackupCenterRoute
 import com.haooz.chedule.ui.navigation.ChangelogRoute
 import com.haooz.chedule.ui.navigation.CommunicationRoute
 import com.haooz.chedule.ui.navigation.CourseManageRoute
@@ -31,7 +32,6 @@ import com.haooz.chedule.ui.navigation.FeedbackRoadmapRoute
 import com.haooz.chedule.ui.navigation.FeedbackRoute
 import com.haooz.chedule.ui.navigation.HolidaySettingsRoute
 import com.haooz.chedule.ui.navigation.LicenseRoute
-import com.haooz.chedule.ui.navigation.LocalBackupRoute
 import com.haooz.chedule.ui.navigation.PreferenceSettingsRoute
 import com.haooz.chedule.ui.navigation.PrivacyPolicyRoute
 import com.haooz.chedule.ui.navigation.ScheduleSettingsRoute
@@ -73,7 +73,6 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.Feedback -> FeedbackRoute(router)
         AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
         AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
-        AppRoute.LocalBackup -> LocalBackupRoute(router = router)
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
         AppRoute.AiImport -> AiImportRoute(router = router)
         AppRoute.WidgetIntro -> WidgetIntroRoute(router = router)
@@ -95,8 +94,7 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
                 onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
             )
 
-        AppRoute.ScheduleBackup ->
-            BackupAndMigrationRoute(router = router, mode = ScheduleDataManageMode.Backup)
+        AppRoute.ScheduleBackup -> BackupCenterRoute(router = router)
 
         // 需要 ArkTS 的 Web 组件 / 选文件能力，还没搭桥
         AppRoute.WebImport -> RouteUnavailable(router, "网页导入")
