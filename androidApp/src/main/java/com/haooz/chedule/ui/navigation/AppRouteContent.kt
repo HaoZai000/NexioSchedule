@@ -49,6 +49,7 @@ import com.haooz.chedule.ui.utils.performScheduleShare
 import com.haooz.chedule.ui.web.rememberAndroidWebHost
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.wearable.WearableScheduleSync
+import com.haooz.chedule.wearable.rememberWatchSyncController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -324,6 +325,8 @@ private fun AndroidBackupAndMigrationRoute(
         },
         // 手环推送
         onExportToWearable = { name -> WearableScheduleSync.exportToWearable(context, name) },
+        // 手表蓝牙推送（扫描 + 分片写入）
+        watchSyncController = rememberWatchSyncController(),
         // 同步到日历（缺权限时点一下就申请）
         onSyncToCalendar = rememberCalendarSyncAction(),
     )

@@ -1,5 +1,7 @@
 package com.haooz.chedule.ui.navigation
 
+import com.haooz.chedule.ui.components.NoopWatchSyncController
+import com.haooz.chedule.ui.components.WatchSyncController
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -1220,6 +1222,7 @@ fun BackupAndMigrationRoute(
         { source, _ -> Result.failure(IllegalStateException(ChromeStr.platformUnsupported(source.displayName))) },
     onShareSchedule: (scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit = { _, _ -> },
     onExportToWearable: suspend (scheduleName: String) -> String? = { null },
+    watchSyncController: WatchSyncController = NoopWatchSyncController,
     onSyncToCalendar: suspend (scheduleName: String) -> CalendarSyncResult = { CalendarSyncResult.Unsupported },
 ) {
     val switchable = switchableModes.size > 1
@@ -1274,6 +1277,7 @@ fun BackupAndMigrationRoute(
                 onImportThirdParty = onImportThirdParty,
                 onShareSchedule = onShareSchedule,
                 onExportToWearable = onExportToWearable,
+                watchSyncController = watchSyncController,
                 onSyncToCalendar = onSyncToCalendar,
             )
         }
