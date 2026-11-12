@@ -1,69 +1,72 @@
 package com.haooz.chedule.ui.components
 
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.dp
-import com.haooz.softglass.platform.isRenderEffectSupported
-import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.dp
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.screens.LocalTabletSettingsPaneChrome
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
+import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.softglass.platform.isRenderEffectSupported
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.LocalTopBarMaterial
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 import top.yukonga.miuix.kmp.utils.OverScrollState
 
-/**
- * 顶部糊带基准高度（不含状态栏）：
- */
+/** 顶部糊带基准高度（不含状态栏）。 */
 internal val PageBlurBaseHeight: Dp = 72.dp
 
-/**
- * 顶部糊带在「有头部组件」时的额外高度。
- */
+/** 存在头部组件（搜索框、分段控件）时，顶部糊带的额外高度。 */
 internal val HeaderComponentBlurExtra: Dp = 72.dp
 
 /**
- * 标题下方内容（分段控件、搜索框等）的**唯一**定位实现
+ * 标题下方的固定头部内容（分段控件、搜索框等）。
+ *
+ * 统一把内容顶到折叠标题之下，并跟随标题一起让出高度；调用方不要再自行计算这段偏移。
  */
 @Composable
 fun PageHeaderContent(
@@ -85,194 +88,222 @@ fun PageHeaderContent(
 }
 
 /**
- * 「全屏文档页」的统一脚手架：折叠大标题顶栏 + 玻璃返回按钮 + 内容采样层
+ * 全屏文档页脚手架：折叠大标题顶栏、玻璃返回按钮与内容采样层。
  *
- * @param recordKey 两层采样源共用的结构指纹。传 null（默认）= 每帧录制，
- *   保持原行为；使用方传入 remember 稳定的 List 可让顶栏玻璃在内容静止时
- *   跳过重录。指纹必须覆盖**所有**会改变被采样像素的因素（数据版本、
- *   弹窗/浮层可见性、主题等），漏项会让玻璃采到旧帧。
+ * 页面内容会被录制进采样层 [GlassBackdrop]，顶栏按钮和页面浮层都以它作为玻璃折射的来源。
+ *
+ * @param recordKey 采样层的结构指纹。null 表示每帧重录；传入稳定的键（如数据版本）可在内容
+ *   静止时跳过重录。键必须覆盖所有会改变被采样像素的因素，否则玻璃会采到旧帧。
+ * @param pageBlurDp 页面级模糊半径（dp，绘制期取值），0 表示不模糊。内容层、顶栏层与浮层
+ *   各自成层，因此不会把页内浮层（如翻面卡片）一起糊掉。
+ * @param chromeBlocked 页面浮层是否接管顶栏。为 true 时顶栏区域拦下点击并转给 [onChromeBlockedTap]。
+ * @param endAction 顶栏右侧动作；第三个参数是采样层，供玻璃按钮折射页面内容。
+ * @param overlay 覆盖整页的浮层（下拉菜单等），绘制在顶栏之上，同样跟随页面级模糊。
+ * @param headerOverlay 标题下方的固定头部内容，与顶栏按钮共用同一份材质状态。
  */
 @Composable
 fun DocumentPageScaffold(
     title: String,
     onBack: () -> Unit,
     recordKey: Any? = null,
-    /**
-     * 页面级背景模糊半径（dp，绘制期求值）。0 = 不模糊。
-     *
-     * 挂在**整页根节点**上（内容 + 折叠标题一起糊）：页内自己糊只能糊到内容，
-     * 标题由本组件画在上面，盖不住。口径与 morph 一致（`DETAIL_BACKDROP_BLUR_DP`）。
-     */
     pageBlurDp: (() -> Float)? = null,
-    // 第三个参数是**页面采样层本身**：顶栏玻璃按钮要拿它当 backdrop，才能真的折射内容。
-    // 以前调用方各自 `rememberLayerBackdrop()` 造一个空层，渲染出来是一颗纯色圆 ——
-    // 看着"没有玻璃效果"就是这个原因。
-    endAction: (@Composable (backdropAlpha: Float, shadowAlpha: Float, backdrop: com.haooz.softglass.backdrop.GlassBackdrop) -> Unit)? = null,
-    overlay: (@Composable BoxScope.(liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop) -> Unit)? = null,
-    // 挂在页面固定层的头部内容（分段控件等）
-    headerOverlay: (@Composable (
-        backdrop: com.haooz.softglass.backdrop.GlassBackdrop,
-        scrollBehavior: SharedScrollBehavior,
-    ) -> Unit)? = null,
-    content: @Composable (
-        scrollBehavior: SharedScrollBehavior,
-        liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop,
-    ) -> Unit,
+    chromeBlocked: Boolean = false,
+    onChromeBlockedTap: () -> Unit = {},
+    endAction: (@Composable (backdropAlpha: Float, shadowAlpha: Float, backdrop: GlassBackdrop) -> Unit)? = null,
+    overlay: (@Composable BoxScope.(liquidGlassBackdrop: GlassBackdrop) -> Unit)? = null,
+    headerOverlay: (@Composable (backdrop: GlassBackdrop, scrollBehavior: SharedScrollBehavior) -> Unit)? = null,
+    content: @Composable (scrollBehavior: SharedScrollBehavior, liquidGlassBackdrop: GlassBackdrop) -> Unit,
 ) {
     val nativeChrome = LocalNativeDocumentChrome.current
     val nativeBarInset = (nativeChrome?.barInset ?: 0.0).dp
     val showNavigationActions = nativeChrome == null
-    // 二级页不画返回按钮；endAction 不受影响
     val paneChrome = LocalTabletSettingsPaneChrome.current
-    val tintArgb = MiuixTheme.colorScheme.primary.toArgb().toLong()
+    val backgroundColor = MiuixTheme.colorScheme.surface
+    val primaryColor = MiuixTheme.colorScheme.primary
+    val tintArgb = remember(primaryColor) { primaryColor.toArgb().toLong() }
+
     SideEffect {
         nativeChrome?.title = title
         nativeChrome?.tintArgb = tintArgb
     }
-    val backgroundColor = MiuixTheme.colorScheme.surface
-    // 采样层本身（recordKey 由调用方给）；顶栏玻璃采它，页面内容不再另录一份没人采的层。
+
     val liquidGlassBackdrop = rememberLayerBackdrop()
     val scrollBehavior = rememberSharedScrollBehavior()
-    // 本页独立的 overscroll 作用域：内容的 overScrollVertical 节点把越界量写进这个实例，
-    // 顶栏 CollapsibleTopAppBar 也从同一个 CompositionLocal 读它 —— 两边必须是同一套。
-    // 搬迁到 :miuix 后曾出现两套 LocalOverScrollState（app 的 fork 与 miuix 自带的），
-    // 顶栏读的是永远为 0 的那套，于是「回弹也显现材质」整条分支成了死代码。
-    // 顺带隔离：每页一个实例，不会互相串到 compositionLocalOf 的全局默认实例上。
+    // 每页独立的 overscroll 作用域：内容与顶栏必须读同一个实例，否则越界回弹无法驱动顶栏材质。
     val pageOverScrollState = remember { OverScrollState() }
-    // 顶栏折叠动画期间采样像素逐帧变，谓词读 offset 帧差（draw 阶段，不进组合）。
-    // 内容自身的变化由调用方的 recordKey 负责枚举——组件看不到 content 的内部状态。
-    val docMustRecord = remember(scrollBehavior) {
+    // 折叠动画期间采样像素逐帧变化：按高度偏移的帧差判断，只在绘制期求值，不触发重组。
+    val docMustRecord: () -> Boolean = remember(scrollBehavior) {
         var lastOffset = Float.NaN
         {
             val offset = scrollBehavior.state.heightOffset
-            val moving = offset != lastOffset
-            lastOffset = offset
-            moving
+            (offset != lastOffset).also { lastOffset = offset }
         }
     }
+    // 两个模糊图层各自持有一份 RenderEffect 缓存，半径不变时复用同一实例。
+    val topBarBlur = rememberPageBlurModifier(pageBlurDp)
+    val overlayBlur = rememberPageBlurModifier(pageBlurDp)
 
     CompositionLocalProvider(LocalOverScrollState provides pageOverScrollState) {
-        // 本页唯一材质状态：按钮玻璃 / 阴影走全站同一判据（遮罩不接，本页遮罩常驻）
+        // 全站统一的材质判据：按钮玻璃与阴影都从这里取值。
         val material = rememberTopBarMaterialState(scrollBehavior)
         Scaffold(
             modifier = Modifier
                 .background(backgroundColor)
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
-                )
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                 .consumeWindowInsets(PaddingValues(top = nativeBarInset)),
             topBar = {},
         ) { paddingValues ->
             Box(modifier = Modifier.fillMaxSize()) {
-                // 采样层只包内容；顶栏玻璃按钮放在层外，避免循环采样
+                val pageScope = this
+
+                // 采样层只包内容：顶栏按钮与浮层在层外，避免玻璃采样到自身。
                 Box(
-                    modifier = Modifier.fillMaxSize().then(
-                        // 无材质档：玻璃全关，采样录屏层不挂
-                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) Modifier
-                        else Modifier.layerBackdrop(
-                            liquidGlassBackdrop,
-                            recordKey = recordKey,
-                            mustRecord = docMustRecord
-                        )
-                    )
+                    modifier = if (AppMaterialSettings.isNoneTier()) {
+                        Modifier.fillMaxSize()
+                    } else {
+                        Modifier
+                            .fillMaxSize()
+                            .layerBackdrop(
+                                liquidGlassBackdrop,
+                                recordKey = recordKey,
+                                mustRecord = docMustRecord,
+                            )
+                    }
                 ) {
                     content(scrollBehavior, liquidGlassBackdrop)
                 }
 
-                // 顶栏单独糊：页内模糊只能糊到内容，标题在本层之上；
-                // 而整页一起糊又会把页内浮层（翻面的卡片）一起糊掉。所以各糊各的。
+                // 顶栏独立成层：页面级模糊糊不到标题，而整页共用一个模糊层又会把页内浮层一起糊掉。
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .graphicsLayer {
-                            val blurDp = pageBlurDp?.invoke() ?: 0f
-                            renderEffect = if (blurDp > 0.01f && isRenderEffectSupported()) {
-                                val blurPx = blurDp.dp.toPx()
-                                BlurEffect(null, blurPx, blurPx, TileMode.Clamp)
-                            } else null
-                        }
+                        .then(topBarBlur)
                 ) {
-                ProgressiveBlurTopBar(
-                    backdrop = liquidGlassBackdrop,
-                    // 有头部组件（搜索框 / 分段控件）时糊带加高，盖住组件再淡出
-                    height = if (headerOverlay == null) {
-                        Dp.Unspecified
-                    } else {
-                        PageBlurBaseHeight +
-                            (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() -
-                                nativeBarInset).coerceAtLeast(0.dp) +
-                            HeaderComponentBlurExtra
-                    },
-                    topInsetAdjustment = nativeBarInset,
-                    noTopStatusBar = hostVerticalBarEdge(),
-                ) {
-                    CollapsibleTopAppBar(
-                        title = title,
-                        largeTitle = title,
-                        // 右栏标题锁折叠态
-                        showLargeTitle = if (paneChrome.forceCollapsedTitle) false else null,
-                        modifier = Modifier,
-                        scrollBehavior = scrollBehavior,
-                        materialState = material,
-                        contentPadding = {},
-                        startAction = if (showNavigationActions && paneChrome.showBackButton) {
-                            { backdropAlpha, shadowAlpha ->
-                                LiquidTopBarButton(
-                                    onClick = onBack,
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.ChevronBackward,
-                                    contentDescription = CommonStr.back(),
-                                    performHapticFeedback = false,
-                                    iconSize = 25.dp,
-                                    iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                    backdropAlpha = backdropAlpha,
-                                    shadowAlpha = shadowAlpha,
-                                )
-                            }
-                        } else null,
-                        endAction = if (showNavigationActions) {
-                            endAction?.let { action ->
+                    ProgressiveBlurTopBar(
+                        backdrop = liquidGlassBackdrop,
+                        // 有头部组件时加高糊带，先盖住组件再淡出。
+                        height = if (headerOverlay == null) {
+                            Dp.Unspecified
+                        } else {
+                            PageBlurBaseHeight +
+                                (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() -
+                                    nativeBarInset).coerceAtLeast(0.dp) +
+                                HeaderComponentBlurExtra
+                        },
+                        topInsetAdjustment = nativeBarInset,
+                        noTopStatusBar = hostVerticalBarEdge(),
+                    ) {
+                        CollapsibleTopAppBar(
+                            title = title,
+                            largeTitle = title,
+                            // 平板右栏的标题锁定为折叠态。
+                            showLargeTitle = if (paneChrome.forceCollapsedTitle) false else null,
+                            modifier = Modifier,
+                            scrollBehavior = scrollBehavior,
+                            materialState = material,
+                            contentPadding = {},
+                            startAction = if (showNavigationActions && paneChrome.showBackButton) {
                                 { backdropAlpha, shadowAlpha ->
-                                    action(backdropAlpha, shadowAlpha, liquidGlassBackdrop)
+                                    LiquidTopBarButton(
+                                        onClick = onBack,
+                                        backdrop = liquidGlassBackdrop,
+                                        icon = MiuixIcons.ChevronBackward,
+                                        contentDescription = CommonStr.back(),
+                                        performHapticFeedback = false,
+                                        iconSize = 25.dp,
+                                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                        backdropAlpha = backdropAlpha,
+                                        shadowAlpha = shadowAlpha,
+                                    )
                                 }
-                            }
-                        } else null,
-                    )
-                }
+                            } else null,
+                            endAction = if (showNavigationActions) {
+                                endAction?.let { action ->
+                                    { backdropAlpha, shadowAlpha ->
+                                        action(backdropAlpha, shadowAlpha, liquidGlassBackdrop)
+                                    }
+                                }
+                            } else null,
+                        )
+                    }
+
+                    // 页面浮层接管顶栏时，拦下糊带内的返回 / 更多，点击交给浮层退出。
+                    if (chromeBlocked) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = onChromeBlockedTap,
+                                )
+                        )
+                    }
                 }
 
-                // 标题下方内容：走共用实现，与教务导入页同一段结构
                 if (headerOverlay != null) {
                     PageHeaderContent(
                         paddingValues = paddingValues,
                         scrollBehavior = scrollBehavior,
                     ) {
-                        // 头部组件（搜索框 / 分段胶囊）与顶栏按钮读同一份材质 → 同帧出现
+                        // 头部组件与顶栏按钮共用材质状态，保证同一帧出现。
                         CompositionLocalProvider(LocalTopBarMaterial provides material) {
-                            headerOverlay.invoke(liquidGlassBackdrop, scrollBehavior)
+                            headerOverlay(liquidGlassBackdrop, scrollBehavior)
                         }
                     }
                 }
 
                 if (overlay != null) {
-                    // 浮层也吃页面级模糊：更新页翻开更新日志时，右上角那颗下拉
-                    // 是叠在整页之上的，不跟着糊就会突兀地停在糊掉的页面上
-                    val rootScope = this
+                    // 浮层叠在整页之上，同样吃页面级模糊，避免糊掉的页面上突兀地留一块清晰区域。
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .graphicsLayer {
-                                val blurDp = pageBlurDp?.invoke() ?: 0f
-                                renderEffect = if (blurDp > 0.01f && isRenderEffectSupported()) {
-                                    val blurPx = blurDp.dp.toPx()
-                                    BlurEffect(null, blurPx, blurPx, TileMode.Clamp)
-                                } else null
-                            }
+                            .then(overlayBlur)
                     ) {
-                        overlay.invoke(rootScope, liquidGlassBackdrop)
+                        overlay.invoke(pageScope, liquidGlassBackdrop)
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * 页面级模糊修饰符：把整块内容渲染进独立图层后整体模糊。
+ *
+ * 半径在绘制期读取，动画期间逐帧生效但不触发重组；半径不变时复用同一个 [BlurEffect]，
+ * 避免每次绘制都重建 RenderEffect 连带触发图层重绘。
+ */
+@Composable
+private fun rememberPageBlurModifier(blurDp: (() -> Float)?): Modifier {
+    if (blurDp == null) return Modifier
+    val supported = remember { isRenderEffectSupported() }
+    val cache = remember { BlurEffectCache() }
+    val currentBlurDp = rememberUpdatedState(blurDp)
+    return remember(cache) {
+        Modifier.graphicsLayer {
+            val blurDpValue = currentBlurDp.value?.invoke() ?: 0f
+            val radiusPx = if (supported && blurDpValue > 0.01f) blurDpValue.dp.toPx() else 0f
+            val effect = cache.get(radiusPx)
+            if (renderEffect !== effect) renderEffect = effect
+        }
+    }
+}
+
+/** 按半径缓存 [BlurEffect]：半径未变化时返回同一实例，避免重复设置图层效果。 */
+private class BlurEffectCache {
+    private var radiusPx = Float.NaN
+    private var effect: BlurEffect? = null
+
+    fun get(radiusPx: Float): BlurEffect? {
+        if (radiusPx != this.radiusPx) {
+            this.radiusPx = radiusPx
+            effect = if (radiusPx > 0f) {
+                BlurEffect(null, radiusPx, radiusPx, TileMode.Clamp)
+            } else {
+                null
+            }
+        }
+        return effect
     }
 }
