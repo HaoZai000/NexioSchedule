@@ -175,8 +175,21 @@ object AboutStr {
     val totalSponsorship = L("累计赞助", "Total Donations")
     val anonymous = L("匿名", "Anonymous")
     val donateQr = L("赞赏码", "Donation QR Code")
-    val donationDetails = L("捐赠明细", "Donation Details")
-    val donationManual = L("正在手工填写中", "Manually curated")
+    val donateHeroTitle = L("名字留在这一页", "Your name belongs on this page")
+    val donateHeroSubtitle = L(
+        "课表一直免费，服务器和域名不是。你的每一份支持，都会变成下一次更新。",
+        "The schedule is free; servers and domains aren't. Every bit of support becomes the next update."
+    )
+    val donateScanAction = L("微信扫码 · 金额随意", "Scan with WeChat · Any amount")
+    val donateScanHint = L(
+        "备注里留句话，名字会出现在下面的支持名单里",
+        "Leave a note and your name will show up in the list below"
+    )
+    val recentSupport = L("最近支持", "Recent Support")
+    val supportUpdated = L("持续更新", "Updated regularly")
+    val supportOpenSlot = L("虚位以待", "Open spot")
+    val donationEmpty = L("还没有公开的捐赠记录", "No public donations yet")
+    val donationLoadFailed = L("名单暂时没拉下来", "Couldn't load the list")
 
     // ---- 小组件使用引导 ----
 
