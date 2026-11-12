@@ -146,7 +146,7 @@
 | 本地数据 | SQLDelight（SQLite，单库 `nexio.db`） | `2.3.2` |
 | 网络 / 序列化 | OkHttp / Gson | `4.12.0` / `2.11.0` |
 | 系统特权 | Shizuku（岛区通知） | `13.1.5` |
-| 柔光玻璃 | [softglass](https://github.com/HaoZai000/softglass)（独立仓库，JitPack） | `0.1.0` |
+| 柔光玻璃 | [softglass](https://github.com/HaoZai000/softglass)（独立仓库，JitPack） | `0.1.1` |
 | Android SDK | compile / target / min | `37` / `37` / `26` |
 
 ## 工程结构

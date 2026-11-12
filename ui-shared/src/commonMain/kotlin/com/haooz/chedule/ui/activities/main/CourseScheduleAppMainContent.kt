@@ -38,11 +38,11 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
@@ -89,10 +90,11 @@ import com.haooz.chedule.ui.activities.classschedule.LandRippleSpec
 import com.haooz.chedule.ui.activities.classschedule.LocalAppMinuteClock
 import com.haooz.chedule.ui.activities.classschedule.LocalLandRipple
 import com.haooz.chedule.ui.activities.classschedule.MainScheduleScreen
-import com.haooz.chedule.ui.activities.classschedule.ScheduleTopBar
+import com.haooz.chedule.ui.activities.classschedule.SchedulePageChrome
 import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.classschedule.millisUntilNextMinute
 import com.haooz.chedule.ui.activities.classschedule.nowMinuteOfDay
+import com.haooz.chedule.ui.activities.today.TodayPageChrome
 import com.haooz.chedule.ui.activities.today.TodayScreen
 import com.haooz.chedule.ui.components.HorizontalPageSwitch
 import com.haooz.chedule.ui.components.SoftGlassSurface
@@ -115,9 +117,9 @@ import com.haooz.chedule.ui.navigation.LocalMainLayerRedrawSignal
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TabletCourseManagePane
-import com.haooz.chedule.ui.screens.TabletSettingsChromeOverlay
 import com.haooz.chedule.ui.screens.TabletSwitchSchedulePane
 import com.haooz.chedule.ui.theme.rememberAppThemeController
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalHostNavigation
@@ -134,7 +136,8 @@ import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.haooz.softglass.backdrop.GlassBackdrop
-import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop
 import com.haooz.softglass.backdrop.drawBackdrop
 import com.haooz.softglass.backdrop.effects.colorControls
 import com.haooz.softglass.platform.isRenderEffectSupported
@@ -142,7 +145,6 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -155,34 +157,35 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.MiuixPopupHost
 
-/**
- * 「更多」菜单收起动画播到这个 fraction 就摘掉「比底栏更高一层」的采样层。
- * 取 0.5：面板还在缩的时候换层看不出来；等播完再换，按钮已静止在右上角，玻璃少一层会当场跳一下。
- */
-private const val MENU_GLASS_RELEASE_FRACTION = 0.5f
-
 /** 其余弹窗：退场动画（最长约 320ms）播完再摘采样层，那时屏幕上已经没有它的玻璃了 */
 private const val OVERLAY_GLASS_RELEASE_DELAY_MS = 420L
 
 /**
- * 课表主界面「主内容层」：整屏 Box + graphicsLayer 模糊 / 裁切 + Scaffold 内容。
+ * 课表主界面的「主内容层」：整屏 Box（模糊 / 裁切 / 快照录制）+ Scaffold + 各 tab 页。
  *
- * 参数只放外壳算好的局部值，其余状态一律走 [CourseScheduleAppState]（函数体内 `with(state)`）。
+ * 层级自下而上固定为：共享壁纸层 → 各页内容层 → 底栏 → 页面顶栏。顶栏与菜单画在各自的
+ * 页面内部，跟着页面一起平移；只有壁纸是屏幕坐标的静态底图。
+ *
+ * 参数只放外壳算好的局部值，其余一律走 [CourseScheduleAppState]（函数体内 `with(state)`）。
+ * 注意：这里读的很多是 state 的**普通字段**，它们不参与订阅，靠外壳重组把新值带下来 ——
+ * 所以不要把这段拆成「参数只有 state」的独立 composable，那样会被跳过、页面不再更新。
  */
 @Composable
 internal fun CourseScheduleAppMainContent(
     state: CourseScheduleAppState,
     displayAppearance: AppearanceConfig,
     chromeBackdrop: GlassBackdrop,
+    /** 采样层重录指纹：结构量变化时强制重录一帧 */
     liquidGlassRecordKey: List<Any?>,
     liquidGlassMustRecord: () -> Boolean,
-    mainContentAlpha: Float,
     wallpaperImage: ImageBitmap?,
+    /** 课表外观页编辑前的壁纸（退出前一直显示这一张） */
     originalWallpaperImage: ImageBitmap?,
     softGlassSurface: SoftGlassSurface?,
 ) {
     with(state) {
         val density = densityProvider
+        // ── 采样源 ────────────────────────────────────────────────────────────
         // 柔光采样源由外壳统一创建（见 rememberScheduleGlassSurface）：网格卡片、分界带、
         // 落点遮罩与长按/交换浮层共用同一个实例，玻璃参数不可能漂移。
         // 卡片玻璃在各自 draw 里按窗口坐标采样壁纸，而祖先层「只平移、不重绘子树」时
@@ -199,6 +202,20 @@ internal fun CourseScheduleAppMainContent(
                 TabletNavSideState.expandProgress.floatValue
                 // 退出二级页、整层归位后补一帧；转场过程中它不变，卡片玻璃不会自己漂
                 mainLayerRedraw()
+            }
+        }
+
+        // 无材质档：玻璃全关，内容层不挂采样层。
+        fun pageContentLayer(backdrop: LayerBackdrop): Modifier =
+            if (AppMaterialSettings.isNoneTier()) Modifier
+            else Modifier.layerBackdrop(backdrop, liquidGlassRecordKey, liquidGlassMustRecord)
+
+        /** 调课 / 覆盖 / 粘贴后，原位置露出的非本周课程淡入放大。 */
+        fun flashAnimateIn(ids: Set<String>) {
+            animateInCourseIds = ids
+            coroutineScope.launch {
+                delay(350.milliseconds)
+                animateInCourseIds = emptySet()
             }
         }
 
@@ -231,36 +248,18 @@ internal fun CourseScheduleAppMainContent(
             }
         }
 
-        // 主内容（带模糊和裁切）
-        // 空闲态不挂 graphicsLayer：全屏离屏合成是周滑 P50 主头之一。
-        // 仅模糊/透明度/位移/裁切真正非单位时才开层；derivedStateOf 避免 Animatable 每帧重组。
-        // 模糊与缩放共用同一个 graphicsLayer：renderEffect 在绘制阶段读半径，组合期不依赖它
-        //（`Modifier.blur` 会在组合期读 dp 值，半径每帧变 = 每帧失效整个主内容 scope）。
+        // 只认「几何变换」：主内容层要不要挂离屏合成、要不要按圆角裁切，全看这里。
         val mainLayerNeeded by remember {
             derivedStateOf {
                 isCustomizeExiting ||
                         isWindowCutoutActive ||
                         showSwitchSchedule ||
                         showCustomizePage ||
-                        mainContentAlpha != 1f ||
                         shortcutMenuBlurRadius.value > 0.01f ||
                         // 宿主接管页面级模糊时，这个半径不会再产生 renderEffect，
                         // 别为它白开一层全屏离屏合成
                         (managePageBlurRadius.value > 0.01f &&
                                 hostNavigation?.ownsDetailBackdropBlur != true) ||
-                        cutoutMainScale.value != 1f ||
-                        customizeExitScale.value != 1f ||
-                        sheetOffsetY.value != 0f
-            }
-        }
-
-        // 只认「几何变换」
-        val mainContentTransformed by remember {
-            derivedStateOf {
-                isCustomizeExiting ||
-                        isWindowCutoutActive ||
-                        showSwitchSchedule ||
-                        showCustomizePage ||
                         cutoutMainScale.value != 1f ||
                         customizeExitScale.value != 1f ||
                         sheetOffsetY.value != 0f
@@ -290,7 +289,6 @@ internal fun CourseScheduleAppMainContent(
                             }
                             scaleX = effectiveScale
                             scaleY = effectiveScale
-                            alpha = mainContentAlpha
                             // 与 CustomizeScheduleScreen 共享同一 Animatable，像素级同帧
                             val sheetScale = cutoutMainScale.value
                             val sheetScaleProg =
@@ -399,16 +397,16 @@ internal fun CourseScheduleAppMainContent(
                     onOpenSettings = { nativeBottomBarRouter.navigate(AppRoute.Settings) },
                 )
             }
-            // 顶栏/底栏那两层录制**按需挂载**：只有真的有浮层在采「比底栏更高一层」的采样层时
-            // 才挂上，否则滚动帧里会白白多录两条全宽条带。
-            // ⚠️ Scaffold 先组 popup → 顶栏 → 底栏，**最后**才组 content，所以这里要读的
-            // 开关不能是 content 槽里的局部量（那时顶栏/底栏已经组完了）。
+            // 底栏那层录制**按需挂载**：只有真的有浮层在采「比底栏更高一层」的采样层时
+            // 才挂上，否则滚动帧里会白白多录一条全宽条带。
+            // 顶栏已经下放到各页面内、随内容层一起录制，这里不再单独挂条带。
+            // ⚠️ Scaffold 先组 popup → 底栏，**最后**才组 content，所以这里要读的
+            // 开关不能是 content 槽里的局部量（那时底栏已经组完了）。
             // 这两个 collectAsState 因此提前到 Scaffold 之外订阅。
             val showJumpWeekDialog by viewModel.showJumpWeekDialog.collectAsState()
             val showAddDialog by viewModel.showAddDialog.collectAsState()
             var notice by remember { mutableStateOf<Notice?>(null) }
             var updateDialogShowing by remember { mutableStateOf(false) }
-            val menuGlassWanted = showMorePopup || showTodayMorePopup
             val otherGlassWanted = showJumpWeekDialog ||
                 showAddDialog ||
                 notice != null ||
@@ -417,18 +415,6 @@ internal fun CourseScheduleAppMainContent(
                 showPasteRangeDialog ||
                 showRescheduleConflictDialog ||
                 updateDialogShowing
-            // 菜单单独一路：它有明确的收起进度（fraction）可以跟
-            var menuGlassActive by remember { mutableStateOf(menuGlassWanted) }
-            // 挂上要**同帧生效**（展开第一帧玻璃就得多采到顶栏），所以在组合期直接写
-            if (menuGlassWanted && !menuGlassActive) menuGlassActive = true
-            LaunchedEffect(menuGlassWanted) {
-                if (menuGlassWanted) return@LaunchedEffect
-                // 在收起动画播到一半时摘层：面板还在缩、眼睛跟着运动，换一层看不出来（理由见上方常量）
-                snapshotFlow {
-                    maxOf(morePopupFraction.value, todayMorePopupFraction.value)
-                }.first { it <= MENU_GLASS_RELEASE_FRACTION }
-                menuGlassActive = false
-            }
             // 其余弹窗一路：退场动画播完屏幕上已经没有它的玻璃了，
             // 什么时候摘都看不见，按固定延时摘即可
             var otherGlassActive by remember { mutableStateOf(otherGlassWanted) }
@@ -438,9 +424,10 @@ internal fun CourseScheduleAppMainContent(
                 delay(OVERLAY_GLASS_RELEASE_DELAY_MS.milliseconds)
                 otherGlassActive = false
             }
-            // 无材质档：玻璃全关，顶栏/底栏采样加层不挂
-            val overlayGlassActive = (menuGlassActive || otherGlassActive) &&
-                !com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()
+            // 无材质档：玻璃全关，底栏采样加层不挂
+            // 「更多」菜单已经在页面内、采的是「壁纸 + 本页内容」的组合层，
+            // 不再需要为了它挂底栏那一层。
+            val overlayGlassActive = otherGlassActive && !AppMaterialSettings.isNoneTier()
             val scaffoldContent = @Composable {
                 Scaffold(
                     modifier = Modifier
@@ -463,7 +450,9 @@ internal fun CourseScheduleAppMainContent(
                                 // 组合采样自动退化成「只有内容」那一层，即收起态的行为。
                                 Box(
                                     modifier = if (overlayGlassActive) {
-                                        Modifier.liquidGlassLayerBackdrop(
+                                        // 底栏层必须用自己那份 mustRecord：liquidGlassMustRecord
+                                        // 带强制续录帧计数，两个节点共用会双倍扣减。
+                                        Modifier.layerBackdrop(
                                             backdrop = bottomBarSampleBackdrop,
                                             recordKey = liquidGlassRecordKey,
                                             mustRecord = chromeBarMustRecord,
@@ -485,331 +474,17 @@ internal fun CourseScheduleAppMainContent(
                             }
                         }
                     },
-                    topBar = {
-                        // 标题可见性只在页码/方向变化时重组；平移读 pager 写在 graphicsLayer，
-                        // 避免动画每帧重组顶栏及 ScheduleTopBar 整棵树。
-                        val showTodayTitle by remember(isShiftMode, mainTabPosition) {
-                            derivedStateOf {
-                                if (isShiftMode) {
-                                    false
-                                } else {
-                                    val page = mainTabPosition.currentPage
-                                    val off = mainTabPosition.offsetFraction
-                                    page == 0 || (page == 1 && off < 0f)
-                                }
-                            }
-                        }
-                        val showScheduleTitle by remember(isShiftMode, mainTabPosition) {
-                            derivedStateOf {
-                                val page = mainTabPosition.currentPage
-                                val off = mainTabPosition.offsetFraction
-                                if (isShiftMode) {
-                                    page == 0 || (page == 1 && off < 0f)
-                                } else {
-                                    page == 1 ||
-                                            (page == 0 && off > 0f) ||
-                                            (page == 2 && off < 0f)
-                                }
-                            }
-                        }
-                        val showSettingsTitle by remember(isShiftMode, mainTabPosition) {
-                            derivedStateOf {
-                                val page = mainTabPosition.currentPage
-                                val off = mainTabPosition.offsetFraction
-                                if (isShiftMode) {
-                                    page == 1 || (page == 0 && off > 0f)
-                                } else {
-                                    page == 2 || (page == 1 && off > 0f)
-                                }
-                            }
-                        }
-                        // 顶栏同样再录一层：下拉菜单挂在它下面、OverlayDialog 也会压到它，
-                        // 两者的采样层要「比底栏还高一层」，即内容 + 顶栏 + 底栏
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .then(
-                                    // 同底栏：按需挂载，没挂载时组合采样自动退化成内容层
-                                    if (overlayGlassActive) {
-                                        Modifier.liquidGlassLayerBackdrop(
-                                            backdrop = topBarSampleBackdrop,
-                                            recordKey = liquidGlassRecordKey,
-                                            mustRecord = chromeBarMustRecord,
-                                        )
-                                    } else {
-                                        Modifier
-                                    }
-                                )
-                        ) {
-                            if (showScheduleTitle) {
-                                val scheduleTitleIndex = if (isShiftMode) 0 else 1
-                                // 空闲停在本页时 delta=0，不加位移节点。
-                                // 切 tab 过程中只做 place 位移（`offset {}` 的 lambda 版不进 constraints，
-                                // 不会 re-measure）：比 graphicsLayer 少一整块全宽离屏合成，
-                                // 也少掉它带来的软件裁剪遮罩（实测每帧 ~2.5ms）。
-                                val scheduleTitleIdle by remember(scheduleTitleIndex, navBarStyle) {
-                                    derivedStateOf {
-                                        val page = mainTabPosition.currentPage
-                                        val off = mainTabPosition.offsetFraction
-                                        (scheduleTitleIndex - page - off) == 0f
-                                    }
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .then(
-                                            if (scheduleTitleIdle) {
-                                                Modifier
-                                            } else {
-                                                Modifier.offset {
-                                                    val page = mainTabPosition.currentPage
-                                                    val off =
-                                                        mainTabPosition.offsetFraction
-                                                    val delta = scheduleTitleIndex - page - off
-                                                    if (useVerticalMainPager) {
-                                                        IntOffset(0, (delta * screenHPx).roundToInt())
-                                                    } else {
-                                                        IntOffset(
-                                                            (delta * screenWPx).roundToInt(),
-                                                            0
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        )
-                                ) {
-                                    // 锁本页主题：共享顶栏槽外层主题跟 selectedTab 变，
-                                    // 切到设置页（浅色）时课程表顶栏遮罩会跟着跳浅
-                                    PageLockedTopBarTheme(
-                                        if (captureThemeActive) captureThemeIsDark
-                                        else wallpaperForcedDark
-                                    ) {
-                                        // 宿主自绘顶栏时，「更多」菜单由宿主用原生菜单渲染，
-                                        // 动作仍回到这里 —— 与下面 MorePopupMenus 同一套语义
-                                        val topBarRouter = LocalAppRouter.current
-                                        ScheduleTopBar(
-                                            // Compose 顶栏始终在，翻页靠 offset 位移
-                                            visible = true,
-                                            // 标题跟着 currentViewingWeek 走：程序化跳周的那一帧就切成目标周，
-                                            // 不会再有一段「点完还停在第 10 周」的空窗
-                                            pagerCurrentPage = currentViewingWeek - 1,
-                                            currentWeek = currentWeek,
-                                            isHoliday = viewingIsHoliday,
-                                            dayRange = dayRange,
-                                            currentDayOfWeek = currentDayOfWeek,
-                                            isCurrentWeek = currentViewingWeek == currentWeek && currentWeek in 1..totalWeeks,
-                                            weekDates = weekDates,
-                                            isReorganized = teachingWeekRules.isNotEmpty(),
-                                            onOpenSwitchSchedule = { openScheduleLibrary() },
-                                            onJumpWeek = { viewModel.showJumpWeekDialog() },
-                                            onEnterCustomize = enterCustomizePage,
-                                            onCourseManage = { topBarRouter.navigate(AppRoute.CourseManage) },
-                                            isTablet = isTablet,
-                                            isShiftMode = isShiftMode,
-                                            liquidGlassBackdrop = chromeBackdrop,
-                                            scrollBehavior = scheduleScrollBehavior,
-                                            blurResampleKey = railBlurResampleEpoch.intValue,
-                                            blurSampleTrack = tabletNavExpandSampleTrack,
-                                            titleEndPadding = titleEndPadding,
-                                            onMoreSlotTop = {
-                                                if (canSampleMoreSlot) moreSlotTopPx.value = it
-                                            },
-                                            onMoreMaterial = { scheduleMaterialAlpha.value = it },
-                                            onMoreExpand = { showMorePopup = true },
-                                        )
-                                    }
-                                }
-                            }
-                            // 设置页是二级页（`AppRoute.Settings`），pager 里没有它。
-                            // 只有平板 rail 把设置内嵌成第 3 页，这条顶栏只服务它。
-                            // ⚠ 先判 rail 再读 showSettingsTitle：手机上短路，省一次 derivedState 求值。
-                            if (navBarStyle == "rail" && showSettingsTitle) {
-                                val settingsTitleIndex = if (isShiftMode) 1 else 2
-                                val settingsTitleIdle by remember(settingsTitleIndex, navBarStyle) {
-                                    derivedStateOf {
-                                        val page = mainTabPosition.currentPage
-                                        val off = mainTabPosition.offsetFraction
-                                        (settingsTitleIndex - page - off) == 0f
-                                    }
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .then(
-                                            if (settingsTitleIdle) {
-                                                Modifier
-                                            } else {
-                                                Modifier.graphicsLayer {
-                                                    val page = mainTabPosition.currentPage
-                                                    val off =
-                                                        mainTabPosition.offsetFraction
-                                                    val delta = settingsTitleIndex - page - off
-                                                    if (useVerticalMainPager) {
-                                                        translationX = 0f
-                                                        translationY = delta * screenHPx
-                                                    } else {
-                                                        translationY = 0f
-                                                        translationX = delta * size.width
-                                                    }
-                                                }
-                                            }
-                                        )
-                                ) {
-                                    SettingsTopBar(
-                                        liquidGlassBackdrop = chromeBackdrop,
-                                        navBarStyle = navBarStyle,
-                                        scrollBehavior = settingsScrollBehavior,
-                                        blurResampleKey = railBlurResampleEpoch.intValue,
-                                        blurSampleTrack = tabletNavExpandSampleTrack,
-                                        titleEndPadding = titleEndPadding,
-                                    )
-                                }
-                            }
-                            // 始终渲染，保证 currentHeightPx 启动即就位，切页不慢一帧
-                            // 空闲在本页时不挂层；离屏时用 graphicsLayer 位移+隐藏
-                            val todayTitleIdle by remember(navBarStyle) {
-                                derivedStateOf {
-                                    val page = mainTabPosition.currentPage
-                                    val off = mainTabPosition.offsetFraction
-                                    val delta = 0 - page - off
-                                    delta == 0f && showTodayTitle
-                                }
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .then(
-                                        if (todayTitleIdle) {
-                                            Modifier
-                                        } else {
-                                            Modifier.graphicsLayer {
-                                                val page = mainTabPosition.currentPage
-                                                val off = mainTabPosition.offsetFraction
-                                                val delta = 0 - page - off
-                                                if (useVerticalMainPager) {
-                                                    translationX = 0f
-                                                    translationY = delta * screenHPx
-                                                } else {
-                                                    translationY = 0f
-                                                    translationX = delta * size.width
-                                                }
-                                                alpha = if (showTodayTitle) 1f else 0f
-                                            }
-                                        }
-                                    )
-                            ) {
-                                // 同 ScheduleTopBar：锁本页主题，避免切到设置页时今日页遮罩跳浅
-                                PageLockedTopBarTheme(
-                                    if (captureThemeActive) captureThemeIsDark
-                                    else todayPageForcedDark
-                                ) {
-                                    TodayTopBar(
-                                        liquidGlassBackdrop = chromeBackdrop,
-                                        navBarStyle = navBarStyle,
-                                        currentDayOfWeek = todaySelectedDayOfWeek,
-                                        isToday = todayIsToday,
-                                        onBackToToday = { scrollToTodayTrigger++ },
-                                        onJumpToDate = { todayJumpToDateTrigger++ },
-                                        onEnterCustomize = enterCustomizePage,
-                                        scrollBehavior = todayScrollBehavior,
-                                        visible = showTodayTitle,
-                                        blurResampleKey = railBlurResampleEpoch.intValue,
-                                        blurSampleTrack = tabletNavExpandSampleTrack,
-                                        titleEndPadding = titleEndPadding,
-                                        onMoreSlotTop = {
-                                            if (canSampleMoreSlot) moreSlotTopPx.value = it
-                                        },
-                                        onMoreMaterial = { todayMaterialAlpha.value = it },
-                                        onMoreExpand = { showTodayMorePopup = true },
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    // popup 槽按组合顺序绘制：「更多」排在 MiuixPopupHost 之前，
-                    // 只高于顶栏按钮、低于弹窗，打开弹窗时会被遮罩一起压暗。
+                    // 「更多」按钮/下拉菜单已在各页面内组合，随页面一起平移；
+                    // 这里只剩弹窗宿主，保持弹窗始终盖在页面顶栏之上。
                     popupHost = {
-                        // 单个「更多」控件随所在顶栏一起滑动：与顶栏同一套 delta 公式；
-                        // 非当前页时整块被平移出屏幕，天然只留一份可见
-                        val scheduleMoreMenuOffset: () -> Offset = {
-                            val page = mainTabPosition.currentPage
-                            val off = mainTabPosition.offsetFraction
-                            val delta = (if (isShiftMode) 0 else 1) - page - off
-                            if (useVerticalMainPager) Offset(0f, delta * screenHPx)
-                            else Offset(delta * screenWPx, 0f)
-                        }
-                        val todayMoreMenuOffset: () -> Offset = {
-                            val page = mainTabPosition.currentPage
-                            val off = mainTabPosition.offsetFraction
-                            // 排班模式下没有今日页，恒移出屏幕
-                            val delta = if (isShiftMode) -1f else (-page - off)
-                            if (useVerticalMainPager) Offset(0f, delta * screenHPx)
-                            else Offset(delta * screenWPx, 0f)
-                        }
-                        // 不包 HostedOverlay：iOS 上浮层独立合成根拿不到主内容开洞缩放，
-                        // 「更多」会不随顶栏缩小、盖在课表外观页上仍可点；留在本槽与顶栏按钮同层。
-                        PageLockedTopBarTheme(wallpaperForcedDark) {
-                            // LocalAppRouter.current 必须在组合层取（onClick lambda 里取不到）
-                            val popupRouter = LocalAppRouter.current
-                            MorePopupMenus(
-                                showMorePopup = showMorePopup,
-                                onMorePopupDismiss = { showMorePopup = false },
-                                onMorePopupExpand = { showMorePopup = true },
-                                showTodayMorePopup = showTodayMorePopup,
-                                onTodayMorePopupDismiss = { showTodayMorePopup = false },
-                                onTodayMorePopupExpand = { showTodayMorePopup = true },
-                                morePopupFraction = morePopupFraction,
-                                todayMorePopupFraction = todayMorePopupFraction,
-                                scheduleMenuOffset = scheduleMoreMenuOffset,
-                                todayMenuOffset = todayMoreMenuOffset,
-                                moreSlotTopPx = moreSlotTopPx,
-                                scheduleMaterialAlpha = scheduleMaterialAlpha.value,
-                                todayMaterialAlpha = todayMaterialAlpha.value,
-                                liquidGlassBackdrop = overlayGlassBackdrop,
-                                isShiftMode = isShiftMode,
-                                // 平板（rail）右上角不显示「更多」：跳转/管理/外观都在侧栏里。
-                                // iOS 主界面右上角那颗已由原生 UIMenu 接管，Compose 侧恒不渲染
-                                enabled = navBarStyle != "rail" && hostNavigation == null,
-                                // 鸿蒙：「更多」按钮和它的菜单由 ArkUI 画，
-                                // 这颗 Compose 触发按钮必须关掉，否则会从原生按钮下面露出来
-                                scheduleMoreNative = LocalNativeTopBarHost.current?.ownsTopRight == true,
-                                todayMoreNative = LocalNativeTopBarHost.current?.ownsTopRight == true,
-                                // 预测性返回由 LiquidGlassDropdownMenu 内部驱动同一个 fraction Animatable，
-                                // 外面再 snapTo/animateTo 会和它互相 cancel，动画直接卡死。
-                                onJumpWeek = { viewModel.showJumpWeekDialog() },
-                                onCourseManage = {
-                                    popupRouter.navigate(
-                                        AppRoute.CourseManage
-                                    )
-                                },
-                                onEnterCustomize = enterCustomizePage,
-                                onJumpToDate = { todayJumpToDateTrigger++ },
-                            )
-                        }
-                        // 弹窗排在「更多」之后 → 始终盖在它之上，遮罩能压暗「更多」
                         MiuixPopupHost()
                     }
                 ) {
                     // 详情 morph 期间底下的真实源卡片必须继续画
                     // 不门控 combinations.isEmpty()：网格只依赖 viewModel，与壁纸加载解耦
-                    // backdrop 挂在未 padding 的全屏层：录制原点固定在屏幕
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            // 开洞时 mustRecord 恒 true：停录会让顶栏/底栏玻璃采样空内容
-                            .then(
-                                // 无材质档：玻璃全关，内容采样录屏层不挂
-                                if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) {
-                                    Modifier
-                                } else {
-                                    Modifier.liquidGlassLayerBackdrop(
-                                        backdrop = liquidGlassBackdrop,
-                                        recordKey = liquidGlassRecordKey,
-                                        mustRecord = liquidGlassMustRecord
-                                    )
-                                }
-                            )
-                    ) {
+                    // 不在这里录整页：整页会把页面内顶栏/菜单也录进去，形成循环采样；
+                    // 内容由各页面自己的内容层录制，壁纸单独一层，外层只做组合采样。
+                    Box(modifier = Modifier.fillMaxSize()) {
                         // 共享壁纸层：铺满全屏（含侧栏下），与 rail 让位无关，侧栏伸缩时像素不动。
                         // 壁纸任何切页都钉死不动：课程表→设置靠「圆角设置卡片滑过来盖住壁纸」。
                         val sharedWallpaperBitmap =
@@ -852,11 +527,39 @@ internal fun CourseScheduleAppMainContent(
                             // 全屏垫背景色 + 裁切：页滑走露出的空隙由背景色/壁纸垫住（侧栏下始终有内容，不出漏）
                             val wallpaperPadColor =
                                 MiuixTheme.colorScheme.surface
+                            // 壁纸层只跟壁纸自身状态走；页面平移/切页不该让它重录
+                            val wallpaperLayerRecordKey = remember(
+                                sharedWallpaperBitmap,
+                                sharedWallpaperOffset,
+                                sharedWallpaperScale,
+                                displayAppearance.wallpaperBrightness,
+                                displayAppearance.wallpaperBlur,
+                                wallpaperPadColor,
+                            ) {
+                                var key = sharedWallpaperBitmap.hashCode()
+                                key = 31 * key + sharedWallpaperOffset.hashCode()
+                                key = 31 * key + sharedWallpaperScale.hashCode()
+                                key = 31 * key + displayAppearance.wallpaperBrightness.hashCode()
+                                key = 31 * key + displayAppearance.wallpaperBlur.hashCode()
+                                key = 31 * key + wallpaperPadColor.value.toLong().hashCode()
+                                key
+                            }
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .background(wallpaperPadColor)
                                     .clipToBounds()
+                                    .then(
+                                        // 无材质档：玻璃全关，壁纸层不需要录；壁纸直接画
+                                        if (AppMaterialSettings.isNoneTier()) {
+                                            Modifier
+                                        } else {
+                                            Modifier.layerBackdrop(
+                                                backdrop = wallpaperBackdrop,
+                                                recordKey = wallpaperLayerRecordKey,
+                                            )
+                                        }
+                                    )
                             ) {
                                 val sharedMinScale =
                                     remember(sharedWallpaperBitmap, screenWPx, screenHPx) {
@@ -894,11 +597,8 @@ internal fun CourseScheduleAppMainContent(
                                         BlurEffect(null, blurRadiusPx, blurRadiusPx, TileMode.Clamp)
                                     } else null
                                 }
-                                val sharedWallpaperImage = remember(sharedWallpaperBitmap) {
-                                    sharedWallpaperBitmap
-                                }
                                 Image(
-                                    bitmap = sharedWallpaperImage,
+                                    bitmap = sharedWallpaperBitmap,
                                     contentDescription = null,
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -921,6 +621,44 @@ internal fun CourseScheduleAppMainContent(
                         }
 
                         Box(modifier = Modifier.fillMaxSize()) {
+                            // 课表页与排班页共用同一套顶栏参数，只有内容层 / 主题 / 模式不同。
+                            @Composable
+                            fun scheduleChrome(
+                                contentBackdrop: LayerBackdrop,
+                                forcedDarkTheme: Boolean?,
+                                shiftMode: Boolean,
+                                onCourseManage: () -> Unit,
+                            ) = SchedulePageChrome(
+                                currentWeek = currentWeek,
+                                totalWeeks = totalWeeks,
+                                isHoliday = viewingIsHoliday,
+                                dayRange = dayRange,
+                                currentDayOfWeek = currentDayOfWeek,
+                                weekDates = weekDates,
+                                isReorganized = teachingWeekRules.isNotEmpty(),
+                                forcedDarkTheme = forcedDarkTheme,
+                                wallpaperBackdrop = if (showSharedWallpaperLayer) wallpaperBackdrop else null,
+                                contentBackdrop = contentBackdrop,
+                                moreMenu = PageMoreMenuState(
+                                    show = showMorePopup,
+                                    onDismiss = { showMorePopup = false },
+                                    onExpand = { showMorePopup = true },
+                                    fraction = morePopupFraction,
+                                    enabled = navBarStyle != "rail" && hostNavigation == null,
+                                    native = LocalNativeTopBarHost.current?.ownsTopRight == true,
+                                ),
+                                onOpenSwitchSchedule = { openScheduleLibrary() },
+                                onJumpWeek = { viewModel.showJumpWeekDialog() },
+                                onEnterCustomize = enterCustomizePage,
+                                onCourseManage = onCourseManage,
+                                isShiftMode = shiftMode,
+                                titleEndPadding = titleEndPadding,
+                                blurResampleKey = railBlurResampleEpoch.intValue,
+                                blurSampleTrack = tabletNavExpandSampleTrack,
+                                contentRecordKey = liquidGlassRecordKey,
+                                contentMustRecord = liquidGlassMustRecord,
+                            )
+
                             // 主 tab 仅由底栏 / 侧栏点击切换，关闭用户手势翻页；方向跟原生宿主 / 平板 rail 一致。
                             // pager 不做整体内缩（折叠屏 iPhone 折叠态右下角是竖排原生 tab bar）
                             val pageRightInset = (hostNav?.rightSafeAreaInset ?: 0.0).toFloat().dp
@@ -956,6 +694,7 @@ internal fun CourseScheduleAppMainContent(
                                                     rememberAppThemeController(isDark = todayDark)
                                                 MiuixTheme(controller = todayThemeController) {
                                                     CompositionLocalProvider(LocalForcedDarkTheme provides todayForced) {
+                                                        val todayPageRouter = LocalAppRouter.current
                                                         TodayScreen(
                                                             viewModel = viewModel,
                                                             settingsViewModel = settingsViewModel,
@@ -963,17 +702,17 @@ internal fun CourseScheduleAppMainContent(
                                                             // 点弹窗卡片进全屏时要藏掉源卡片，morph 才干净。
                                                             hiddenCourseIds = hiddenCourseIds,
                                                             holidayDataTick = resumeCount,
-                                                            onCourseClick = { courses, left, top, width, height, cardLayer, courseIdToHide, targetWeek ->
+                                                            onCourseClick = { c, l, t, w, h, layer, hideId, week ->
                                                                 openCourseDetail(
-                                                                    courses,
-                                                                    left,
-                                                                    top,
-                                                                    width,
-                                                                    height,
-                                                                    cardLayer = cardLayer,
+                                                                    courses = c,
+                                                                    cardLeft = l,
+                                                                    cardTop = t,
+                                                                    cardWidth = w,
+                                                                    cardHeight = h,
+                                                                    cardLayer = layer,
                                                                     fromToday = true,
-                                                                    courseIdToHide = courseIdToHide,
-                                                                    targetWeek = targetWeek
+                                                                    courseIdToHide = hideId,
+                                                                    targetWeek = week,
                                                                 )
                                                             },
                                                             pageState = todayPageState,
@@ -996,7 +735,7 @@ internal fun CourseScheduleAppMainContent(
                                                             softGlassSurface = softGlassSurface,
                                                             tabRedraw = tabGlassRedraw,
                                                             cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
-                                                            liquidGlassBackdrop = liquidGlassBackdrop,
+                                                            liquidGlassBackdrop = chromeBackdrop,
                                                             showClassroom = displayAppearance.showClassroom,
                                                             showTeacher = displayAppearance.showTeacher,
                                                             onListScrollInProgress = {
@@ -1008,6 +747,29 @@ internal fun CourseScheduleAppMainContent(
                                                             scheduleViewMode = scheduleViewMode,
                                                             // 顶栏与内容共用同一份越界状态（顶栏材质判据需要）
                                                             overScrollState = mainOverScrollState,
+                                                            chrome = TodayPageChrome(
+                                                                forcedDarkTheme = todayForced,
+                                                                wallpaperBackdrop = if (showSharedWallpaperLayer) wallpaperBackdrop else null,
+                                                                contentBackdrop = todayContentBackdrop,
+                                                                moreMenu = PageMoreMenuState(
+                                                                    show = showTodayMorePopup,
+                                                                    onDismiss = { showTodayMorePopup = false },
+                                                                    onExpand = { showTodayMorePopup = true },
+                                                                    fraction = todayMorePopupFraction,
+                                                                    enabled = navBarStyle != "rail" && hostNavigation == null,
+                                                                    native = LocalNativeTopBarHost.current?.ownsTopRight == true,
+                                                                ),
+                                                                onJumpToDate = { todayJumpToDateTrigger++ },
+                                                                onEnterCustomize = enterCustomizePage,
+                                                                onCourseManage = {
+                                                                    todayPageRouter.navigate(AppRoute.CourseManage)
+                                                                },
+                                                                titleEndPadding = titleEndPadding,
+                                                                blurResampleKey = railBlurResampleEpoch.intValue,
+                                                                blurSampleTrack = tabletNavExpandSampleTrack,
+                                                                contentRecordKey = liquidGlassRecordKey,
+                                                                contentMustRecord = liquidGlassMustRecord,
+                                                            ),
                                                         )
                                                     }
                                                 }
@@ -1030,6 +792,7 @@ internal fun CourseScheduleAppMainContent(
                                                                 token = landRippleToken
                                                             )
                                                         ) {
+                                                            val schedulePageRouter = LocalAppRouter.current
                                                             MainScheduleScreen(
                                                                 viewModel = viewModel,
                                                                 settingsViewModel = settingsViewModel,
@@ -1040,21 +803,18 @@ internal fun CourseScheduleAppMainContent(
                                                                 jumpNeighbor = weekJumpNeighbor,
                                                                 hiddenCourseIds = hiddenCourseIds,
                                                                 draggingCourseSlots = draggingCourseSlots,
-                                                                onCourseClick = { courses, left, top, width, height, cardLayer, courseIdToHide, targetWeek ->
+                                                                onCourseClick = { c, l, t, w, h, layer, hideId, week ->
                                                                     openCourseDetail(
-                                                                        courses,
-                                                                        left,
-                                                                        top,
-                                                                        width,
-                                                                        height,
-                                                                        cardLayer = cardLayer,
+                                                                        courses = c,
+                                                                        cardLeft = l,
+                                                                        cardTop = t,
+                                                                        cardWidth = w,
+                                                                        cardHeight = h,
+                                                                        cardLayer = layer,
                                                                         fromToday = false,
-                                                                        courseIdToHide = courseIdToHide,
-                                                                        targetWeek = targetWeek
+                                                                        courseIdToHide = hideId,
+                                                                        targetWeek = week,
                                                                     )
-                                                                },
-                                                                onPopupStateChange = {
-                                                                    showCourseDetailPopup = it
                                                                 },
                                                                 onEmptyLongPress = { day, section, centerX, cellTopY, width, _, addDay, addWeek ->
                                                                     shortcutMenuCourse = null
@@ -1287,14 +1047,9 @@ internal fun CourseScheduleAppMainContent(
                                                                                         )
                                                                                     }
                                                                                 if (sourceCourses.isNotEmpty()) {
-                                                                                    animateInCourseIds =
-                                                                                        sourceCourses.map { it.id }
-                                                                                            .toSet()
-                                                                                    coroutineScope.launch {
-                                                                                        delay(350.milliseconds)
-                                                                                        animateInCourseIds =
-                                                                                            emptySet()
-                                                                                    }
+                                                                                    flashAnimateIn(
+                                                                                        sourceCourses.map { it.id }.toSet()
+                                                                                    )
                                                                                 }
                                                                             } else {
                                                                                 // 浮层连贯移到目标卡上方悬停等用户选择
@@ -1459,7 +1214,7 @@ internal fun CourseScheduleAppMainContent(
                                                                     wallpaperScale = it
                                                                 },
                                                                 appearance = displayAppearance,
-                                                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                                                liquidGlassBackdrop = chromeBackdrop,
                                                                 softGlassSurface = softGlassSurface,
                                                                 tabRedraw = tabGlassRedraw,
                                                                 onGridGeometryChange = { geom ->
@@ -1515,7 +1270,15 @@ internal fun CourseScheduleAppMainContent(
                                                                 externalScrollState = scheduleScrollState,
                                                                 externalShowCourseDetail = scheduleShowCourseDetail,
                                                                 externalSelectedCourse = scheduleSelectedCourse,
-                                                                externalSelectedCourses = scheduleSelectedCourses
+                                                                externalSelectedCourses = scheduleSelectedCourses,
+                                                                chrome = scheduleChrome(
+                                                                    contentBackdrop = scheduleContentBackdrop,
+                                                                    forcedDarkTheme = scheduleForced,
+                                                                    shiftMode = false,
+                                                                    onCourseManage = {
+                                                                        schedulePageRouter.navigate(AppRoute.CourseManage)
+                                                                    },
+                                                                ),
                                                             )
                                                         }
                                                     }
@@ -1530,9 +1293,15 @@ internal fun CourseScheduleAppMainContent(
                                                 rememberAppThemeController(isDark = settingsDark)
                                             // 与今日/课表同一套壳：整页不再自己铺 surface，
                                             // 背景交给壳层（共享壁纸），右侧栏才采得到与页面一致的底色。
-                                            Box(modifier = Modifier.fillMaxSize().then(settingsPageClipModifier)) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .then(settingsPageClipModifier)
+                                                    .then(pageContentLayer(settingsContentBackdrop))
+                                            ) {
                                                 MiuixTheme(controller = settingsThemeController) {
-                                                    CompositionLocalProvider(LocalForcedDarkTheme provides settingsPageForcedDark) {
+                                                    // 设置页始终跟应用主题，不受壁纸强制主题影响
+                                                    CompositionLocalProvider(LocalForcedDarkTheme provides null) {
                                                         Box(
                                                             modifier = Modifier
                                                                 .fillMaxSize()
@@ -1554,7 +1323,7 @@ internal fun CourseScheduleAppMainContent(
                                                                     },
                                                                     navBarStyle = navBarStyle,
                                                                     settingsScrollBehavior = settingsScrollBehavior,
-                                                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                                                    liquidGlassBackdrop = chromeBackdrop,
                                                                     showUpdateSettings = showUpdateSettings,
                                                                 )
                                                             )
@@ -1565,22 +1334,29 @@ internal fun CourseScheduleAppMainContent(
                                         }
 
                                         3 -> {
-                                            // 课程管理不预加载：beyond 撑满整窗后这一格任何时候都在窗口里，
-                                            // 不加 if 就等于常驻；只有它是当前页才真正组合。
-                                            if (mainTabPosition.currentPage == 3) {
+                                            // 组合与否由平板页面宿主决定（按需组合 + 转场时旧页留着交叉），
+                                            // 这里不能再按 currentPage 自裁，否则退场中的旧页会变空白。
+                                            Box(
+                                                Modifier
+                                                    .fillMaxSize()
+                                                    .then(pageContentLayer(courseManageContentBackdrop))
+                                            ) {
                                                 TabletCourseManagePane(
                                                     viewModel = viewModel,
                                                     settingsViewModel = settingsViewModel,
-                                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                                    liquidGlassBackdrop = chromeBackdrop,
                                                 )
                                             }
                                         }
 
                                         4 -> {
-                                            // 切换课表同上，不预加载
-                                            if (mainTabPosition.currentPage == 4) {
-                                                val shareRepository =
-                                                    remember { CourseRepository() }
+                                            val shareRepository =
+                                                remember { CourseRepository() }
+                                            Box(
+                                                Modifier
+                                                    .fillMaxSize()
+                                                    .then(pageContentLayer(switchScheduleContentBackdrop))
+                                            ) {
                                                 TabletSwitchSchedulePane(
                                                     viewModel = viewModel,
                                                     scheduleViewModel = scheduleViewModel,
@@ -1602,6 +1378,7 @@ internal fun CourseScheduleAppMainContent(
                                     when (page) {
                                         0 -> Box(Modifier.fillMaxSize().then(pageInsetModifier)) {
                                                 // 内容避让右侧栏；壁纸/页面背景仍然铺到屏幕边缘
+                                                val shiftPageRouter = LocalAppRouter.current
                                                 ShiftScheduleScreen(
                                                     shiftViewModel = shiftViewModel,
                                                     settingsViewModel = settingsViewModel,
@@ -1612,6 +1389,15 @@ internal fun CourseScheduleAppMainContent(
                                                     scheduleScrollBehavior = scheduleScrollBehavior,
                                                     isInFreeformWindow = isInFreeformWindow,
                                                     titleBarHeight = 56.dp,
+                                                    liquidGlassBackdrop = chromeBackdrop,
+                                                    chrome = scheduleChrome(
+                                                        contentBackdrop = shiftContentBackdrop,
+                                                        forcedDarkTheme = wallpaperForcedDark,
+                                                        shiftMode = true,
+                                                        onCourseManage = {
+                                                            shiftPageRouter.navigate(AppRoute.CourseManage)
+                                                        },
+                                                    ),
                                                 )
                                         }
 
@@ -1643,7 +1429,7 @@ internal fun CourseScheduleAppMainContent(
                                                         },
                                                         navBarStyle = navBarStyle,
                                                         settingsScrollBehavior = settingsScrollBehavior,
-                                                        liquidGlassBackdrop = liquidGlassBackdrop,
+                                                        liquidGlassBackdrop = chromeBackdrop,
                                                         showUpdateSettings = showUpdateSettings,
                                                     )
                                                 )
@@ -1674,7 +1460,13 @@ internal fun CourseScheduleAppMainContent(
                             // 竖排分支不预组合相邻页：Compose 从「当前页 + 1」开始数
                             // beyondViewportPageCount 个页去测量，请求的页号不会夹回 pageCount
                             // （折叠屏 iPhone 实测 IndexOutOfBoundsException: Index 3, size 3）。
+                            // 平板的页面组合全部交给下面的宿主，pager 只当位置源、每页留透明占位：
+                            // 宿主常驻今日 / 课表，其余页按需组合，转场时额外留住旧页做双页交叉。
                             val verticalPager = verticalMainPagerState
+                            // 只在竖排 pager 分支启用：万一退回自绘平移，页面本来就在窗口里，
+                            // 再挂宿主会把内容组合两遍。
+                            val tabletHosted = isTablet && !isShiftMode &&
+                                    useVerticalMainPager && verticalPager != null
                             if (useVerticalMainPager && verticalPager != null) {
                                 VerticalPager(
                                     state = verticalPager,
@@ -1682,7 +1474,14 @@ internal fun CourseScheduleAppMainContent(
                                     key = mainPagerPageKey,
                                     userScrollEnabled = false,
                                     beyondViewportPageCount = 0,
-                                ) { page -> mainPagerPageContent(page) }
+                                ) { page ->
+                                    if (tabletHosted) {
+                                        // 内容在宿主层；这里只让 pager 保留这一页的位置
+                                        Box(Modifier.fillMaxSize())
+                                    } else {
+                                        mainPagerPageContent(page)
+                                    }
+                                }
                             } else {
                                 // 手机切 tab：自绘平移，swipeEnabled = false。
                                 HorizontalPageSwitch(
@@ -1691,6 +1490,22 @@ internal fun CourseScheduleAppMainContent(
                                     modifier = mainPagerModifier,
                                     swipeEnabled = false,
                                 ) { page -> mainPagerPageContent(page) }
+                            }
+                            if (tabletHosted) {
+                                val transitionProgress = remember {
+                                    { tabletTabTransition.floatValue }
+                                }
+                                TabletMainTabPages(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .nestedScroll(mainContentNestedScroll),
+                                    currentPage = mainTabPosition.currentPage,
+                                    fromPage = tabletTransitionFrom,
+                                    active = tabletTabTransitionActive,
+                                    progress = transitionProgress,
+                                    pageCount = mainPagerPageCount,
+                                    content = mainPagerPageContent,
+                                )
                             }
                         }
                     }
@@ -1741,25 +1556,38 @@ internal fun CourseScheduleAppMainContent(
                                 label = "BackToNowAppear"
                             ) { if (it == EnterExitState.Visible) 1f else 0f }
 
-                            BackToNowFloatingButton(
-                                backdrop = chromeBackdrop,
-                                label = backToNowLabel,
-                                modifier = Modifier.graphicsLayer {
-                                    transformOrigin = TransformOrigin(0.5f, 1f)
-                                    scaleX = 0.6f + 0.4f * appear
-                                    scaleY = 0.6f + 0.4f * appear
-                                    alpha = appear
-                                    clip = false
-                                },
-                                onClick = {
-                                    if (selectedTab == 0) {
-                                        scrollToTodayTrigger++
+                            // 它和底栏同属底部 chrome：单录一层进 overlayGlassBackdrop 的组合，
+                            // OverlayDialog「采底栏」时才能连带采到这颗按钮。
+                            // 按钮自身的采样源是 chromeBackdrop，不含本层 → 不会自采样。
+                            Box(
+                                modifier = Modifier.then(
+                                    if (AppMaterialSettings.isNoneTier()) {
+                                        Modifier
                                     } else {
-                                        // 标题立刻切到本周，再滑一页过去
-                                        coroutineScope.launch { jumpToWeek(currentWeek) }
+                                        Modifier.layerBackdrop(backToNowSampleBackdrop)
                                     }
-                                },
-                            )
+                                )
+                            ) {
+                                BackToNowFloatingButton(
+                                    backdrop = chromeBackdrop,
+                                    label = backToNowLabel,
+                                    modifier = Modifier.graphicsLayer {
+                                        transformOrigin = TransformOrigin(0.5f, 1f)
+                                        scaleX = 0.6f + 0.4f * appear
+                                        scaleY = 0.6f + 0.4f * appear
+                                        alpha = appear
+                                        clip = false
+                                    },
+                                    onClick = {
+                                        if (selectedTab == 0) {
+                                            scrollToTodayTrigger++
+                                        } else {
+                                            // 标题立刻切到本周，再滑一页过去
+                                            coroutineScope.launch { jumpToWeek(currentWeek) }
+                                        }
+                                    },
+                                )
+                            }
                         }
 
                     }
@@ -2081,20 +1909,8 @@ internal fun CourseScheduleAppMainContent(
                                 dismissFloatingCard()
                             }
                         },
-                        onOverwrite = { ids ->
-                            animateInCourseIds = ids
-                            coroutineScope.launch {
-                                delay(350.milliseconds)
-                                animateInCourseIds = emptySet()
-                            }
-                        },
-                        onSwap = { ids ->
-                            animateInCourseIds = ids
-                            coroutineScope.launch {
-                                delay(350.milliseconds)
-                                animateInCourseIds = emptySet()
-                            }
-                        },
+                        onOverwrite = { ids -> flashAnimateIn(ids) },
+                        onSwap = { ids -> flashAnimateIn(ids) },
                         onDismissFinished = {
                             // 弹窗完全退出后再清冲突数据：退出动画期间文案不变
                             pendingConflictCourse = null
@@ -2139,12 +1955,8 @@ internal fun CourseScheduleAppMainContent(
                             }
                         }
                     }
-                    // 提饱和：与玻璃面板同源，采样主内容 export。
-                    //
-                    // 半径取 min(短边, 250dp) × 0.5（与 InteractiveHighlight 同式），遮罩用径向渐变
-                    // ——渐变在半径外恒为 0，所以只有「光晕包围盒」这一块有像素。节点做成这个
-                    // 正方形、跟着卡片中心走：整屏节点要付两次全屏离屏（saveLayer + 带 ColorFilter
-                    // 的采样层），包围盒只有 250dp 见方，像素量差一个数量级。
+                    // 跟手高光：半径 min(短边, 250dp) × 0.5，径向遮罩在半径外恒为 0，
+                    // 所以节点只需这个正方形（整屏节点要多付两次全屏离屏）。
                     val glowRadiusPx = remember(windowInfo.containerSize, density) {
                         val container = windowInfo.containerSize
                         val shortSide = minOf(container.width, container.height).toFloat()
@@ -2184,7 +1996,7 @@ internal fun CourseScheduleAppMainContent(
                                 }
                             }
                             .drawBackdrop(
-                                backdrop = liquidGlassBackdrop,
+                                backdrop = chromeBackdrop,
                                 shadow = null,
                                 shape = { RectangleShape },
                                 effects = { colorControls(saturation = 1.5f) },
@@ -2203,25 +2015,14 @@ internal fun CourseScheduleAppMainContent(
                     // 顶栏槽与内容槽共用一个越界实例：材质判据的「顶部下拉回弹」才成立
                     LocalOverScrollState provides mainOverScrollState,
                 ) {
+                    // 顶栏已经移进各页面内部，切页转场全部由页面宿主完成；
+                    // 这里刻意不包整屏 graphicsLayer：空闲时常驻 layer 会在侧栏展开重排时
+                    // 让玻璃采样贴着旧层走，展开动画乱闪。
                     scaffoldContent()
                     // 平板：胶囊/侧栏叠层（不占 Scaffold bottomBar，内容可正常滚动）
                     if (navBarStyle == "rail") {
-                        val onTabletTabSelected: (Int) -> Unit = { idx ->
-                            if (idx != selectedTab) {
-                                mainTabProgrammatic = true
-                                selectedTab = idx
-                                coroutineScope.launch {
-                                    try {
-                                        if (todayPageState.isAnimating) todayPageState.cancel()
-                                        if (weekPageState.isAnimating) weekPageState.cancel()
-                                        if (mainTabPosition.isAnimating) mainTabPosition.cancel()
-                                        mainTabPosition.snapTo(idx)
-                                    } finally {
-                                        mainTabProgrammatic = false
-                                    }
-                                }
-                            }
-                        }
+                        // 与底栏共用同一套切页状态机：平板专属转场、连点打断、位置兜底都在里面
+                        val onTabletTabSelected: (Int) -> Unit = onMainTabSelected
                         LiquidNavigationRail(
                             selectedTab = selectedTab,
                             onTabSelected = onTabletTabSelected,
@@ -2256,22 +2057,6 @@ internal fun CourseScheduleAppMainContent(
                                 .padding(start = startInsetDp)
                                 .zIndex(22f),
                         )
-                    }
-                    // 平板设置：标题与分界线画在顶栏模糊之上。
-                    // 主题锁定 appSettingDark：不随课程表/壁纸锁色瞬间切换。
-                    // ⚠ 平板主界面切页是瞬时的（scrollToPage，无动画），这里不挂跟位位移与圆角裁切
-                    //   —— 那套只服务手机的「圆角卡片盖住壁纸」转场。
-                    // ⚠ 叠层必须只在设置页（rail 下第 3 页）当前时渲染：它画的是左栏「我的」+
-                    //   右栏 dest 标题，画在 pager 外面、不带位移，留在今日/课程表页就会串页
-                    //   （「今天是周六 我的 学期与周次」）。
-                    if (navBarStyle == "rail" && !isShiftMode && mainTabPosition.currentPage == 2) {
-                        val settingsChromeController =
-                            rememberAppThemeController(isDark = appSettingDark)
-                        MiuixTheme(controller = settingsChromeController) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                TabletSettingsChromeOverlay()
-                            }
-                        }
                     }
                 }
             }
@@ -2365,6 +2150,89 @@ private fun PublishNativeTopBarButtons(
         onDispose {
             host.state = null
             host.onAction = null
+        }
+    }
+}
+
+/**
+ * 平板主 tab 页面宿主。
+ *
+ * - 今日(0) / 课程表(1) 常驻组合；其余页只在成为当前页或转场旧页时组合（不预加载）。
+ * - 顶栏已经移进页面内部，所以每个页面槽位自己承担缩放 / 模糊 / alpha：
+ *   旧页 `1.0→0.96` + 模糊渐强 + 淡出，新页 `0.96→1.0` + 模糊渐弱 + 淡入，双页同时绘制交叉。
+ * - **角色在组合期定死**（隐藏 / 稳态 / 旧页 / 新页），只有参与交叉的两页挂 layer；
+ *   空闲时一个全屏 layer 都不留，避免侧栏展开重排时玻璃采样贴旧层走。
+ * - 进度是每帧写的 float state，只在 `graphicsLayer` 的绘制期读，动画不触发重组。
+ * - 隐藏页跳过绘制并 place 到屏外：组合与测量保留，但不吃点击。
+ */
+@Composable
+private fun TabletMainTabPages(
+    modifier: Modifier,
+    currentPage: Int,
+    fromPage: Int,
+    active: Boolean,
+    progress: () -> Float,
+    pageCount: Int,
+    content: @Composable (Int) -> Unit,
+) {
+    val pages = remember(currentPage, fromPage, active, pageCount) {
+        (listOf(0, 1) + listOfNotNull(
+            currentPage.takeIf { it in 2 until pageCount },
+            fromPage.takeIf { active && it in 2 until pageCount && it != currentPage },
+        )).distinct().sorted()
+    }
+    Box(modifier) {
+        for (page in pages) {
+            key(page) {
+                // 0 隐藏 / 1 稳态当前页 / 2 转场旧页 / 3 转场新页
+                val role = when {
+                    !active -> if (page == currentPage) 1 else 0
+                    page == fromPage -> 2
+                    page == currentPage -> 3
+                    else -> 0
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        // 新页压在退场旧页之上，交叉时不被旧页盖住
+                        .zIndex(if (page == currentPage) 1f else 0f)
+                        .then(
+                            if (role >= 2) Modifier.graphicsLayer {
+                                val p = progress()
+                                val old = role == 2
+                                alpha = if (old) 1f - p else p
+                                val min = TabletTabTransitionSpec.SCALE_MIN
+                                val s = if (old) {
+                                    1f + (min - 1f) * p
+                                } else {
+                                    min + (1f - min) * p
+                                }
+                                scaleX = s
+                                scaleY = s
+                                val blurDp = TabletTabTransitionSpec.MAX_BLUR_DP *
+                                        if (old) p else (1f - p)
+                                renderEffect = if (blurDp > 0.01f && isRenderEffectSupported()) {
+                                    val blurPx = blurDp.dp.toPx()
+                                    BlurEffect(null, blurPx, blurPx, TileMode.Clamp)
+                                } else null
+                            } else Modifier
+                        )
+                        .drawWithContent {
+                            if (role != 0) drawContent()
+                        }
+                        .layout { measurable, constraints ->
+                            val placeable = measurable.measure(constraints)
+                            layout(placeable.width, placeable.height) {
+                                if (role != 0) {
+                                    placeable.place(0, 0)
+                                } else {
+                                    // 移出命中区，组合与测量照旧保留
+                                    placeable.place(-placeable.width, 0)
+                                }
+                            }
+                        },
+                ) { content(page) }
+            }
         }
     }
 }

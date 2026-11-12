@@ -34,6 +34,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -133,6 +134,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
@@ -229,6 +231,24 @@ private fun displayVersion(version: String): String {
     return if (first.isDigit()) "v$raw" else raw
 }
 
+/**
+ * 更新日志卡片翻开期间，顶栏（返回 / 更多）要让位。
+ *
+ * 卡片浮在页面内容里，而顶栏是 [com.haooz.chedule.ui.components.DocumentPageScaffold]
+ * 后画的一层，天然压在卡片之上：不拦的话点击会穿到返回 / 更多上，把整页退掉。
+ * 路由层持有本对象，脚手架读 [blocked] 决定是否拦；页面在翻开 / 收起时更新状态。
+ */
+class UpdateHeroChromeState {
+    var blocked by mutableStateOf(false)
+
+    /** 点到被拦住的顶栏区域时执行：与点遮罩同义，退出卡片 */
+    var onBlockedTap: (() -> Unit)? = null
+
+    fun dismiss() {
+        onBlockedTap?.invoke()
+    }
+}
+
 @Composable
 fun UpdateSettingsScreen(
     scrollBehavior: SharedScrollBehavior? = null,
@@ -239,6 +259,8 @@ fun UpdateSettingsScreen(
     onOpenChangelog: () -> Unit = {},
     /** 页面级模糊进度（dp） */
     pageBlur: Animatable<Float, AnimationVector1D>? = null,
+    /** 翻开更新日志时接管顶栏点击；与路由层的脚手架共享同一份状态 */
+    heroChrome: UpdateHeroChromeState = remember { UpdateHeroChromeState() },
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
@@ -383,6 +405,19 @@ fun UpdateSettingsScreen(
             heroMounted = false
         }
     }
+    // 卡片翻开 / 收起期间顶栏让位：返回 / 更多不再响应，点到这块区域等同点遮罩
+    SideEffect {
+        heroChrome.blocked = heroMounted
+        heroChrome.onBlockedTap = { heroOpen = false }
+    }
+
+    // 系统返回先退卡片，而不是把整页退掉
+    NavigationBackHandlerFor(
+        enabled = heroOpen,
+        onBackCompleted = { heroOpen = false },
+        onBackCancelled = {},
+    )
+
     val scrimColor = ComposeColor.Black.copy(alpha = if (isAppDarkTheme()) 0.34f else 0.16f)
 
     Scaffold(

@@ -67,7 +67,7 @@ kotlin {
             // 必须 api：Res / painterResource 被 :androidApp 直接引用
             api(compose.components.resources)
             // 柔光玻璃档位与材质口径
-            api("com.github.HaoZai000.softglass:softglass:0.1.0")
+            api("com.github.HaoZai000.softglass:softglass:0.1.1")
             // 数据层与跨平台抽象
             api(project(":core"))
             // 页面骨架与组件

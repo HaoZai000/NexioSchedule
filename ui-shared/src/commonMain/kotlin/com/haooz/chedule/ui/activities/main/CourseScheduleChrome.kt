@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
@@ -59,10 +60,25 @@ import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/**
- * 课表主界面的顶栏与「更多」下拉菜单。从 `CourseScheduleApp.kt` 拆出。
- */
+/** 页面内「更多」菜单的宿主状态：菜单随页面一起绘制，不再由外层 popup 槽按 pager 位移追顶栏。 */
+class PageMoreMenuState(
+    val show: Boolean,
+    val onDismiss: () -> Unit,
+    val onExpand: () -> Unit,
+    val fraction: Animatable<Float, *>,
+    val enabled: Boolean,
+    val native: Boolean,
+)
 
+/**
+ * 顶栏「更多」菜单的宿主：负责定位、遮罩与菜单项。
+ *
+ * 课程表页与今日页各有一颗，收起态就是 [LiquidGlassDropdownMenu] 的触发按钮；
+ * 由宿主原生绘制的那一份通过 [scheduleMoreNative] / [todayMoreNative] 关掉。
+ *
+ * @param moreSlotTopPx 顶栏「更多」占位槽的顶部（页面坐标 px）。传 state 而非 Float，
+ *   让定位在绘制期读取，首帧不会因测量未完成而跳动。
+ */
 @Composable
 internal fun MorePopupMenus(
     showMorePopup: Boolean,
@@ -75,8 +91,7 @@ internal fun MorePopupMenus(
     todayMorePopupFraction: Animatable<Float, *>,
     scheduleMenuOffset: () -> Offset = { Offset.Zero },
     todayMenuOffset: () -> Offset = { Offset.Zero },
-    /** 「更多」占位槽实测顶部（root 坐标 px）；传 state 而非 Float，定位须在绘制期读，首帧才不跳。 */
-    moreSlotTopPx: MutableFloatState = mutableFloatStateOf(0f),
+    moreSlotTopPx: MutableFloatState = remember { mutableFloatStateOf(0f) },
     scheduleMaterialAlpha: Float = 0f,
     todayMaterialAlpha: Float = 0f,
     liquidGlassBackdrop: GlassBackdrop,
@@ -89,71 +104,57 @@ internal fun MorePopupMenus(
     onMoreBackCancelled: () -> Unit = {},
     onTodayMoreBackProgress: (Float) -> Unit = {},
     onTodayMoreBackCancelled: () -> Unit = {},
-    // 平板右上角不显示「更多」：跳转/管理/外观都已在侧栏里
+    /** 平板右上角不显示「更多」：跳转、管理、外观都已在侧栏里。 */
     enabled: Boolean = true,
-    /**
-     * 课程表页的「更多」由宿主（鸿蒙 ArkUI）画。
-     *
-     * 这颗按钮的**收起态就是按钮本身**（`LiquidGlassDropdownMenu` 的 trigger），
-     * 宿主接管后它还留在 Compose 里，会从原生按钮下面露出一截（实测是几个黑点）。
-     * 今日页那颗不受影响，所以这里只关课程表这一份。
-     */
+    /** 课程表页的「更多」由原生宿主绘制，关掉这里的触发按钮避免从原生按钮下方露出来。 */
     scheduleMoreNative: Boolean = false,
-    /** 今日页的「更多」同样由宿主画，这颗 Compose 触发按钮必须一起关掉。 */
+    /** 今日页的「更多」由原生宿主绘制。 */
     todayMoreNative: Boolean = false,
 ) {
     if (!enabled) {
-        // 菜单开着时切进/切出禁用场景（平板 rail、课表外观、课表切换）要强制收起，
-        // 否则展开态会盖在新页面上还能点。用 enabled 做 key，翻转即重跑。
+        // 菜单展开时进入禁用场景（平板侧栏、课表外观、课表切换）：先收起，否则会盖在新页面上仍可点击
         LaunchedEffect(enabled) {
             if (showMorePopup) onMorePopupDismiss()
             if (showTodayMorePopup) onTodayMorePopupDismiss()
         }
         return
     }
-    if (showMorePopup) {
+
+    // 任一菜单展开时铺一层遮罩，点空白处一起收起
+    if (showMorePopup || showTodayMorePopup) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { onMorePopupDismiss() }
+                    indication = null,
+                ) {
+                    if (showMorePopup) onMorePopupDismiss()
+                    if (showTodayMorePopup) onTodayMorePopupDismiss()
+                }
         )
     }
-    if (showTodayMorePopup) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { onTodayMorePopupDismiss() }
-        )
-    }
-    // 「更多」锚点纵坐标：**绘制期**定位
-    val fallbackAnchorTopPx = with(LocalDensity.current) {
+
+    val density = LocalDensity.current
+    // 占位槽还没测量到时，用顶栏高度兜底（状态栏 + AppBar）
+    val fallbackAnchorTopPx = with(density) {
         val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        (if (statusBarTop > 0.dp) statusBarTop - 20.dp else 17.dp)
-            .coerceAtLeast(0.dp)
-            .toPx()
+        (if (statusBarTop > 0.dp) statusBarTop - 20.dp else 17.dp).coerceAtLeast(0.dp).toPx()
     }
-    val shadowPaddingPx = with(LocalDensity.current) {
-        LiquidGlassDropdownShadowPadding.toPx()
-    }
+    val shadowPaddingPx = with(density) { LiquidGlassDropdownShadowPadding.toPx() }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
                 clip = false
-                // moreSlotTopPx 是占位槽顶边，减掉阴影外扩才是内容顶边
+                // 占位槽顶边减去阴影外扩，才是菜单内容顶边
                 val measured = moreSlotTopPx.floatValue - shadowPaddingPx
                 translationY = if (measured > 0f) measured else fallbackAnchorTopPx
             }
             .offset(x = 9.dp),
-        contentAlignment = Alignment.TopEnd
+        contentAlignment = Alignment.TopEnd,
     ) {
-        // 课程表页「更多」
         if (!scheduleMoreNative) {
             LiquidGlassDropdownMenu(
                 show = showMorePopup,
@@ -168,123 +169,96 @@ internal fun MorePopupMenus(
                 offsetPx = scheduleMenuOffset,
                 materialAlpha = scheduleMaterialAlpha,
             ) {
-                LiquidGlassDropdownMenuItem(
-                    text = ChromeStr.jumpToWeek(),
-                    onClick = {
-                        onMorePopupDismiss()
-                        onJumpWeek()
-                    },
-                    icon = {
-                        Icon(
-                            imageVector = MiuixIcons.Basic.FastForward,
-                            contentDescription = null,
-                            tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                )
-                if (!isShiftMode) {
-                    LiquidGlassDropdownMenuItem(
-                        text = ChromeStr.courseManage(),
-                        onClick = {
-                            onMorePopupDismiss()
-                            onCourseManage()
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = MiuixIcons.Backup,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(23.dp)
-                            )
-                        }
-                    )
-                }
-                LiquidGlassDropdownMenuItem(
-                    text = ChromeStr.scheduleAppearance(),
-                    onClick = {
-                        onMorePopupDismiss()
-                        onEnterCustomize()
-                    },
-                    icon = {
-                        Icon(
-                            imageVector = MiuixIcons.Background,
-                            contentDescription = null,
-                            tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(23.dp)
-                        )
-                    }
+                MoreMenuItems(
+                    jumpLabel = ChromeStr.jumpToWeek(),
+                    onJump = onJumpWeek,
+                    showCourseManage = !isShiftMode,
+                    onCourseManage = onCourseManage,
+                    onEnterCustomize = onEnterCustomize,
+                    onDismiss = onMorePopupDismiss,
                 )
             }
         }
-        // 今日页「更多」
         if (!todayMoreNative) {
             LiquidGlassDropdownMenu(
                 show = showTodayMorePopup,
-            backdrop = liquidGlassBackdrop,
-            fraction = todayMorePopupFraction,
-            onDismiss = onTodayMorePopupDismiss,
-            onBackProgress = onTodayMoreBackProgress,
-            onBackCancelled = onTodayMoreBackCancelled,
-            triggerIcon = MiuixIcons.More,
-            triggerContentDescription = CommonStr.more(),
-            onExpand = onTodayMorePopupExpand,
-            offsetPx = todayMenuOffset,
-            materialAlpha = todayMaterialAlpha,
-        ) {
-            LiquidGlassDropdownMenuItem(
-                text = ChromeStr.jumpToDate(),
-                onClick = {
-                    onTodayMorePopupDismiss()
-                    onJumpToDate()
-                },
-                icon = {
-                    Icon(
-                        imageVector = MiuixIcons.Basic.FastForward,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(23.dp)
-                    )
-                }
-            )
-            LiquidGlassDropdownMenuItem(
-                text = ChromeStr.courseManage(),
-                onClick = {
-                    onTodayMorePopupDismiss()
-                    onCourseManage()
-                },
-                icon = {
-                    Icon(
-                        imageVector = MiuixIcons.Backup,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(23.dp)
-                    )
-                }
-            )
-            LiquidGlassDropdownMenuItem(
-                text = ChromeStr.scheduleAppearance(),
-                onClick = {
-                    onTodayMorePopupDismiss()
-                    onEnterCustomize()
-                },
-                icon = {
-                    Icon(
-                        imageVector = MiuixIcons.Background,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(23.dp)
-                    )
-                }
-            )
+                backdrop = liquidGlassBackdrop,
+                fraction = todayMorePopupFraction,
+                onDismiss = onTodayMorePopupDismiss,
+                onBackProgress = onTodayMoreBackProgress,
+                onBackCancelled = onTodayMoreBackCancelled,
+                triggerIcon = MiuixIcons.More,
+                triggerContentDescription = CommonStr.more(),
+                onExpand = onTodayMorePopupExpand,
+                offsetPx = todayMenuOffset,
+                materialAlpha = todayMaterialAlpha,
+            ) {
+                MoreMenuItems(
+                    jumpLabel = ChromeStr.jumpToDate(),
+                    onJump = onJumpToDate,
+                    showCourseManage = true,
+                    onCourseManage = onCourseManage,
+                    onEnterCustomize = onEnterCustomize,
+                    onDismiss = onTodayMorePopupDismiss,
+                )
             }
         }
     }
 }
 
+/** 两个页面共用的「更多」菜单项：跳转、课程管理（班次模式隐藏）、课表外观。 */
+@Composable
+private fun MoreMenuItems(
+    jumpLabel: String,
+    onJump: () -> Unit,
+    showCourseManage: Boolean,
+    onCourseManage: () -> Unit,
+    onEnterCustomize: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    LiquidGlassDropdownMenuItem(
+        text = jumpLabel,
+        onClick = {
+            onDismiss()
+            onJump()
+        },
+        icon = { MenuIcon(MiuixIcons.Basic.FastForward) },
+    )
+    if (showCourseManage) {
+        LiquidGlassDropdownMenuItem(
+            text = ChromeStr.courseManage(),
+            onClick = {
+                onDismiss()
+                onCourseManage()
+            },
+            icon = { MenuIcon(MiuixIcons.Backup) },
+        )
+    }
+    LiquidGlassDropdownMenuItem(
+        text = ChromeStr.scheduleAppearance(),
+        onClick = {
+            onDismiss()
+            onEnterCustomize()
+        },
+        icon = { MenuIcon(MiuixIcons.Background) },
+    )
+}
+
+@Composable
+private fun MenuIcon(icon: ImageVector) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = MiuixTheme.colorScheme.onSurface,
+        modifier = Modifier.size(23.dp),
+    )
+}
+
 /**
- * 共享顶栏槽里单页顶栏的主题锁：外层 chrome 主题跟随当前 tab（[forcedDark]），
- * 切页时会先变，尚未移出屏幕的顶栏遮罩瞬间变色；这里按本页自己的主题再锁一层。
+ * 单页顶栏的主题锁。
+ *
+ * 共享顶栏槽的外层主题跟随当前 tab，切页瞬间会把尚未移出屏幕的顶栏染成新主题；
+ * 这里再按本页自己的主题锁一层。
  */
 @Composable
 internal fun PageLockedTopBarTheme(
@@ -301,63 +275,20 @@ internal fun PageLockedTopBarTheme(
     }
 }
 
-@Composable
-internal fun SettingsTopBar(
-    liquidGlassBackdrop: GlassBackdrop?,
-    navBarStyle: String,
-    scrollBehavior: SharedScrollBehavior? = null,
-    blurResampleKey: Int = 0,
-    blurSampleTrack: () -> Float = { 0f },
-    // 标题文字的右侧额外内边距：避开右下角竖排的原生 tab bar（折叠屏 iPhone 折叠态）。
-    // 渐变糊带铺满、右上角是原生按钮，都不加这个 padding。
-    titleEndPadding: Dp = 0.dp,
-) {
-    if (liquidGlassBackdrop == null) return
-    val isTablet = navBarStyle == "rail"
-    // 仅设置页顶栏锁应用主题，避免切页时渐变/糊层随课程表壁纸锁色跳变
-    val settingsBarDark = rememberAppSettingDark()
-    val settingsBarController = rememberAppThemeController(isDark = settingsBarDark)
-
-    // 平板设置：渐变画在 TabletSettingsScreen 内容层，这里不再叠全宽遮罩
-    val settingsNativeBarInset = (LocalHostNavigation.current?.topBarInset ?: 0.0).dp
-    // 本页唯一材质状态：按钮玻璃走全站同一判据（本页遮罩常驻，不接 maskAlpha）
-    val material = rememberTopBarMaterialState(scrollBehavior)
-    MiuixTheme(controller = settingsBarController) {
-        ProgressiveBlurTopBar(
-            backdrop = liquidGlassBackdrop,
-            blurAlpha = if (isTablet) 0f else 1f,
-            topInsetAdjustment = settingsNativeBarInset,
-            noTopStatusBar = hostVerticalBarEdge(),
-            resampleKey = blurResampleKey,
-            sampleTrack = blurSampleTrack,
-        ) {
-            CollapsibleTopAppBar(
-                // 平板设置：顶栏不再显示标题，标题由 MainActivity 叠层绘制
-                title = if (isTablet) "" else CommonStr.settings(),
-                largeTitle = if (isTablet) "" else CommonStr.settings(),
-                showLargeTitle = if (isTablet) false else null,
-                showSmallTitle = if (isTablet) true else null,
-                modifier = Modifier.zIndex(1f),
-                scrollBehavior = if (isTablet) null else scrollBehavior,
-                materialState = material,
-                titleModifier = if (titleEndPadding > 0.dp) {
-                    Modifier.padding(end = titleEndPadding)
-                } else {
-                    Modifier
-                },
-                startAction = null,
-            )
-        }
-    }
-}
-
+/**
+ * 今日页顶栏。
+ *
+ * @param visible 隐藏时 alpha 归零但仍参与测量，保证「更多」占位槽首帧就有位置。
+ * @param blurResampleKey 采样层重录的指纹；[blurSampleTrack] 为当前采样位移。
+ * @param onMoreSlotTop 上报「更多」占位槽顶部（root 坐标 px）。
+ * @param titleEndPadding 标题右侧额外内边距，避开折叠屏 iPhone 的竖排原生 tab bar。
+ */
 @Composable
 internal fun TodayTopBar(
     liquidGlassBackdrop: GlassBackdrop?,
     navBarStyle: String,
     currentDayOfWeek: Int,
     isToday: Boolean = true,
-    onBackToToday: () -> Unit = {},
     onJumpToDate: () -> Unit = {},
     onEnterCustomize: () -> Unit = {},
     scrollBehavior: SharedScrollBehavior? = null,
@@ -367,42 +298,43 @@ internal fun TodayTopBar(
     onMoreSlotTop: (Float) -> Unit = {},
     onMoreMaterial: (Float) -> Unit = {},
     onMoreExpand: () -> Unit = {},
-    // 标题文字的右侧额外内边距：避开右下角竖排的原生 tab bar（折叠屏 iPhone 折叠态）。
-    // 渐变糊带铺满，且 iOS 侧 Compose 根本不渲染顶栏按钮（原生 chrome 接管），都不加。
     titleEndPadding: Dp = 0.dp,
 ) {
-    if (liquidGlassBackdrop == null) return
-    val isTabletLiquidGlass = navBarStyle == "rail"
-    // 同 ScheduleTopBar：iOS 今日页右上角由原生 UIMenu 接管，Compose 侧不渲染
+    val backdrop = liquidGlassBackdrop ?: return
+    val isRail = navBarStyle == "rail"
+    // iOS 今日页右上角由原生 UIMenu 接管，Compose 侧不渲染触发按钮
     val hostOwnsTopRight = LocalHostNavigation.current != null ||
         LocalNativeTopBarHost.current?.ownsTopRight == true
-    // 平板：标题避让侧栏后左对齐用的附加修饰符
-    val titleRailPadding = Modifier
+    val nativeBarInset = (LocalHostNavigation.current?.topBarInset ?: 0.0).dp
+    val dayOfWeekName = when (currentDayOfWeek) {
+        1 -> CommonStr.weekdayMon()
+        2 -> CommonStr.weekdayTue()
+        3 -> CommonStr.weekdayWed()
+        4 -> CommonStr.weekdayThu()
+        5 -> CommonStr.weekdayFri()
+        6 -> CommonStr.weekdaySat()
+        7 -> CommonStr.weekdaySun()
+        else -> ""
+    }
+    val titleText = if (isToday) ChromeStr.todayIsDow(dayOfWeekName) else dayOfWeekName
+    // 平板：标题避让左侧栏后左对齐，手机仍居中
+    val titlePadding = Modifier
         .padding(start = LocalChromeStartInset.current)
         .then(
-            if (isTabletLiquidGlass) tabletNavRailStartPadding().padding(start = 12.dp)
+            if (isRail) tabletNavRailStartPadding().padding(start = 12.dp)
             else Modifier
         )
-    val dayOfWeekNames = listOf(
-        CommonStr.weekdayMon(), CommonStr.weekdayTue(), CommonStr.weekdayWed(),
-        CommonStr.weekdayThu(), CommonStr.weekdayFri(), CommonStr.weekdaySat(),
-        CommonStr.weekdaySun(),
-    )
-    val dayOfWeekName = if (currentDayOfWeek in 1..7) dayOfWeekNames[currentDayOfWeek - 1] else ""
-    val titleText = if (isToday) ChromeStr.todayIsDow(dayOfWeekName) else dayOfWeekName
-    val todayNativeBarInset = (LocalHostNavigation.current?.topBarInset ?: 0.0).dp
-
-    // 本页唯一材质状态：渐变遮罩与按钮玻璃读同一个实例
+    // 渐变遮罩与按钮玻璃读同一个材质实例
     val material = rememberTopBarMaterialState(scrollBehavior)
-    // 隐藏时 alpha=0 但仍测量，保证 currentHeightPx 启动即就位
+
     ProgressiveBlurTopBar(
-        backdrop = liquidGlassBackdrop,
-        topInsetAdjustment = todayNativeBarInset,
+        backdrop = backdrop,
+        topInsetAdjustment = nativeBarInset,
         noTopStatusBar = hostVerticalBarEdge(),
         modifier = Modifier.graphicsLayer { alpha = if (visible) 1f else 0f },
         resampleKey = blurResampleKey,
         sampleTrack = blurSampleTrack,
-        // 无材质档没有模糊层，遮罩是顶栏唯一的材质：跟按钮背景一起出现
+        // 无材质档没有模糊层，遮罩是顶栏唯一的材质，跟按钮背景一起出现
         maskAlpha = material.alpha,
     ) {
         CollapsibleTopAppBar(
@@ -411,61 +343,97 @@ internal fun TodayTopBar(
             modifier = Modifier.zIndex(1f),
             scrollBehavior = scrollBehavior,
             materialState = material,
-            // 平板：标题避让左侧侧栏后左对齐（手机仍居中）
-            titleStartAligned = isTabletLiquidGlass,
-            titleModifier = titleRailPadding.then(
+            titleStartAligned = isRail,
+            titleModifier = titlePadding.then(
                 if (titleEndPadding > 0.dp) Modifier.padding(end = titleEndPadding) else Modifier
             ),
             // 平板左上角不放返回按钮
             startAction = null,
-            onAlphaChanged = { backdrop, _ -> onMoreMaterial(backdrop) },
+            onAlphaChanged = { backdropAlpha, _ -> onMoreMaterial(backdropAlpha) },
             endAction = { backdropAlpha, shadowAlpha ->
                 if (visible) {
-                    if (isTabletLiquidGlass) {
-                        // pad：课程管理已在侧栏，右上角直接放跳转日期 + 课表外观
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            LiquidTopBarButton(
-                                onClick = onJumpToDate,
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Basic.FastForward,
-                                contentDescription = ChromeStr.jumpToDate(),
-                                iconSize = 23.dp,
-                                backdropAlpha = backdropAlpha,
-                                shadowAlpha = shadowAlpha,
-                            )
-                            LiquidTopBarButton(
-                                onClick = onEnterCustomize,
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Background,
-                                contentDescription = ChromeStr.scheduleAppearance(),
-                                iconSize = 23.dp,
-                                backdropAlpha = backdropAlpha,
-                                shadowAlpha = shadowAlpha,
-                            )
-                        }
+                    if (isRail) {
+                        RailTopBarActions(
+                            backdrop = backdrop,
+                            backdropAlpha = backdropAlpha,
+                            shadowAlpha = shadowAlpha,
+                            onJumpToDate = onJumpToDate,
+                            onEnterCustomize = onEnterCustomize,
+                        )
                     } else {
-                        // 「更多」按钮由下拉菜单组件自带（收起态即那颗按钮，唯一一份），这里只占位对齐
-                        Spacer(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .then(
-                                    if (!hostOwnsTopRight) Modifier
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = onMoreExpand,
-                                        )
-                                        .semantics { contentDescription = CommonStr.more() }
-                                    else Modifier
-                                )
-                                .onGloballyPositioned { onMoreSlotTop(it.positionInRoot().y) }
+                        MoreSlotPlaceholder(
+                            hostOwnsTopRight = hostOwnsTopRight,
+                            onExpand = onMoreExpand,
+                            onSlotTop = onMoreSlotTop,
                         )
                     }
                 }
             },
         )
     }
+}
+
+/** 平板右上角的两个玻璃按钮：课程管理已在侧栏，这里只留跳转日期与课表外观。 */
+@Composable
+private fun RailTopBarActions(
+    backdrop: GlassBackdrop,
+    backdropAlpha: Float,
+    shadowAlpha: Float,
+    onJumpToDate: () -> Unit,
+    onEnterCustomize: () -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LiquidTopBarButton(
+            onClick = onJumpToDate,
+            backdrop = backdrop,
+            icon = MiuixIcons.Basic.FastForward,
+            contentDescription = ChromeStr.jumpToDate(),
+            iconSize = 23.dp,
+            backdropAlpha = backdropAlpha,
+            shadowAlpha = shadowAlpha,
+        )
+        LiquidTopBarButton(
+            onClick = onEnterCustomize,
+            backdrop = backdrop,
+            icon = MiuixIcons.Background,
+            contentDescription = ChromeStr.scheduleAppearance(),
+            iconSize = 23.dp,
+            backdropAlpha = backdropAlpha,
+            shadowAlpha = shadowAlpha,
+        )
+    }
+}
+
+/**
+ * 「更多」占位槽：按钮由 [LiquidGlassDropdownMenu] 自己绘制（收起态即按钮），
+ * 这里只提供同尺寸命中区并上报位置，供菜单对齐。
+ */
+@Composable
+private fun MoreSlotPlaceholder(
+    hostOwnsTopRight: Boolean,
+    onExpand: () -> Unit,
+    onSlotTop: (Float) -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Spacer(
+        modifier = Modifier
+            .size(42.dp)
+            .then(
+                if (hostOwnsTopRight) {
+                    Modifier
+                } else {
+                    Modifier
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = onExpand,
+                        )
+                        .semantics { contentDescription = CommonStr.more() }
+                }
+            )
+            .onGloballyPositioned { onSlotTop(it.positionInRoot().y) }
+    )
 }

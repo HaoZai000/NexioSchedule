@@ -385,6 +385,7 @@ fun TabletSettingsScreen(
     }
 
     // 底色铺满，内容避让侧栏
+    Box(Modifier.fillMaxSize()) {
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -502,5 +503,9 @@ fun TabletSettingsScreen(
                 .fillMaxHeight()
                 .background(dividerColor)
         )
+    }
+        // 左栏「我的」标题与设置页同层：切页 / 转场时跟着页面一起动，
+        // 不再由主界面外层按 currentPage 单独叠一层（避免串页与双份维护）。
+        TabletSettingsChromeOverlay()
     }
 }

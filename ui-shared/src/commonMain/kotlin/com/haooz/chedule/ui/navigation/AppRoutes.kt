@@ -114,6 +114,7 @@ import com.haooz.chedule.ui.activities.PreferenceSettingsScreen
 import com.haooz.chedule.ui.activities.PrivacyPolicyScreen
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.TimeConfigCardBounds
+import com.haooz.chedule.ui.activities.UpdateHeroChromeState
 import com.haooz.chedule.ui.activities.UpdatePreferencesScreen
 import com.haooz.chedule.ui.activities.UpdateSettingsScreen
 import com.haooz.chedule.ui.activities.WebDavSettingsScreen
@@ -676,6 +677,8 @@ fun UpdateSettingsRoute(
 ) {
     // 页面级模糊由脚手架挂在整页根节点上（才能糊到折叠标题），这里只持有进度源
     val pageBlur = remember { Animatable(0f) }
+    // 翻开更新日志时，顶栏（返回 / 更多）要把点击让给卡片：状态由页面写、脚手架读
+    val heroChrome = remember { UpdateHeroChromeState() }
     // 右上角「更多」+ 玻璃下拉。触发器由组件自己画（收起态那颗圆），这里只维护开合状态。
     var moreOpen by remember { mutableStateOf(false) }
     val moreFraction = remember { Animatable(0f) }
@@ -696,6 +699,8 @@ fun UpdateSettingsRoute(
         title = ChromeStr.updateSettingsTitle(),
         onBack = { router.popBack() },
         pageBlurDp = { pageBlur.value },
+        chromeBlocked = heroChrome.blocked,
+        onChromeBlockedTap = { heroChrome.dismiss() },
         endAction = { barAlpha, _, _ ->
             SideEffect { moreMaterialAlpha.floatValue = barAlpha }
             Box(
@@ -752,7 +757,11 @@ fun UpdateSettingsRoute(
                         backdrop = backdrop,
                         fraction = moreFraction,
                         onDismiss = { moreOpen = false },
-                        onExpand = { moreOpen = true },
+                        onExpand = {
+                            // 更新日志卡片翻开期间，更多按钮在这一层（压住顶栏）之上，
+                            // 顶栏拦截盖不到：这里直接转成「退出卡片」，与点遮罩同义
+                            if (heroChrome.blocked) heroChrome.dismiss() else moreOpen = true
+                        },
                         triggerIcon = MiuixIcons.More,
                         triggerContentDescription = CommonStr.more(),
                         materialAlpha = moreMaterialAlpha.floatValue,
@@ -774,6 +783,7 @@ fun UpdateSettingsRoute(
             liquidGlassBackdrop = backdrop,
             updateController = updateController,
             pageBlur = pageBlur,
+            heroChrome = heroChrome,
             onOpenChangelog = { router.navigate(AppRoute.Changelog) },
         )
     }

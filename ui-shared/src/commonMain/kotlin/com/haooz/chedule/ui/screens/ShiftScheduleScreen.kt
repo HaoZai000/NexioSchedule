@@ -21,13 +21,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
@@ -38,7 +43,15 @@ import com.haooz.chedule.data.holiday.TeachingWeekPosition
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.SwitchStr
+import com.haooz.chedule.ui.activities.classschedule.SchedulePageChrome
+import com.haooz.chedule.ui.activities.classschedule.ScheduleTopBar
 import com.haooz.chedule.ui.activities.classschedule.SectionColumn
+import com.haooz.chedule.ui.activities.main.MorePopupMenus
+import com.haooz.chedule.ui.activities.main.PageLockedTopBarTheme
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberCombinedBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import com.haooz.chedule.ui.components.HorizontalPageSwitch
 import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.components.PageSwitchState
@@ -83,6 +96,10 @@ fun ShiftScheduleScreen(
     isInFreeformWindow: Boolean = false,
     /** 自由形态窗口的标题栏高度（isInFreeformWindow=true 时用于顶距计算）；默认 56.dp */
     titleBarHeight: androidx.compose.ui.unit.Dp = 56.dp,
+    /** 顶栏玻璃采样源；null 时本页不画顶栏 */
+    liquidGlassBackdrop: GlassBackdrop? = null,
+    /** 顶栏宿主数据；null 时本页不画顶栏 */
+    chrome: SchedulePageChrome? = null,
 ) {
     val shiftScheduleCourses by shiftViewModel.shiftScheduleCourses.collectAsState()
     val shiftScheduleSections by shiftViewModel.shiftScheduleSections.collectAsState()
@@ -117,7 +134,52 @@ fun ShiftScheduleScreen(
 
     val wallpaperBackdropColor = schedulePageBackgroundColor(isDark)
 
-    Box(modifier = Modifier.fillMaxSize().background(wallpaperBackdropColor)) {
+    // 内容单独录一层（页面坐标）：顶栏/菜单在层外，采样「壁纸 + 本页内容」，
+    // 不会把自己的模糊带/按钮再录进去形成循环采样。
+    val contentBackdrop = chrome?.contentBackdrop ?: rememberLayerBackdrop()
+    val glassLayersEnabled =
+        !com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier() && chrome != null
+    val wallpaperBackdrop = chrome?.wallpaperBackdrop
+    val chromeBackdrop: GlassBackdrop = if (wallpaperBackdrop != null) {
+        rememberCombinedBackdrop(wallpaperBackdrop, contentBackdrop)
+    } else {
+        contentBackdrop
+    }
+    val moreSlotTopPx = remember { mutableFloatStateOf(0f) }
+    val moreMaterialAlpha = remember { mutableFloatStateOf(0f) }
+    val pageRootY = remember { mutableFloatStateOf(0f) }
+    // 顶栏单独录一层：展开的「更多」菜单采「本页内容 + 本页顶栏」，不会采到自己
+    val topBarBackdrop = rememberLayerBackdrop()
+    val menuBackdrop = if (wallpaperBackdrop != null) {
+        rememberCombinedBackdrop(wallpaperBackdrop, contentBackdrop, topBarBackdrop)
+    } else {
+        rememberCombinedBackdrop(contentBackdrop, topBarBackdrop)
+    }
+    // 这层只为「更多」菜单服务：菜单收起且展开动画归零就摘掉，不让顶栏每帧白录一层
+    val topBarLayerWanted by remember(chrome?.moreMenu) {
+        derivedStateOf {
+            val menu = chrome?.moreMenu
+            menu != null && (menu.show || menu.fraction.value > 0f)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(wallpaperBackdropColor)
+            .then(
+                if (glassLayersEnabled) {
+                    Modifier.layerBackdrop(
+                        contentBackdrop,
+                        chrome?.contentRecordKey,
+                        chrome?.contentMustRecord,
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .onGloballyPositioned { pageRootY.floatValue = it.positionInRoot().y }
+    ) {
 
     HorizontalPageSwitch(
         state = pageState,
@@ -289,6 +351,67 @@ fun ShiftScheduleScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+
+    // 顶栏与页面同层：翻周 / 切 tab 时跟着页面一起位移，不再由外层按页码算偏移
+    chrome?.let { c ->
+        PageLockedTopBarTheme(c.forcedDarkTheme) {
+            Box(Modifier.then(
+                if (glassLayersEnabled && topBarLayerWanted) Modifier.layerBackdrop(topBarBackdrop) else Modifier
+            )) {
+            ScheduleTopBar(
+                visible = true,
+                pagerCurrentPage = pageState.currentPage,
+                currentWeek = c.currentWeek,
+                isHoliday = c.isHoliday,
+                dayRange = c.dayRange,
+                currentDayOfWeek = c.currentDayOfWeek,
+                isCurrentWeek = pageState.currentPage + 1 == c.currentWeek &&
+                    c.currentWeek in 1..c.totalWeeks,
+                weekDates = c.weekDates,
+                isReorganized = c.isReorganized,
+                onOpenSwitchSchedule = c.onOpenSwitchSchedule,
+                onJumpWeek = c.onJumpWeek,
+                onEnterCustomize = c.onEnterCustomize,
+                onCourseManage = c.onCourseManage,
+                isTablet = isTablet,
+                isShiftMode = c.isShiftMode,
+                liquidGlassBackdrop = chromeBackdrop,
+                scrollBehavior = scheduleScrollBehavior,
+                blurResampleKey = c.blurResampleKey,
+                blurSampleTrack = c.blurSampleTrack,
+                titleEndPadding = c.titleEndPadding,
+                onMoreSlotTop = { moreSlotTopPx.floatValue = it - pageRootY.floatValue },
+                onMoreMaterial = { moreMaterialAlpha.floatValue = it },
+                onMoreExpand = { c.moreMenu?.onExpand?.invoke() },
+            )
+            }
+            c.moreMenu?.let { menu ->
+                MorePopupMenus(
+                    showMorePopup = menu.show,
+                    onMorePopupDismiss = menu.onDismiss,
+                    onMorePopupExpand = menu.onExpand,
+                    showTodayMorePopup = false,
+                    onTodayMorePopupDismiss = {},
+                    morePopupFraction = menu.fraction,
+                    todayMorePopupFraction = remember {
+                        androidx.compose.animation.core.Animatable(0f)
+                    },
+                    scheduleMenuOffset = { Offset.Zero },
+                    moreSlotTopPx = moreSlotTopPx,
+                    scheduleMaterialAlpha = moreMaterialAlpha.floatValue,
+                    liquidGlassBackdrop = menuBackdrop,
+                    isShiftMode = c.isShiftMode,
+                    enabled = menu.enabled,
+                    scheduleMoreNative = menu.native,
+                    todayMoreNative = true,
+                    onJumpWeek = c.onJumpWeek,
+                    onCourseManage = c.onCourseManage,
+                    onEnterCustomize = c.onEnterCustomize,
+                    onJumpToDate = {},
+                )
             }
         }
     }

@@ -153,6 +153,9 @@ import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
+/** 外观页在全屏遮罩上挖洞后铺的底色（与外壳 `shellBackground` 同一色值）。 */
+private val CustomizePageBackground = Color(0xFF1A1A1A)
+
 /** 外观页两颗顶栏胶囊的柔光 shader 缓存键：尺寸与材质各异，不能共用 uniform。
  * 中段预览切换胶囊不使用玻璃，故没有对应 key。 */
 private const val LIVE_CANCEL_CAPSULE_GLASS_KEY = "NexioSoftGlassLiveCustomizeCancel"
@@ -275,8 +278,10 @@ fun CustomizeScheduleScreen(
     }
 
 
+    // 纯采样层：只借坐标，不采真实像素。必须铺不透明底色 —— softglass 0.1.1 起空内容
+    // 会按采样 alpha 压成全透明，顶栏取消/应用胶囊的材质会整个消失。
     val liquidGlassBackdrop = com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop {
-        drawRect(Color.Transparent)
+        drawRect(CustomizePageBackground)
     }
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
         containerColor = Color.Transparent,
@@ -764,7 +769,7 @@ fun CustomizeScheduleScreen(
                     val top = cardCenterY + ((cardCenterY - animH / 2f) - cardCenterY) * p
 
                     if (p <= 0f) {
-                        drawRect(color = Color(0xFF1A1A1A))
+                        drawRect(color = CustomizePageBackground)
                     } else {
                         // 形状不变、仅位置变时走缓存 translate，squircle 不重建
                         val cached = cutoutPathCache.obtain(
@@ -775,7 +780,7 @@ fun CustomizeScheduleScreen(
                             corners = cutoutCorners
                         )
                         translate(left, top) {
-                            drawPath(cached, color = Color(0xFF1A1A1A))
+                            drawPath(cached, color = CustomizePageBackground)
                         }
                     }
                 }
@@ -823,10 +828,9 @@ fun CustomizeScheduleScreen(
                         } else {
                             Modifier.liquidGlassLayerBackdrop(
                                 liquidGlassBackdrop,
-                                // 采样层内容恒为纯透明矩形（drawRect(Color.Transparent)），玻璃只借它的
-                                // 坐标与空图层，像素永不变化 ⇒ 恒定指纹：首帧录一次后每帧都跳过重录，
-                                // 弹窗期间也一样，不必再为省采样而摘节点。
-                                // 节点必须常驻：以前弹窗一开就摘掉，onDetach 把 layerCoordinates 置空，
+                                // 采样层内容恒为同一片底色，玻璃只借它的坐标与图层，像素永不变化
+                                // ⇒ 恒定指纹：首帧录一次后每帧跳过重录，弹窗期间也一样。
+                                // 节点必须常驻：一旦 detach，onDetach 会把 layerCoordinates 置空，
                                 // drawBackdrop 整笔 return ⇒ 顶栏「取消 / 应用」的材质瞬间消失。
                                 recordKey = "customize-empty-backdrop"
                             )

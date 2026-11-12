@@ -44,8 +44,10 @@ import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.SwitchCardSnapshotStore
 import com.haooz.chedule.data.WallpaperStore
 import com.haooz.chedule.data.appearance.AppearanceConfig
+import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.appearance.AppearanceStore
 import com.haooz.chedule.data.appearance.scheduleSurfaceAlpha
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
@@ -65,6 +67,7 @@ import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.glass.SoftGlassStyle
 import com.haooz.chedule.ui.screens.CombinationThumbnail
 import com.haooz.chedule.ui.screens.CourseDetailScreen
@@ -125,19 +128,18 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                 isDark = overlayEffectiveDark,
                 hasWallpaper = wallpaperBitmap != null
             )
-            // 浮层玻璃的采样层 = 底栏那一层（`liquidGlassBackdrop`，录的是整页内容含课程卡片）。
+            // 浮层玻璃的采样层 = 壁纸 + 所有页面内容（不含顶栏/菜单）。
             // 浮层画在录制层**之上**，所以只能从外部采，正好能连课程卡片一起录进来。
-            // 无材质档时主内容层根本没挂这个录制层（见 CourseScheduleAppMainContent），
-            // 此时喂进去只会采到空像素 —— 直接退回纯色卡片。
+            // 无材质档时各页内容层根本没挂录制层，此时喂进去只会采到空像素 —— 直接退回纯色卡片。
             // 样式与网格卡片同一份，只压暗一档（大模糊底只能采自身矩形，压在亮卡片上会偏亮）。
             val overlayGlassStyle = rememberOverlayGlassStyle(scheduleGlassStyle)
             // 无壁纸时网格卡片是普通半透明表面，浮层同档不挂玻璃。
             val overlayGlassBackdrop = if (
-                com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier() || wallpaperBitmap == null
+                AppMaterialSettings.isNoneTier() || wallpaperBitmap == null
             ) {
                 null
             } else {
-                liquidGlassBackdrop
+                mainContentBackdrop
             }
             // 拖浮层跟手高光的中心（px，非 state：只在 draw 里写，不触发额外失效）
             val glowCenterPx = remember { FloatArray(2) }
@@ -235,7 +237,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         CrossWeekDropHint(
                             fromWeek = draggedWeek,
                             toWeek = currentViewingWeek,
-                            backdrop = liquidGlassBackdrop,
+                            backdrop = mainContentBackdrop,
                         )
                     }
                     if (floatingCardVisible) {
@@ -291,34 +293,19 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                         scaleY = floatingScale.value
                                     }
                             ) {
-                                CourseCard(
+                                OverlayCourseCard(
                                     course = course,
                                     // 粘贴飞行强制本周样式，避免源课不在当前周飞出灰卡
-                                    isCurrentWeek = if (isPasteFlight) true else course.isActiveInWeek(
-                                        draggedWeek
-                                    ),
-                                    // 浮层采实时录制层（能录到下面的课程卡片）；
-                                    // 样式与网格卡片同一份、只压暗一档，模糊 / 折射 / 边缘 / 描边一致
-                                    glassBackdrop = overlayGlassBackdrop,
-                                    glassStyle = overlayGlassStyle,
-                                    cardAlpha = displayAppearance.cardAlpha,
-                                    cardSurfaceAlpha = displayAppearance.scheduleSurfaceAlpha(isAppDarkTheme()),
-                                    // 无壁纸时垫页底色，取值见 floatSolidBacking
-                                    solidBackingColor = floatSolidBacking,
-                                    cardHeightPerSection = displayAppearance.cardHeight,
-                                    // ⚠ 必须把浮层 Box 的高度原样传给卡片，否则长按浮层会偏上：
-                                    // 卡片高（customCardHeightDp ?: 节次数×每节高）与 Box 高度 heightPx
-                                    // 不一致时按顶部对齐，视觉中心偏上 (heightPx − 卡片高)/2。
-                                    customCardHeightDp = with(density) { heightPx.toDp().value },
-                                    cardCornerRadius = displayAppearance.cardCornerRadius,
+                                    isCurrentWeek = if (isPasteFlight) true
+                                    else course.isActiveInWeek(draggedWeek),
+                                    appearance = displayAppearance,
+                                    backdrop = overlayGlassBackdrop,
+                                    style = overlayGlassStyle,
+                                    solidBacking = floatSolidBacking,
                                     isTablet = isTablet,
-                                    cardContentAlignment = displayAppearance.cardContentAlignment,
-                                    cardTextColor = displayAppearance.cardTextColor,
-                                    cardTextScale = displayAppearance.cardTextScale,
-                                    showClassroom = displayAppearance.showClassroom,
-                                    showTeacher = displayAppearance.showTeacher,
-                                    disablePadding = true,
-                                    onClick = {}
+                                    // ⚠ 必须把浮层 Box 的高度原样传给卡片，否则长按浮层会偏上：
+                                    // 两者高度不一致时按顶部对齐，视觉中心偏上 (heightPx − 卡片高)/2。
+                                    customCardHeightDp = with(density) { heightPx.toDp().value },
                                 )
                             }
                         }
@@ -347,33 +334,30 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                         scaleY = swapFlightScale.value
                                     }
                             ) {
-                                CourseCard(
+                                OverlayCourseCard(
                                     course = swapCourse,
                                     isCurrentWeek = true,
-                                    // 浮层采实时录制层（能录到下面的课程卡片）；
-                                    // 样式与网格卡片同一份、只压暗一档，模糊 / 折射 / 边缘 / 描边一致
-                                    glassBackdrop = overlayGlassBackdrop,
-                                    glassStyle = overlayGlassStyle,
-                                    cardAlpha = displayAppearance.cardAlpha,
-                                    cardSurfaceAlpha = displayAppearance.scheduleSurfaceAlpha(isAppDarkTheme()),
-                                    // 无壁纸时垫页底色，取值见 floatSolidBacking
-                                    solidBackingColor = floatSolidBacking,
-                                    cardHeightPerSection = displayAppearance.cardHeight,
-                                    cardCornerRadius = displayAppearance.cardCornerRadius,
+                                    appearance = displayAppearance,
+                                    backdrop = overlayGlassBackdrop,
+                                    style = overlayGlassStyle,
+                                    solidBacking = floatSolidBacking,
                                     isTablet = isTablet,
-                                    cardContentAlignment = displayAppearance.cardContentAlignment,
-                                    cardTextColor = displayAppearance.cardTextColor,
-                                    cardTextScale = displayAppearance.cardTextScale,
-                                    showClassroom = displayAppearance.showClassroom,
-                                    showTeacher = displayAppearance.showTeacher,
-                                    disablePadding = true,
-                                    onClick = {}
                                 )
                             }
                         }
                     }
                 }
             }
+            // 菜单与浮层一起收：先播退场，再清锚点。没有浮层时（空白格菜单）只收菜单。
+            fun dismissShortcutMenu(after: () -> Unit) {
+                shortcutMenuVisible = false
+                if (floatingCardVisible || isDraggingCard) dismissFloatingCard()
+                coroutineScope.launch {
+                    delay(240.milliseconds)
+                    after()
+                }
+            }
+
             if (shortcutMenuCourse != null || emptyCellMenuTarget != null) {
                 Box(
                     modifier = Modifier
@@ -382,11 +366,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
-                            // 退场动画并行，结束后再清空
-                            shortcutMenuVisible = false
-                            dismissFloatingCard()
-                            coroutineScope.launch {
-                                delay(220.milliseconds)
+                            dismissShortcutMenu {
                                 shortcutMenuCourse = null
                                 emptyCellMenuTarget = null
                             }
@@ -404,12 +384,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 label = CommonStr.edit(),
                                 onClick = {
                                     FeatureLog.course("edit_shortcut")
-                                    shortcutMenuVisible = false
-                                    dismissFloatingCard()
-                                    coroutineScope.launch {
-                                        delay(240.milliseconds)
-                                        shortcutMenuCourse = null
-                                    }
+                                    dismissShortcutMenu { shortcutMenuCourse = null }
                                     viewModel.showEditDialog(activeShortcutCourse)
                                 }
                             )
@@ -424,12 +399,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                     onClick = {
                                         FeatureLog.course("copy_shortcut")
                                         copiedCourseForPaste = activeShortcutCourse
-                                        shortcutMenuVisible = false
-                                        dismissFloatingCard()
-                                        coroutineScope.launch {
-                                            delay(240.milliseconds)
-                                            shortcutMenuCourse = null
-                                        }
+                                        dismissShortcutMenu { shortcutMenuCourse = null }
                                         showToast(CommonStr.copied())
                                     }
                                 )
@@ -442,12 +412,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 onClick = {
                                     FeatureLog.course("delete_shortcut")
                                     deleteConfirmCourse = activeShortcutCourse
-                                    shortcutMenuVisible = false
-                                    dismissFloatingCard()
-                                    coroutineScope.launch {
-                                        delay(240.milliseconds)
-                                        shortcutMenuCourse = null
-                                    }
+                                    dismissShortcutMenu { shortcutMenuCourse = null }
                                     showDeleteConfirmDialog = true
                                 }
                             )
@@ -472,11 +437,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                             dataWeek = if (emptyAddWeek > 0) emptyAddWeek else currentViewingWeek,
                                         )
                                         showPasteRangeDialog = true
-                                        shortcutMenuVisible = false
-                                        coroutineScope.launch {
-                                            delay(240.milliseconds)
-                                            emptyCellMenuTarget = null
-                                        }
+                                        dismissShortcutMenu { emptyCellMenuTarget = null }
                                     }
                                 )
                             )
@@ -496,11 +457,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                             null,
                                             defaultWeeks
                                         )
-                                        shortcutMenuVisible = false
-                                        coroutineScope.launch {
-                                            delay(240.milliseconds)
-                                            emptyCellMenuTarget = null
-                                        }
+                                        dismissShortcutMenu { emptyCellMenuTarget = null }
                                     }
                                 )
                             )
@@ -533,16 +490,13 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                     maxOf(visibleTop, 12.dp.toPx()).toDp()
                                 }
                             ),
-                            backdrop = liquidGlassBackdrop,
+                            backdrop = mainContentBackdrop,
                             anchorRightPx = shortcutMenuPosition.x + shortcutMenuAnchorWidth,
                             onMeasuredSize = { width, height ->
                                 shortcutMenuSize = IntSize(width, height)
                             },
                             onDismiss = {
-                                shortcutMenuVisible = false
-                                dismissFloatingCard()
-                                coroutineScope.launch {
-                                    delay(220.milliseconds)
+                                dismissShortcutMenu {
                                     shortcutMenuCourse = null
                                     emptyCellMenuTarget = null
                                 }
@@ -551,20 +505,14 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                     }
                 }
             }
-            if (showCustomizePage && customizeSnapshot != null) {
-                LaunchedEffect(true) {
-                    if (showCustomizePage) {
-                        onSystemBarsChanged(true, true)
-                    } else {
-                        onSystemBarsChanged(false, false)
-                    }
-                }
+            if (showCustomizePage) {
+                // 外观页固定深色系统栏；退出时由 dismiss/apply 恢复。
+                LaunchedEffect(Unit) { onSystemBarsChanged(true, true) }
                 val dismissCustomize: () -> Unit = {
                     isApplyingCustomize = false
                     // 取消时丢弃未落盘主题预览
                     pendingScheduleThemeMode = null
                     coroutineScope.launch {
-                        blurSnapshotJob?.cancel()
                         // 动画期间保持编辑后实时状态；结束时统一恢复。仅锁定原搭配主题防跟随编辑壁纸
                         captureThemeActive = true
                         captureThemeIsDark = originalWallpaperIsLight?.let { !it }
@@ -607,59 +555,30 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                     latestScreenWPx,
                                     latestScreenHPx
                                 )
-                                val appearanceToSave = currentAppearance()
-                                AppearanceStore.saveCardBlur(
-                                    appearanceToSave.cardBlurRadius
-                                )
-                                AppearanceStore.saveCardAlpha(
-                                    appearanceToSave.cardAlpha
-                                )
-                                AppearanceStore.saveCardSurfaceAlpha(
-                                    appearanceToSave.cardSurfaceAlpha
-                                )
-                                AppearanceStore.saveCardHeight(
-                                    appearanceToSave.cardHeight
-                                )
-                                AppearanceStore.saveCardCornerRadius(
-                                    appearanceToSave.cardCornerRadius
-                                )
-                                AppearanceStore.saveWallpaperBrightness(
-                                    appearanceToSave.wallpaperBrightness
-                                )
-                                AppearanceStore.saveWallpaperIsLight(isLight)
-                                AppearanceStore.saveShowBreakDividers(
-                                    appearanceToSave.showBreakDividers
-                                )
-                                AppearanceStore.saveShowWeekGridLines(
-                                    appearanceToSave.showWeekGridLines
-                                )
-                                AppearanceStore.saveCardContentAlignment(
-                                    appearanceToSave.cardContentAlignment
-                                )
-                                AppearanceStore.saveCardTextColor(
-                                    appearanceToSave.cardTextColor
-                                )
-                                AppearanceStore.saveCardTextScale(
-                                    appearanceToSave.cardTextScale
-                                )
-                                AppearanceStore.saveShowClassroom(
-                                    appearanceToSave.showClassroom
-                                )
-                                AppearanceStore.saveShowTeacher(
-                                    appearanceToSave.showTeacher
-                                )
-                                AppearanceStore.saveCardRefraction(
-                                    appearanceToSave.cardRefraction
-                                )
-                                AppearanceStore.saveCardEdgeThickness(
-                                    appearanceToSave.cardEdgeThickness
-                                )
-                                AppearanceStore.saveCardRim(
-                                    appearanceToSave.cardRim
-                                )
-                                AppearanceStore.saveWallpaperBlur(
-                                    appearanceToSave.wallpaperBlur
-                                )
+                                // 一次 updateStyle 写完所有外观字段：逐字段 setter 会重复读盘/落盘
+                                val a = currentAppearance()
+                                AppearanceStore.updateStyle {
+                                    it.copy(
+                                        cardBlur = a.cardBlurRadius,
+                                        cardAlpha = a.cardAlpha,
+                                        cardSurfaceAlpha = a.cardSurfaceAlpha,
+                                        cardHeight = a.cardHeight,
+                                        cardCornerRadius = a.cardCornerRadius,
+                                        wallpaperBrightness = a.wallpaperBrightness,
+                                        wallpaperIsLight = isLight,
+                                        showBreakDividers = a.showBreakDividers,
+                                        showWeekGridLines = a.showWeekGridLines,
+                                        cardContentAlignment = a.cardContentAlignment,
+                                        cardTextColor = a.cardTextColor,
+                                        cardTextScale = a.cardTextScale,
+                                        showClassroom = a.showClassroom,
+                                        showTeacher = a.showTeacher,
+                                        cardRefraction = a.cardRefraction,
+                                        cardEdgeThickness = a.cardEdgeThickness,
+                                        cardRim = a.cardRim,
+                                        wallpaperBlur = a.wallpaperBlur,
+                                    )
+                                }
                             }
                             // 「应用」才写入偏好
                             pendingScheduleThemeMode?.let { mode ->
@@ -668,18 +587,15 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                             }
                         }
                         // 快照仅存内存；替换前记下旧 snapshot，延迟回收
-                        val idx = currentCombinationIndex
-                        val replacedSnapshot = combinations.getOrNull(idx)?.snapshot
-                        if (idx in combinations.indices) {
-                            combinations = combinations.toMutableList().also {
-                                it[idx] = it[idx].copy(
-                                    bitmap = bitmap,
-                                    offset = wallpaperOffset,
-                                    scale = wallpaperScale,
-                                    snapshot = capturedSnapshot,
-                                    wallpaperIsLight = isLight
-                                )
-                            }
+                        val replacedSnapshot = currentComb?.snapshot
+                        updateCurrentCombination {
+                            it.copy(
+                                bitmap = bitmap,
+                                offset = wallpaperOffset,
+                                scale = wallpaperScale,
+                                snapshot = capturedSnapshot,
+                                wallpaperIsLight = isLight
+                            )
                         }
                         if (replacedSnapshot !== capturedSnapshot) {
                             launch {
@@ -737,16 +653,13 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                             wallpaperBitmap = null
                             wallpaperOffset = Offset.Zero
                             wallpaperScale = 1f
-                            val idx = currentCombinationIndex
-                            if (idx in combinations.indices) {
-                                combinations = combinations.toMutableList().also { list ->
-                                    list[idx] = list[idx].copy(
-                                        bitmap = null,
-                                        offset = Offset.Zero,
-                                        scale = 1f,
-                                        wallpaperIsLight = null
-                                    )
-                                }
+                            updateCurrentCombination {
+                                it.copy(
+                                    bitmap = null,
+                                    offset = Offset.Zero,
+                                    scale = 1f,
+                                    wallpaperIsLight = null
+                                )
                             }
                         },
                         pendingEnterCutout = pendingEnterCutout,
@@ -767,21 +680,11 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         wallpaperScale = wallpaperScale,
                         onWallpaperOffsetChange = {
                             wallpaperOffset = it
-                            val idx = currentCombinationIndex
-                            if (idx in combinations.indices) {
-                                combinations = combinations.toMutableList().also { list ->
-                                    list[idx] = list[idx].copy(offset = it)
-                                }
-                            }
+                            updateCurrentCombination { comb -> comb.copy(offset = it) }
                         },
                         onWallpaperScaleChange = {
                             wallpaperScale = it
-                            val idx = currentCombinationIndex
-                            if (idx in combinations.indices) {
-                                combinations = combinations.toMutableList().also { list ->
-                                    list[idx] = list[idx].copy(scale = it)
-                                }
-                            }
+                            updateCurrentCombination { comb -> comb.copy(scale = it) }
                         },
                         onCutoutCenterChange = { xRatio, yRatio ->
                             cutoutCenterXRatio = xRatio
@@ -790,29 +693,20 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         // 折叠屏竖排底栏会在右侧留一条（~84pt），开洞要整体往左让开
                         rightChromeReserved = (hostNavigation?.rightSafeAreaInset ?: 0.0) > 0.0,
                         sheetOffsetShared = sheetOffsetY,
-                        appearance = currentAppearance(),
+                        // 稳定实例：currentAppearance() 每次调用都新建对象，会让外观页整页重组
+                        appearance = remember(combinations, currentCombinationIndex) {
+                            currentAppearance()
+                        },
                         onAppearanceChange = { newAppearance ->
                             applyAppearance(newAppearance)
                         },
                         hasWallpaper = wallpaperBitmap != null,
                         previewPage = if (selectedTab == 1) 1 else 0,
                         onPreviewPageChange = { page ->
+                            // 与底栏同一套切页动画：手机走弹簧平移，平板走交叉淡入缩放。
+                            // 不要自己 snapTo —— rail 下会变成硬切，预览页没有过渡。
                             val target = if (page == 1) 1 else 0
-                            if (selectedTab != target) {
-                                mainTabProgrammatic = true
-                                selectedTab = target
-                                coroutineScope.launch {
-                                    try {
-                                        if (navBarStyle == "rail") {
-                                            mainTabPosition.snapTo(target)
-                                        } else {
-                                            mainTabPosition.animateTo(target)
-                                        }
-                                    } finally {
-                                        mainTabProgrammatic = false
-                                    }
-                                }
-                            }
+                            if (selectedTab != target) onMainTabSelected(target)
                         },
                     )
                 }
@@ -859,8 +753,9 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
             }
 
             LaunchedEffect(isCustomizeExiting) {
-                if (isCustomizeExiting && customizeSnapshot != null) {
-                    coroutineScope {
+                if (isCustomizeExiting) {
+                    // 截不到快照（OOM）时没有退场动画，只做状态还原
+                    if (customizeSnapshot != null) coroutineScope {
                         launch {
                             customizeExitScale.animateTo(
                                 targetValue = 1f,
@@ -1262,7 +1157,6 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         FeatureLog.shift("exit_confirmed")
                         shiftViewModel.exitShiftMode()
                         selectedTab = 0
-                        selectedTab = 0
                         coroutineScope.launch { mainTabPosition.snapTo(0) }
                     } else {
                         FeatureLog.shift("enter_confirmed")
@@ -1274,4 +1168,44 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
             )
         }
     }
+}
+
+/**
+ * 浮层里的课程卡片：长按浮层与交换飞行的第二张共用。
+ *
+ * 与网格卡片是同一套渲染参数，区别只在采样源（浮层采实时录制层，能录到下面的卡片）
+ * 和样式档位（只压暗一档）。两边参数必须逐字段一致，否则同一门课在浮层与网格里会有色差。
+ */
+@Composable
+private fun OverlayCourseCard(
+    course: Course,
+    isCurrentWeek: Boolean,
+    appearance: AppearanceConfig,
+    backdrop: GlassBackdrop?,
+    style: SoftGlassStyle,
+    solidBacking: Color?,
+    isTablet: Boolean,
+    /** 非空时覆盖卡片高度（长按浮层必须与浮层 Box 同高，否则视觉中心偏上） */
+    customCardHeightDp: Float? = null,
+) {
+    CourseCard(
+        course = course,
+        isCurrentWeek = isCurrentWeek,
+        glassBackdrop = backdrop,
+        glassStyle = style,
+        cardAlpha = appearance.cardAlpha,
+        cardSurfaceAlpha = appearance.scheduleSurfaceAlpha(isAppDarkTheme()),
+        solidBackingColor = solidBacking,
+        cardHeightPerSection = appearance.cardHeight,
+        customCardHeightDp = customCardHeightDp,
+        cardCornerRadius = appearance.cardCornerRadius,
+        isTablet = isTablet,
+        cardContentAlignment = appearance.cardContentAlignment,
+        cardTextColor = appearance.cardTextColor,
+        cardTextScale = appearance.cardTextScale,
+        showClassroom = appearance.showClassroom,
+        showTeacher = appearance.showTeacher,
+        disablePadding = true,
+        onClick = {},
+    )
 }

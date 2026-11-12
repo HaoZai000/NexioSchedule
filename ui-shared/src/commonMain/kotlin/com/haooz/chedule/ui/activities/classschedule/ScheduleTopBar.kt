@@ -44,6 +44,7 @@ import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
+import com.haooz.chedule.ui.activities.main.PageMoreMenuState
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.LocalChromeStartInset
 import com.haooz.chedule.ui.components.tabletNavRailStartPadding
@@ -56,6 +57,7 @@ import com.haooz.chedule.ui.utils.NativeTopBarMenuItem
 import com.haooz.chedule.ui.utils.NativeTopBarState
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
 import com.haooz.softglass.platform.isRenderEffectSupported
 import kotlin.math.roundToInt
 import kotlinx.datetime.LocalDate
@@ -101,6 +103,40 @@ fun scheduleContentTopPadding(statusBarHeight: Dp, verticalBarEdge: Boolean): Dp
     // 内容顶恒为「星期行底 + 2dp」：糊带只是装饰，折叠屏上收窄 8dp 不该把内容一起拽上去
     return maxOf(weekRowBottom + 2.dp, appBar + topBar - 78.dp).coerceAtLeast(0.dp)
 }
+
+/**
+ * 课表 / 排班页顶栏的宿主注入数据。
+ *
+ * 顶栏由页面自己组合（与设置页 DocumentPageScaffold 同一套口径），
+ * 翻周位置、是否本周等直接读页面内的 PageSwitchState，这里只传外部动作与周数据。
+ */
+class SchedulePageChrome(
+    val currentWeek: Int,
+    val totalWeeks: Int,
+    val isHoliday: Boolean,
+    val dayRange: List<Int>,
+    val currentDayOfWeek: Int,
+    val weekDates: List<LocalDate>,
+    val isReorganized: Boolean,
+    val forcedDarkTheme: Boolean?,
+    /** 共享壁纸采样层；页面会把「壁纸 + 本页内容」组合后给顶栏/菜单采样，避免采到自己 */
+    val wallpaperBackdrop: GlassBackdrop? = null,
+    /** 「更多」按钮/菜单宿主状态；null 表示不渲染 */
+    val moreMenu: PageMoreMenuState? = null,
+    /** 外层统一持有的本页内容采样层；null 时页面自建（独立使用 / 预览） */
+    val contentBackdrop: LayerBackdrop? = null,
+    val onOpenSwitchSchedule: () -> Unit = {},
+    val onJumpWeek: () -> Unit = {},
+    val onEnterCustomize: () -> Unit = {},
+    val onCourseManage: () -> Unit = {},
+    val isShiftMode: Boolean = false,
+    val titleEndPadding: Dp = 0.dp,
+    val blurResampleKey: Int = 0,
+    val blurSampleTrack: () -> Float = { 0f },
+    /** 本页内容采样层的录制指纹/强制重录谓词（与主内容层同源，滚动/动画时同步刷新） */
+    val contentRecordKey: Any? = null,
+    val contentMustRecord: (() -> Boolean)? = null,
+)
 
 @Composable
 fun ScheduleTopBar(
