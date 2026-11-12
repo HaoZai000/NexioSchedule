@@ -104,15 +104,15 @@ object BackupStr {
 
     // ---- 导出到手表（蓝牙） ----
 
-    val exportToWatch = L("导出到手表", "Export to Watch")
-    val exportToWatchSummary = L("通过蓝牙把课表发送到手表", "Send the schedule to your watch over Bluetooth")
-    val watchSyncTitle = L("导出到手表", "Export to Watch")
+    val exportToWatch = L("导出到安卓手表", "Export to Android Watch")
+    val exportToWatchSummary = L("通过蓝牙把课表发送到安卓手表", "Send the schedule to your Android watch over Bluetooth")
+    val watchSyncTitle = L("导出到安卓手表", "Export to Android Watch")
     val watchSyncHint = L("选择要发送到的手表", "Pick the watch to send to")
     val watchSyncHintN = L("将「%s」发送到手表", "Send \"%s\" to your watch")
-    val watchSyncScanning = L("正在搜索附近的手表…", "Searching for nearby watches…")
+    val watchSyncScanning = L("正在搜索附近的安卓手表…", "Searching for nearby Android watches…")
     val watchSyncEmpty = L(
-        "没有找到手表。请确认手表端已打开 Nexio 并停留在首页，且两边蓝牙都已开启。",
-        "No watch found. Make sure Nexio is open on the watch, and Bluetooth is on for both devices.",
+        "没有找到安卓手表。请确认手表端已打开 Nexio 并停留在首页，且两边蓝牙都已开启。",
+        "No Android watch found. Make sure Nexio is open on the watch, and Bluetooth is on for both devices.",
     )
     val watchSyncRescan = L("重新搜索", "Search again")
     val watchSyncSendAction = L("发送", "Send")
