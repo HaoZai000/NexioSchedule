@@ -11,12 +11,30 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
-        version = "v1.7.0-1103",
-        date = "2026-11-03",
+        version = "v1.7.0-1113",
+        date = "2026-11-13",
         changes = listOf(
-            L("桌面小组件支持莫奈取色，配色跟随系统壁纸（Android 12+）", "Home screen widgets support Monet colors and follow the system wallpaper (Android 12+)"),
-            L("优化今日助手提醒文案，不再重复显示倒计时", "Improve Today assistant tips so they no longer repeat the countdown"),
-            L("优化今日助手文案语气，更自然、更随机", "Improve Today assistant wording — more natural and more varied"),
+            L("应用视觉升级，全新柔光玻璃视效", "App-wide visual refresh with the all-new Soft Glass look"),
+            L("新增设置页搜索，按分类快速找到设置项", "Add settings search to quickly find options by category"),
+            L("新增课表页顶栏天气与气象预警显示，新增天气详情页与短时降水图表", "Add weather and weather alerts to the timetable top bar, plus a weather details page with a short-term precipitation chart"),
+            L("新增应用内反馈与开发进度", "Add in-app feedback and a development roadmap"),
+            L("新增周视图网格线开关", "Add a grid line toggle for the week view"),
+            L("新增大课间可设为 0 分钟", "Add support for setting the long break to 0 minutes"),
+            L("新增平板侧栏可收成顶部胶囊", "Add a tablet sidebar that collapses into a top capsule"),
+            L("新增桌面小组件支持莫奈取色", "Add Monet color support for home screen widgets"),
+            L("新增课程表当前上课高亮卡片", "Add a highlighted card for the course currently in progress"),
+            L("优化更新页界面设计与交互体验", "Improve the update page design and interaction"),
+            L("优化 Pad 端动画与流畅度", "Improve animations and smoothness on tablets"),
+            L("优化节假日配置按课表保存，重构节假日与调休页交互与界面", "Improve holiday settings stored per timetable, and revamp the holiday and make-up day pages"),
+            L("优化重构设置页界面与功能分布", "Revamp the settings page layout and feature grouping"),
+            L("优化重新设计今日助手文案与视觉", "Redesign the Today assistant copy and visuals"),
+            L("优化日历同步写入提醒，跟随课前提醒", "Improve calendar sync reminders to follow class reminders"),
+            L("优化底栏滑块、快捷菜单与切页动画", "Improve the bottom bar slider, quick menu and page-turn animations"),
+            L("优化天气页走势图与部分界面文案", "Improve the weather page chart and some interface copy"),
+            L("修复跨午夜课程导出 ICS 结束时间错误，自定义时间与教室教师丢失", "Fix the wrong ICS end time for courses crossing midnight, and missing custom time, classroom and teacher"),
+            L("修复单课表恢复时同名同时段课程互相覆盖", "Fix same-name, same-time courses overwriting each other when restoring a single timetable"),
+            L("修复 Pad 端部分页面显示异常与透视", "Fix display and perspective issues on some tablet pages"),
+            L("修复部分连贯动画、弹窗与列表问题", "Fix issues with some shared-element animations, dialogs and lists"),
         )
     ),
     ChangelogEntry(

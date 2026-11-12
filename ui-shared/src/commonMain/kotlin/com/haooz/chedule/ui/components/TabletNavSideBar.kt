@@ -149,7 +149,7 @@ private val TabletNavSideItemHeight = 52.dp
 private val TabletNavItemRowGap = 4.dp
 
 /** 顶栏 → 回侧栏：等面板长到底再弹，否则会撞在半路上 */
-private const val LANDING_DELAY_MS = 240L
+private const val LANDING_DELAY_MS = 220L
 
 /** 侧栏条目里图标与文字的间距 */
 private val TabletNavLabelGap = 12.dp
@@ -281,7 +281,7 @@ fun TabletNavSideBar(
                 animate(
                     initialValue = 0f,
                     targetValue = 1f,
-                    animationSpec = tween(210, easing = LinearOutSlowInEasing),
+                    animationSpec = tween(200, easing = LinearOutSlowInEasing),
                 ) { v, _ -> TabletNavSideState.landBounce.floatValue = v }
                 // 回程别再弹一次：阻尼 0.85 只是平稳收回，不产生第二下
                 animate(

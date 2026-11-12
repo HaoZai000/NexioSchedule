@@ -118,6 +118,13 @@ fun DocumentPageScaffold(
     val nativeBarInset = (nativeChrome?.barInset ?: 0.0).dp
     val showNavigationActions = nativeChrome == null
     val paneChrome = LocalTabletSettingsPaneChrome.current
+    // 平板右栏不在屏幕左缘，宿主已按窗口避让过：页内再套一层 safeDrawing 会在左边多出
+    // 一个状态栏高度的留白（右边没有），左右不对称。
+    val horizontalSafeInsets = if (paneChrome.hostHandlesHorizontalInsets) {
+        Modifier
+    } else {
+        Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+    }
     val backgroundColor = MiuixTheme.colorScheme.surface
     val primaryColor = MiuixTheme.colorScheme.primary
     val tintArgb = remember(primaryColor) { primaryColor.toArgb().toLong() }
@@ -149,7 +156,7 @@ fun DocumentPageScaffold(
         Scaffold(
             modifier = Modifier
                 .background(backgroundColor)
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                .then(horizontalSafeInsets)
                 .consumeWindowInsets(PaddingValues(top = nativeBarInset)),
             topBar = {},
         ) { paddingValues ->

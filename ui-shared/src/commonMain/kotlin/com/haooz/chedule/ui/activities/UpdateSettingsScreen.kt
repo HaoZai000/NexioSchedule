@@ -387,6 +387,9 @@ fun UpdateSettingsScreen(
         if (heroOpen) {
             heroMounted = true
             heroSettled = false
+            // ⚠ 必须在这里置位：heroMounted 只在 Scaffold 内容作用域里被读，外层组合不会跟着重组，
+            // 写在 SideEffect 里会一直停留在初值，顶栏拦截就永远不生效。
+            heroChrome.blocked = true
             // 模糊与翻转并行：模糊套 morph 的口径（16dp / 540ms QuartOut），翻转跟随同一曲线
             launch {
                 pageBlur?.animateTo(
@@ -398,6 +401,7 @@ fun UpdateSettingsScreen(
             heroSettled = true
         } else if (heroMounted) {
             heroSettled = false
+            heroChrome.blocked = false
             launch {
                 pageBlur?.animateTo(0f, tween(HeroCloseMotionMs, easing = FastOutSlowInEasing))
             }
@@ -405,10 +409,15 @@ fun UpdateSettingsScreen(
             heroMounted = false
         }
     }
-    // 卡片翻开 / 收起期间顶栏让位：返回 / 更多不再响应，点到这块区域等同点遮罩
+    // 点到被拦住的顶栏区域等同点遮罩
     SideEffect {
-        heroChrome.blocked = heroMounted
         heroChrome.onBlockedTap = { heroOpen = false }
+    }
+
+    // 进完整更新日志前先收卡：卡片翻开态若留在这一页，返回键会先关卡片而不是退新页
+    val openFullChangelog = {
+        heroOpen = false
+        onOpenChangelog()
     }
 
     // 系统返回先退卡片，而不是把整页退掉
@@ -567,7 +576,7 @@ fun UpdateSettingsScreen(
                         hasUpdate = heroHasUpdate,
                         checking = isChecking,
                         interactive = heroSettled,
-                        onOpenChangelog = onOpenChangelog,
+                        onOpenChangelog = openFullChangelog,
                         onStartUpdate = {
                             // 下载弹窗的准备工作搬到这里：「检查更新」不再负责开弹窗
                             heroOpen = false

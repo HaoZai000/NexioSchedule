@@ -110,9 +110,9 @@ class TabletNavMorphMotion(
             rY = 0.5f
         } else { // 收成顶栏
             dX = 0.82f
-            rX = 0.5f
+            rX = 0.45f
             dY = 0.97f
-            rY = 0.26f
+            rY = 0.23f
         }
         // 总进度不参与错落，容器 / 页面避让 / 形状都读它
         masterX.configure(dX, rX, target)

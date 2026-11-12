@@ -98,6 +98,8 @@ import kotlin.math.roundToInt
 data class TabletSettingsPaneChrome(
     val showBackButton: Boolean = true,
     val forceCollapsedTitle: Boolean = false,
+    /** 右栏容器已避让横向安全区：页内不能再按窗口 inset 缩进一次（同 CourseEditScreen 的 embedded） */
+    val hostHandlesHorizontalInsets: Boolean = false,
 )
 
 val LocalTabletSettingsPaneChrome = staticCompositionLocalOf { TabletSettingsPaneChrome() }
@@ -309,6 +311,7 @@ private fun TabletPaneNavHost(
                         LocalTabletSettingsPaneChrome provides TabletSettingsPaneChrome(
                             showBackButton = index > 0,
                             forceCollapsedTitle = true,
+                            hostHandlesHorizontalInsets = true,
                         )
                     ) { content(route) }
                 }

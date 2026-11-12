@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -48,6 +49,7 @@ import com.haooz.chedule.ui.activities.main.PageMoreMenuState
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.LocalChromeStartInset
 import com.haooz.chedule.ui.components.tabletNavRailStartPadding
+import com.haooz.chedule.ui.components.text.LocalTextMotionInstant
 import com.haooz.chedule.ui.components.text.miuix.Text
 import com.haooz.chedule.ui.theme.scheduleAccentColor
 import com.haooz.chedule.ui.utils.LocalHostNavigation
@@ -416,13 +418,17 @@ private fun DayOfWeekRow(
                         textAlign = TextAlign.Center,
                     )
                     if (dateText != null) {
-                        Text(
-                            text = dateText,
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = if (isToday) todayHighlightColor
-                            else MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            textAlign = TextAlign.Center,
-                        )
+                        // 日期只是跟着翻周换标签，不走文字交叉模糊：一周 7 个日期同帧全变，
+                        // 一起糊一下反而像整行闪了一帧。星期名和「今天」高亮仍保持原样。
+                        CompositionLocalProvider(LocalTextMotionInstant provides true) {
+                            Text(
+                                text = dateText,
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = if (isToday) todayHighlightColor
+                                else MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                     }
                 }
             }
