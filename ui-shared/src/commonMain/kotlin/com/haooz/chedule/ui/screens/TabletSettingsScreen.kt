@@ -91,6 +91,7 @@ import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.overlay.LocalOverlayDialogBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 import kotlin.math.roundToInt
 
 /** 右栏页面壳：二级页无返回按钮，标题锁折叠态。 */
@@ -345,9 +346,12 @@ fun TabletSettingsScreen(
     val paneRouter = remember(globalRouter) {
         AppRouter().also {
             it.navigate(AppRoute.ScheduleSettings)
-            // Web 页全屏开，不塞进右栏
+            // 全屏页：Web 导入、开源协议、隐私政策，不塞进右栏
             it.nativeRouteHandler = { route ->
-                if (route == AppRoute.WebImport) {
+                if (route == AppRoute.WebImport ||
+                    route == AppRoute.License ||
+                    route == AppRoute.PrivacyPolicy
+                ) {
                     globalRouter.navigate(route)
                     true
                 } else false
@@ -355,6 +359,15 @@ fun TabletSettingsScreen(
         }
     }
     val paneContent = LocalTabletSettingsPaneRouteContent.current
+
+    // 三级页压在右栏局部栈里，返回键要先退二级页；宿主那层只在全局有浮层时才接管，
+    // 不拦的话系统返回会直接退出应用。
+    val paneDepth = paneRouter.depth
+    NavigationBackHandlerFor(
+        enabled = paneDepth > 1 && !globalRouter.hasOverlay,
+        onBackCompleted = { paneRouter.popBack() },
+        onBackCancelled = {},
+    )
 
     fun openFromLeft(route: AppRoute) {
         // 清空旧栈，不残留上一次的三级页

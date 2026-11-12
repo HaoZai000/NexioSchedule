@@ -556,17 +556,16 @@ fun TabletNavSideBar(
                     .onGloballyPositioned {
                         dragSelect.panelTopInRoot = it.boundsInRoot().top
                     }
-                    .dropdownPanelDragSelect(
-                        state = dragSelect,
-                        // 现读、不能捕获（pointerInput(Unit) 的 lambda 只在首次组合跑一次）。
-                        // 折叠态 fraction<0.98 时手势层直接放行且不消费，条目点击照常 ——
-                        // 折叠时上移到「我的」下方的那颗数据项才点得到。
-                        // 顶栏形态返回 0：条目已经排成胶囊槽位，再让手势层吃掉 down 就点不动了。
-                        fraction = {
-                            if (TabletNavSideState.topBarMode) 0f
-                            else TabletNavSideState.expandProgress.floatValue
-                        },
-                        hapticFeedback = hapticFeedback,
+                    // 顶栏形态下这层必须整块摘掉：它的命中节点仍铺在侧栏原矩形上，
+                    // 只要在命中路径里就会挡住下层兄弟（不消费也点不到下面的页面）。
+                    .then(
+                        if (TabletNavSideState.topBarMode) Modifier
+                        else Modifier.dropdownPanelDragSelect(
+                            state = dragSelect,
+                            // 现读、不能捕获（pointerInput(Unit) 的 lambda 只在首次组合跑一次）。
+                            fraction = { TabletNavSideState.expandProgress.floatValue },
+                            hapticFeedback = hapticFeedback,
+                        )
                     ),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
