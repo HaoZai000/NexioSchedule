@@ -439,7 +439,9 @@ fun WidgetCustomizeOverlay(
         ) {
             WidgetPreviewContent(
                 page = request.page,
-                fillBounds = true,
+                // 外层 Box 已被量成页面里那块小部件的尺寸（所有设备同一个 dp 宽度），
+                // 内容直接铺满即可 —— 页面与浮层逐像素重合，2×2 页也不会被拉成横条
+                modifier = Modifier.fillMaxSize(),
                 appearance = appearance,
                 wallpaper = wallpaper?.let { WidgetWallpaper(bitmap = it, crop = wallpaperCrop) },
                 isDark = remember(wallpaper, themeMode) {

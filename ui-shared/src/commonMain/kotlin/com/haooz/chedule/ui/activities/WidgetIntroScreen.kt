@@ -9,11 +9,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -113,8 +113,21 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
+/**
+ * 预览小部件的**固定物理宽度**。
+ *
+ * ⚠ 绝不允许 `fillMaxWidth()`：卡内字号是固定 sp、内边距是固定 dp，宽度一跟着容器走，
+ * 平板上卡片面积按平方放大而文字不变 ⇒ 「面积巨大、文字占比完全不对」。
+ * 所有设备都取同一个 dp 宽度，只有可用宽度不足时才收敛（防止小屏溢出）。
+ * 340dp 与真机 4×2 组件同量级，也约等于手机端原先的观感。
+ */
+private val WidgetPreviewMaxWidth = 340.dp
+
 /** 4×2 组件预览统一宽高比，锁定后不随设备屏宽变化 */
 private const val WidgetPreviewRatio4x2 = 2.15f
+
+/** 说明文字 / 边距选择器与预览卡共用一条列宽，平板不会被单独拉宽 */
+private val WidgetIntroFeatureInset = 18.dp
 
 /** 预览卡上下的内边距（dp） */
 private val WidgetPreviewVerticalPadding = 12.dp
@@ -203,10 +216,19 @@ fun WidgetIntroScreen(
     Scaffold(
         topBar = {}
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-        ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            // 一列内容 = 小部件预览宽度。用父容器实测宽度而不是屏幕宽度：
+            // 平板设置页右栏 / 分屏窗口都比整屏窄，按屏宽算会溢出。
+            val availableWidth = maxWidth - tabletHorizontalPadding * 2f
+            val previewWidth = if (availableWidth < WidgetPreviewMaxWidth) {
+                availableWidth.coerceAtLeast(160.dp)
+            } else {
+                WidgetPreviewMaxWidth
+            }
+            val previewHeight = previewWidth / WidgetPreviewRatio4x2
+            // 2×2 正方形边长 = 4×2 槽位高度，三页 pager 高度恒定
+            val smallWidgetSize = previewHeight
+            val smallPage = if (isIosPlatform) 1 else 2
 
             Column(
                 modifier = Modifier
@@ -236,11 +258,16 @@ fun WidgetIntroScreen(
                             .padding(
                                 horizontal = tabletHorizontalPadding - WidgetPreviewBlurBleed,
                                 vertical = WidgetPreviewVerticalPadding - WidgetPreviewBlurBleed
-                            )
+                            ),
+                        // 限宽槽居中：手机、平板、桌面窗口里小部件都是同一块 340dp
+                        contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth()
+                                // 槽尺寸固定（含模糊出血），翻页旋转轴落在小部件自身中心，
+                                // 而不是整页宽的中心 —— 平板上不会绕着一条看不见的远轴翻
+                                .width(previewWidth + WidgetPreviewBlurBleed * 2f)
+                                .height(previewHeight + WidgetPreviewBlurBleed * 2f)
                                 .graphicsLayer {
                                     val off = (pageState.currentPage - page) + pageState.offsetFraction
                                     val absOff = min(abs(off), 1f)
@@ -258,16 +285,22 @@ fun WidgetIntroScreen(
                                 }
                                 // 出血必须在 graphicsLayer 内侧：扩大离屏缓冲的采样范围，
                                 // 外层槽内边距已等量减回，静止布局不变
-                                .padding(WidgetPreviewBlurBleed)
+                                .padding(WidgetPreviewBlurBleed),
+                            contentAlignment = Alignment.Center
                         ) {
                             val pageWallpaper = widgetWallpapers[page]
                             val pageMode = widgetThemeModes[page] ?: ThemeMode.FOLLOW_WALLPAPER
+                            val bodySize = if (page == smallPage) {
+                                Modifier.size(smallWidgetSize)
+                            } else {
+                                Modifier.size(previewWidth, previewHeight)
+                            }
                             WidgetPreviewContent(
                                 page = page,
-                                modifier = Modifier
+                                // modifier 就是「小部件本体」：2×2 页拿到的是正方形，
+                                // 浮层从这块矩形起步才不会被压成 2.15:1
+                                modifier = bodySize
                                     .onGloballyPositioned { coords ->
-                                        // 只认「小部件本体」的矩形（2×2 是居中的正方形，
-                                        // 不是外面那条 2.15 的槽位），浮层才接得上
                                         widgetBounds[page] = coords.boundsInRoot()
                                     }
                                     .graphicsLayer { alpha = if (page == hiddenPage) 0f else 1f },
@@ -302,7 +335,9 @@ fun WidgetIntroScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = tabletHorizontalPadding + 18.dp),
+                    modifier = Modifier
+                        .width(previewWidth)
+                        .padding(horizontal = WidgetIntroFeatureInset),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     FeatureItem(AboutStr.featureTodayTitle(), AboutStr.featureTodayDesc())
@@ -322,7 +357,7 @@ fun WidgetIntroScreen(
                 if (!isIosPlatform) {
                     val repository = remember { CourseRepository() }
                     var paddingMode by remember { mutableIntStateOf(repository.getWidgetPaddingMode()) }
-                    Box(modifier = Modifier.padding(horizontal = tabletHorizontalPadding)) {
+                    Box(modifier = Modifier.width(previewWidth)) {
                         WidgetPaddingSelector(
                             selectedMode = paddingMode,
                             liquidGlassBackdrop = liquidGlassBackdrop,
@@ -480,13 +515,17 @@ private fun WidgetCustomizeEntry(onClick: () -> Unit) {
     }
 }
 
-/** 三种预览页的统一入口：分页器与自定义浮层共用同一份内容，浮层里的小部件才和页面里一模一样 */
+/**
+ * 三种预览页的统一入口：分页器与自定义浮层共用同一份内容，浮层里的小部件才和页面里一模一样。
+ *
+ * [modifier] 必须是**小部件本体**的尺寸（页面给固定 dp，浮层给 `fillMaxSize()`）。
+ * 尺寸只由调用方决定，这里不再自己 `fillMaxWidth` / `aspectRatio` —— 那是平板把卡片
+ * 拉成整屏宽的根源。槽位、居中、翻页出血都属于页面布局，不进这份内容。
+ */
 @Composable
 internal fun WidgetPreviewContent(
     page: Int,
     modifier: Modifier = Modifier,
-    /** 传入的尺寸已经是小部件本体时置 true（2×2 不再套 4×2 槽位） */
-    fillBounds: Boolean = false,
     wallpaper: WidgetWallpaper? = null,
     appearance: WidgetAppearance = WidgetAppearance(),
     isDark: Boolean = isAppDarkTheme(),
@@ -499,12 +538,12 @@ internal fun WidgetPreviewContent(
         when (page) {
             0 -> WidgetPreviewToday(modifier, wallpaper, appearance, isDark)
             1 -> if (isIosPlatform) {
-                WidgetPreviewSmall2x2(modifier, fillBounds, wallpaper, appearance, isDark)
+                WidgetPreviewSmall2x2(modifier, wallpaper, appearance, isDark)
             } else {
                 WidgetPreviewTodayTomorrow(modifier, wallpaper, appearance, isDark)
             }
 
-            else -> WidgetPreviewSmall2x2(modifier, fillBounds, wallpaper, appearance, isDark)
+            else -> WidgetPreviewSmall2x2(modifier, wallpaper, appearance, isDark)
         }
     }
 }
@@ -684,7 +723,7 @@ private fun WidgetPreviewToday(
 
     Card(
         cornerRadius = 22.dp,
-        modifier = modifier.fillMaxWidth().aspectRatio(WidgetPreviewRatio4x2).border(1.dp, borderColor, com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp)),
+        modifier = modifier.border(1.dp, borderColor, com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp)),
         insideMargin = PaddingValues(0.dp)
     ) {
         WidgetGlassHost(
@@ -726,7 +765,6 @@ private fun WidgetPreviewToday(
 @Composable
 private fun WidgetPreviewSmall2x2(
     modifier: Modifier = Modifier,
-    fillBounds: Boolean = false,
     wallpaper: WidgetWallpaper? = null,
     appearance: WidgetAppearance = WidgetAppearance(),
     isDark: Boolean = isAppDarkTheme(),
@@ -738,133 +776,120 @@ private fun WidgetPreviewSmall2x2(
     val infoColor = if (isDark) ComposeColor(0x88FFFFFF) else ComposeColor(0x88000000)
     val remainingColor = if (isDark) ComposeColor(0x55FFFFFF) else ComposeColor(0x55000000)
 
-    val square: @Composable (Modifier) -> Unit = { squareModifier ->
-        WidgetGlassHost(
-            wallpaper = wallpaper,
-            modifier = squareModifier
-                .border(1.dp, borderColor, com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp))
-                .clip(com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp)),
-            background = {
-                WidgetPreviewBackground(
-                    bgColor = bgColor,
-                    wallpaper = wallpaper,
-                    // 卡片磨砂并进背景模糊：卡片背后就是这张壁纸，一起糊即可，
-                    // 逐卡片取背后在预览里做不稳（采样层在 pager 里会拿到错帧）
-                    wallpaperBlur = appearance.wallpaperBlur,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+    // 根节点就是小部件本体：尺寸全由调用方给（页面给正方形、浮层给同一块矩形）。
+    // 不再套一层 2.15:1 的槽位 —— 那会让 2×2 的浮层被压成横条。
+    WidgetGlassHost(
+        wallpaper = wallpaper,
+        modifier = modifier
+            .border(1.dp, borderColor, com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp))
+            .clip(com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp)),
+        background = {
+            WidgetPreviewBackground(
+                bgColor = bgColor,
+                wallpaper = wallpaper,
+                // 卡片磨砂并进背景模糊：卡片背后就是这张壁纸，一起糊即可，
+                // 逐卡片取背后在预览里做不稳（采样层在 pager 里会拿到错帧）
+                wallpaperBlur = appearance.wallpaperBlur,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 14.dp)
         ) {
-            Column(
+            Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 14.dp)
+                    .fillMaxWidth()
+                    .padding(start = 4.dp, end = 4.dp, bottom = 4.dp, top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Title: 14sp bold
+                Text(CommonStr.weekdayFri(), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = titleColor, fontFamily = FontFamily.SansSerif)
+                Spacer(modifier = Modifier.weight(1f))
+                // Week: 14sp bold
+                Text(CommonStr.weekN(10), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = titleColor, fontFamily = FontFamily.SansSerif)
+            }
+
+            // Course content: gravity=bottom, weight=1
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                // Course name: 17sp, paddingStart=4dp, paddingTop=8dp, paddingBottom=4dp, marginBottom=4dp
+                Text(
+                    AboutStr.previewCourseMath(),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = nameColor,
+                    maxLines = 1,
+                    modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)
+                )
+
+                // Time row: marginStart=4dp, marginBottom=2dp
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 4.dp, end = 4.dp, bottom = 4.dp, top = 2.dp),
+                        .padding(start = 4.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Title: 14sp bold
-                    Text(CommonStr.weekdayFri(), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = titleColor, fontFamily = FontFamily.SansSerif)
-                    Spacer(modifier = Modifier.weight(1f))
-                    // Week: 14sp bold
-                    Text(CommonStr.weekN(10), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = titleColor, fontFamily = FontFamily.SansSerif)
-                }
-
-                // Course content: gravity=bottom, weight=1
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Bottom
-                ) {
-                    // Course name: 17sp, paddingStart=4dp, paddingTop=8dp, paddingBottom=4dp, marginBottom=4dp
-                    Text(
-                        AboutStr.previewCourseMath(),
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = nameColor,
-                        maxLines = 1,
-                        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)
+                    // Icon: 12dp, marginEnd=6dp
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(Res.drawable.ic_widget_clock),
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        alpha = 0.5f
                     )
-
-                    // Time row: marginStart=4dp, marginBottom=2dp
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 4.dp, bottom = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Icon: 12dp, marginEnd=6dp
-                        androidx.compose.foundation.Image(
-                            painter = painterResource(Res.drawable.ic_widget_clock),
-                            contentDescription = null,
-                            modifier = Modifier.size(12.dp),
-                            alpha = 0.5f
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        // Text: 14sp
-                        Text("08:00 - 09:35", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = infoColor, fontFamily = FontFamily.SansSerif)
-                    }
-
-                    // Location row: marginStart=4dp, marginBottom=16dp
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 4.dp, bottom = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Icon: 12dp, marginEnd=6dp
-                        androidx.compose.foundation.Image(
-                            painter = painterResource(Res.drawable.ic_widget_location),
-                            contentDescription = null,
-                            modifier = Modifier.size(12.dp),
-                            alpha = 0.5f
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        // Text: 14sp
-                        Text("A301", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = infoColor, fontFamily = FontFamily.SansSerif, maxLines = 1)
-                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    // Text: 14sp
+                    Text("08:00 - 09:35", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = infoColor, fontFamily = FontFamily.SansSerif)
                 }
 
-                // Remaining info: marginStart=4dp, text 12sp
+                // Location row: marginStart=4dp, marginBottom=16dp
                 Row(
-                    modifier = Modifier.padding(start = 4.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 4.dp, bottom = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        AboutStr.previewRemainingClasses(),
-                        fontSize = 12.sp,
-                        color = remainingColor,
-                        fontFamily = FontFamily.SansSerif
+                    // Icon: 12dp, marginEnd=6dp
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(Res.drawable.ic_widget_location),
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        alpha = 0.5f
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .background(ComposeColor(0xFF4CAF50), ContinuousCapsule())
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .background(ComposeColor(0xFF2196F3), ContinuousCapsule())
-                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    // Text: 14sp
+                    Text("A301", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = infoColor, fontFamily = FontFamily.SansSerif, maxLines = 1)
                 }
             }
-        }
-    }
 
-    if (fillBounds) {
-        // 浮层拿到的矩形就是小部件本体，直接铺满，不再套 4×2 的槽位
-        square(modifier.fillMaxSize())
-    } else {
-        // 外层与 4×2 预览同高，2×2 正方形 fillMaxHeight 居中，保证三页 pager 高度一致
-        Box(
-            modifier = Modifier.fillMaxWidth().aspectRatio(WidgetPreviewRatio4x2),
-            contentAlignment = Alignment.Center
-        ) {
-            square(modifier.fillMaxHeight().aspectRatio(1f))
+            // Remaining info: marginStart=4dp, text 12sp
+            Row(
+                modifier = Modifier.padding(start = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    AboutStr.previewRemainingClasses(),
+                    fontSize = 12.sp,
+                    color = remainingColor,
+                    fontFamily = FontFamily.SansSerif
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .background(ComposeColor(0xFF4CAF50), ContinuousCapsule())
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .background(ComposeColor(0xFF2196F3), ContinuousCapsule())
+                )
+            }
         }
     }
 }
@@ -886,7 +911,7 @@ private fun WidgetPreviewTodayTomorrow(
 
     Card(
         cornerRadius = 22.dp,
-        modifier = modifier.fillMaxWidth().aspectRatio(WidgetPreviewRatio4x2).border(1.dp, borderColor, com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp)),
+        modifier = modifier.border(1.dp, borderColor, com.haooz.softglass.shape.ContinuousRoundedRectangle(22.dp)),
         insideMargin = PaddingValues(0.dp)
     ) {
         WidgetGlassHost(
