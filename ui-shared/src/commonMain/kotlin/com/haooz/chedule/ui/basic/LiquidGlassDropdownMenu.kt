@@ -39,7 +39,9 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -178,6 +180,10 @@ fun LiquidGlassDropdownMenu(
     )
     val useSoftGlass = AppMaterialSettings.glassEffectsEnabled()
     val panelCornerRadiusPx = with(LocalDensity.current) { PanelCornerRadius.toPx() }
+    // 面板形状只有这一份：材质层的 drawBackdrop 与内容层的 clip 必须共用，否则展开时两套圆角错位。
+    // shape / shapeBlock 都要 remember 成稳定引用（drawBackdrop 按引用比较，换了会重录采样层）。
+    val panelShape: Shape = remember { ContinuousRoundedRectangle(PanelCornerRadius) }
+    val panelShapeBlock: () -> Shape = remember(panelShape) { { panelShape } }
     val triggerIconTint = if (isLightTheme) Color.Black.copy(0.85f) else Color.White.copy(0.85f)
     val hapticFeedback = LocalHapticFeedback.current
     // 锚点迁移进度：比尺寸更快到 1，先"移向面板中心"再放大
@@ -450,26 +456,46 @@ fun LiquidGlassDropdownMenu(
                         }
                     }
                 }
-            // 玻璃壳即内容容器：layerBlock 的缩放要连菜单项、高光、图标一起带动
+            // 无材质档的容器色同样要稳定引用：drawBackdrop 按引用比较 onDrawSurface，
+            // 每次重组新建 lambda 会白白重录一次采样层。
+            val solidSurface: (DrawScope.() -> Unit)? = remember(containerColor, useSoftGlass) {
+                if (useSoftGlass) null else {
+                    { drawRect(containerColor) }
+                }
+            }
+            // 材质层：材质可见度只挂这一层。不能像以前那样挂在「装内容的玻璃壳」上 ——
+            // ① alpha=0 会把按压高光一起隐掉；② 0<alpha<1 时该层走离屏合成，把溢出节点的
+            // 菜单内容（requiredWidth 200dp）和光晕硬裁到矩形 buffer，材质出现过程中就露出切边。
+            // 本层没有 content，形变与采样外溢不再被卷进离屏层。
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .graphicsLayer { alpha = materialVisible }
+                    .graphicsLayer {
+                        alpha = materialVisible
+                        clip = false
+                    }
                     .drawBackdrop(
                         backdrop = backdrop,
                         shadow = null,
-                        shape = { ContinuousRoundedRectangle(PanelCornerRadius) },
+                        shape = panelShapeBlock,
                         effects = glassEffects,
                         layerBlock = glassLayerBlock,
                         // 柔光自己画玻璃色与方向光；无材质档不跑 shader，必须留容器色
-                        onDrawSurface = if (useSoftGlass) null else {
-                            { drawRect(containerColor) }
-                        }
+                        onDrawSurface = solidSurface
                     )
-            ) {
+            )
 
-                    // 按压高光必须夹在玻璃壳与菜单内容之间：居上被材质盖住，居下会盖掉
-                    // 菜单项的跟手高亮底色（Plus 加色会把底色冲白）。
+            // 内容层：与材质层平级，不吃材质 alpha。原来靠 drawBackdrop 的 clipPath 顺带裁
+            // drawContent()，拆开后必须自己裁成同一份形状；同时复用同一份 layerBlock 形变，
+            // 保证按压拉伸时高光 / 菜单项与玻璃严丝合缝（library 的采样逆变换仍只认材质层那份）。
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer(glassLayerBlock)
+                    .clip(panelShape)
+            ) {
+                // 按压高光夹在材质与菜单内容之间：clip 在父层且排在 modifier 之前，
+                // 居上会被材质盖住，居下会把菜单项的跟手高亮底色冲白（Plus 加色）。
                 Box(
                     modifier = Modifier
                         .matchParentSize()
@@ -501,7 +527,6 @@ fun LiquidGlassDropdownMenu(
                         content()
                     }
                 }
-
             }
 
             // 收起态的图标：不进玻璃层，材质 alpha 不会连它一起隐掉
