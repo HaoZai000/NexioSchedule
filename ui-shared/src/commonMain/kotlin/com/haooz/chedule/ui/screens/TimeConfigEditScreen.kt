@@ -401,10 +401,10 @@ fun TimeConfigEditScreen(
             allTimes.add(TimeRange(range.first, range.last, TimeEditStr.eveningSectionN(section), true))
         }
         // 特殊课程块也上时间轴：早读/大课间与节次同处一条时间线，重叠会让横带骑到课程卡上。
-        for (block in specialBlocks) {
-            val s = parseRange("${block.startTime}-${block.endTime}") ?: continue
+        for ((_, name, startTime, endTime) in specialBlocks) {
+            val s = parseRange("$startTime-$endTime") ?: continue
             if (s.last <= s.first) continue
-            val label = block.name.ifBlank { TimeEditStr.specialCourse() }
+            val label = name.ifBlank { TimeEditStr.specialCourse() }
             allTimes.add(TimeRange(s.first, s.last, label, false))
         }
 

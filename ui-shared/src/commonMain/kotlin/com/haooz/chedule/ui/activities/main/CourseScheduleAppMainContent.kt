@@ -1585,7 +1585,6 @@ internal fun CourseScheduleAppMainContent(
                                                     viewModel = viewModel,
                                                     scheduleViewModel = scheduleViewModel,
                                                     settingsViewModel = settingsViewModel,
-                                                    liquidGlassBackdrop = liquidGlassBackdrop,
                                                     onShareSchedule = { name, changed ->
                                                         onShareSchedule?.invoke(name, changed)
                                                     },

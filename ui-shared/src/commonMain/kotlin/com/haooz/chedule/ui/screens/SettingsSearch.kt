@@ -1,6 +1,5 @@
 package com.haooz.chedule.ui.screens
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,12 +13,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,23 +38,21 @@ import com.haooz.chedule.i18n.PreferenceStr
 import com.haooz.chedule.i18n.ReminderStr
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.i18n.TimeCfgStr
-import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.backdrop.GlassBackdrop
-import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.LocalTopBarMaterial
-import top.yukonga.miuix.kmp.layout.TopBarMaterialState
-import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
+import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.isTabletWidth
+import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 
@@ -74,11 +70,24 @@ class SettingsSearchState {
     var expanded by mutableStateOf(false)
     /** 列表是否已滚起（由列表侧写入，搜索框据此决定是否显材质） */
     var listScrolled by mutableStateOf(false)
+
+    companion object {
+        /** 跳转后返回时搜索仍保持展开，需要随路由保存 */
+        val Saver = listSaver<SettingsSearchState, Any>(
+            save = { listOf(it.query, it.expanded) },
+            restore = {
+                SettingsSearchState().apply {
+                    query = it[0] as String
+                    expanded = it[1] as Boolean
+                }
+            },
+        )
+    }
 }
 
 @Composable
 internal fun rememberSettingsSearchState(): SettingsSearchState =
-    remember { SettingsSearchState() }
+    rememberSaveable(saver = SettingsSearchState.Saver) { SettingsSearchState() }
 
 /** 无材质档：搜索框玻璃恒定关闭 */
 private val NoGlassAlpha: () -> Float = { 0f }

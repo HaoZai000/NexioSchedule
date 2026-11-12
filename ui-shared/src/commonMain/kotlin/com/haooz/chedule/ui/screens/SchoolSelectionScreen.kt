@@ -420,7 +420,7 @@ fun SchoolSelectionScreen(
                                                 }
                                             } else Modifier
                                         ),
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    textAlign = TextAlign.Center
                                 )
                             }
                         }

@@ -50,7 +50,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -86,6 +88,7 @@ import org.jetbrains.compose.resources.painterResource
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.PreferenceFlash
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -412,7 +415,9 @@ fun SettingsScreen(
         ?.takeIf { it.showsNativeTabBar && !isTablet }
         ?.bottomBarInset?.toFloat()?.dp
 
-    val search = searchState ?: remember { SettingsSearchState() }
+    val search = searchState ?: rememberSettingsSearchState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val searchQuery = search.query
     val searchExpanded = search.expanded
     val searchEnabled = showSearch && !isShiftMode
@@ -723,7 +728,11 @@ fun SettingsScreen(
                 horizontalPadding = tabletHorizontalPadding,
                 scrollBehavior = settingsScrollBehavior,
                 onEntryClick = { entry ->
-                    search.expanded = false
+                    // 跳转时主动收键盘（搜索保持展开，但退出输入态）
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                    // 目标页里对应设置项闪两下，提示搜索项位置
+                    PreferenceFlash.trigger(entry.title)
                     openRoute(entry.route)
                 },
             )

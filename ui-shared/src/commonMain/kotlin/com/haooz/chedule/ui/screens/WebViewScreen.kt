@@ -215,11 +215,11 @@ fun WebViewScreen(
     // 非莫奈保持原硬编码（亮 #FFFFFF/0.6、暗 #121212/0.54）；无材质档实色
     val webDockSurfaceColor = if (MiuixTheme.isDynamicColor) {
         MiuixTheme.colorScheme.surfaceContainer
-            .copy(alpha = com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(if (isLightTheme) 0.6f else 0.54f))
+            .copy(alpha = AppMaterialSettings.solidSurfaceAlpha(if (isLightTheme) 0.6f else 0.54f))
     } else if (isLightTheme) {
-        Color(0xFFFFFFFF).copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.6f))
+        Color(0xFFFFFFFF).copy(AppMaterialSettings.solidSurfaceAlpha(0.6f))
     } else {
-        Color(0xFF121212).copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.54f))
+        Color(0xFF121212).copy(AppMaterialSettings.solidSurfaceAlpha(0.54f))
     }
     val webDockOnDrawSurface: DrawScope.() -> Unit = remember(webDockSurfaceColor) {
         {

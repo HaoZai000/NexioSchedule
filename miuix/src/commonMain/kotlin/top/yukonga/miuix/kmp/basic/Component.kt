@@ -18,10 +18,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,6 +36,8 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.interfaces.HoldDownObserver
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * A basic component with Miuix style. Widely used in other extension components.
@@ -73,6 +78,25 @@ fun BasicComponent(
     enabled: Boolean = true,
     interactionSource: MutableInteractionSource? = null,
 ) {
+    // 搜索定位：标题命中时连按两次，提示搜索项在页内的位置
+    val flashToken = PreferenceFlash.target?.takeIf { it.title == title }?.token
+    var flashHold by remember { mutableStateOf(false) }
+    LaunchedEffect(flashToken) {
+        if (flashToken == null) {
+            flashHold = false
+            return@LaunchedEffect
+        }
+        delay(180.milliseconds)
+        flashHold = true
+        delay(420.milliseconds)
+        flashHold = false
+        delay(180.milliseconds)
+        flashHold = true
+        delay(420.milliseconds)
+        flashHold = false
+        PreferenceFlash.clear(flashToken)
+    }
+
     BasicComponent(
         startAction = startAction,
         endActions = endActions,
@@ -82,7 +106,7 @@ fun BasicComponent(
         onClick = onClick,
         onClickLabel = onClickLabel,
         role = role,
-        holdDownState = holdDownState,
+        holdDownState = holdDownState || flashHold,
         enabled = enabled,
         interactionSource = interactionSource,
     ) {
