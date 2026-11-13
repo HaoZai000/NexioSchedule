@@ -582,6 +582,7 @@ fun WeatherRoute(router: AppRouter) {
 fun SettingsRoute(
     router: AppRouter,
     showUpdateSettings: Boolean = true,
+    showWidgetEntry: Boolean = true,
     settingsPane: (@Composable (SettingsPaneArgs) -> Unit)? = null,
 ) {
     val shiftViewModel = shiftViewModel()
@@ -624,6 +625,7 @@ fun SettingsRoute(
                         liquidGlassBackdrop = backdrop,
                         searchState = searchState,
                         showUpdateSettings = showUpdateSettings,
+                        showWidgetEntry = showWidgetEntry,
                     ),
                 )
             }
@@ -650,6 +652,9 @@ fun PreferenceSettingsRoute(
     onInvalidateWeatherCache: () -> Unit = {},
     onSetTaskExcludedFromRecents: (Boolean) -> Unit = {},
     onThemeDarkChanged: (Boolean) -> Unit = {},
+    showPredictiveBackAnimation: Boolean = true,
+    showHideFromRecents: Boolean = true,
+    showMonetColor: Boolean = true,
 ) {
     DocumentPageScaffold(
         title = ChromeStr.appPreferences(),
@@ -664,6 +669,9 @@ fun PreferenceSettingsRoute(
             hasLocationPermission = hasLocationPermission,
             onInvalidateWeatherCache = onInvalidateWeatherCache,
             onSetTaskExcludedFromRecents = onSetTaskExcludedFromRecents,
+            showPredictiveBackAnimation = showPredictiveBackAnimation,
+            showHideFromRecents = showHideFromRecents,
+            showMonetColor = showMonetColor,
         )
     }
 }
@@ -1215,6 +1223,10 @@ fun BackupAndMigrationRoute(
     onExportToWearable: suspend (scheduleName: String) -> String? = { null },
     watchSyncController: WatchSyncController = NoopWatchSyncController,
     onSyncToCalendar: suspend (scheduleName: String) -> CalendarSyncResult = { CalendarSyncResult.Unsupported },
+    showShareCodeExport: Boolean = true,
+    showCalendarSync: Boolean = true,
+    showWearableExport: Boolean = true,
+    showWatchExport: Boolean = true,
 ) {
     val switchable = switchableModes.size > 1
     val pageCount = switchableModes.size.coerceAtLeast(1)
@@ -1266,6 +1278,10 @@ fun BackupAndMigrationRoute(
                 onExportToWearable = onExportToWearable,
                 watchSyncController = watchSyncController,
                 onSyncToCalendar = onSyncToCalendar,
+                showShareCodeExport = showShareCodeExport,
+                showCalendarSync = showCalendarSync,
+                showWearableExport = showWearableExport,
+                showWatchExport = showWatchExport,
             )
         }
         if (switchable) {

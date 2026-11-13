@@ -15,6 +15,10 @@
     {
       "name": "tab_settings",
       "value": "设置"
+    },
+    {
+      "name": "calendar_permission_reason",
+      "value": "将课程表同步到系统日历"
     }
   ]
 }

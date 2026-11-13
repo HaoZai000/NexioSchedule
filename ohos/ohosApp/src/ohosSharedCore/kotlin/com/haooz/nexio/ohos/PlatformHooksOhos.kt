@@ -4,7 +4,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.CourseStorage
 import com.haooz.chedule.data.platform.toastHandler
-import com.haooz.chedule.ui.utils.AppMaterialSettings
 import kotlinx.cinterop.cstr
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
@@ -131,7 +130,7 @@ fun NexioSetWallpaperBytes(data: CPointer<ByteVar>?, length: Int) {
 /**
  * 存储装配：与 Android / iOS 同构（同一个 `nexio.db`、同一份 schema）。
  *
- * ⚠ 必须在 `NexioRoot` 之前跑：`AppStorage.store()` 一旦被调用就会缓存实例，
+ * ⚠ 必须在 `OhosRoot` 之前跑：`AppStorage.store()` 一旦被调用就会缓存实例，
  * 之后再 init 等于换了一套存储，旧缓存还在用。
  */
 actual fun installPlatformStorage() {
@@ -139,6 +138,12 @@ actual fun installPlatformStorage() {
         AppStorage.init { namespace -> OhosSqlStorage.store(namespace) }
     }
     CourseStorage.install { OhosSqlStorage.courseRows() }
-    // 鸿蒙端玻璃能力固定（有折射、无 Paint shader），材质档锁死柔光玻璃，设置页不暴露切换。
-    AppMaterialSettings.lockTo(AppMaterialSettings.BEST)
+}
+
+actual fun ohosAppVersion(): String = OhosEnv.appVersion
+
+actual fun ohosAppName(): String = OhosEnv.appName
+
+actual fun ohosExitApp() {
+    ShareHostBridge.request("exitApp", "")
 }

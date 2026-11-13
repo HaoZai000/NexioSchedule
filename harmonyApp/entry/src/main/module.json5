@@ -22,6 +22,27 @@
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET"
+      },
+      // 「同步到日历」：读是为了先清掉上一次写入的事件（覆盖而非追加）
+      {
+        "name": "ohos.permission.READ_CALENDAR",
+        "reason": "$string:calendar_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.WRITE_CALENDAR",
+        "reason": "$string:calendar_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
       }
     ],
     "abilities": [

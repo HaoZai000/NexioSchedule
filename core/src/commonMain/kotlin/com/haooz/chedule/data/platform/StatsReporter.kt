@@ -36,10 +36,14 @@ object StatsReporter {
 
     /**
      * 平台标签：服务端按此维度分平台统计。
-     * `sdkLevel` 是 Android 专有字段（>0 即 Android）；Apple 体系是 iOS；其余归桌面。
-     * 老版 iOS 客户端 brand 是 osFamily 名（"IOS"）也要能归进 iOS，所以两个词都认。
+     * `sdkLevel` 是 Android 专有字段（>0 即 Android）；鸿蒙端 brand 固定为 "HarmonyOS"；
+     * Apple 体系是 iOS；其余归桌面。老版 iOS 客户端 brand 是 osFamily 名（"IOS"）也要能归进 iOS。
      */
     internal fun platformTag(device: DeviceInfo): String = when {
+        device.brand.equals("HarmonyOS", ignoreCase = true) ||
+            device.brand.equals("Harmony", ignoreCase = true) ||
+            device.manufacturer.equals("HarmonyOS", ignoreCase = true) ||
+            device.model.equals("HarmonyOS", ignoreCase = true) -> "harmony"
         device.sdkLevel > 0 -> "android"
         device.brand.equals("Apple", ignoreCase = true) ||
             device.brand.equals("IOS", ignoreCase = true) -> "ios"

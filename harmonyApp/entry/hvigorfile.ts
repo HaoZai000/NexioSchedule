@@ -33,8 +33,7 @@ function nexioSharedLib(): HvigorPlugin {
           const isRelease: boolean = rawMode === 'release';
           const variant: string = isRelease ? 'Release' : 'Debug';
           const ohosDir: string = findOhosDir();
-          const javaHome: string =
-            process.env.NEXIO_JAVA_HOME || `${process.env.HOME}/jdk21/jdk-21.0.2.jdk/Contents/Home`;
+          const javaHome: string = resolveJavaHome();
 
           const logFile: string = path.join(os.tmpdir(), `nexio-link-${variant.toLowerCase()}.log`);
           const fd: number = fs.openSync(logFile, 'w');
@@ -70,6 +69,37 @@ function nexioSharedLib(): HvigorPlugin {
       });
     },
   };
+}
+
+/**
+ * 找可用的 JDK21。
+ *
+ * `~/jdk21` 下可能同时存在多个版本（含下载中断后缺 `lib/modules` 的坏安装），
+ * 只认同时有 `bin/java` 与 `lib/modules` 的那一个；`NEXIO_JAVA_HOME` 优先。
+ */
+function resolveJavaHome(): string {
+  if (process.env.NEXIO_JAVA_HOME) {
+    return process.env.NEXIO_JAVA_HOME;
+  }
+  const base: string = path.join(process.env.HOME ?? os.homedir(), 'jdk21');
+  try {
+    const candidates: string[] = fs.readdirSync(base)
+      .filter((d: string): boolean => d.endsWith('.jdk'))
+      .sort()
+      .reverse();
+    for (const name of candidates) {
+      const home: string = path.join(base, name, 'Contents', 'Home');
+      if (
+        fs.existsSync(path.join(home, 'bin', 'java')) &&
+        fs.existsSync(path.join(home, 'lib', 'modules'))
+      ) {
+        return home;
+      }
+    }
+  } catch (e) {
+    // 目录不存在时走下面的兜底路径，让 Gradle 自己报错
+  }
+  return `${base}/jdk-21.0.2.jdk/Contents/Home`;
 }
 
 /** 从当前模块往上找 `ohos/gradlew`（DevEco 与命令行的当前目录不同，不能写死相对路径）。 */

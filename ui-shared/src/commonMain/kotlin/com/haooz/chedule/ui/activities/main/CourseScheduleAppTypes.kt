@@ -127,6 +127,8 @@ data class SettingsPaneArgs(
     val searchState: SettingsSearchState? = null,
     /** 是否显示「更新」入口（iOS 走 App Store → false） */
     val showUpdateSettings: Boolean = true,
+    /** 是否显示「桌面小部件」入口（鸿蒙无小组件能力） */
+    val showWidgetEntry: Boolean = true,
 )
 
 /**
@@ -155,6 +157,7 @@ internal fun RenderSettingsPane(
             liquidGlassBackdrop = args.liquidGlassBackdrop,
             searchState = args.searchState,
             showUpdateSettings = args.showUpdateSettings,
+            showWidgetEntry = args.showWidgetEntry,
         )
     }
 }

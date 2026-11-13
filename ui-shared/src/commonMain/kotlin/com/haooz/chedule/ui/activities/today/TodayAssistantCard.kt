@@ -461,7 +461,7 @@ private fun generateSmartTip(
 ): String? {
     val now = nowLocalTime()
     // 日期入种子：同样的钟点，昨天和今天不说同一句
-    val dayKey = todayLocalDate().toEpochDays()
+    val dayKey = todayLocalDate().toEpochDays().toInt()
     fun seedOf(bucket: Int): Int = salt * 3607 + dayKey * 7919 + now.hour * 31 + bucket
     val ranges = buildCourseTimeRanges(courses, sectionTimes)
     val tomorrowRanges = buildCourseTimeRanges(tomorrowCourses, sectionTimes)

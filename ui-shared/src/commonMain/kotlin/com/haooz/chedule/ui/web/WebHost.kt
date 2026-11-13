@@ -38,6 +38,12 @@ class WebHostConfig(
      * Android 的 WebView 在 Compose 里走自己的布局，不使用这个值。
      */
     val contentBottomPadding: Dp = 0.dp,
+    /** 学校名（原生底部条要展示）；Android / iOS 用不到，默认空。 */
+    val schoolName: String = "",
+    /** 全部课表名（原生底部条的「执行导入」选择目标课表用）。 */
+    val scheduleNames: List<String> = emptyList(),
+    /** 当前课表名（原生选择器的默认项）。 */
+    val currentScheduleName: String = "",
 )
 
 /**

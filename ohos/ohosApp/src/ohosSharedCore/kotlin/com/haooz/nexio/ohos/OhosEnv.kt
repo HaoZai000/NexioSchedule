@@ -47,6 +47,14 @@ object OhosEnv {
     var screenCornerRadiusPx: Int = 0
         private set
 
+    /** 应用版本号（`bundleManager` 的 versionName，关于页展示）。 */
+    var appVersion: String = ""
+        private set
+
+    /** 应用名称（`app_name` 资源，关于页展示）。 */
+    var appName: String = ""
+        private set
+
     val isReady: Boolean get() = filesDir.isNotEmpty()
 
     /** 由 [NexioSetAppEnv] 调用；重复调用幂等。 */
@@ -58,6 +66,12 @@ object OhosEnv {
         if (!AppFiles.isReady) {
             AppFiles.init(OhosAppFile(dir))
         }
+    }
+
+    /** 由 [NexioSetAppInfo] 调用。 */
+    internal fun setAppInfo(version: String, name: String) {
+        appVersion = version
+        appName = name
     }
 }
 
@@ -72,6 +86,13 @@ object OhosEnv {
 fun NexioSetAppEnv(filesDir: CPointer<ByteVar>?, screenW: Int, screenH: Int, cornerRadiusPx: Int) {
     val dir = filesDir?.toKString() ?: return
     OhosEnv.init(dir, screenW, screenH, cornerRadiusPx)
+}
+
+/** ArkTS 启动时写入应用版本 / 名称（Kotlin 拿不到 bundleManager）。 */
+@OptIn(ExperimentalForeignApi::class)
+@CName("NexioSetAppInfo")
+fun NexioSetAppInfo(version: CPointer<ByteVar>?, name: CPointer<ByteVar>?) {
+    OhosEnv.setAppInfo(version?.toKString() ?: "", name?.toKString() ?: "")
 }
 
 /**

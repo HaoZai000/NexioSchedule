@@ -4,6 +4,10 @@ import androidx.compose.runtime.Composable
 import com.haooz.nexio.ohos.OhosEnv
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import org.jetbrains.skia.Bitmap
+import org.jetbrains.skia.EncodedImageFormat
+import org.jetbrains.skia.Image
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 
@@ -85,13 +89,42 @@ actual fun rememberNativeImeDismiss(): () -> Unit = remember { {} }
 actual fun captureScreenWithNativeChrome(): ImageBitmap? = null
 
 /**
- * ImageBitmap ↔ PNG。
+ * ImageBitmap → PNG。
  *
- * 降级为 null：iOS/桌面走 `org.jetbrains.skia` 的编码器，而鸿蒙这套 ui-ohos klib 没有公开
- * 对应的 Compose 桥（同 `asComposeShader` 的情况）。用到的场景是「壁纸/截图导出」，
- * 拿 null 时调用方会退回到不导出图片，不会崩。
+ * 与 `OhosWallpaperBackend` 同一套 skia 编解码：CMP 只能读像素，编码器走 skia。
+ * 这套 skia 没有 JPEG 编码器（调用即跳飞），所以固定 PNG。
  */
-internal actual fun encodeImageBitmapPng(image: ImageBitmap): ByteArray? = null
+internal actual fun encodeImageBitmapPng(image: ImageBitmap): ByteArray? {
+    val w = image.width
+    val h = image.height
+    if (w <= 0 || h <= 0) return null
+    return runCatching {
+        val pixels = IntArray(w * h)
+        image.readPixels(
+            buffer = pixels,
+            startX = 0,
+            startY = 0,
+            width = w,
+            height = h,
+            bufferOffset = 0,
+            stride = w,
+        )
+        val bytes = ByteArray(w * h * 4)
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            bytes[i * 4] = (p and 0xFF).toByte()
+            bytes[i * 4 + 1] = ((p shr 8) and 0xFF).toByte()
+            bytes[i * 4 + 2] = ((p shr 16) and 0xFF).toByte()
+            bytes[i * 4 + 3] = ((p ushr 24) and 0xFF).toByte()
+        }
+        val bitmap = Bitmap().apply {
+            allocN32Pixels(w, h)
+            installPixels(bytes)
+        }
+        Image.makeFromBitmap(bitmap).encodeToData(EncodedImageFormat.PNG)?.bytes
+    }.getOrNull()
+}
 
-/** 同 [encodeImageBitmapPng]，降级为 null。 */
-internal actual fun decodeImageBitmapPng(bytes: ByteArray): ImageBitmap? = null
+/** PNG 字节 → ImageBitmap。 */
+internal actual fun decodeImageBitmapPng(bytes: ByteArray): ImageBitmap? =
+    runCatching { Image.makeFromEncoded(bytes).toComposeImageBitmap() }.getOrNull()

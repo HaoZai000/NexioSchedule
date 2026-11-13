@@ -215,8 +215,11 @@ internal object WeatherFusion {
         val today = snapshot.daily.firstOrNull() ?: return null
         if (today.sunrise.isBlank() || today.sunset.isBlank()) return null
         val nowClock = localHourMinute(nowEpochSec, snapshot.utcOffsetSec)
-        fun minutes(c: String): Int =
-            (c.substringBefore(':').toIntOrNull() ?: return -1) * 60 + (c.substringAfter(':').toIntOrNull() ?: 0)
+        fun minutes(c: String): Int {
+            val hour = c.substringBefore(':').toIntOrNull() ?: return -1
+            val minute = c.substringAfter(':').toIntOrNull() ?: 0
+            return hour * 60 + minute
+        }
         val nowM = minutes(nowClock)
         val riseM = minutes(today.sunrise)
         val setM = minutes(today.sunset)

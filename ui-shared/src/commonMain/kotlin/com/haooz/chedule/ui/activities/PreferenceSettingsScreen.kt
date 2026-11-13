@@ -83,6 +83,12 @@ fun PreferenceSettingsScreen(
     onInvalidateWeatherCache: () -> Unit = {},
     /** 隐藏最近任务卡片（Android 专有能力；宿主注入） */
     onSetTaskExcludedFromRecents: (Boolean) -> Unit = {},
+    /** 是否展示「预测性返回动画」（仅 Android 有该能力） */
+    showPredictiveBackAnimation: Boolean = true,
+    /** 是否展示「隐藏后台」（仅 Android 有该能力） */
+    showHideFromRecents: Boolean = true,
+    /** 是否展示「莫奈取色」（仅 Android 支持动态取色） */
+    showMonetColor: Boolean = true,
 ) {
 
     val eduPrefs = remember { AppStorage.store("edu_import_prefs") }
@@ -252,20 +258,22 @@ fun PreferenceSettingsScreen(
                                     }
                                 }
                             )
-                            SwitchPreference(
-                                title = PreferenceStr.monetColor(),
-                                summary = if (isMonetColorAvailable()) {
-                                    PreferenceStr.monetColorSummary()
-                                } else {
-                                    PreferenceStr.monetColorUnavailable()
-                                },
-                                checked = monetEnabled && isMonetColorAvailable(),
-                                enabled = isMonetColorAvailable(),
-                                onCheckedChange = {
-                                    monetEnabled = it
-                                    themePrefs.edit { putBoolean(KEY_MONET_COLOR, it) }
-                                }
-                            )
+                            if (showMonetColor) {
+                                SwitchPreference(
+                                    title = PreferenceStr.monetColor(),
+                                    summary = if (isMonetColorAvailable()) {
+                                        PreferenceStr.monetColorSummary()
+                                    } else {
+                                        PreferenceStr.monetColorUnavailable()
+                                    },
+                                    checked = monetEnabled && isMonetColorAvailable(),
+                                    enabled = isMonetColorAvailable(),
+                                    onCheckedChange = {
+                                        monetEnabled = it
+                                        themePrefs.edit { putBoolean(KEY_MONET_COLOR, it) }
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -392,21 +400,23 @@ fun PreferenceSettingsScreen(
                                     )
                                 )
                             }
-                            SwitchPreference(
-                                title = PreferenceStr.predictiveBack(),
-                                summary = PreferenceStr.predictiveBackSummary(),
-                                checked = predictiveBackEnabled,
-                                onCheckedChange = {
-                                    predictiveBackEnabled = it
-                                    PredictiveBackSettings.enabled = it
-                                    appPrefs.edit {
-                                        putBoolean(
-                                            PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
-                                            it
-                                        )
+                            if (showPredictiveBackAnimation) {
+                                SwitchPreference(
+                                    title = PreferenceStr.predictiveBack(),
+                                    summary = PreferenceStr.predictiveBackSummary(),
+                                    checked = predictiveBackEnabled,
+                                    onCheckedChange = {
+                                        predictiveBackEnabled = it
+                                        PredictiveBackSettings.enabled = it
+                                        appPrefs.edit {
+                                            putBoolean(
+                                                PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
+                                                it
+                                            )
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                             SwitchPreference(
                                 title = PreferenceStr.hapticFeedback(),
                                 summary = PreferenceStr.hapticFeedbackSummary(),
@@ -421,16 +431,18 @@ fun PreferenceSettingsScreen(
                                     }
                                 }
                             )
-                            SwitchPreference(
-                                title = PreferenceStr.hideFromRecents(),
-                                summary = PreferenceStr.hideFromRecentsSummary(),
-                                checked = hideBackground,
-                                onCheckedChange = {
-                                    hideBackground = it
-                                    appPrefs.edit { putBoolean("hide_background", it) }
-                                    onSetTaskExcludedFromRecents(it)
-                                }
-                            )
+                            if (showHideFromRecents) {
+                                SwitchPreference(
+                                    title = PreferenceStr.hideFromRecents(),
+                                    summary = PreferenceStr.hideFromRecentsSummary(),
+                                    checked = hideBackground,
+                                    onCheckedChange = {
+                                        hideBackground = it
+                                        appPrefs.edit { putBoolean("hide_background", it) }
+                                        onSetTaskExcludedFromRecents(it)
+                                    }
+                                )
+                            }
                         }
                     }
                 }

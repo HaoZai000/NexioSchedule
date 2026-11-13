@@ -1,26 +1,28 @@
-// 鸿蒙端：RuntimeShader 与 RenderEffect 都不可用（ui-ohos klib 未公开 skiko 桥）。
-// 一律空实现，不抛异常 —— 这些调用在 draw 链路里，抛出去就是整进程 SIGABRT。
+// 鸿蒙端：与 Android / 桌面同一套运行时着色器实现。
+// `Shader` 在本 klib 是 `org.jetbrains.skia.Shader` 的类型别名，Skia 的 RuntimeShaderBuilder
+// 编译出的 shader 可直接交给 Compose，AGSL/SkSL 源码两端共用。
 package top.yukonga.miuix.kmp.shader
 
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.ShaderBrush
-import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.colorspace.ColorSpaces
+import org.jetbrains.skia.RuntimeEffect
+import org.jetbrains.skia.RuntimeShaderBuilder
 
-actual fun isRuntimeShaderSupported(): Boolean = false
+actual fun isRuntimeShaderSupported(): Boolean = true
 
-actual fun isRenderEffectSupported(): Boolean = false
+actual fun isRenderEffectSupported(): Boolean = true
 
-private object UnsupportedRuntimeShader : RuntimeShader {
+private class SkikoRuntimeShader(val builder: RuntimeShaderBuilder) : RuntimeShader {
 
-    override fun setFloatUniform(name: String, value: Float) = Unit
+    override fun setFloatUniform(name: String, value: Float) = builder.uniform(name, value)
 
-    override fun setFloatUniform(name: String, value1: Float, value2: Float) = Unit
+    override fun setFloatUniform(name: String, value1: Float, value2: Float) =
+        builder.uniform(name, value1, value2)
 
-    override fun setFloatUniform(name: String, value1: Float, value2: Float, value3: Float) = Unit
+    override fun setFloatUniform(name: String, value1: Float, value2: Float, value3: Float) =
+        builder.uniform(name, value1, value2, value3)
 
     override fun setFloatUniform(
         name: String,
@@ -28,40 +30,47 @@ private object UnsupportedRuntimeShader : RuntimeShader {
         value2: Float,
         value3: Float,
         value4: Float,
-    ) = Unit
+    ) = builder.uniform(name, value1, value2, value3, value4)
 
-    override fun setFloatUniform(name: String, values: FloatArray) = Unit
+    override fun setFloatUniform(name: String, values: FloatArray) = builder.uniform(name, values)
 
-    override fun setIntUniform(name: String, value: Int) = Unit
+    override fun setIntUniform(name: String, value: Int) = builder.uniform(name, value)
 
-    override fun setIntUniform(name: String, value1: Int, value2: Int) = Unit
+    override fun setIntUniform(name: String, value1: Int, value2: Int) =
+        builder.uniform(name, value1, value2)
 
-    override fun setIntUniform(name: String, value1: Int, value2: Int, value3: Int) = Unit
+    override fun setIntUniform(name: String, value1: Int, value2: Int, value3: Int) =
+        builder.uniform(name, value1, value2, value3)
 
-    override fun setIntUniform(name: String, value1: Int, value2: Int, value3: Int, value4: Int) = Unit
+    override fun setIntUniform(
+        name: String,
+        value1: Int,
+        value2: Int,
+        value3: Int,
+        value4: Int,
+    ) = builder.uniform(name, value1, value2, value3, value4)
 
-    override fun setIntUniform(name: String, values: IntArray) = Unit
+    override fun setIntUniform(name: String, values: IntArray) {
+        throw UnsupportedOperationException("Skia runtime shader does not support int array uniforms")
+    }
 
-    override fun setColorUniform(name: String, color: Color) = Unit
+    override fun setColorUniform(name: String, color: Color) {
+        val srgb = color.convert(ColorSpaces.Srgb)
+        val a = srgb.alpha
+        builder.uniform(name, srgb.red * a, srgb.green * a, srgb.blue * a, a)
+    }
 
-    override fun setInputShader(name: String, shader: Shader) = Unit
+    override fun setInputShader(name: String, shader: Shader) = builder.child(name, shader)
 }
 
-actual fun RuntimeShader(shaderString: String): RuntimeShader = UnsupportedRuntimeShader
+actual fun RuntimeShader(shaderString: String): RuntimeShader =
+    SkikoRuntimeShader(RuntimeShaderBuilder(RuntimeEffect.makeForShader(shaderString)))
 
-/** 合法但透明的 Shader；理由同 `:backdrop` 的同名实现。 */
-actual fun RuntimeShader.asComposeShader(): Shader = TransparentShader
+actual fun RuntimeShader.asComposeShader(): Shader =
+    (this as SkikoRuntimeShader).builder.makeShader()
 
-actual fun RuntimeShader.asBrush(): ShaderBrush = TransparentBrush
+/** Skiko 下每次都要新建 Brush：uniform 更新后才拿得到新的不可变 shader 快照。 */
+actual fun RuntimeShader.asBrush(): ShaderBrush = ShaderBrush(asComposeShader())
 
-private val TransparentShader: Shader by lazy {
-    ImageShader(
-        image = ImageBitmap(1, 1),
-        tileModeX = TileMode.Clamp,
-        tileModeY = TileMode.Clamp,
-    )
-}
-
-private object TransparentBrush : ShaderBrush() {
-    override fun createShader(size: Size): Shader = TransparentShader
-}
+internal fun RuntimeShader.asSkikoRuntimeShader(): RuntimeShaderBuilder =
+    (this as SkikoRuntimeShader).builder

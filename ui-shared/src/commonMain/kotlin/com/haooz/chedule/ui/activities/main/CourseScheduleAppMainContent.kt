@@ -2087,6 +2087,7 @@ private fun PublishNativeTopBarButtons(
     onEnterCustomize: () -> Unit,
 ) {
     val buttonSize = 42.dp
+    val hostNav = LocalHostNavigation.current
     val statusBarHeight =
         if (hostVerticalBarEdge()) 0.dp
         else WindowInsets.statusBars.asPaddingValues().calculateTopPadding()

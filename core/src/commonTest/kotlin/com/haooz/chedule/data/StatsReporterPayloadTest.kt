@@ -78,6 +78,9 @@ class StatsReporterPayloadTest {
         assertEquals("ios", tag(0, "IOS"))
         assertEquals("desktop", tag(0, "Mac OS X"))
         assertEquals("desktop", tag(0, "Linux"))
+        // 鸿蒙：sdk_level 为 0，brand 固定 "HarmonyOS"
+        assertEquals("harmony", tag(0, "HarmonyOS"))
+        assertEquals("harmony", tag(0, "Harmony"))
     }
 
     @Test

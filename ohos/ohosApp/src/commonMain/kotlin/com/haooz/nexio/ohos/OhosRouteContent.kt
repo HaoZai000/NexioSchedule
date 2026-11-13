@@ -9,10 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.navigation.AboutRoute
 import com.haooz.chedule.ui.navigation.AiImportRoute
@@ -38,6 +42,7 @@ import com.haooz.chedule.ui.navigation.ScheduleSettingsRoute
 import com.haooz.chedule.ui.navigation.SettingsRoute
 import com.haooz.chedule.ui.navigation.UpdatePreferencesRoute
 import com.haooz.chedule.ui.navigation.UpdateSettingsRoute
+import com.haooz.chedule.ui.navigation.WeatherRoute
 import com.haooz.chedule.ui.navigation.WebDavSettingsRoute
 import com.haooz.chedule.ui.navigation.WidgetIntroRoute
 import com.haooz.chedule.ui.utils.ShareCodeImport
@@ -60,13 +65,30 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun OhosRouteContent(router: AppRouter, route: AppRoute) {
     when (route) {
         // 鸿蒙没有应用内更新通道（应用市场分发），隐藏「更新」入口（同 iOS）
-        AppRoute.Settings -> SettingsRoute(router = router, showUpdateSettings = false)
+        AppRoute.Settings -> SettingsRoute(
+            router = router,
+            showUpdateSettings = false,
+            // 鸿蒙没有桌面小部件
+            showWidgetEntry = false,
+        )
         AppRoute.ScheduleSettings -> ScheduleSettingsRoute(router = router)
-        AppRoute.About -> AboutRoute(router = router)
+        AppRoute.About -> AboutRoute(
+            router = router,
+            appVersion = ohosAppVersion().ifBlank { ChromeStr.unknownVersion() },
+            appName = ohosAppName().ifBlank { ChromeStr.appName() },
+            onExitApp = { ohosExitApp() },
+        )
+        AppRoute.Weather -> WeatherRoute(router)
         AppRoute.Changelog -> ChangelogRoute(router)
         AppRoute.License -> LicenseRoute(router)
         AppRoute.PrivacyPolicy -> PrivacyPolicyRoute(router)
-        AppRoute.PreferenceSettings -> PreferenceSettingsRoute(router = router)
+        // 鸿蒙没有预测性返回动画 / 最近任务隐藏 / 系统动态取色，三项直接隐藏
+        AppRoute.PreferenceSettings -> PreferenceSettingsRoute(
+            router = router,
+            showPredictiveBackAnimation = false,
+            showHideFromRecents = false,
+            showMonetColor = false,
+        )
         AppRoute.UpdateSettings -> UpdateSettingsRoute(router = router)
         AppRoute.UpdatePreferences -> UpdatePreferencesRoute(router = router)
         AppRoute.Communication -> CommunicationRoute(router)
@@ -74,7 +96,13 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
         AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
-        AppRoute.AiImport -> AiImportRoute(router = router)
+        AppRoute.AiImport -> {
+            val clipboard = LocalClipboardManager.current
+            AiImportRoute(
+                router = router,
+                onCopyToClipboard = { text -> clipboard.setText(AnnotatedString(text)) },
+            )
+        }
         AppRoute.WidgetIntro -> WidgetIntroRoute(router = router)
         AppRoute.CourseReminder -> CourseReminderRoute(router = router)
         AppRoute.HolidaySettings -> HolidaySettingsRoute(router = router)
@@ -83,21 +111,42 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.CourseManage -> CourseManageRoute(router = router)
         AppRoute.EducationalImport -> EducationalImportRoute(router = router)
 
-        AppRoute.ImportExport ->
+        AppRoute.ImportExport -> {
+            val shareAction = rememberOhosShareAction()
+            val calendarSyncAction = rememberOhosCalendarSyncAction()
             BackupAndMigrationRoute(
                 router = router,
                 mode = ScheduleDataManageMode.Import,
                 switchableModes = listOf(ScheduleDataManageMode.Import, ScheduleDataManageMode.Export),
+                scheduleFileController = remember { createScheduleFileController() },
+                onShareSchedule = shareAction,
+                onSyncToCalendar = calendarSyncAction,
+                // 手环与安卓手表推送尚未接鸿蒙能力，先不展示入口
+                showCalendarSync = true,
+                showWearableExport = false,
+                showWatchExport = false,
                 // 默认停在导入 tab
                 // 本站口令 / 星链走纯 HTTP；WakeUp 要无头 WebView，鸿蒙还没接（wakeUpRunner 为 null 时给明确报错）
                 onFetchShareCode = { code -> ShareCodeImport.fetchShareCode(code) },
                 onImportThirdParty = { source, code -> ShareCodeImport.importThirdParty(source, code) },
             )
+        }
 
-        AppRoute.ScheduleBackup -> BackupCenterRoute(router = router)
+        AppRoute.ScheduleBackup ->
+            BackupCenterRoute(
+                router = router,
+                backupFileController = remember { createBackupFileController() },
+            )
 
-        // 需要 ArkTS 的 Web 组件 / 选文件能力，还没搭桥
-        AppRoute.WebImport -> RouteUnavailable(router, "网页导入")
+        AppRoute.WebDavSettings ->
+            WebDavSettingsRoute(
+                router = router,
+                backupFileController = remember { createBackupFileController() },
+            )
+
+        // 网页导入：网页与它自己的顶栏/底栏都在 ArkUI 层（压在整个 Compose 之上），
+        // Compose 这层只留空占位 + 路由生命周期 + 落库收尾。
+        AppRoute.WebImport -> OhosWebImportRoute(router)
     }
 }
 

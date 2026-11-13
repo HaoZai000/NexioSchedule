@@ -22,9 +22,9 @@ kotlin {
                 implementation(compose.ui)
             }
         }
-        // 不能用 skikoMain：ui-ohos klib 没公开 asComposeShader，玻璃退化为「表面色 + 描边」。
-        ohosMain {
-            kotlin.srcDir(rootProject.file("../../softglass/src/skikoMain/kotlin"))
-        }
+        // 不用 skikoMain：那套 actual 依赖 `skiaImageFilter` / `skiaPaint` / `asComposeShader`
+        // 这几个扩展名，本 klib 里没有同名符号（等价能力在 `asFrameworkPaint()`、
+        // `asSkiaImageFilter()` 与 `Shader` 类型别名上）。ohos 自己的 actual 在
+        // src/ohosMain/kotlin（默认源根），用这些公开 API 做与 Android 等价的真实现。
     }
 }

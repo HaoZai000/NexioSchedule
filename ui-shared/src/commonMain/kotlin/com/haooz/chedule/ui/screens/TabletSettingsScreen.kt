@@ -339,6 +339,7 @@ fun TabletSettingsScreen(
     onHolidayDataChanged: () -> Unit = {},
     fetchHolidayEntries: (suspend (year: Int) -> List<HolidayEntry>)? = null,
     showUpdateSettings: Boolean = true,
+    showWidgetEntry: Boolean = true,
 ) {
     // 右栏局部栈：二级页是根，三级页 push 进来替换右栏
     val globalRouter = LocalAppRouter.current
@@ -440,6 +441,7 @@ fun TabletSettingsScreen(
                             navBarStyle = "standard",
                             settingsScrollBehavior = null,
                             showUpdateSettings = showUpdateSettings,
+                            showWidgetEntry = showWidgetEntry,
                             onOpenRoute = { route -> openFromLeft(route) },
                             // 栈底就是左栏选中的那一项，进三级页后仍然保持按下态
                             selectedRoute = paneRouter.routes.firstOrNull(),

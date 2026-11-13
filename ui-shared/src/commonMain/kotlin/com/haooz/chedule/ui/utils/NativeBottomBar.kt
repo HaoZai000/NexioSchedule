@@ -7,7 +7,11 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 
-/** 宿主接管主界面底部导航（当前只有鸿蒙 ArkUI）。 */
+/**
+ * 宿主接管主界面底部导航。
+ *
+ * 目前没有平台提供它（鸿蒙已改回 Compose 自绘，iOS 走 [HostNavigationState]）。
+ */
 class NativeBottomBarHost {
 
     var ownsBottomBar by mutableStateOf(false)

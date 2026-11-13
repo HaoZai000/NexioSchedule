@@ -7,14 +7,6 @@ import { ArkUIViewController } from 'libcompose_arkui_utils.so';
 export const MainArkUIViewController: () => ArkUIViewController;
 
 /**
- * 第二个 Compose 实例：二级页（设置等）住在这一层。
- *
- * 一个 XComponent 只有一层，画在里面的东西盖不住 ArkUI 的兄弟节点；把子页拆到独立实例后，
- * ArkUI 只要把这一层排在顶栏/底栏之后，设置页就是真的压在它们上面。
- */
-export const OverlayArkUIViewController: () => ArkUIViewController;
-
-/**
  * 把运行环境交给 Kotlin/Native 侧（Kotlin 拿不到 UIAbilityContext）。
  *
  * @param filesDir  应用私有目录 `context.filesDir`（壁纸/缓存/设置都落在这里）
@@ -43,6 +35,9 @@ export const setAppEnv: (
   screenH: number,
   cornerRadiusPx: number
 ) => void;
+
+/** 应用版本 / 名称（关于页展示）；Kotlin 侧拿不到 bundleManager。 */
+export const setAppInfo: (version: string, name: string) => void;
 
 /**
  * 注册 HTTP 发送器。NDK 里没有 curl，网络走 ArkTS 的 `@ohos.net.http`。
@@ -75,37 +70,9 @@ export const registerToast: (
 ) => void;
 
 /**
- * 顶栏语义：Compose 发布，ArkTS 用系统组件渲染。
+ * 有没有子页 → ArkTS 用它决定系统返回键是否消费。
  *
- * 宿主顶栏走 `Navigation` 的标题栏（`title`）与官方沉浸光感材质
- * （`uiMaterial.ImmersiveMaterial`），不再自绘模糊 —— JSON 字段与 Kotlin 的
- * `NativeTopBarState` 一一对应，`titleHeightDp` 是**不含状态栏**的标题栏高度，
- * `statusBarDp` 由宿主自己补到标题栏顶端（实测标题栏从窗口 y=0 开始排，不吃安全区）。
- */
-export const registerTopBar: (
-  publish: (json: string) => void
-) => void;
-
-/** 顶栏按钮 / 菜单动作回传给 Compose（"switchSchedule" / "more" / "jumpWeek" / ...）。 */
-export const topBarAction: (id: string) => void;
-
-/**
- * 底部导航语义：Compose 发布，ArkTS 用 `HdsTabs` 的悬浮页签胶囊渲染。
- *
- * JSON 字段与 Kotlin 的 `NativeBottomBarState` 一一对应：`selected` 是当前格，
- * `tabsCount` 是页签格数（1 = 排班模式），设置格不算在内。
- */
-export const registerBottomBar: (
-  publish: (json: string) => void
-) => void;
-
-/** 点了某格；`index >= tabsCount` 表示末尾的设置页签。 */
-export const bottomBarSelected: (index: number) => void;
-
-/**
- * 有没有二级页 → 决定覆盖层显不显示。
- *
- * 无子页时必须整层藏掉：全屏 XComponent 即使内容为空也会吃掉主界面的手势。
+ * 页面本身全在 Compose 里，这条通道只传一个布尔值。
  */
 export const registerOverlay: (publish: (active: boolean) => void) => void;
 
@@ -116,25 +83,60 @@ export const registerOverlay: (publish: (active: boolean) => void) => void;
 export const overlayPopBack: () => void;
 
 /**
- * 二三四级页的原生顶栏语义（per-route chrome，与 iOS 的 NativeDocumentChrome 同协议）。
+ * 注册系统文件选择器（JSON / ICS 导入、导出）。
  *
- * 内容数组：`[{key, title, tint, back, leading?, action?, secondary?}]`，
- * `key` 是路由层 key（裸 id / `#2`…），数组顺序即层级顺序（末位 = 栈顶）。
+ * @param picker (requestId, op, payload) => void
+ *   op = `openText`：拉起选择器读文本；
+ *   op = `saveText`：payload 是 `{ fileName, mimeType, content }` JSON，拉起另存为写入。
+ *   完成后必须调 [setFileResult] 回传。
  */
-export const registerDocChrome: (publish: (json: string) => void) => void;
+export const registerFilePicker: (
+  picker: (requestId: number, op: string, payload: string) => void
+) => void;
 
 /**
- * 顶栏位移，转场期间逐帧：`[[key, centiX], …]`（最多两层）。
- * centiX 单位是 1/100 屏宽，除以 100 得 fraction，再乘屏宽 = translate.x。
+ * 文件选择结果回传。`ok=false` 且 `payload` 为空表示用户取消；
+ * 非空 `payload` 是可直接展示的失败原因。
  */
-export const registerDocChromeMotion: (publish: (json: string) => void) => void;
-
-/** 点了某一层顶栏的按钮：role = back / leading / action / secondary。 */
-export const docChromeAction: (key: string, role: string) => void;
+export const setFileResult: (requestId: number, ok: boolean, payload: string) => void;
 
 /**
- * 主界面被推开的位移，转场期间逐帧：`@<centi>`，1/10000 的有符号整数
- * （`-2400` = 左移 24% 屏宽）。顶栏圆钮与底栏胶囊跟着主界面一起滑。
+ * 注册系统分享 / 剪贴板宿主。
+ *
+ * @param host (op, payload) => void
+ *   op = `share`：payload 是 `{ path, fileName, text }`，用 ShareKit 分享图片与文案；
+ *   op = `clipboard`：payload 是要写入系统剪贴板的文本。
  */
-export const registerMainMotion: (publish: (json: string) => void) => void;
+export const registerShareHost: (
+  host: (op: string, payload: string) => void
+) => void;
+
+/**
+ * 注册「同步到日历」宿主（系统日历只有 ArkTS 的 calendarManager 能写）。
+ *
+ * @param host (requestId, payload) => void
+ *   payload = `{ reminderMinutes, events: [{ uid, title, description, location, start, end }] }`，
+ *   start / end 是 `{ y, mo, d, h, mi }`。完成后必须调 [setCalendarResult] 回传。
+ */
+export const registerCalendarSync: (
+  host: (requestId: number, payload: string) => void
+) => void;
+
+/**
+ * 同步结果回传：`ok` 与 `payload = { status: "ok"|"denied"|"noCalendar"|"failed", count }`。
+ */
+export const setCalendarResult: (requestId: number, ok: boolean, payload: string) => void;
+
+/**
+ * 注册网页导入宿主（ArkUI `Web` 组件）。Kotlin 侧发指令，ArkTS 执行并回传事件。
+ *
+ * @param host (json) => void
+ *   json 的 `op`：`open` / `close` / `evalJs` / `reload` / `goBack` / `desktop` / `resolve` / `reject`。
+ */
+export const registerWebHost: (host: (json: string) => void) => void;
+
+/**
+ * 网页事件回传：`{event: "title"|"progress"|"state"|"import"|"bridge", …}`。
+ */
+export const webHostEvent: (json: string) => void;
 

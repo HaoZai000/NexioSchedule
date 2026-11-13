@@ -5,7 +5,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 
-/** 宿主接管主界面右上角那两颗按钮（当前只有鸿蒙 ArkUI）。 */
+/**
+ * 宿主接管主界面右上角那两颗按钮。
+ *
+ * 目前没有平台提供它（鸿蒙已改回 Compose 自绘，iOS 走 [HostNavigationState]）；
+ * 保留这层协议是为了将来有原生 chrome 的宿主时不必再改页面。
+ */
 class NativeTopBarHost {
 
     var ownsTopRight by mutableStateOf(false)

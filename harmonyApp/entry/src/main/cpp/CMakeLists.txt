@@ -12,7 +12,7 @@ add_library(nexioohos SHARED IMPORTED)
 set_target_properties(nexioohos PROPERTIES
     IMPORTED_LOCATION ${NATIVERENDER_ROOT_PATH}/../../../libs/arm64-v8a/libnexioohos.so)
 
-add_library(entry SHARED napi_init.cpp)
+add_library(entry SHARED napi_init.cpp ai_crypto.cpp)
 
 # Compose 的 XComponent 桥头文件：`XComponentHolder::InitXComponent` 必须由本模块调用，
 # 否则系统建出来的 XComponent 拿不到 surface 回调（表现：进程活着、画面全白）。
@@ -23,4 +23,5 @@ target_link_libraries(entry PUBLIC
     libace_napi.z.so          # napi_*
     libace_ndk.z.so           # OH_NativeXComponent_*
     libhilog_ndk.z.so         # OH_LOG_Print
+    libohcrypto.so            # CryptoArchitectureKit（AI 会话加密）
     nexioohos)                # Compose 运行时（含 XComponentHolder 的实现）

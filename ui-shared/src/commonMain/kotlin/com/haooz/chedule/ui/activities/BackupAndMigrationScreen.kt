@@ -131,6 +131,14 @@ fun BackupAndMigrationScreen(
     watchSyncController: WatchSyncController = NoopWatchSyncController,
     /** 同步到系统日历（Android 专有；未实现的平台保持默认值 → 点按只提示不支持） */
     onSyncToCalendar: suspend (scheduleName: String) -> CalendarSyncResult = { CalendarSyncResult.Unsupported },
+    /** 是否展示「口令分享导出」（需要出图 + 系统分享能力）。 */
+    showShareCodeExport: Boolean = true,
+    /** 是否展示「同步到日历」（需要系统日历写入能力）。 */
+    showCalendarSync: Boolean = true,
+    /** 是否展示「导出到手环」（Android 专有推送通道）。 */
+    showWearableExport: Boolean = true,
+    /** 是否展示「导出到安卓手表」（Android 专有蓝牙通道）。 */
+    showWatchExport: Boolean = true,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -473,78 +481,88 @@ fun BackupAndMigrationScreen(
                                     }
                                 }
                             )
-                            ArrowPreference(
-                                title = BackupStr.shareCodeExport(),
-                                summary = BackupStr.shareCodeExportSummary(),
-                                holdDownState = showShareExportConfirmDialog,
-                                onClick = {
-                                    if (selectedExportSchedule.isBlank()) {
-                                        showToast(BackupStr.selectScheduleToShareFirst())
-                                    } else if (!isSharingExport) {
-                                        showShareExportConfirmDialog = true
+                            if (showShareCodeExport) {
+                                ArrowPreference(
+                                    title = BackupStr.shareCodeExport(),
+                                    summary = BackupStr.shareCodeExportSummary(),
+                                    holdDownState = showShareExportConfirmDialog,
+                                    onClick = {
+                                        if (selectedExportSchedule.isBlank()) {
+                                            showToast(BackupStr.selectScheduleToShareFirst())
+                                        } else if (!isSharingExport) {
+                                            showShareExportConfirmDialog = true
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(0.dp)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            ArrowPreference(
-                                title = BackupStr.syncToCalendar(),
-                                summary = BackupStr.syncToCalendarSummary(),
-                                onClick = {
-                                    if (selectedExportSchedule.isBlank()) {
-                                        showToast(BackupStr.selectScheduleToShareFirst())
-                                    } else {
-                                        scope.launch {
-                                            val result = onSyncToCalendar(selectedExportSchedule)
-                                            val message = when (result) {
-                                                is CalendarSyncResult.Success ->
-                                                    BackupStr.calendarSyncSuccessN(result.count)
-                                                CalendarSyncResult.PermissionDenied ->
-                                                    BackupStr.calendarPermissionDenied()
-                                                CalendarSyncResult.NoWritableCalendar ->
-                                                    BackupStr.calendarNoWritable()
-                                                CalendarSyncResult.Failed ->
-                                                    BackupStr.calendarSyncFailed()
-                                                CalendarSyncResult.Unsupported ->
-                                                    BackupStr.platformNotSupportedN(BackupStr.syncToCalendar())
+                if (showCalendarSync || showWearableExport || showWatchExport) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                if (showCalendarSync) {
+                                    ArrowPreference(
+                                        title = BackupStr.syncToCalendar(),
+                                        summary = BackupStr.syncToCalendarSummary(),
+                                        onClick = {
+                                            if (selectedExportSchedule.isBlank()) {
+                                                showToast(BackupStr.selectScheduleToShareFirst())
+                                            } else {
+                                                scope.launch {
+                                                    val result = onSyncToCalendar(selectedExportSchedule)
+                                                    val message = when (result) {
+                                                        is CalendarSyncResult.Success ->
+                                                            BackupStr.calendarSyncSuccessN(result.count)
+                                                        CalendarSyncResult.PermissionDenied ->
+                                                            BackupStr.calendarPermissionDenied()
+                                                        CalendarSyncResult.NoWritableCalendar ->
+                                                            BackupStr.calendarNoWritable()
+                                                        CalendarSyncResult.Failed ->
+                                                            BackupStr.calendarSyncFailed()
+                                                        CalendarSyncResult.Unsupported ->
+                                                            BackupStr.platformNotSupportedN(BackupStr.syncToCalendar())
+                                                    }
+                                                    showToast(message, longDuration = true)
+                                                }
                                             }
-                                            showToast(message, longDuration = true)
                                         }
-                                    }
+                                    )
                                 }
-                            )
-                            ArrowPreference(
-                                title = BackupStr.exportToWearable(),
-                                summary = BackupStr.exportToWearableSummary(),
-                                onClick = {
-                                    scope.launch {
-                                        val path = onExportToWearable(selectedExportSchedule)
-                                        if (path != null) {
-                                            showToast(BackupStr.wearableExportSuccessN(path), longDuration = true)
-                                        } else {
-                                            showToast(BackupStr.wearableExportFailed())
+                                if (showWearableExport) {
+                                    ArrowPreference(
+                                        title = BackupStr.exportToWearable(),
+                                        summary = BackupStr.exportToWearableSummary(),
+                                        onClick = {
+                                            scope.launch {
+                                                val path = onExportToWearable(selectedExportSchedule)
+                                                if (path != null) {
+                                                    showToast(BackupStr.wearableExportSuccessN(path), longDuration = true)
+                                                } else {
+                                                    showToast(BackupStr.wearableExportFailed())
+                                                }
+                                            }
                                         }
-                                    }
+                                    )
                                 }
-                            )
-                            ArrowPreference(
-                                title = BackupStr.exportToWatch(),
-                                summary = BackupStr.exportToWatchSummary(),
-                                onClick = {
-                                    if (selectedExportSchedule.isBlank()) {
-                                        showToast(BackupStr.selectScheduleToShareFirst())
-                                    } else {
-                                        showWatchSyncSheet = true
-                                    }
+                                if (showWatchExport) {
+                                    ArrowPreference(
+                                        title = BackupStr.exportToWatch(),
+                                        summary = BackupStr.exportToWatchSummary(),
+                                        onClick = {
+                                            if (selectedExportSchedule.isBlank()) {
+                                                showToast(BackupStr.selectScheduleToShareFirst())
+                                            } else {
+                                                showWatchSyncSheet = true
+                                            }
+                                        }
+                                    )
                                 }
-                            )
+                            }
                         }
                     }
                 }

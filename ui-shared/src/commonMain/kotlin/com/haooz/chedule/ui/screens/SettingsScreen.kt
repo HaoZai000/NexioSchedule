@@ -355,10 +355,11 @@ fun SettingsScreen(
     onHolidayDataChanged: () -> Unit = {},
     /** 节假日 API 拉取（Android 宿主实现）；null 时返回 emptyList */
     fetchHolidayEntries: (suspend (year: Int) -> List<HolidayEntry>)? = null,
-    /**
-     * 是否显示「更新」入口。
+    /** 是否显示「更新」入口。
      */
     showUpdateSettings: Boolean = true,
+    /** 是否显示「桌面小部件」入口（鸿蒙无小组件能力）。 */
+    showWidgetEntry: Boolean = true,
     /**
      * 是否显示「排班模式」入口。
      * ⚠ 传 false 时 `isShiftMode` 必为 false，只需挡「进入」两处，「退出」也一并挡掉以防状态被外部置起。
@@ -406,6 +407,7 @@ fun SettingsScreen(
             fetchHolidayEntries = fetchHolidayEntries,
             // iOS 走 App Store 更新：入口整个不渲染（平板左栏也要挡）
             showUpdateSettings = showUpdateSettings,
+            showWidgetEntry = showWidgetEntry,
         )
         return
     }
@@ -529,15 +531,17 @@ fun SettingsScreen(
                                     openRoute(AppRoute.CourseReminder)
                                 }
                             )
-                            SettingsEntryRow(
-                                title = SettingsStr.homeScreenWidget(),
-                                icon = { HomeScreenWidgetIcon() },
-                                selected = selectedRoute == AppRoute.WidgetIntro,
-                                onClick = {
-                                    FeatureLog.widget("open")
-                                    openRoute(AppRoute.WidgetIntro)
-                                }
-                            )
+                            if (showWidgetEntry) {
+                                SettingsEntryRow(
+                                    title = SettingsStr.homeScreenWidget(),
+                                    icon = { HomeScreenWidgetIcon() },
+                                    selected = selectedRoute == AppRoute.WidgetIntro,
+                                    onClick = {
+                                        FeatureLog.widget("open")
+                                        openRoute(AppRoute.WidgetIntro)
+                                    }
+                                )
+                            }
                         }
                     }
                 }

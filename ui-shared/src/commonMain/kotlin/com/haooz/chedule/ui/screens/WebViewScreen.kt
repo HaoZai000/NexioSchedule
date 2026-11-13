@@ -286,6 +286,10 @@ fun WebViewScreen(
             contentTopPadding = if (nativeChrome != null) 0.dp else contentTopPadding,
             // 原生底栏时给网页留出高度；Android 走自己的布局
             contentBottomPadding = if (nativeChrome != null) bottomBarHeight else 0.dp,
+            // 鸿蒙：网页是 ArkUI 节点、底部条也由原生画，这两个值要带过去
+            schoolName = school.name,
+            scheduleNames = scheduleNames,
+            currentScheduleName = currentScheduleName,
         ),
         webHostEvents,
     )

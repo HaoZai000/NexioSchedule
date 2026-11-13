@@ -9,16 +9,33 @@
 
 // Compose 的 XComponent 桥（实现在 libnexioohos.so，头文件来自 third_party）
 #include "compose/xcomponent_holder.h"
+#include "ai_crypto.h"
 
 #define LOG_DOMAIN 0x0000
 #define LOG_TAG "nexio-host"
 
 // Kotlin 侧 @CName 导出的符号（见 ohos/ohosApp/src/ohosSharedCore）
 extern "C" napi_value MainArkUIViewController(napi_env env);
-extern "C" napi_value OverlayArkUIViewController(napi_env env);
 
 // 沙箱目录 + 屏幕像素：Kotlin 侧拿不到 UIAbilityContext，只能由 ArkTS 传。
 extern "C" void NexioSetAppEnv(const char *filesDir, int32_t screenW, int32_t screenH, int32_t cornerRadiusPx);
+
+// 应用版本 / 名称：Kotlin 侧拿不到 bundleManager，由 ArkTS 在启动时写入。
+extern "C" void NexioSetAppInfo(const char *version, const char *name);
+
+static napi_value NapiSetAppInfo(napi_env env, napi_callback_info info) {
+    size_t argc = 2;
+    napi_value args[2] = {nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    char version[128] = {0};
+    char name[256] = {0};
+    size_t len = 0;
+    napi_get_value_string_utf8(env, args[0], version, sizeof(version), &len);
+    napi_get_value_string_utf8(env, args[1], name, sizeof(name), &len);
+    NexioSetAppInfo(version, name);
+    return nullptr;
+}
 
 static napi_value NapiSetAppEnv(napi_env env, napi_callback_info info) {
     size_t argc = 4;
@@ -48,13 +65,6 @@ static napi_value NapiMainArkUIViewController(napi_env env, napi_callback_info i
     (void) info;
     OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "create ArkUIViewController");
     return MainArkUIViewController(env);
-}
-
-// 第二个 Compose 实例：二级页（设置等）住在这一层，z 序排在顶栏/底栏之后。
-static napi_value NapiOverlayArkUIViewController(napi_env env, napi_callback_info info) {
-    (void) info;
-    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "create overlay ArkUIViewController");
-    return OverlayArkUIViewController(env);
 }
 
 // ── 壁纸选图：ArkTS 注册回调，Kotlin 侧触发 ──────────────────────────────────
@@ -209,102 +219,8 @@ static void HostShowToast(const char *message, bool longDuration) {
 
 extern "C" void NexioOnToastHostReady(void (*fn)(const char *, bool));
 
-// ── 顶栏：Compose 只发布语义，ArkUI 画材质与文字 ─────────────────────────────
-// 为什么整条顶栏在 ArkUI：模糊必须压在内容之上、标题又要压在模糊之上，而 skia 后端
-// 整块界面只有一个 XComponent —— Compose 给不出「在原生层之上、在模糊之下」的层。
-static napi_ref g_topBarRef = nullptr;
-
-static napi_value NapiRegisterTopBar(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1] = {nullptr};
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    napi_valuetype type = napi_undefined;
-    napi_typeof(env, args[0], &type);
-    if (type != napi_function) return nullptr;
-    g_env = env;
-    napi_create_reference(env, args[0], 1, &g_topBarRef);
-    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "top bar registered");
-    return nullptr;
-}
-
-/** Kotlin 侧的发布入口（函数指针交给 Kotlin）。必须在 JS 线程调用。 */
-static void HostPublishTopBar(const char *json) {
-    if (g_env == nullptr || g_topBarRef == nullptr) return;
-    napi_value callback = nullptr;
-    if (napi_get_reference_value(g_env, g_topBarRef, &callback) != napi_ok || callback == nullptr) return;
-    napi_value undefined = nullptr;
-    napi_get_undefined(g_env, &undefined);
-    napi_value argv[1] = {nullptr};
-    napi_create_string_utf8(g_env, json, NAPI_AUTO_LENGTH, &argv[0]);
-    napi_value result = nullptr;
-    napi_call_function(g_env, undefined, callback, 1, argv, &result);
-}
-
-extern "C" void NexioOnTopBarHostReady(void (*fn)(const char *));
-
-/** ArkTS 侧动作回传：topBarAction("jumpWeek")。 */
-extern "C" void NexioOnTopBarAction(const char *id);
-
-static napi_value NapiTopBarAction(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1] = {nullptr};
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    size_t len = 0;
-    if (napi_get_value_string_utf8(env, args[0], nullptr, 0, &len) != napi_ok) return nullptr;
-    char *buf = new char[len + 1];
-    napi_get_value_string_utf8(env, args[0], buf, len + 1, &len);
-    NexioOnTopBarAction(buf);
-    delete[] buf;
-    return nullptr;
-}
-
-// ── 底部导航：胶囊与设置圆钮换成 Tabs 底部页签的系统沉浸光感材质 ──────────────
-static napi_ref g_bottomBarRef = nullptr;
-
-static napi_value NapiRegisterBottomBar(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1] = {nullptr};
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    napi_valuetype type = napi_undefined;
-    napi_typeof(env, args[0], &type);
-    if (type != napi_function) return nullptr;
-    g_env = env;
-    napi_create_reference(env, args[0], 1, &g_bottomBarRef);
-    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "bottom bar registered");
-    return nullptr;
-}
-
-/** Kotlin 侧的发布入口（函数指针交给 Kotlin）。必须在 JS 线程调用。 */
-static void HostPublishBottomBar(const char *json) {
-    if (g_env == nullptr || g_bottomBarRef == nullptr) return;
-    napi_value callback = nullptr;
-    if (napi_get_reference_value(g_env, g_bottomBarRef, &callback) != napi_ok || callback == nullptr) return;
-    napi_value undefined = nullptr;
-    napi_get_undefined(g_env, &undefined);
-    napi_value argv[1] = {nullptr};
-    napi_create_string_utf8(g_env, json, NAPI_AUTO_LENGTH, &argv[0]);
-    napi_value result = nullptr;
-    napi_call_function(g_env, undefined, callback, 1, argv, &result);
-}
-
-extern "C" void NexioOnBottomBarHostReady(void (*fn)(const char *));
-
-/** ArkTS 侧动作回传：bottomBarSelected(2)。 */
-extern "C" void NexioOnBottomBarSelected(int index);
-
-static napi_value NapiBottomBarSelected(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1] = {nullptr};
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    int32_t index = 0;
-    if (napi_get_value_int32(env, args[0], &index) != napi_ok) return nullptr;
-    NexioOnBottomBarSelected(index);
-    return nullptr;
-}
-
-// ── 二级页覆盖层：有没有子页 → ArkUI 决定显不显示第二个 Compose 实例 ───────────
-// 覆盖层与顶栏/底栏是兄弟节点，排在其后就是真的压在上面；没有子页时整层藏起来，
-// 否则一个全屏 XComponent 会吃掉主界面的所有手势。
+// ── 子页栈状态：有没有子页 → ArkTS 用来决定系统返回键是否消费 ─────────────────
+// 页面本身全在 Compose 里，这条通道只发一个布尔值。
 static napi_ref g_overlayRef = nullptr;
 
 static napi_value NapiRegisterOverlay(napi_env env, napi_callback_info info) {
@@ -345,12 +261,16 @@ static napi_value NapiOverlayPopBack(napi_env env, napi_callback_info info) {
     return nullptr;
 }
 
-// ── 二三四级页原生顶栏：per-route chrome 内容 + 逐帧位移 ──────────────────────
-// 每个路由层一个 chrome（标题/返回/动作），内容低频、位移逐帧，分两条通道。
-static napi_ref g_docChromeRef = nullptr;
-static napi_ref g_docMotionRef = nullptr;
+// ── 文件选择 / 另存为：系统文件选择器只能由 ArkTS 起 ─────────────────────────
+// Kotlin → ArkTS：registerFilePicker 存下 JS 函数，Kotlin 点导入/导出时反着调；
+// ArkTS → Kotlin：setFileResult 回传内容或取消。约定 op = "openText" / "saveText"。
+static napi_ref g_filePickerRef = nullptr;
 
-static napi_value NapiRegisterDocChrome(napi_env env, napi_callback_info info) {
+// ── 系统分享 / 剪贴板：ArkTS 的 ShareKit 与 pasteboard 只能由宿主起 ─────────
+// op = "share"（payload = {path, fileName, text}）/ "clipboard"（payload = 文本）。
+static napi_ref g_shareHostRef = nullptr;
+
+static napi_value NapiRegisterShareHost(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
@@ -358,11 +278,27 @@ static napi_value NapiRegisterDocChrome(napi_env env, napi_callback_info info) {
     napi_typeof(env, args[0], &type);
     if (type != napi_function) return nullptr;
     g_env = env;
-    napi_create_reference(env, args[0], 1, &g_docChromeRef);
+    napi_create_reference(env, args[0], 1, &g_shareHostRef);
+    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "share host registered");
     return nullptr;
 }
 
-static napi_value NapiRegisterDocChromeMotion(napi_env env, napi_callback_info info) {
+static void HostShareRequest(const char *op, const char *payload) {
+    if (g_env == nullptr || g_shareHostRef == nullptr) return;
+    napi_value callback = nullptr;
+    if (napi_get_reference_value(g_env, g_shareHostRef, &callback) != napi_ok || callback == nullptr) return;
+    napi_value undefined = nullptr;
+    napi_get_undefined(g_env, &undefined);
+    napi_value argv[2] = {nullptr, nullptr};
+    napi_create_string_utf8(g_env, op, NAPI_AUTO_LENGTH, &argv[0]);
+    napi_create_string_utf8(g_env, payload, NAPI_AUTO_LENGTH, &argv[1]);
+    napi_value result = nullptr;
+    napi_call_function(g_env, undefined, callback, 2, argv, &result);
+}
+
+extern "C" void NexioOnShareHostReady(void (*fn)(const char *, const char *));
+
+static napi_value NapiRegisterFilePicker(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
@@ -370,67 +306,56 @@ static napi_value NapiRegisterDocChromeMotion(napi_env env, napi_callback_info i
     napi_typeof(env, args[0], &type);
     if (type != napi_function) return nullptr;
     g_env = env;
-    napi_create_reference(env, args[0], 1, &g_docMotionRef);
+    napi_create_reference(env, args[0], 1, &g_filePickerRef);
+    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "file picker registered");
     return nullptr;
 }
 
-/** Kotlin 侧的发布入口（函数指针交给 Kotlin）。必须在 JS 线程调用。 */
-static void HostPublishDocChrome(const char *json) {
-    if (g_env == nullptr || g_docChromeRef == nullptr) return;
+/** Kotlin 侧的发起入口（函数指针交给 Kotlin）。必须在 JS 线程调用。 */
+static void HostRequestFile(int32_t requestId, const char *op, const char *payload) {
+    if (g_env == nullptr || g_filePickerRef == nullptr) return;
     napi_value callback = nullptr;
-    if (napi_get_reference_value(g_env, g_docChromeRef, &callback) != napi_ok || callback == nullptr) return;
+    if (napi_get_reference_value(g_env, g_filePickerRef, &callback) != napi_ok || callback == nullptr) return;
     napi_value undefined = nullptr;
     napi_get_undefined(g_env, &undefined);
-    napi_value argv[1] = {nullptr};
-    napi_create_string_utf8(g_env, json, NAPI_AUTO_LENGTH, &argv[0]);
+    napi_value argv[3] = {nullptr, nullptr, nullptr};
+    napi_create_int32(g_env, requestId, &argv[0]);
+    napi_create_string_utf8(g_env, op, NAPI_AUTO_LENGTH, &argv[1]);
+    napi_create_string_utf8(g_env, payload, NAPI_AUTO_LENGTH, &argv[2]);
     napi_value result = nullptr;
-    napi_call_function(g_env, undefined, callback, 1, argv, &result);
+    napi_call_function(g_env, undefined, callback, 3, argv, &result);
 }
 
-static void HostPublishDocChromeMotion(const char *json) {
-    if (g_env == nullptr || g_docMotionRef == nullptr) return;
-    napi_value callback = nullptr;
-    if (napi_get_reference_value(g_env, g_docMotionRef, &callback) != napi_ok || callback == nullptr) return;
-    napi_value undefined = nullptr;
-    napi_get_undefined(g_env, &undefined);
-    napi_value argv[1] = {nullptr};
-    napi_create_string_utf8(g_env, json, NAPI_AUTO_LENGTH, &argv[0]);
-    napi_value result = nullptr;
-    napi_call_function(g_env, undefined, callback, 1, argv, &result);
-}
+extern "C" void NexioOnFileHostReady(void (*fn)(int32_t, const char *, const char *));
+extern "C" void NexioOnFileResult(int32_t requestId, bool ok, const char *payload);
 
-extern "C" void NexioOnDocChromeHostReady(void (*fn)(const char *));
-extern "C" void NexioOnDocChromeMotionHostReady(void (*fn)(const char *));
-
-/** ArkTS 侧动作回传：docChromeAction(key, role)。 */
-extern "C" void NexioOnDocChromeAction(const char *key, const char *role);
-
-static napi_value NapiDocChromeAction(napi_env env, napi_callback_info info) {
-    size_t argc = 2;
-    napi_value args[2] = {nullptr, nullptr};
+/** ArkTS 侧回传：setFileResult(requestId, ok, payload)。 */
+static napi_value NapiSetFileResult(napi_env env, napi_callback_info info) {
+    size_t argc = 3;
+    napi_value args[3] = {nullptr, nullptr, nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    int32_t requestId = 0;
+    napi_get_value_int32(env, args[0], &requestId);
+    bool ok = false;
+    napi_get_value_bool(env, args[1], &ok);
+
+    char *payload = nullptr;
     size_t len = 0;
-    if (napi_get_value_string_utf8(env, args[0], nullptr, 0, &len) != napi_ok) return nullptr;
-    char *key = new char[len + 1];
-    napi_get_value_string_utf8(env, args[0], key, len + 1, &len);
-    if (napi_get_value_string_utf8(env, args[1], nullptr, 0, &len) != napi_ok) {
-        delete[] key;
-        return nullptr;
+    if (napi_get_value_string_utf8(env, args[2], nullptr, 0, &len) == napi_ok) {
+        payload = new char[len + 1];
+        napi_get_value_string_utf8(env, args[2], payload, len + 1, &len);
     }
-    char *role = new char[len + 1];
-    napi_get_value_string_utf8(env, args[1], role, len + 1, &len);
-    NexioOnDocChromeAction(key, role);
-    delete[] key;
-    delete[] role;
+    NexioOnFileResult(requestId, ok, payload != nullptr ? payload : "");
+    delete[] payload;
     return nullptr;
 }
 
-// ── 主界面位移：顶栏圆钮 / 底栏胶囊与主界面一起被推开 ────────────────────────
-// 主界面在第一个 Compose 实例里按 -PARALLAX×p 左移，而这两块 chrome 是 ArkUI 的兄弟
-// 节点，不跟着发位移就是「内容滑走、按钮钉在原地」。转场期间逐帧发，只有一个整数。
-static napi_ref g_mainMotionRef = nullptr;
+// ── 同步到日历：系统日历只能由 ArkTS 的 calendarManager 写 ───────────────────
+// Kotlin 把逐节课事件发过来，ArkTS 申请权限、写日历后回传 { status, count }。
+static napi_ref g_calendarRef = nullptr;
 
-static napi_value NapiRegisterMainMotion(napi_env env, napi_callback_info info) {
+static napi_value NapiRegisterCalendarSync(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
@@ -438,14 +363,70 @@ static napi_value NapiRegisterMainMotion(napi_env env, napi_callback_info info) 
     napi_typeof(env, args[0], &type);
     if (type != napi_function) return nullptr;
     g_env = env;
-    napi_create_reference(env, args[0], 1, &g_mainMotionRef);
+    napi_create_reference(env, args[0], 1, &g_calendarRef);
+    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "calendar sync registered");
     return nullptr;
 }
 
-static void HostPublishMainMotion(const char *json) {
-    if (g_env == nullptr || g_mainMotionRef == nullptr) return;
+static void HostCalendarRequest(int32_t requestId, const char *payload) {
+    if (g_env == nullptr || g_calendarRef == nullptr) return;
     napi_value callback = nullptr;
-    if (napi_get_reference_value(g_env, g_mainMotionRef, &callback) != napi_ok || callback == nullptr) return;
+    if (napi_get_reference_value(g_env, g_calendarRef, &callback) != napi_ok || callback == nullptr) return;
+    napi_value undefined = nullptr;
+    napi_get_undefined(g_env, &undefined);
+    napi_value argv[2] = {nullptr, nullptr};
+    napi_create_int32(g_env, requestId, &argv[0]);
+    napi_create_string_utf8(g_env, payload, NAPI_AUTO_LENGTH, &argv[1]);
+    napi_value result = nullptr;
+    napi_call_function(g_env, undefined, callback, 2, argv, &result);
+}
+
+extern "C" void NexioOnCalendarHostReady(void (*fn)(int32_t, const char *));
+extern "C" void NexioOnCalendarResult(int32_t requestId, bool ok, const char *payload);
+
+/** ArkTS 侧回传：setCalendarResult(requestId, ok, payload)。 */
+static napi_value NapiSetCalendarResult(napi_env env, napi_callback_info info) {
+    size_t argc = 3;
+    napi_value args[3] = {nullptr, nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    int32_t requestId = 0;
+    napi_get_value_int32(env, args[0], &requestId);
+    bool ok = false;
+    napi_get_value_bool(env, args[1], &ok);
+
+    char *payload = nullptr;
+    size_t len = 0;
+    if (napi_get_value_string_utf8(env, args[2], nullptr, 0, &len) == napi_ok) {
+        payload = new char[len + 1];
+        napi_get_value_string_utf8(env, args[2], payload, len + 1, &len);
+    }
+    NexioOnCalendarResult(requestId, ok, payload != nullptr ? payload : "");
+    delete[] payload;
+    return nullptr;
+}
+
+// ── 网页导入：ArkUI 的 Web 组件只能由 ArkTS 建 ───────────────────────────────
+// Kotlin → ArkTS 发指令（open / evalJs / resolve…），ArkTS → Kotlin 回事件与脚本回调。
+static napi_ref g_webHostRef = nullptr;
+
+static napi_value NapiRegisterWebHost(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    napi_valuetype type = napi_undefined;
+    napi_typeof(env, args[0], &type);
+    if (type != napi_function) return nullptr;
+    g_env = env;
+    napi_create_reference(env, args[0], 1, &g_webHostRef);
+    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "web host registered");
+    return nullptr;
+}
+
+static void HostWebCommand(const char *json) {
+    if (g_env == nullptr || g_webHostRef == nullptr) return;
+    napi_value callback = nullptr;
+    if (napi_get_reference_value(g_env, g_webHostRef, &callback) != napi_ok || callback == nullptr) return;
     napi_value undefined = nullptr;
     napi_get_undefined(g_env, &undefined);
     napi_value argv[1] = {nullptr};
@@ -454,7 +435,25 @@ static void HostPublishMainMotion(const char *json) {
     napi_call_function(g_env, undefined, callback, 1, argv, &result);
 }
 
-extern "C" void NexioOnMainMotionHostReady(void (*fn)(const char *));
+extern "C" void NexioOnWebHostReady(void (*fn)(const char *));
+extern "C" void NexioOnWebHostEvent(const char *json);
+
+/** ArkTS 侧回传：webHostEvent(json)。 */
+static napi_value NapiWebHostEvent(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    char *json = nullptr;
+    size_t len = 0;
+    if (napi_get_value_string_utf8(env, args[0], nullptr, 0, &len) == napi_ok) {
+        json = new char[len + 1];
+        napi_get_value_string_utf8(env, args[0], json, len + 1, &len);
+    }
+    NexioOnWebHostEvent(json != nullptr ? json : "");
+    delete[] json;
+    return nullptr;
+}
 
 // 初始化协程的主线程调度器（Kotlin 侧 @CName("NexioInitMainHandler")）。
 // 不调的话 MainHandler.tsfn 恒为 null，Dispatchers.Main 会内联在调用方线程执行。
@@ -466,9 +465,9 @@ static napi_value Init(napi_env env, napi_value exports) {
     napi_property_descriptor desc[] = {
         {"MainArkUIViewController", nullptr, NapiMainArkUIViewController,
          nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"OverlayArkUIViewController", nullptr, NapiOverlayArkUIViewController,
-         nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setAppEnv", nullptr, NapiSetAppEnv,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setAppInfo", nullptr, NapiSetAppInfo,
          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"registerWallpaperPicker", nullptr, NapiRegisterWallpaperPicker,
          nullptr, nullptr, nullptr, napi_default, nullptr},
@@ -480,25 +479,23 @@ static napi_value Init(napi_env env, napi_value exports) {
          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"registerToast", nullptr, NapiRegisterToast,
          nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"registerTopBar", nullptr, NapiRegisterTopBar,
-         nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"topBarAction", nullptr, NapiTopBarAction,
-         nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"registerBottomBar", nullptr, NapiRegisterBottomBar,
-         nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"bottomBarSelected", nullptr, NapiBottomBarSelected,
-         nullptr, nullptr, nullptr, napi_default, nullptr},
         {"registerOverlay", nullptr, NapiRegisterOverlay,
          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"overlayPopBack", nullptr, NapiOverlayPopBack,
          nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"registerDocChrome", nullptr, NapiRegisterDocChrome,
+        {"registerFilePicker", nullptr, NapiRegisterFilePicker,
          nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"registerDocChromeMotion", nullptr, NapiRegisterDocChromeMotion,
+        {"registerShareHost", nullptr, NapiRegisterShareHost,
          nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"docChromeAction", nullptr, NapiDocChromeAction,
+        {"setFileResult", nullptr, NapiSetFileResult,
          nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"registerMainMotion", nullptr, NapiRegisterMainMotion,
+        {"registerCalendarSync", nullptr, NapiRegisterCalendarSync,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setCalendarResult", nullptr, NapiSetCalendarResult,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"registerWebHost", nullptr, NapiRegisterWebHost,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"webHostEvent", nullptr, NapiWebHostEvent,
          nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
@@ -508,12 +505,12 @@ static napi_value Init(napi_env env, napi_value exports) {
     NexioOnWallpaperPickHostReady(HostRequestWallpaperPick);
     NexioOnHttpHostReady(HostHttpSend);
     NexioOnToastHostReady(HostShowToast);
-    NexioOnTopBarHostReady(HostPublishTopBar);
-    NexioOnBottomBarHostReady(HostPublishBottomBar);
     NexioOnOverlayHostReady(HostPublishOverlay);
-    NexioOnDocChromeHostReady(HostPublishDocChrome);
-    NexioOnDocChromeMotionHostReady(HostPublishDocChromeMotion);
-    NexioOnMainMotionHostReady(HostPublishMainMotion);
+    NexioOnFileHostReady(HostRequestFile);
+    NexioOnShareHostReady(HostShareRequest);
+    NexioOnCalendarHostReady(HostCalendarRequest);
+    NexioOnWebHostReady(HostWebCommand);
+    NexioRegisterAiCrypto();
     return exports;
 }
 
