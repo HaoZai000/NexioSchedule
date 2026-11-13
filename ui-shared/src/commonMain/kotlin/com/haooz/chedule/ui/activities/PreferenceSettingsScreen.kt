@@ -141,7 +141,7 @@ fun PreferenceSettingsScreen(
         mutableStateOf(
             appPrefs.getString(
                 AppMaterialSettings.KEY_APP_MATERIAL,
-                AppMaterialSettings.BALANCED
+                AppMaterialSettings.BEST
             )
         )
     }

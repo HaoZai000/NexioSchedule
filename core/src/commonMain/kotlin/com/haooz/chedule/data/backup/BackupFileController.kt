@@ -33,13 +33,36 @@ interface BackupFileController {
 
     /** 删除 [BackupFileInfo.id] 对应的备份文件。文件不存在或不可写返回 false。 */
     fun deleteBackupFile(id: String): Boolean
+
+    /**
+     * 当前本机备份目录的展示文本。
+     *
+     * 分区存储平台（Android 10+）默认没有可长期读写的公共目录，页面需要把
+     * 「已授权目录 / 私有临时目录」如实显示出来。
+     */
+    fun backupDirectoryLabel(): String = ""
+
+    /** 是否支持让用户选择 / 授权备份目录（Android 用 SAF 目录树）。 */
+    fun canChooseBackupDirectory(): Boolean = false
+
+    /** 当前备份目录是否已获得长期读写授权。 */
+    fun isBackupDirectoryAuthorized(): Boolean = true
+
+    /**
+     * 拉起系统目录选择器，让用户授权备份目录。
+     *
+     * @param onResult true 表示已获得可写授权；取消或失败返回 false
+     */
+    fun chooseBackupDirectory(onResult: (Boolean) -> Unit) {
+        onResult(false)
+    }
 }
 
 /**
  * 一条本地备份的展示元数据（扫描目录时解析文件名 / 时间 / 大小 / 是否全量得出）。
  */
 data class BackupFileInfo(
-    /** 平台不透明句柄（Android = 文件绝对路径）；传回控制器做读/删 */
+    /** 平台不透明句柄（Android 旧目录 = 绝对路径，SAF 目录 = content URI）；传回控制器做读/删 */
     val id: String,
     /** 文件名（含 .json 后缀，作为列表 key 与删除弹窗文案） */
     val fileName: String,
@@ -60,7 +83,7 @@ data class BackupFileInfo(
 /** 解析单个备份文件前允许的最大体积，避免把超大/无关文件整个读进内存。 */
 const val MAX_BACKUP_PARSE_BYTES: Long = 8L * 1024 * 1024
 
-/** 备份目录名（Android 公共 Download / 私有目录下的子目录） */
+/** 备份目录名（旧版 Android 公共 / 私有 Download 下的子目录；SAF 目录由用户自选） */
 const val BACKUP_DIR_NAME: String = "Neixo_Schedule"
 
 /** 文件名形如「<课表名>_yyyyMMdd_HHmmss」 */

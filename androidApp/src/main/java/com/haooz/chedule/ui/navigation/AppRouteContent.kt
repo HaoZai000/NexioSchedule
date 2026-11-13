@@ -244,6 +244,7 @@ fun AppRouteContent(
             val context = LocalContext.current
             WebDavSettingsRoute(
                 router = router,
+                backupFileController = remember { AndroidBackupFileController(context) },
                 onHolidayDataChanged = { CourseReminderHelper.onHolidayDataChanged(context) },
             )
         }

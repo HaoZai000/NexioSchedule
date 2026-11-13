@@ -119,6 +119,7 @@ import com.haooz.chedule.ui.activities.TimeConfigCardBounds
 import com.haooz.chedule.ui.activities.UpdateHeroChromeState
 import com.haooz.chedule.ui.activities.UpdatePreferencesScreen
 import com.haooz.chedule.ui.activities.UpdateSettingsScreen
+import com.haooz.chedule.ui.activities.WebDavBottomActionState
 import com.haooz.chedule.ui.activities.WebDavSettingsScreen
 import com.haooz.chedule.ui.activities.WebImportScreen
 import com.haooz.chedule.ui.activities.WidgetCustomizeOverlay
@@ -1131,14 +1132,18 @@ fun CourseReminderRoute(
     }
 }
 
-/** WebDAV 配置路由：只管服务器参数与测试连接，备份/恢复统一在备份中心。 */
+/** WebDAV 配置路由：服务器参数、连接测试，以及底部「立即恢复」最新云端备份。 */
 @Composable
 fun WebDavSettingsRoute(
     router: AppRouter,
+    backupFileController: BackupFileController = NoopBackupFileController,
     onHolidayDataChanged: () -> Unit = {},
 ) {
     var connected by remember { mutableStateOf(false) }
     var onTestConnection by remember { mutableStateOf({}) }
+    // 「立即恢复」画在页面外的浮层上（玻璃要折射页面内容），状态由页面写入
+    val bottomAction = remember { WebDavBottomActionState() }
+    val hapticFeedback = LocalHapticFeedback.current
 
     NativeDocumentActionEffect(NativeDocumentAction(
         symbol = if (connected) "checkmark" else "play.fill",
@@ -1162,12 +1167,25 @@ fun WebDavSettingsRoute(
                 iconTint = if (connected) Color(0xFF4CAF50) else Color.Unspecified,
             )
         },
+        overlay = { backdrop ->
+            BottomActionButton(
+                text = bottomAction.busy ?: BackupStr.restoreNow(),
+                enabled = bottomAction.enabled,
+                backdrop = backdrop,
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                    bottomAction.onClick?.invoke()
+                },
+            )
+        },
     ) { scrollBehavior, _ ->
         WebDavSettingsScreen(
             scrollBehavior = scrollBehavior,
             onConnectedChange = { connected = it },
             onTestConnectionReady = { onTestConnection = it },
             onHolidayDataChanged = onHolidayDataChanged,
+            bottomAction = bottomAction,
+            backupFileController = backupFileController,
         )
     }
 }

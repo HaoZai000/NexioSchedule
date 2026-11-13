@@ -187,17 +187,18 @@ class WebDavManagerContractTest {
 
         // 根目录 + 每一级子目录各探一次（已在 → 不 MKCOL），最后 PUT
         assertEquals(listOf("PROPFIND", "PROPFIND", "PROPFIND", "PUT"), http.requests.map { it.method })
-        assertEquals("https://dav.example.com/remote.php/dav", http.requests[0].url)
+        // 集合地址统一带尾斜杠：避免服务端 301 后把 PROPFIND 降级成 GET
+        assertEquals("https://dav.example.com/remote.php/dav/", http.requests[0].url)
         assertEquals(
-            "https://dav.example.com/remote.php/dav/%E6%88%91%E7%9A%84%E7%BD%91%E7%9B%98",
+            "https://dav.example.com/remote.php/dav/%E6%88%91%E7%9A%84%E7%BD%91%E7%9B%98/",
             http.requests[1].url,
         )
         assertEquals(
-            "https://dav.example.com/remote.php/dav/%E6%88%91%E7%9A%84%E7%BD%91%E7%9B%98/%E8%AF%BE%E8%A1%A8%E5%A4%87%E4%BB%BD",
+            "https://dav.example.com/remote.php/dav/%E6%88%91%E7%9A%84%E7%BD%91%E7%9B%98/%E8%AF%BE%E8%A1%A8%E5%A4%87%E4%BB%BD/",
             http.requests[2].url,
         )
         val put = http.requests[3]
-        assertTrue(put.url.startsWith(http.requests[2].url + "/backup_"), "实际: ${put.url}")
+        assertTrue(put.url.startsWith(http.requests[2].url + "backup_"), "实际: ${put.url}")
         assertTrue(put.url.endsWith(".json"))
     }
 
@@ -228,9 +229,12 @@ class WebDavManagerContractTest {
         val r = http.requests.single()
         assertEquals("PROPFIND", r.method)
         // 探的是**备份目录**，不是服务器根 —— 自定义路径填错要在这里就暴露
-        assertEquals("https://dav.example.com/remote.php/dav/NexioSchedule/backups", r.url)
+        assertEquals("https://dav.example.com/remote.php/dav/NexioSchedule/backups/", r.url)
         assertEquals("Basic dXNlcjpwYXNz", r.headers["Authorization"])
         assertEquals("0", r.headers["Depth"])
+        // 标准 PROPFIND 请求体：部分服务端不带 body 会 400
+        assertEquals("application/xml; charset=utf-8", r.contentType)
+        assertTrue(r.body!!.contains("propfind"), "实际: ${r.body}")
     }
 
     @Test
@@ -240,14 +244,14 @@ class WebDavManagerContractTest {
 
         // 目录 404 但根目录可达 → 目录会在备份时自动创建
         http = FakeHttp().also { manager.http = it }
-        http.on("PROPFIND", urlSuffix = "/backups", code = 404)
+        http.on("PROPFIND", urlSuffix = "/backups/", code = 404)
         http.on("PROPFIND", code = 207)
         assertEquals("连接成功（目录将自动创建）", manager.testConnection().getOrNull())
         assertEquals(2, http.requests.size, "404 时要再探一次根目录以区分「地址错了」")
 
         // 目录与根目录都 404 之外的错 → 报服务器错误，不能误报「连接成功」
         http = FakeHttp().also { manager.http = it }
-        http.on("PROPFIND", urlSuffix = "/backups", code = 404)
+        http.on("PROPFIND", urlSuffix = "/backups/", code = 404)
         http.on("PROPFIND", code = 500)
         assertTrue(manager.testConnection().exceptionOrNull()?.message!!.contains("服务器返回: 500"))
     }
@@ -267,15 +271,15 @@ class WebDavManagerContractTest {
         // 三级 PROPFIND（根 / NexioSchedule / backups）+ 一次 PUT，顺序与 URL 都要对
         assertEquals(listOf("PROPFIND", "PROPFIND", "PROPFIND", "PUT"), http.requests.map { it.method })
         assertEquals(
-            "https://dav.example.com/remote.php/dav",
+            "https://dav.example.com/remote.php/dav/",
             http.requests[0].url,
         )
         assertEquals(
-            "https://dav.example.com/remote.php/dav/NexioSchedule",
+            "https://dav.example.com/remote.php/dav/NexioSchedule/",
             http.requests[1].url,
         )
         assertEquals(
-            "https://dav.example.com/remote.php/dav/NexioSchedule/backups",
+            "https://dav.example.com/remote.php/dav/NexioSchedule/backups/",
             http.requests[2].url,
         )
 
@@ -313,9 +317,9 @@ class WebDavManagerContractTest {
         )
         assertEquals(
             listOf(
-                "https://dav.example.com/remote.php/dav",
-                "https://dav.example.com/remote.php/dav/NexioSchedule",
-                "https://dav.example.com/remote.php/dav/NexioSchedule/backups",
+                "https://dav.example.com/remote.php/dav/",
+                "https://dav.example.com/remote.php/dav/NexioSchedule/",
+                "https://dav.example.com/remote.php/dav/NexioSchedule/backups/",
             ),
             http.requests.filter { it.method == "MKCOL" }.map { it.url },
         )
@@ -336,7 +340,7 @@ class WebDavManagerContractTest {
 
     @Test
     fun `listBackups 用 Depth 1 并只认 backup_ 前缀的 json`() = runTest {
-        http.on("PROPFIND", urlSuffix = "/backups", code = 207, body = propfindBody)
+        http.on("PROPFIND", urlSuffix = "/backups/", code = 207, body = propfindBody)
         val backups = manager.listBackups()
         assertEquals(
             listOf("backup_20261001_120000", "backup_20260901_090000"),
@@ -349,6 +353,54 @@ class WebDavManagerContractTest {
         assertEquals("1", http.requests.single().headers["Depth"])
         // 展示时间由 backupId 推出
         assertEquals("2026-10-01 12:00:00", backups[0].backupTime)
+    }
+
+    /** `<href>` 的命名空间前缀不是协议约定的一部分：默认命名空间 / lp1 / ns0 都必须能解析。 */
+    @Test
+    fun `列表解析不依赖命名空间前缀`() = runTest {
+        val body = """
+            <?xml version="1.0"?>
+            <multistatus xmlns="DAV:">
+              <response><href>/dav/backups/</href></response>
+              <response><lp1:href xmlns:lp1="DAV:">/dav/backups/backup_20261001_120000.json</lp1:href></response>
+              <response><ns0:href xmlns:ns0="DAV:">https://dav.example.com/dav/backups/backup_20260901_090000.json</ns0:href></response>
+            </multistatus>
+        """.trimIndent()
+        http.on("PROPFIND", urlSuffix = "/backups/", code = 207, body = body)
+        assertEquals(
+            listOf("backup_20261001_120000", "backup_20260901_090000"),
+            manager.listBackups().map { it.backupId },
+        )
+    }
+
+    /**
+     * PROPFIND 被重定向成 GET 时，拿到的是 HTML 目录页。
+     * 旧实现会把它当「空目录」，用户只看到「暂无备份记录」；现在必须报错。
+     */
+    @Test
+    fun `云端返回 HTML 目录页时报错而不是空列表`() = runTest {
+        http.on(
+            "PROPFIND",
+            urlSuffix = "/backups/",
+            code = 200,
+            body = """<html><body><a href="backup_20261001_120000.json">x</a></body></html>""",
+        )
+        val listed = manager.listBackupsResult()
+        assertTrue(listed.isFailure, "实际: $listed")
+        assertTrue(listed.exceptionOrNull()!!.message!!.contains("WebDAV"), "实际: ${listed.exceptionOrNull()?.message}")
+
+        http = FakeHttp().also { manager.http = it }
+        http.on("PROPFIND", code = 200, body = "<html></html>")
+        val connected = manager.testConnection()
+        assertTrue(connected.isFailure, "实际: $connected")
+    }
+
+    @Test
+    fun `云端列表失败保留状态码`() = runTest {
+        http.on("PROPFIND", urlSuffix = "/backups/", code = 401)
+        val result = manager.listBackupsResult()
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()!!.message!!.contains("401"))
     }
 
     /**
@@ -371,12 +423,12 @@ class WebDavManagerContractTest {
         val backups = manager.listBackups()
         assertEquals(listOf("backup_20261001_120000"), backups.map { it.backupId })
         // PROPFIND 打在自定义目录上，而不是写死的 NexioSchedule/backups
-        assertTrue(http.requests.single().url.endsWith("%E9%9A%8F%E4%BE%BF%E4%BB%80%E4%B9%88%E5%90%8D%E5%AD%97/%E6%B7%B1%E5%B1%82%E7%9B%AE%E5%BD%95"), "实际: ${http.requests.single().url}")
+        assertTrue(http.requests.single().url.endsWith("%E9%9A%8F%E4%BE%BF%E4%BB%80%E4%B9%88%E5%90%8D%E5%AD%97/%E6%B7%B1%E5%B1%82%E7%9B%AE%E5%BD%95/"), "实际: ${http.requests.single().url}")
     }
 
     @Test
     fun `restoreLatestBackup 取最新那个并触发回调`() = runTest {
-        http.on("PROPFIND", urlSuffix = "/backups", code = 207, body = propfindBody)
+        http.on("PROPFIND", urlSuffix = "/backups/", code = 207, body = propfindBody)
         val payload = """
             {"version":1,"backupTime":"2026-10-01 12:00:00","backupId":"backup_20261001_120000",
              "data":{"schedule_names":"[\"甲\"]","current_schedule_id":"甲","schedule_甲_courses":"[]",
@@ -420,7 +472,7 @@ class WebDavManagerContractTest {
      */
     @Test
     fun `云端备份含孤儿时间配置绑定也能恢复成功`() = runTest {
-        http.on("PROPFIND", urlSuffix = "/backups", code = 207, body = propfindBody)
+        http.on("PROPFIND", urlSuffix = "/backups/", code = 207, body = propfindBody)
         // 与真实 41 键备份同构的云端信封（data 里带孤儿绑定）
         val payload = """
             {"version":1,"backupTime":"2026-10-01 11:36:00","backupId":"backup_20261001_113600",
@@ -453,13 +505,13 @@ class WebDavManagerContractTest {
 
     @Test
     fun `restoreLatestBackup 的 404 与空列表分支`() = runTest {
-        http.on("PROPFIND", urlSuffix = "/backups", code = 207, body = propfindBody)
+        http.on("PROPFIND", urlSuffix = "/backups/", code = 207, body = propfindBody)
         http.on("GET", code = 404)
         val r404 = manager.restoreLatestBackup(com.haooz.chedule.data.repo.CourseRepository.getInstance())
         assertTrue(r404 is RestoreResult.Error && r404.message.contains("不存在"))
 
         http = FakeHttp().also { manager.http = it }
-        http.on("PROPFIND", urlSuffix = "/backups", code = 207, body = "<d:multistatus/>")
+        http.on("PROPFIND", urlSuffix = "/backups/", code = 207, body = "<d:multistatus/>")
         val empty = manager.restoreLatestBackup(com.haooz.chedule.data.repo.CourseRepository.getInstance())
         assertTrue(empty is RestoreResult.Error && empty.message.contains("没有备份"))
     }

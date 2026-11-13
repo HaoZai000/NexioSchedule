@@ -32,7 +32,6 @@ import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.CourseStorage
 import com.haooz.chedule.data.platform.toByteArray
 import com.haooz.chedule.i18n.L
-import com.haooz.chedule.ui.activities.BackupAutomation
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.main.CourseScheduleApp
 import com.haooz.chedule.ui.activities.today.TodayAssistantCard
@@ -195,7 +194,6 @@ internal fun NexioIosMain(host: IosAppHost) {
     val consented by PrivacyConsent.consented.collectAsState()
     // 统计上报：已同意的回访用户，冷启动即上报（active + 一次性 install），对齐 Android onCreate
     LaunchedEffect(Unit) {
-        BackupAutomation.install(backupFileController)
         if (PrivacyConsent.hasConsented()) {
             StatsReporter.reportActive()
             StatsReporter.reportInstallOnce()
@@ -411,6 +409,7 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
         // WebDAV：备份/恢复本体已在 :core；恢复成功后要重排提醒
         AppRoute.WebDavSettings -> WebDavSettingsRoute(
             router = router,
+            backupFileController = backupFileController,
             onHolidayDataChanged = onHolidayDataChanged,
         )
         // iOS 文件选择器（UIDocumentPicker）+ 三条口令导入

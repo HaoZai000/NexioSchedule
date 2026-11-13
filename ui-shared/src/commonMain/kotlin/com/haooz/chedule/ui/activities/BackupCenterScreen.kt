@@ -43,7 +43,6 @@ import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.model.TeachingWeekReorganization
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
-import com.haooz.chedule.data.platform.synchronizedOn
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.util.formatCompactStamp
@@ -65,11 +64,7 @@ import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.scheduleViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
-import kotlin.concurrent.Volatile
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
@@ -122,21 +117,15 @@ private val DangerRed = Color(0xFFF44336)
 /** 历史默认展开条数，超出走「查看全部」。 */
 private const val HISTORY_PREVIEW = 5
 
-// ── 偏好与自动备份 ───────────────────────────────────────────
+// ── 偏好 ────────────────────────────────────────────────────
 
 /** 备份页的开关与「最近一次备份」时间戳；不进全量备份，恢复后保持本机设置。 */
 object BackupCenterPrefs {
     private const val STORE = "backup_center"
-    private const val KEY_AUTO_BACKUP = "auto_backup_enabled"
     private const val KEY_SNAPSHOT = "snapshot_before_restore"
     private const val KEY_LAST_BACKUP = "last_backup_at"
-    private const val KEY_LAST_AUTO = "last_auto_backup_at"
 
     private val prefs get() = AppStorage.store(STORE)
-
-    var autoBackupEnabled: Boolean
-        get() = prefs.getBoolean(KEY_AUTO_BACKUP, true)
-        set(value) = prefs.edit { putBoolean(KEY_AUTO_BACKUP, value) }
 
     var snapshotBeforeRestore: Boolean
         get() = prefs.getBoolean(KEY_SNAPSHOT, true)
@@ -145,10 +134,6 @@ object BackupCenterPrefs {
     var lastBackupAt: Long
         get() = prefs.getLong(KEY_LAST_BACKUP, 0L)
         set(value) = prefs.edit { putLong(KEY_LAST_BACKUP, value) }
-
-    var lastAutoBackupAt: Long
-        get() = prefs.getLong(KEY_LAST_AUTO, 0L)
-        set(value) = prefs.edit { putLong(KEY_LAST_AUTO, value) }
 
     /** 最近一次备份时间；组合期读它，备份完成后设置页入口摘要即时刷新。 */
     private val lastBackupTick = mutableStateOf(0L)
@@ -169,67 +154,6 @@ object BackupCenterPrefs {
             days == 1L -> BackupStr.backedUpYesterday()
             else -> BackupStr.backedUpDaysN(days)
         }
-    }
-}
-
-/** 课表变更后静默补一份本机全量备份；平台没注入文件能力时整体空转。 */
-object BackupAutomation {
-    private const val AUTO_PREFIX = "全部备份_自动_"
-    private const val DEBOUNCE_MS = 20_000L
-    private const val MIN_INTERVAL_MS = 12L * 60 * 60 * 1000
-    private const val KEEP = 7
-
-    @Volatile
-    private var controller: BackupFileController = NoopBackupFileController
-
-    @Volatile
-    private var started = false
-
-    @Volatile
-    private var pending: Job? = null
-
-    private val lock = Any()
-    private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
-
-    fun install(fileController: BackupFileController) {
-        controller = fileController
-    }
-
-    /** 只注册一次；[CourseRepository] 是单例，所有写口都经过它。 */
-    fun start() {
-        val first = synchronizedOn(lock) {
-            if (started) false else {
-                started = true
-                true
-            }
-        }
-        if (!first) return
-        CourseRepository.getInstance().addCourseChangedListener { _, _ -> schedule() }
-    }
-
-    private fun schedule() {
-        if (!BackupCenterPrefs.autoBackupEnabled || controller === NoopBackupFileController) return
-        synchronizedOn(lock) {
-            pending?.cancel()
-            pending = scope.launch {
-                delay(DEBOUNCE_MS)
-                runCatching { writeAutoBackup() }
-            }
-        }
-    }
-
-    private suspend fun writeAutoBackup() = withContext(ioDispatcher) {
-        val now = Clock.System.now().toEpochMilliseconds()
-        if (now - BackupCenterPrefs.lastAutoBackupAt < MIN_INTERVAL_MS) return@withContext
-        val target = controller
-        val json = encodeBackupJson(CourseRepository().exportAllPreferences())
-        val fileName = "$AUTO_PREFIX${nowLocalDateTime().formatCompactStamp()}.json"
-        if (!target.saveBackupFile(fileName, json)) return@withContext
-        BackupCenterPrefs.lastAutoBackupAt = now
-        BackupCenterPrefs.noteBackupNow()
-        val auto = runCatching { target.listBackups() }.getOrDefault(emptyList())
-            .filter { it.fileName.startsWith(AUTO_PREFIX) }
-        auto.drop(KEEP).forEach { runCatching { target.deleteBackupFile(it.id) } }
     }
 }
 
@@ -364,7 +288,7 @@ private suspend fun writeBackup(
 }
 
 /** 覆盖恢复前把当前数据落成一份本机全量备份。 */
-private suspend fun createSnapshot(controller: BackupFileController): Result<String> =
+internal suspend fun createSnapshot(controller: BackupFileController): Result<String> =
     withContext(ioDispatcher) {
         runCatching {
             val fileName = snapshotFileName()
@@ -443,6 +367,12 @@ private class BackupCenterState(
     var lastSyncAt by mutableStateOf(webDav.lastSyncTime)
         private set
 
+    /** 本机备份目录展示文本，以及是否已获得 SAF 长期授权。 */
+    var backupDirLabel by mutableStateOf("")
+        private set
+    var backupDirAuthorized by mutableStateOf(false)
+        private set
+
     /** 进行中的操作文案；直接落到悬浮按钮上，页面其余部分只关心是否忙碌。 */
     var busy: String?
         get() = bottomAction.busy
@@ -459,6 +389,7 @@ private class BackupCenterState(
 
     val localAvailable: Boolean get() = files !is NoopBackupFileController
     val cloudReady: Boolean get() = webDav.isConfigured()
+    val canChooseBackupDirectory: Boolean get() = files.canChooseBackupDirectory()
     val visibleRecords: List<BackupRecord> get() = if (expanded) records else records.take(HISTORY_PREVIEW)
 
     fun refresh() {
@@ -467,16 +398,37 @@ private class BackupCenterState(
             val local = withContext(ioDispatcher) {
                 runCatching { files.listBackups() }.getOrDefault(emptyList())
             }.map { it.toRecord() }
-            val cloud = if (cloudReady) {
-                runCatching { webDav.listBackups() }.getOrDefault(emptyList()).map { it.toRecord() }
-            } else {
-                emptyList()
+            val dir = withContext(ioDispatcher) {
+                files.backupDirectoryLabel() to files.isBackupDirectoryAuthorized()
             }
+            val cloudResult = if (cloudReady) {
+                webDav.listBackupsResult()
+            } else {
+                Result.success(emptyList<BackupInfo>())
+            }
+            val cloud = cloudResult.getOrDefault(emptyList()).map { it.toRecord() }
+            backupDirLabel = dir.first
+            backupDirAuthorized = dir.second
             records = (local + cloud).sortedByDescending { it.stamp }
             localCount = local.size
             cloudCount = cloud.size
             lastSyncAt = webDav.lastSyncTime
             scanning = false
+        }
+    }
+
+    /** 让用户授权一个可长期读写的备份目录（Android SAF）；授权后本机备份不再受卸载影响。 */
+    fun chooseBackupDirectory() {
+        if (!files.canChooseBackupDirectory()) return
+        files.chooseBackupDirectory { granted ->
+            scope.launch {
+                backupDirLabel = withContext(ioDispatcher) { files.backupDirectoryLabel() }
+                backupDirAuthorized = files.isBackupDirectoryAuthorized()
+                showToast(
+                    if (granted) BackupStr.backupFolderAuthorized() else BackupStr.backupFolderDenied()
+                )
+                refresh()
+            }
         }
     }
 
@@ -899,6 +851,17 @@ fun BackupCenterScreen(
                             },
                             onClick = { appRouter.navigate(AppRoute.WebDavSettings) },
                         )
+                        if (state.canChooseBackupDirectory) {
+                            ArrowPreference(
+                                title = BackupStr.backupFolder(),
+                                summary = if (state.backupDirAuthorized) {
+                                    BackupStr.backupFolderAuthorizedN(state.backupDirLabel)
+                                } else {
+                                    BackupStr.backupFolderUnauthorizedN(state.backupDirLabel)
+                                },
+                                onClick = { state.chooseBackupDirectory() },
+                            )
+                        }
                         ArrowPreference(
                             title = BackupStr.restoreFromFile(),
                             summary = BackupStr.manualFilePickSummary(),
@@ -986,7 +949,7 @@ private fun StatusPill(text: String, warn: Boolean) {
 
 /** 弹窗统一壳：[onDismiss] 为 null 时只留一颗确认按钮。 */
 @Composable
-private fun BackupDialog(
+internal fun BackupDialog(
     show: Boolean,
     title: String,
     summary: String,
@@ -1039,7 +1002,7 @@ private fun BackupDialog(
 }
 
 /** 恢复确认摘要：全量给「新增 / 覆盖 / 移除」差异，单课表说清新建行为。 */
-private fun restoreSummary(
+internal fun restoreSummary(
     label: String,
     data: Map<String, Any>?,
     single: BackupPayload.Single?,

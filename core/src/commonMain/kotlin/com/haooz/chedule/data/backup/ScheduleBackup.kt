@@ -2,6 +2,7 @@ package com.haooz.chedule.data.backup
 
 import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.model.TeachingWeekReorganization
+import com.haooz.chedule.data.platform.HttpResult
 import com.haooz.chedule.data.platform.HttpService
 import com.haooz.chedule.data.platform.HttpTimeouts
 import com.haooz.chedule.data.platform.NexioLog
@@ -43,8 +44,9 @@ import kotlinx.serialization.json.JsonPrimitive
 //  序列化入口，备份格式由它们决定；格式改动只需看那两处。
 //
 //  ⚠ 数据兼容红线：prefs 文件名 `webdav_config` 与原 4 个键名、备份 JSON 字段名逐字未变；
-//  请求方法 / `Authorization` / `Depth` 头 / 状态码分支（2xx / 401 / 403 / 404 / 405）/
-//  `MKCOL` 重试次数（2 次）与退避（1s、2s）全部照抄，超时 connect 10s / read 30s。
+//  `Authorization` / `Depth` 头 / 状态码分支（2xx / 401 / 403 / 404 / 405）/
+//  `MKCOL` 重试次数（2 次）与退避（1s、2s）保持原语义，超时 connect 10s / read 30s。
+//  目录请求统一补尾斜杠，并显式发送标准 PROPFIND 请求体（服务端兼容性所需）。
 //  唯一可观测差异：失败文案不含 reason phrase，为「服务器返回: <code>」。
 // ════════════════════════════════════════════════════════════════════════
 
@@ -191,6 +193,35 @@ class WebDavManager(
 
         /** 从未设置过路径时的兜底值：迁移前的两级目录，保证老用户的云端备份还能读到。 */
         const val DEFAULT_REMOTE_PATH = "NexioSchedule/backups"
+
+        /**
+         * 标准 PROPFIND 请求体。
+         *
+         * ⚠ 早期实现不带 body：坚果云/Nextcloud 能接受，但 IIS、部分 NAS 会直接 400，
+         * 且无法拿到 `getlastmodified` 等属性。显式声明 `prop` 是兼容性最好的写法。
+         */
+        private val PROPFIND_BODY = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <d:propfind xmlns:d="DAV:">
+              <d:prop>
+                <d:displayname/>
+                <d:resourcetype/>
+                <d:getcontentlength/>
+                <d:getlastmodified/>
+              </d:prop>
+            </d:propfind>
+        """.trimIndent()
+
+        /**
+         * 提取 `<...:href>` 的文本。
+         *
+         * ⚠ 命名空间前缀**不一定是 D**：默认命名空间（`<href>`）、`d:`、`lp1:`、`ns0:`
+         * 都出现过。只匹配 `D:href` 会让这些服务端的备份列表恒为空（看起来像没有恢复入口）。
+         */
+        private val HREF_REGEX = Regex(
+            """<(?:[A-Za-z_][\w.-]*:)?href\b[^>]*>\s*([^<]+?)\s*</(?:[A-Za-z_][\w.-]*:)?href\s*>""",
+            RegexOption.IGNORE_CASE,
+        )
     }
 
     var serverUrl: String
@@ -242,6 +273,27 @@ class WebDavManager(
     // ============ WebDAV 基础操作 ============
 
     /**
+     * 目录（collection）URL 统一补尾斜杠。
+     *
+     * ⚠ WebDAV 的集合地址按惯例以 `/` 结尾。很多服务端对不带斜杠的目录返回 301，
+     * 而 OkHttp 会把 301 的 `PROPFIND` 降级成 `GET` —— 于是连接测试误报成功、
+     * 备份列表解析到 HTML 目录页而为空。
+     */
+    private fun collectionUrl(url: String): String = if (url.endsWith("/")) url else "$url/"
+
+    private suspend fun propfind(url: String, depth: String): HttpResult = http.request(
+        method = "PROPFIND",
+        url = collectionUrl(url),
+        body = PROPFIND_BODY,
+        contentType = "application/xml; charset=utf-8",
+        headers = authHeaders(mapOf("Depth" to depth)),
+    )
+
+    /** PROPFIND 的响应体必须是 multistatus（HTML 目录页说明请求被重定向成了 GET）。 */
+    private fun isDavMultistatus(body: String): Boolean =
+        body.isBlank() || body.contains("multistatus", ignoreCase = true)
+
+    /**
      * 探测**备份目录本身**（不只是服务器根）——自定义路径填错时，这里就要报错，
      * 而不是等到备份时才炸。
      */
@@ -249,25 +301,20 @@ class WebDavManager(
         try {
             val authFail = Result.failure<String>(Exception("认证失败，请检查用户名和密码"))
             val dir = backupDirUrl()
-            val response = http.request(
-                method = "PROPFIND",
-                url = dir,
-                headers = authHeaders(mapOf("Depth" to "0")),
-            )
+            val response = propfind(dir, depth = "0")
             when {
+                response.isSuccessful && !isDavMultistatus(response.text) ->
+                    Result.failure(Exception("服务器返回的不是 WebDAV 响应，请确认地址指向 WebDAV 目录"))
                 response.isSuccessful -> Result.success("连接成功")
                 response.code == 401 -> authFail
                 response.code == 403 -> Result.failure(Exception("无访问权限，请检查账号权限或备份路径"))
                 // 路径留空（= 直接放根目录）时两者是同一个 URL，没必要再探一次
-                response.code == 404 && dir == serverUrl -> Result.success("连接成功（目录将自动创建）")
+                response.code == 404 && collectionUrl(dir) == collectionUrl(serverUrl) ->
+                    Result.success("连接成功（目录将自动创建）")
                 response.code == 404 -> {
                     // 404 可能是「路径还没建」，也可能是「服务器地址根本不对」——
                     // 再探一次根目录把两者分开，否则地址错了也会报「连接成功」。
-                    val root = http.request(
-                        method = "PROPFIND",
-                        url = serverUrl,
-                        headers = authHeaders(mapOf("Depth" to "0")),
-                    )
+                    val root = propfind(serverUrl, depth = "0")
                     when {
                         root.isSuccessful || root.code == 404 || root.code == 405 ->
                             Result.success("连接成功（目录将自动创建）")
@@ -284,14 +331,8 @@ class WebDavManager(
         }
     }
 
-    private suspend fun dirExists(url: String): Boolean {
-        val response = http.request(
-            method = "PROPFIND",
-            url = url,
-            headers = authHeaders(mapOf("Depth" to "0")),
-        )
-        return response.isSuccessful
-    }
+    private suspend fun dirExists(url: String): Boolean =
+        propfind(url, depth = "0").isSuccessful
 
     /** @param retries 与迁移前一致（共 3 次尝试，退避 1s、2s）。 */
     private suspend fun mkcol(url: String, retries: Int = 2): Boolean {
@@ -303,7 +344,8 @@ class WebDavManager(
             }
             val response = http.request(
                 method = "MKCOL",
-                url = url,
+                // 集合地址带尾斜杠，避免服务端 301 后再把 MKCOL 改写成别的请求
+                url = collectionUrl(url),
                 headers = authHeaders(),
             )
             // 405 = 已存在（WebDAV 规范要求 MKCOL 对已存在资源返回 405）
@@ -396,7 +438,9 @@ class WebDavManager(
         ioDispatcher
     ) {
         try {
-            val backups = listBackups()
+            val backups = listBackupsResult().getOrElse {
+                return@withContext RestoreResult.Error(it.message ?: "读取云端备份失败")
+            }
             if (backups.isEmpty()) {
                 return@withContext RestoreResult.Error("云端没有备份文件")
             }
@@ -485,40 +529,48 @@ class WebDavManager(
 
     // ============ 备份列表 ============
 
-    suspend fun listBackups(): List<BackupInfo> = withContext(ioDispatcher) {
+    /** 只要列表本身；失败时按「空列表」处理，调用方拿不到失败原因。 */
+    suspend fun listBackups(): List<BackupInfo> = listBackupsResult().getOrDefault(emptyList())
+
+    /**
+     * 列出云端备份，并保留失败原因。
+     *
+     * 备份中心用它区分「目录确实是空的」和「请求失败/认证失败」——
+     * 两者都返回空列表时，用户只会看到「暂无备份记录」，误以为 WebDAV 没有恢复入口。
+     */
+    suspend fun listBackupsResult(): Result<List<BackupInfo>> = withContext(ioDispatcher) {
         try {
-            val response = http.request(
-                method = "PROPFIND",
-                url = backupDirUrl(),
-                headers = authHeaders(mapOf("Depth" to "1")),
-            )
-            if (!response.isSuccessful) return@withContext emptyList()
+            val response = propfind(backupDirUrl(), depth = "1")
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(
+                    Exception("服务器返回: ${response.code}")
+                )
+            }
+            if (!isDavMultistatus(response.text)) {
+                return@withContext Result.failure(
+                    Exception("服务器返回的不是 WebDAV 响应，请确认地址指向 WebDAV 目录")
+                )
+            }
 
-            val body = response.text
             val backups = mutableListOf<BackupInfo>()
-
-            val hrefRegex = Regex("<D:href>([^<]+)</D:href>", RegexOption.IGNORE_CASE)
-            val matches = hrefRegex.findAll(body)
-
-            for (match in matches) {
-                val href = match.groupValues[1]
-                val fileName = href.substringAfterLast("/")
-
+            for (match in HREF_REGEX.findAll(response.text)) {
+                // href 可能是绝对地址、带查询串或百分号编码；只取最后一段文件名
+                val fileName = match.groupValues[1]
+                    .substringBefore('?')
+                    .substringAfterLast('/')
                 if (fileName.startsWith(BACKUP_FILE_PREFIX) && fileName.endsWith(BACKUP_FILE_SUFFIX)) {
-                    val backupId = fileName.removeSuffix(BACKUP_FILE_SUFFIX)
                     backups.add(
                         BackupInfo(
-                            backupId = backupId,
-                            fileName = fileName
+                            backupId = fileName.removeSuffix(BACKUP_FILE_SUFFIX),
+                            fileName = fileName,
                         )
                     )
                 }
             }
-
-            backups
+            Result.success(backups)
         } catch (e: Exception) {
             NexioLog.e(TAG, "List backups exception", e)
-            emptyList()
+            Result.failure(Exception("读取云端备份失败: ${e.message}"))
         }
     }
 

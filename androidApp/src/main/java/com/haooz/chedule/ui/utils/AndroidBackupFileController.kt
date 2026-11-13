@@ -1,16 +1,25 @@
 package com.haooz.chedule.ui.utils
 
 import android.app.Activity
+import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.provider.DocumentsContract
+import android.provider.DocumentsContract.Document
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import com.haooz.chedule.data.backup.BACKUP_DIR_NAME
 import com.haooz.chedule.data.backup.BACKUP_NAME_REGEX
 import com.haooz.chedule.data.backup.BackupFileController
@@ -30,19 +39,13 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
- * [BackupFileController] 的 Android 实现 —— 包装备份目录扫描（`java.io.File` + 公共
- * Download / 应用私有目录）、SAF 系统文件选择器（`ActivityResultContracts.OpenDocument`
- * + `contentResolver`）、备份文件的写 / 读 / 删。
+ * [BackupFileController] 的 Android 实现。
  *
- * 同 [AndroidDiagnosticRecorder] / [AndroidUpdateController] / [AndroidReminderController]
- * 的套路：方法都带 `context`，本层在构造时捕获宿主注入的 context，接口层保持无参
- * （`:ui-shared` 的「本地备份」页只依赖跨平台接口，commonMain 里没有 android / java import）。
- * 宿主（AppRouteContent 的 LocalBackup 路由 / TabletSettingsScreen 的 androidPane）在调用点
- * 创建本实例并注入：`backupFileController = remember { AndroidBackupFileController(context) }`。
+ * 本机备份默认落在公共 `Download/Neixo_Schedule`：
+ * - Android 10+ 通过 MediaStore.Downloads 写入，不需要存储权限，卸载重装后文件仍在；
+ * - 用户授权 SAF 目录后改用该目录，可跨重装自动枚举（重新授权一次即可）。
  *
- * 本文件集中了原 `LocalBackupScreen.kt`（:androidApp 版）里全部 Android 专有段落，
- * 逻辑逐字搬移：目录选择与降级（公共 Download → 私有 Download）、双目录扫描、
- * 文件名/时间/大小解析、8 MB 有界读取、SAF mime 放开为全匹配通配（任意类型）。
+ * 旧版本的公共 / 私有目录仍做只读扫描，保证升级前写下的备份还能列出来恢复。
  */
 class AndroidBackupFileController(private val context: Context) : BackupFileController {
 
@@ -51,6 +54,10 @@ class AndroidBackupFileController(private val context: Context) : BackupFileCont
 
     /** 主线程 Handler：SAF 读文件放后台线程，回调（页面要改 Compose 状态）必须回主线程 */
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val prefs: SharedPreferences by lazy {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
 
     /** SAF 选文件结果回调槽（发起请求前更新；同 key 重复注册 = 替换回调槽，不冲突） */
     private var pickResult: ((String?, String?) -> Unit)? = null
@@ -63,9 +70,102 @@ class AndroidBackupFileController(private val context: Context) : BackupFileCont
         ) { uri -> dispatchPickResult(uri) }
     }
 
-    // ————————————————————————— 备份列表（目录扫描） —————————————————————————
+    /** SAF 选目录结果回调槽 */
+    private var treePickResult: ((Boolean) -> Unit)? = null
 
-    override fun listBackups(): List<BackupFileInfo> = scanBackupFiles(context)
+    /** SAF 选目录结果通道 */
+    private val treeLauncher: ActivityResultLauncher<Uri?>? by lazy {
+        (activity as? ActivityResultRegistryOwner)?.activityResultRegistry?.register(
+            KEY_PICK_TREE,
+            ActivityResultContracts.OpenDocumentTree()
+        ) { uri -> dispatchTreePickResult(uri) }
+    }
+
+    // ————————————————————————— 备份目录授权 —————————————————————————
+
+    override fun canChooseBackupDirectory(): Boolean = treeLauncher != null
+
+    override fun isBackupDirectoryAuthorized(): Boolean = authorizedTreeUri() != null
+
+    override fun backupDirectoryLabel(): String {
+        val tree = authorizedTreeUri()
+        if (tree != null) {
+            return queryTreeDisplayName(tree) ?: tree.lastPathSegment ?: ""
+        }
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            publicBackupPath()
+        } else {
+            legacyWriteDir().absolutePath
+        }
+    }
+
+    override fun chooseBackupDirectory(onResult: (Boolean) -> Unit) {
+        val launcher = treeLauncher
+        treePickResult = onResult
+        if (launcher == null) {
+            onResult(false)
+            return
+        }
+        launcher.launch(initialTreeUri())
+    }
+
+    /**
+     * 目录选择器的初始位置：优先上次授权的目录；首次使用（含卸载重装后）
+     * 默认打开公共 Download，方便用户直接选回原来的备份文件夹。
+     */
+    private fun initialTreeUri(): Uri? {
+        prefs.getString(KEY_TREE_URI, null)?.let { raw ->
+            runCatching { Uri.parse(raw) }.getOrNull()?.let { return it }
+        }
+        return runCatching {
+            DocumentsContract.buildDocumentUri(
+                "com.android.externalstorage.documents",
+                "primary:Download",
+            )
+        }.getOrNull()
+    }
+
+    private fun dispatchTreePickResult(uri: Uri?) {
+        val callback = treePickResult ?: return
+        treePickResult = null
+        if (uri == null) {
+            callback(false)
+            return
+        }
+        val granted = runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+            isTreeWritable(uri)
+        }.getOrDefault(false)
+        if (granted) prefs.edit().putString(KEY_TREE_URI, uri.toString()).apply()
+        callback(granted)
+    }
+
+    private fun authorizedTreeUri(): Uri? {
+        val raw = prefs.getString(KEY_TREE_URI, null) ?: return null
+        val uri = runCatching { Uri.parse(raw) }.getOrNull() ?: return null
+        val granted = context.contentResolver.persistedUriPermissions.any {
+            it.uri == uri && it.isReadPermission && it.isWritePermission
+        }
+        return uri.takeIf { granted }
+    }
+
+    // ————————————————————————— 备份列表 —————————————————————————
+
+    override fun listBackups(): List<BackupFileInfo> {
+        val tree = authorizedTreeUri()
+        val fromTree = tree?.let { runCatching { scanTreeBackups(it) }.getOrDefault(emptyList()) }
+            ?: emptyList()
+        val fromMediaStore = runCatching { scanMediaStoreBackups() }.getOrDefault(emptyList())
+        val legacy = runCatching { scanFileSystemBackups() }.getOrDefault(emptyList())
+        // 同名文件优先取已授权目录，其次 MediaStore，最后旧目录
+        return (fromTree + fromMediaStore + legacy)
+            .distinctBy { it.first.fileName }
+            .sortedByDescending { it.second }
+            .map { it.first }
+    }
 
     // ————————————————————————— SAF 选文件导入 —————————————————————————
 
@@ -123,7 +223,15 @@ class AndroidBackupFileController(private val context: Context) : BackupFileCont
     // ————————————————————————— 写 / 读 / 删备份文件 —————————————————————————
 
     override fun saveBackupFile(fileName: String, json: String): Boolean {
-        val dir = getBackupDir(context)
+        val tree = authorizedTreeUri()
+        if (tree != null) {
+            return saveToTree(tree, fileName, json)
+        }
+        // 未授权也写公共 Download/Neixo_Schedule：高版本走 MediaStore，文件卸载后仍在
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return saveToMediaStore(fileName, json)
+        }
+        val dir = legacyWriteDir()
         if (!isUsableDir(dir)) {
             // 逐字保留原页面的失败信息：页面 catch 后 toast「备份失败: <原因>」
             throw IllegalStateException(AndroidMiscStr.backupDirNotWritableN(dir.absolutePath))
@@ -133,33 +241,280 @@ class AndroidBackupFileController(private val context: Context) : BackupFileCont
     }
 
     override fun readBackupFile(id: String): String? {
+        if (id.startsWith("content://")) {
+            val uri = Uri.parse(id)
+            val input = context.contentResolver.openInputStream(uri) ?: return null
+            return readBoundedUtf8(input)
+        }
         val file = File(id)
         if (!file.exists()) return null
         return readBoundedUtf8(FileInputStream(file))
     }
 
-    override fun deleteBackupFile(id: String): Boolean = File(id).delete()
+    override fun deleteBackupFile(id: String): Boolean {
+        if (id.startsWith("content://")) {
+            val uri = Uri.parse(id)
+            return runCatching {
+                // MediaStore 条目不能用 DocumentsContract 删；按 authority 分流
+                if (uri.authority == MediaStore.AUTHORITY) {
+                    context.contentResolver.delete(uri, null, null) > 0
+                } else {
+                    DocumentsContract.deleteDocument(context.contentResolver, uri)
+                }
+            }.getOrDefault(false)
+        }
+        return File(id).delete()
+    }
 
-    // ─────────────────────────── 原页面 Android 私有段落（逐字搬移） ───────────────────────────
+    // ─────────────────────────── SAF 读写实现 ───────────────────────────
+
+    private fun saveToTree(tree: Uri, fileName: String, json: String): Boolean {
+        val existing = runCatching { queryTreeChildren(tree) }.getOrNull()
+            ?.firstOrNull { it.displayName == fileName }
+        val docUri = existing?.uri ?: runCatching {
+            DocumentsContract.createDocument(
+                context.contentResolver,
+                treeDocumentUri(tree),
+                "application/json",
+                fileName,
+            )
+        }.getOrNull() ?: throw IllegalStateException(
+            AndroidMiscStr.backupDirNotWritableN(backupDirectoryLabel())
+        )
+        val output = context.contentResolver.openOutputStream(docUri, "wt")
+            ?: throw IllegalStateException(AndroidMiscStr.backupDirNotWritableN(backupDirectoryLabel()))
+        output.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+        return true
+    }
+
+    private fun scanTreeBackups(tree: Uri): List<Pair<BackupFileInfo, Long>> =
+        queryTreeChildren(tree).mapNotNull { doc ->
+            buildBackupInfo(
+                id = doc.uri.toString(),
+                fileName = doc.displayName,
+                lastModified = doc.lastModified,
+                size = doc.size,
+            ) {
+                context.contentResolver.openInputStream(doc.uri)?.let { readBoundedUtf8(it) }
+            }
+        }
+
+    private class TreeDocument(
+        val uri: Uri,
+        val displayName: String,
+        val lastModified: Long,
+        val size: Long,
+    )
+
+    private fun treeDocumentUri(tree: Uri): Uri = DocumentsContract.buildDocumentUriUsingTree(
+        tree,
+        DocumentsContract.getTreeDocumentId(tree),
+    )
+
+    private fun queryTreeChildren(tree: Uri): List<TreeDocument> {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            tree,
+            DocumentsContract.getTreeDocumentId(tree),
+        )
+        val projection = arrayOf(
+            Document.COLUMN_DOCUMENT_ID,
+            Document.COLUMN_DISPLAY_NAME,
+            Document.COLUMN_MIME_TYPE,
+            Document.COLUMN_LAST_MODIFIED,
+            Document.COLUMN_SIZE,
+        )
+        val result = mutableListOf<TreeDocument>()
+        context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val documentId = cursor.getString(0) ?: continue
+                val name = cursor.getString(1) ?: continue
+                val mime = cursor.getString(2) ?: ""
+                if (mime == Document.MIME_TYPE_DIR) continue
+                result += TreeDocument(
+                    uri = DocumentsContract.buildDocumentUriUsingTree(tree, documentId),
+                    displayName = name,
+                    lastModified = cursor.getLong(3),
+                    size = cursor.getLong(4),
+                )
+            }
+        }
+        return result
+    }
+
+    private fun queryTreeDisplayName(tree: Uri): String? = runCatching {
+        context.contentResolver.query(
+            treeDocumentUri(tree),
+            arrayOf(Document.COLUMN_DISPLAY_NAME),
+            null, null, null,
+        )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+    }.getOrNull()
+
+    private fun isTreeWritable(tree: Uri): Boolean = runCatching {
+        val flags = context.contentResolver.query(
+            treeDocumentUri(tree),
+            arrayOf(Document.COLUMN_FLAGS),
+            null, null, null,
+        )?.use { cursor -> if (cursor.moveToFirst()) cursor.getInt(0) else 0 } ?: 0
+        flags and Document.FLAG_DIR_SUPPORTS_CREATE != 0
+    }.getOrDefault(false)
+
+    // ─────────────────────────── MediaStore Download ───────────────────────────
+
+    /** 公共备份目录：`Download/Neixo_Schedule`。 */
+    private fun publicBackupPath(): String = "${Environment.DIRECTORY_DOWNLOADS}/$BACKUP_DIR_NAME"
 
     /**
-     * 备份目录。优先公共 Download（用户能在文件管理器里看到、方便拷走）；
-     * 分区存储下该目录可能不可写（取决于系统策略与授权状态），此时降级到应用私有
-     * Download 目录，避免整个备份功能失效。
+     * 未授权 SAF 时写入系统下载目录。
+     *
+     * 走 MediaStore 而不是 `File`：Android 10+ 分区存储下直接路径写入会被拒绝，
+     * MediaStore 写入不需要任何存储权限，且文件不会随应用卸载被删除。
      */
-    private fun getBackupDir(context: Context): File {
-        val publicDir = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            BACKUP_DIR_NAME
-        )
-        if (isUsableDir(publicDir)) return publicDir
-        val privateDir = File(
-            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir,
-            BACKUP_DIR_NAME
-        )
-        privateDir.mkdirs()
-        return privateDir
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveToMediaStore(fileName: String, json: String): Boolean {
+        val resolver = context.contentResolver
+        val existing = findMediaStoreFile(fileName)
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+            put(MediaStore.Downloads.MIME_TYPE, "application/json")
+            if (existing == null) {
+                put(MediaStore.Downloads.RELATIVE_PATH, publicBackupPath())
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+        }
+        val uri = existing ?: resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw IllegalStateException(AndroidMiscStr.backupDirNotWritableN(publicBackupPath()))
+        val output = resolver.openOutputStream(uri, "wt")
+            ?: throw IllegalStateException(AndroidMiscStr.backupDirNotWritableN(publicBackupPath()))
+        output.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+        if (existing == null) {
+            values.clear()
+            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+        }
+        return true
     }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun findMediaStoreFile(fileName: String): Uri? {
+        val projection = arrayOf(MediaStore.Downloads._ID)
+        val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ? AND " +
+            "${MediaStore.Downloads.RELATIVE_PATH} LIKE ?"
+        val args = arrayOf(fileName, "${publicBackupPath()}%")
+        context.contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            projection,
+            selection,
+            args,
+            null,
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                return ContentUris.withAppendedId(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    cursor.getLong(0),
+                )
+            }
+        }
+        return null
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun scanMediaStoreBackups(): List<Pair<BackupFileInfo, Long>> {
+        val projection = arrayOf(
+            MediaStore.Downloads._ID,
+            MediaStore.Downloads.DISPLAY_NAME,
+            MediaStore.Downloads.SIZE,
+            MediaStore.Downloads.DATE_MODIFIED,
+        )
+        val selection = "${MediaStore.Downloads.RELATIVE_PATH} LIKE ? AND " +
+            "${MediaStore.Downloads.DISPLAY_NAME} LIKE ?"
+        val args = arrayOf("${publicBackupPath()}%", "%.json")
+        val result = mutableListOf<Pair<BackupFileInfo, Long>>()
+        context.contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            projection,
+            selection,
+            args,
+            null,
+        )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+            val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)
+            val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads.SIZE)
+            val modifiedColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads.DATE_MODIFIED)
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(nameColumn) ?: continue
+                val uri = ContentUris.withAppendedId(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    cursor.getLong(idColumn),
+                )
+                val info = buildBackupInfo(
+                    id = uri.toString(),
+                    fileName = name,
+                    lastModified = cursor.getLong(modifiedColumn) * 1000L,
+                    size = cursor.getLong(sizeColumn),
+                ) {
+                    context.contentResolver.openInputStream(uri)?.let { readBoundedUtf8(it) }
+                } ?: continue
+                result += info
+            }
+        }
+        return result
+    }
+
+    // ─────────────────────────── 备份元数据解析 ───────────────────────────
+
+    /** 从文件名 / 修改时间 / 大小统一生成列表项；三种来源（SAF / MediaStore / 旧目录）共用。 */
+    private fun buildBackupInfo(
+        id: String,
+        fileName: String,
+        lastModified: Long,
+        size: Long,
+        readJson: () -> String?,
+    ): Pair<BackupFileInfo, Long>? {
+        if (!fileName.endsWith(".json", ignoreCase = true)) return null
+        val displaySdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        val parseSdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+        val baseName = fileName.substringBeforeLast('.')
+        val (scheduleName, isFullBackup) = parseBackupFileBaseName(baseName)
+        val type = if (isFullBackup) BackupStr.fullBackup() else BackupStr.singleSchedule()
+        val match = BACKUP_NAME_REGEX.matchEntire(baseName)
+        val timestamp = try {
+            match?.let { parseSdf.parse(it.groupValues[2]) }?.let { displaySdf.format(it) }
+                ?: AndroidMiscStr.unknownTime()
+        } catch (_: Exception) {
+            AndroidMiscStr.unknownTime()
+        }
+        val scheduleCount = runCatching {
+            readJson()?.let { countSchedulesInBackupJson(it) } ?: 0
+        }.getOrDefault(0)
+        return BackupFileInfo(
+            id = id,
+            fileName = fileName,
+            type = type,
+            scheduleName = scheduleName,
+            scheduleCount = scheduleCount,
+            timestamp = timestamp,
+            size = formatBackupSize(size),
+            isFullBackup = isFullBackup,
+        ) to lastModified
+    }
+
+    // ─────────────────────────── 旧目录（只读兼容） ───────────────────────────
+
+    /** Android 9 及以下的写入目录：优先公共 Download，失败再退回私有目录。 */
+    private fun legacyWriteDir(): File {
+        val publicDir = publicBackupDir()
+        return if (isUsableDir(publicDir)) publicDir else privateBackupDir()
+    }
+
+    private fun publicBackupDir(): File = File(
+        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+        BACKUP_DIR_NAME,
+    )
+
+    private fun privateBackupDir(): File = File(
+        context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir,
+        BACKUP_DIR_NAME
+    ).apply { mkdirs() }
 
     private fun isUsableDir(dir: File): Boolean = try {
         (dir.exists() || dir.mkdirs()) && dir.canWrite()
@@ -168,71 +523,28 @@ class AndroidBackupFileController(private val context: Context) : BackupFileCont
     }
 
     /**
-     * 扫描用的候选目录（公共 + 私有）。两个都扫，这样在两种存储环境之间切换时
-     * 历史备份不会凭空"消失"。
+     * 扫描用的旧目录（公共 + 私有）。两个都扫，这样升级前写下的备份不会凭空"消失"。
      */
-    private fun candidateBackupDirs(context: Context): List<File> {
-        val publicDir = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            BACKUP_DIR_NAME
-        )
-        val privateDir = File(
-            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir,
-            BACKUP_DIR_NAME
-        )
-        return listOf(publicDir, privateDir).filter { it.isDirectory }.distinctBy { it.absolutePath }
-    }
+    private fun candidateBackupDirs(): List<File> =
+        listOf(publicBackupDir(), privateBackupDir())
+            .filter { it.isDirectory }
+            .distinctBy { it.absolutePath }
 
-    private fun countSchedulesInBackup(file: File): Int {
-        return try {
-            if (file.length() > MAX_BACKUP_PARSE_BYTES) return 0
-            val json = file.readText(Charsets.UTF_8)
-            countSchedulesInBackupJson(json)
-        } catch (_: Exception) {
-            0
-        }
-    }
-
-    private fun scanBackupFiles(context: Context): List<BackupFileInfo> {
-        val displaySdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-        val parseSdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-
-        return candidateBackupDirs(context)
+    private fun scanFileSystemBackups(): List<Pair<BackupFileInfo, Long>> =
+        candidateBackupDirs()
             .flatMap { dir -> dir.listFiles()?.asList() ?: emptyList() }
             .filter { it.isFile && it.extension.equals("json", ignoreCase = true) }
-            .map { file ->
-                val name = file.nameWithoutExtension
-                // 非全量备份：正则第 1 组为课表名，匹配不上则整个名字当课表名（与原实现一致）
-                val (scheduleName, isFullBackup) = parseBackupFileBaseName(name)
-                val type = if (isFullBackup) BackupStr.fullBackup() else BackupStr.singleSchedule()
-
-                val match = BACKUP_NAME_REGEX.matchEntire(name)
-
-                val scheduleCount = countSchedulesInBackup(file)
-
-                val timestamp = try {
-                    match?.let { parseSdf.parse(it.groupValues[2]) }?.let { displaySdf.format(it) }
-                        ?: AndroidMiscStr.unknownTime()
-                } catch (_: Exception) {
-                    AndroidMiscStr.unknownTime()
-                }
-
-                val sizeStr = formatBackupSize(file.length())
-
-                BackupFileInfo(
+            .mapNotNull { file ->
+                buildBackupInfo(
                     id = file.absolutePath,
                     fileName = file.name,
-                    type = type,
-                    scheduleName = scheduleName,
-                    scheduleCount = scheduleCount,
-                    timestamp = timestamp,
-                    size = sizeStr,
-                    isFullBackup = isFullBackup,
-                ) to file.lastModified()
+                    lastModified = file.lastModified(),
+                    size = file.length(),
+                ) {
+                    if (file.length() > MAX_BACKUP_PARSE_BYTES) null
+                    else file.readText(Charsets.UTF_8)
+                }
             }
-            .sortedByDescending { it.second }
-            .map { it.first }
-    }
 
     private fun readExternalBackupJson(context: Context, uri: Uri): String {
         val inputStream = context.contentResolver.openInputStream(uri)
@@ -241,8 +553,14 @@ class AndroidBackupFileController(private val context: Context) : BackupFileCont
     }
 
     private companion object {
+        const val PREFS_NAME = "backup_center_android"
+        const val KEY_TREE_URI = "backup_tree_uri"
+
         /** SAF 选文件的固定注册 key（同 key 重复注册 = 替换回调槽，不抛错） */
         const val KEY_PICK_BACKUP = "com.haooz.chedule.backup.pick_document"
+
+        /** SAF 选目录的固定注册 key */
+        const val KEY_PICK_TREE = "com.haooz.chedule.backup.pick_tree"
     }
 }
 
