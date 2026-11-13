@@ -142,6 +142,9 @@ actual fun installPlatformStorage() {
 
 actual fun ohosAppVersion(): String = OhosEnv.appVersion
 
+actual fun createReminderController(): com.haooz.chedule.data.platform.ReminderController =
+    OhosReminderController()
+
 actual fun ohosAppName(): String = OhosEnv.appName
 
 actual fun ohosExitApp() {

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -16,7 +17,9 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.data.platform.ScheduleEffects
 import com.haooz.chedule.i18n.ChromeStr
+import com.haooz.chedule.ui.activities.ReminderPermissionRow
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.navigation.AboutRoute
 import com.haooz.chedule.ui.navigation.AiImportRoute
@@ -46,7 +49,18 @@ import com.haooz.chedule.ui.navigation.WeatherRoute
 import com.haooz.chedule.ui.navigation.WebDavSettingsRoute
 import com.haooz.chedule.ui.navigation.WidgetIntroRoute
 import com.haooz.chedule.ui.utils.ShareCodeImport
+import com.haooz.chedule.uishared.resources.Res
+import com.haooz.chedule.uishared.resources.about_app_icon
+import org.jetbrains.compose.resources.imageResource
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** 鸿蒙没有这四类系统设置：精确闹钟授权、电池优化白名单、免打扰访问、自启动管理。 */
+private val OhosHiddenReminderPermissionRows = setOf(
+    ReminderPermissionRow.EXACT_ALARM,
+    ReminderPermissionRow.BATTERY_OPTIMIZATION,
+    ReminderPermissionRow.DND,
+    ReminderPermissionRow.AUTOSTART,
+)
 
 /**
  * 鸿蒙端的子页路由表。
@@ -68,14 +82,17 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.Settings -> SettingsRoute(
             router = router,
             showUpdateSettings = false,
-            // 鸿蒙没有桌面小部件
-            showWidgetEntry = false,
+            // 鸿蒙的卡片由 ArkTS 渲染，引导页只保留三页预览与添加引导（自定义/边距已隐藏）
+            showWidgetEntry = true,
         )
         AppRoute.ScheduleSettings -> ScheduleSettingsRoute(router = router)
         AppRoute.About -> AboutRoute(
             router = router,
             appVersion = ohosAppVersion().ifBlank { ChromeStr.unknownVersion() },
             appName = ohosAppName().ifBlank { ChromeStr.appName() },
+            // 与桌面图标同一张图（共享 composeResources）；原图是方形，展示时裁圆角
+            appIcon = imageResource(Res.drawable.about_app_icon),
+            appIconShape = RoundedCornerShape(24.dp),
             onExitApp = { ohosExitApp() },
         )
         AppRoute.Weather -> WeatherRoute(router)
@@ -103,8 +120,20 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
                 onCopyToClipboard = { text -> clipboard.setText(AnnotatedString(text)) },
             )
         }
-        AppRoute.WidgetIntro -> WidgetIntroRoute(router = router)
-        AppRoute.CourseReminder -> CourseReminderRoute(router = router)
+        AppRoute.WidgetIntro -> WidgetIntroRoute(
+            router = router,
+            // 卡片外观在 ArkTS 卡片里，这份 Compose 预览改不了它 → 隐藏自定义与边距选项
+            showCustomizeEntry = false,
+            showPaddingSelector = false,
+            guideText = ChromeStr.widgetGuideHarmony(),
+            onRequestWidgetRefresh = { ScheduleEffects.refreshWidgets() },
+        )
+        // 鸿蒙的提醒能力走普通通知 + ArkTS 桥（见 OhosReminderController）
+        AppRoute.CourseReminder -> CourseReminderRoute(
+            router = router,
+            reminderController = remember { createReminderController() },
+            hiddenPermissionRows = OhosHiddenReminderPermissionRows,
+        )
         AppRoute.HolidaySettings -> HolidaySettingsRoute(router = router)
         AppRoute.WebDavSettings -> WebDavSettingsRoute(router = router)
         AppRoute.CourseTimeSettings -> CourseTimeSettingsRoute(router = router)

@@ -8,8 +8,7 @@ import {
   registerHttpSender,
   setHttpResult,
   registerToast,
-  registerOverlay,
-  overlayPopBack,
+  handleBackPressed,
   registerFilePicker,
   setFileResult,
   setAppInfo,
@@ -29,6 +28,7 @@ import { display } from '@kit.ArkUI';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor } from '@kit.ArkData';
 import { WebImportOverlay } from './WebImportOverlay';
+import { installReminderHost } from '../reminder/ReminderHost';
 
 /** 文本导入上限：与共享侧 `MAX_BACKUP_PARSE_BYTES` 同口径，防止把超大文件整个读进内存。 */
 const MAX_TEXT_FILE_BYTES: number = 8 * 1024 * 1024;
@@ -123,9 +123,6 @@ function toEpochMillis(parts: CalendarTimeParts): number {
 struct Index {
   private controller: ArkUIViewController | undefined = undefined;
 
-  /** 有没有子页。系统返回键据此决定是否消费；页面本身全在 Compose 里。 */
-  @State private overlayActive: boolean = false;
-
   aboutToAppear(): void {
     try {
       const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
@@ -175,6 +172,14 @@ struct Index {
       this.onCalendarSync(requestId, payload);
     });
 
+    // 课程提醒 / 桌面卡片刷新：reminderAgentManager 与 formProvider 只能由 ArkTS 调
+    try {
+      installReminderHost(this.getUIContext().getHostContext() as common.UIAbilityContext);
+    } catch (e) {
+      hilog.error(0x0000, 'nexio', 'install reminder host failed: %{public}s',
+        JSON.stringify(e as BusinessError));
+    }
+
     registerToast((message: string, longDuration: boolean): void => {
       try {
         this.getUIContext().getPromptAction().showToast({
@@ -186,31 +191,18 @@ struct Index {
       }
     });
 
-    registerOverlay((active: boolean): void => {
-      this.overlayActive = active;
-    });
-
     this.controller = MainArkUIViewController();
   }
 
   /**
-   * 系统返回键：有子页时出栈并消费（Compose 的预测返回在鸿蒙是空实现，
-   * 不接这条链系统默认行为就是退出应用）；主界面保持系统默认。
-   */
-  private handleBack(): boolean {
-    if (this.overlayActive) {
-      overlayPopBack();
-      return true;
-    }
-    return false;
-  }
-
-  /**
    * 返回键的真正入口是 @Entry 的生命周期钩子 —— `Compose` 组件的 onBackPressed
-   * 属性在鸿蒙上不会被系统调用。返回 true = 本次按键由页面自己处理（不退出应用）。
+   * 属性在鸿蒙上不会被系统调用。
+   *
+   * 是否消费全部交给 Kotlin 判断（弹窗 / 底部抽屉 / 连贯动画页 → 路由出栈）；
+   * 都返回 false 时交回系统默认行为（退出 / 回桌面）。
    */
   onBackPress(): boolean {
-    return this.handleBack();
+    return handleBackPressed();
   }
 
   /**
@@ -487,7 +479,7 @@ struct Index {
         Compose({
           controller: this.controller,
           libraryName: 'entry',
-          onBackPressed: (): boolean => this.handleBack()
+          onBackPressed: (): boolean => handleBackPressed()
         })
           .width('100%')
           .height('100%')

@@ -219,46 +219,16 @@ static void HostShowToast(const char *message, bool longDuration) {
 
 extern "C" void NexioOnToastHostReady(void (*fn)(const char *, bool));
 
-// ── 子页栈状态：有没有子页 → ArkTS 用来决定系统返回键是否消费 ─────────────────
-// 页面本身全在 Compose 里，这条通道只发一个布尔值。
-static napi_ref g_overlayRef = nullptr;
+// ── 系统返回键：ArkTS 的 onBackPress → Kotlin 统一分发 ───────────────────────
+// Kotlin 先交给 Compose（弹窗 / 底部抽屉 / 连贯动画页），再给路由出栈；
+// 返回 true = 已消费，ArkTS 直接把它当 onBackPress 的返回值。
+extern "C" bool NexioOnBackPressed(void);
 
-static napi_value NapiRegisterOverlay(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1] = {nullptr};
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    napi_valuetype type = napi_undefined;
-    napi_typeof(env, args[0], &type);
-    if (type != napi_function) return nullptr;
-    g_env = env;
-    napi_create_reference(env, args[0], 1, &g_overlayRef);
-    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "overlay registered");
-    return nullptr;
-}
-
-/** Kotlin 侧的发布入口（函数指针交给 Kotlin）。必须在 JS 线程调用。 */
-static void HostPublishOverlay(bool active) {
-    if (g_env == nullptr || g_overlayRef == nullptr) return;
-    napi_value callback = nullptr;
-    if (napi_get_reference_value(g_env, g_overlayRef, &callback) != napi_ok || callback == nullptr) return;
-    napi_value undefined = nullptr;
-    napi_get_undefined(g_env, &undefined);
-    napi_value argv[1] = {nullptr};
-    napi_get_boolean(g_env, active, &argv[0]);
-    napi_value result = nullptr;
-    napi_call_function(g_env, undefined, callback, 1, argv, &result);
-}
-
-extern "C" void NexioOnOverlayHostReady(void (*fn)(bool));
-
-// 系统返回键 → Kotlin 出栈（Compose 的预测返回在鸿蒙 target 是空实现，接不到系统返回）
-extern "C" void NexioOnOverlayPopBack(void);
-
-static napi_value NapiOverlayPopBack(napi_env env, napi_callback_info info) {
-    (void) env;
+static napi_value NapiBackPressed(napi_env env, napi_callback_info info) {
     (void) info;
-    NexioOnOverlayPopBack();
-    return nullptr;
+    napi_value result = nullptr;
+    napi_get_boolean(env, NexioOnBackPressed(), &result);
+    return result;
 }
 
 // ── 文件选择 / 另存为：系统文件选择器只能由 ArkTS 起 ─────────────────────────
@@ -459,6 +429,74 @@ static napi_value NapiWebHostEvent(napi_env env, napi_callback_info info) {
 // 不调的话 MainHandler.tsfn 恒为 null，Dispatchers.Main 会内联在调用方线程执行。
 extern "C" void NexioInitMainHandler(void *env);
 
+// ── 课程提醒 / 小组件刷新：reminderAgentManager、notificationManager、formProvider
+//    都只能由 ArkTS 调。Kotlin 算好「哪天几点提醒」发过来，ArkTS 发布/撤销并回传结果。──
+static napi_ref g_reminderHostRef = nullptr;
+
+static napi_value NapiRegisterReminderHost(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    napi_valuetype type = napi_undefined;
+    napi_typeof(env, args[0], &type);
+    if (type != napi_function) return nullptr;
+    g_env = env;
+    napi_create_reference(env, args[0], 1, &g_reminderHostRef);
+    OH_LOG_Print(LOG_APP, LOG_INFO, LOG_DOMAIN, LOG_TAG, "reminder host registered");
+    return nullptr;
+}
+
+static void HostReminderRequest(int32_t requestId, const char *op, const char *payload) {
+    if (g_env == nullptr || g_reminderHostRef == nullptr) return;
+    napi_value callback = nullptr;
+    if (napi_get_reference_value(g_env, g_reminderHostRef, &callback) != napi_ok || callback == nullptr) return;
+    napi_value undefined = nullptr;
+    napi_get_undefined(g_env, &undefined);
+    napi_value argv[3] = {nullptr, nullptr, nullptr};
+    napi_create_int32(g_env, requestId, &argv[0]);
+    napi_create_string_utf8(g_env, op, NAPI_AUTO_LENGTH, &argv[1]);
+    napi_create_string_utf8(g_env, payload, NAPI_AUTO_LENGTH, &argv[2]);
+    napi_value result = nullptr;
+    napi_call_function(g_env, undefined, callback, 3, argv, &result);
+}
+
+extern "C" void NexioOnReminderHostReady(void (*fn)(int32_t, const char *, const char *));
+extern "C" void NexioOnReminderResult(int32_t requestId, bool ok, const char *payload);
+extern "C" void NexioSetNotificationEnabled(bool enabled);
+
+/** ArkTS 侧回传：setReminderResult(requestId, ok, payload)。 */
+static napi_value NapiSetReminderResult(napi_env env, napi_callback_info info) {
+    size_t argc = 3;
+    napi_value args[3] = {nullptr, nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    int32_t requestId = 0;
+    napi_get_value_int32(env, args[0], &requestId);
+    bool ok = false;
+    napi_get_value_bool(env, args[1], &ok);
+
+    char *payload = nullptr;
+    size_t len = 0;
+    if (napi_get_value_string_utf8(env, args[2], nullptr, 0, &len) == napi_ok) {
+        payload = new char[len + 1];
+        napi_get_value_string_utf8(env, args[2], payload, len + 1, &len);
+    }
+    NexioOnReminderResult(requestId, ok, payload != nullptr ? payload : "");
+    delete[] payload;
+    return nullptr;
+}
+
+/** ArkTS 侧回传：setNotificationEnabled(enabled)，给同步接口播种。 */
+static napi_value NapiSetNotificationEnabled(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    bool enabled = false;
+    napi_get_value_bool(env, args[0], &enabled);
+    NexioSetNotificationEnabled(enabled);
+    return nullptr;
+}
+
 static napi_value Init(napi_env env, napi_value exports) {
     NexioInitMainHandler(reinterpret_cast<void *>(env));
 
@@ -479,9 +517,7 @@ static napi_value Init(napi_env env, napi_value exports) {
          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"registerToast", nullptr, NapiRegisterToast,
          nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"registerOverlay", nullptr, NapiRegisterOverlay,
-         nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"overlayPopBack", nullptr, NapiOverlayPopBack,
+        {"handleBackPressed", nullptr, NapiBackPressed,
          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"registerFilePicker", nullptr, NapiRegisterFilePicker,
          nullptr, nullptr, nullptr, napi_default, nullptr},
@@ -497,6 +533,12 @@ static napi_value Init(napi_env env, napi_value exports) {
          nullptr, nullptr, nullptr, napi_default, nullptr},
         {"webHostEvent", nullptr, NapiWebHostEvent,
          nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"registerReminderHost", nullptr, NapiRegisterReminderHost,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setReminderResult", nullptr, NapiSetReminderResult,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setNotificationEnabled", nullptr, NapiSetNotificationEnabled,
+         nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
 
@@ -505,11 +547,11 @@ static napi_value Init(napi_env env, napi_value exports) {
     NexioOnWallpaperPickHostReady(HostRequestWallpaperPick);
     NexioOnHttpHostReady(HostHttpSend);
     NexioOnToastHostReady(HostShowToast);
-    NexioOnOverlayHostReady(HostPublishOverlay);
     NexioOnFileHostReady(HostRequestFile);
     NexioOnShareHostReady(HostShareRequest);
     NexioOnCalendarHostReady(HostCalendarRequest);
     NexioOnWebHostReady(HostWebCommand);
+    NexioOnReminderHostReady(HostReminderRequest);
     NexioRegisterAiCrypto();
     return exports;
 }

@@ -19,6 +19,30 @@
     {
       "name": "calendar_permission_reason",
       "value": "将课程表同步到系统日历"
+    },
+    {
+      "name": "widget_schedule_name",
+      "value": "课程表"
+    },
+    {
+      "name": "widget_schedule_desc",
+      "value": "在桌面直接看今天要上的课"
+    },
+    {
+      "name": "widget_today_name",
+      "value": "今日课程"
+    },
+    {
+      "name": "widget_today_desc",
+      "value": "今天的时间轴，正在上的课会高亮"
+    },
+    {
+      "name": "widget_today_tomorrow_name",
+      "value": "今日与明日"
+    },
+    {
+      "name": "widget_today_tomorrow_desc",
+      "value": "一眼看到今天和明天各有什么课"
     }
   ]
 }

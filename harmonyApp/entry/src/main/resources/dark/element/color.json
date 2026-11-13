@@ -3,6 +3,58 @@
     {
       "name": "start_window_background",
       "value": "#000000"
+    },
+    {
+      "name": "widget_background",
+      "value": "#1A1A1A"
+    },
+    {
+      "name": "widget_card",
+      "value": "#2C2C2E"
+    },
+    {
+      "name": "widget_title",
+      "value": "#77FFFFFF"
+    },
+    {
+      "name": "widget_name",
+      "value": "#FFEEEEEE"
+    },
+    {
+      "name": "widget_time_start",
+      "value": "#88FFFFFF"
+    },
+    {
+      "name": "widget_time_end",
+      "value": "#55FFFFFF"
+    },
+    {
+      "name": "widget_now",
+      "value": "#FF42A5F5"
+    },
+    {
+      "name": "widget_empty",
+      "value": "#99FFFFFF"
+    },
+    {
+      "name": "widget_sub",
+      "value": "#9A9A9E"
+    },
+    {
+      "name": "widget_accent",
+      "value": "#317AF7"
+    },
+    {
+      "name": "widget_divider",
+      "value": "#2C2C2E"
+    },
+    {
+      "name": "widget_card_active",
+      "value": "#332196F3"
+    },
+    {
+      "name": "widget_single_bg",
+      "value": "#1A1A1A"
     }
   ]
 }

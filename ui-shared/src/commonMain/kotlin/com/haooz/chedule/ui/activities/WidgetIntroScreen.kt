@@ -168,6 +168,10 @@ fun WidgetIntroScreen(
      * 参数变了 Compose 一定会重跑，靠全局 state 的失效时机则会拖到下次进页面。
      */
     wallpaperRevision: Int = 0,
+    /** 「自定义」入口（换壁纸浮层）。鸿蒙卡片是 ArkTS 渲染，改不了这份预览，直接隐藏 */
+    showCustomizeEntry: Boolean = true,
+    /** 底部「边距样式」选择器：只对安卓 RemoteViews 生效 */
+    showPaddingSelector: Boolean = true,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val isTablet = isTabletWidth()
@@ -321,16 +325,18 @@ fun WidgetIntroScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // 自定义入口：跟着「当前这一页」的小部件走，所以矩形也取当前页的
-                WidgetCustomizeEntry(
-                    onClick = {
-                        val page = pageState.currentPage
-                        val bounds = widgetBounds[page]
-                        if (bounds != null) {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            onCustomizeRequest(WidgetCustomizeRequest(page = page, bounds = bounds))
+                if (showCustomizeEntry) {
+                    WidgetCustomizeEntry(
+                        onClick = {
+                            val page = pageState.currentPage
+                            val bounds = widgetBounds[page]
+                            if (bounds != null) {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                onCustomizeRequest(WidgetCustomizeRequest(page = page, bounds = bounds))
+                            }
                         }
-                    }
-                )
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -354,7 +360,7 @@ fun WidgetIntroScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                if (!isIosPlatform) {
+                if (!isIosPlatform && showPaddingSelector) {
                     val repository = remember { CourseRepository() }
                     var paddingMode by remember { mutableIntStateOf(repository.getWidgetPaddingMode()) }
                     Box(modifier = Modifier.width(previewWidth)) {

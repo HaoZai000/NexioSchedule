@@ -70,17 +70,12 @@ export const registerToast: (
 ) => void;
 
 /**
- * 有没有子页 → ArkTS 用它决定系统返回键是否消费。
+ * 系统返回键：交给 Compose 统一分发。
  *
- * 页面本身全在 Compose 里，这条通道只传一个布尔值。
+ * 顺序是「Compose 里的弹窗 / 底部抽屉 / 连贯动画页 → 路由出栈」，
+ * 返回 true = 已被消费，直接作为 `onBackPress` 的返回值；false 走系统默认行为（退出应用）。
  */
-export const registerOverlay: (publish: (active: boolean) => void) => void;
-
-/**
- * 系统返回键出栈。有二级页时在 `onBackPressed` 里调用并消费事件（返回 true），
- * 否则系统默认行为是直接退出应用。
- */
-export const overlayPopBack: () => void;
+export const handleBackPressed: () => boolean;
 
 /**
  * 注册系统文件选择器（JSON / ICS 导入、导出）。
@@ -139,4 +134,33 @@ export const registerWebHost: (host: (json: string) => void) => void;
  * 网页事件回传：`{event: "title"|"progress"|"state"|"import"|"bridge", …}`。
  */
 export const webHostEvent: (json: string) => void;
+
+/**
+ * 注册课程提醒 / 小组件宿主（`reminderAgentManager`、`notificationManager`、`formProvider`
+ * 都只能由 ArkTS 调）。
+ *
+ * @param host (requestId, op, payload) => void
+ *   op:
+ *   - `reschedule`：payload = `{ items: [{ id, title, content, year, month, day, hour, minute }] }`，
+ *     先撤销本应用全部代理提醒，再逐条发布；
+ *   - `cancelAll`：撤销全部课程提醒；
+ *   - `queryNotification`：查询通知开关（结果用 [setNotificationEnabled] 回写）；
+ *   - `requestNotification`：弹系统通知授权，回传 `{enabled}`（走 [setReminderResult]）；
+ *   - `openNotificationSettings` / `openAppSettings`：跳系统设置；
+ *   - `refreshWidgets`：让已添加的桌面卡片重读快照。
+ */
+export const registerReminderHost: (
+  host: (requestId: number, op: string, payload: string) => void
+) => void;
+
+/**
+ * 提醒宿主结果回传：`ok` 与 `payload`（如 `{"status":"ok","count":12}` / `{"enabled":true}`）。
+ */
+export const setReminderResult: (requestId: number, ok: boolean, payload: string) => void;
+
+/**
+ * 通知开关回写。Kotlin 的 `hasNotificationPermission()` 是同步接口，
+ * 启动与授权后由 ArkTS 播种。
+ */
+export const setNotificationEnabled: (enabled: boolean) => void;
 

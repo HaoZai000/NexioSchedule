@@ -114,6 +114,7 @@ import com.haooz.chedule.ui.activities.HolidaySettingsScreen
 import com.haooz.chedule.ui.activities.LicenseScreen
 import com.haooz.chedule.ui.activities.PreferenceSettingsScreen
 import com.haooz.chedule.ui.activities.PrivacyPolicyScreen
+import com.haooz.chedule.ui.activities.ReminderPermissionRow
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.TimeConfigCardBounds
 import com.haooz.chedule.ui.activities.UpdateHeroChromeState
@@ -1008,6 +1009,12 @@ fun WidgetIntroRoute(
      */
     onPickWidgetWallpaper: (widthPx: Int, heightPx: Int, onPicked: (ImageBitmap?) -> Unit) -> Unit =
         { _, _, _ -> },
+    /** 「自定义」入口（换壁纸浮层）开关：鸿蒙的卡片是 ArkTS 渲染，改不了这份预览 */
+    showCustomizeEntry: Boolean = true,
+    /** 底部「边距样式」选择器开关：只对安卓 RemoteViews 生效 */
+    showPaddingSelector: Boolean = true,
+    /** 添加引导文案；null 时按平台走安卓 / iOS 默认文案 */
+    guideText: String? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     var showGuideDialog by remember { mutableStateOf(false) }
@@ -1043,7 +1050,7 @@ fun WidgetIntroRoute(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (isIosPlatform) {
+                            text = guideText ?: if (isIosPlatform) {
                                 ChromeStr.widgetGuideIos()
                             } else {
                                 ChromeStr.widgetGuideAndroid()
@@ -1074,6 +1081,8 @@ fun WidgetIntroRoute(
                 // 但「已回位、还没摘」的那一刻要放出来 —— 否则摘浮层那帧是空的
                 hiddenPage = if (customizeSettled) null else customizeRequest?.page,
                 wallpaperRevision = wallpaperRevision,
+                showCustomizeEntry = showCustomizeEntry,
+                showPaddingSelector = showPaddingSelector,
             )
         }
 
@@ -1118,6 +1127,8 @@ fun CourseReminderRoute(
     reminderController: ReminderController = NoopReminderController,
     testActionLabel: String = ChromeStr.testNotification(),
     onSendTestNotification: (() -> Unit)? = null,
+    /** 本平台没有对应系统概念的权限行（鸿蒙传 EXACT_ALARM/BATTERY/DND/AUTOSTART） */
+    hiddenPermissionRows: Set<ReminderPermissionRow> = emptySet(),
 ) {
     DocumentPageScaffold(
         title = ChromeStr.courseReminders(),
@@ -1136,6 +1147,7 @@ fun CourseReminderRoute(
             scrollBehavior = scrollBehavior,
             liquidGlassBackdrop = backdrop,
             reminderController = reminderController,
+            hiddenPermissionRows = hiddenPermissionRows,
         )
     }
 }

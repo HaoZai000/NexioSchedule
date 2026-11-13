@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -13,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.ComposeArkUIViewController
 import com.haooz.chedule.data.WallpaperStore
 import com.haooz.chedule.data.platform.PrivacyConsent
+import com.haooz.chedule.data.platform.ScheduleEffects
 import com.haooz.chedule.data.platform.StatsReporter
 import com.haooz.chedule.ui.activities.main.CourseScheduleApp
 import com.haooz.chedule.ui.navigation.AppNavHost
@@ -26,6 +26,7 @@ import kotlin.experimental.ExperimentalNativeApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.ArkTS.ArkTS_Napi_NativeModule.napi_env
 import platform.ArkTS.ArkTS_Napi_NativeModule.napi_value
+import top.yukonga.miuix.kmp.utils.BackDispatcher
 
 /**
  * 鸿蒙侧唯一的 Compose 实例 —— 结构逐字对应安卓的 `MainActivity.setContent`。
@@ -48,15 +49,18 @@ fun MainArkUIViewController(env: napi_env): napi_value {
 }
 
 /**
- * 系统返回键 → 出栈。
+ * 系统返回键的唯一入口。
  *
- * 鸿蒙 target 上 `rememberNavigationBack` 是空实现，Compose 内部接不到系统返回；
- * ArkTS 侧 `onBackPress` 检测到有子页时调这里消费事件，否则系统默认行为是退出应用。
+ * 先交给 Compose 里的弹窗 / 底部抽屉 / 连贯动画页（[BackDispatcher]），没层消费才出栈；
+ * 都返回 false 时 ArkTS 的 `onBackPress` 返回 false，系统执行默认行为（退出 / 回桌面）。
+ *
+ * 鸿蒙 target 上 `rememberNavigationBack` 拿不到系统手势，所以必须由 ArkTS 转发。
  * ArkTS 主线程与 Compose 主线程同线程，直接改 snapshot list 是安全的。
  */
-@CName("NexioOnOverlayPopBack")
-fun NexioOnOverlayPopBack() {
-    sharedRouter.popBack()
+@CName("NexioOnBackPressed")
+fun NexioOnBackPressed(): Boolean {
+    if (BackDispatcher.dispatch()) return true
+    return sharedRouter.popBack()
 }
 
 /**
@@ -68,6 +72,14 @@ fun NexioOnOverlayPopBack() {
 @Composable
 private fun OhosRoot() {
     installPlatformStorage()
+    // 平台副作用出口：课程/课表变更后重排提醒、刷新桌面卡片（与安卓同构）
+    remember { ScheduleEffects.init(OhosScheduleEffects) }
+    LaunchedEffect(Unit) {
+        // 冷启动对账：给通知权限状态播种，并补齐未来一周的代理提醒
+        ReminderBridge.queryNotification()
+        OhosCourseReminder.reconcile()
+        OhosWidgetSnapshot.refresh()
+    }
     // 先同步一次磁盘状态，再按 StateFlow 观察：关于页「撤回同意」后弹窗会立即回来
     remember { PrivacyConsent.refresh() }
     val privacyAgreed by PrivacyConsent.consented.collectAsState()
@@ -98,14 +110,9 @@ private fun OhosRoot() {
                 AppNavHost(
                     router = sharedRouter,
                     mainTransition = mainTransition,
-                    // 系统返回键的「有没有子页」：ArkTS 只读这一个布尔，页面本身全在 Compose 里
-                    onOverlayActivityChanged = { OverlayBridge.publishOverlay(it) },
                 ) { _, route ->
                     OhosRouteContent(sharedRouter, route)
                 }
-
-                val hasOverlay = sharedRouter.hasOverlay
-                SideEffect { OverlayBridge.publishMain(hasOverlay) }
 
                 // 隐私弹窗是模态层：画在最后，自然盖住 Compose 画的底栏
                 if (!privacyAgreed) {

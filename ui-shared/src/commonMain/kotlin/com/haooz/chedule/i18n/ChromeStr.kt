@@ -116,6 +116,10 @@ object ChromeStr {
         "1. 长按主屏幕空白处\n2. 点击「编辑」→「添加小组件」\n3. 搜索「Nexio课程表」\n4. 添加「课程表」，调整大小切换课程视图",
         "1. Touch and hold an empty area of the Home Screen\n2. Tap “Edit” → “Add Widget”\n3. Search for “Nexio Schedule”\n4. Add “Schedule”, resize it to switch course views"
     )
+    val widgetGuideHarmony = L(
+        "1. 长按桌面空白处或应用图标\n2. 选择「服务卡片」\n3. 找到「Nexio课程表」，选卡片后添加到桌面",
+        "1. Touch and hold an empty area of the home screen or the app icon\n2. Choose \u201CService Widgets\u201D\n3. Find \u201CNexio Schedule\u201D, pick a card and add it"
+    )
     val widgetGuideAndroid = L(
         "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Nexio课程表」并添加",
         "1. Touch and hold an empty area of the Home Screen\n2. Choose “Widgets” under “All apps”\n3. Find “Nexio Schedule” and add it"

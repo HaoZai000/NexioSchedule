@@ -229,6 +229,19 @@ private fun pad2(n: Int): String = n.toString().padStart(2, '0')
 /** `HH:mm` 两位补零（原 `%02d:%02d`） */
 private fun pad2(hour: Int, minute: Int): String = "${pad2(hour)}:${pad2(minute)}"
 
+/**
+ * 「平台权限」区里可以按平台隐藏的条目。
+ *
+ * 没有对应系统概念的平台（鸿蒙没有精确闹钟授权、电池优化白名单、免打扰改写、自启动）
+ * 不该显示一个永远「已授权」或点了没反应的入口。
+ */
+enum class ReminderPermissionRow {
+    EXACT_ALARM,
+    BATTERY_OPTIMIZATION,
+    DND,
+    AUTOSTART,
+}
+
 @Composable
 fun CourseReminderScreen(
     settingsViewModel: SettingsViewModel = settingsViewModel(),
@@ -236,6 +249,8 @@ fun CourseReminderScreen(
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /** 提醒控制器（Android = AndroidReminderController 包装）；桌面/iOS 用 NoopReminderController */
     reminderController: ReminderController = NoopReminderController,
+    /** 本平台没有对应系统概念的权限行，默认全部展示（Android/iOS 行为不变） */
+    hiddenPermissionRows: Set<ReminderPermissionRow> = emptySet(),
 ) {
     val preClassReminder by settingsViewModel.preClassReminder.collectAsState()
     val preClassReminderMinutes by settingsViewModel.preClassReminderMinutes.collectAsState()
@@ -1258,6 +1273,7 @@ fun CourseReminderScreen(
                                         }
                                     )
                                 }
+                                if (ReminderPermissionRow.EXACT_ALARM !in hiddenPermissionRows) {
                                 ArrowPreference(
                                     title = ReminderStr.exactAlarmPermission(),
                                     summary = ReminderStr.exactAlarmPermissionSummary(),
@@ -1281,6 +1297,8 @@ fun CourseReminderScreen(
                                         }
                                     }
                                 )
+                                }
+                                if (ReminderPermissionRow.BATTERY_OPTIMIZATION !in hiddenPermissionRows) {
                                 ArrowPreference(
                                     title = ReminderStr.batteryOptimization(),
                                     summary = ReminderStr.batteryOptimizationSummary(),
@@ -1305,6 +1323,8 @@ fun CourseReminderScreen(
                                         }
                                     }
                                 )
+                                }
+                                if (ReminderPermissionRow.DND !in hiddenPermissionRows) {
                                 ArrowPreference(
                                     title = ReminderStr.dndPermission(),
                                     summary = ReminderStr.dndPermissionSummary(),
@@ -1332,6 +1352,8 @@ fun CourseReminderScreen(
                                         }
                                     }
                                 )
+                                }
+                                if (ReminderPermissionRow.AUTOSTART !in hiddenPermissionRows) {
                                 ArrowPreference(
                                     title = ReminderStr.autostartPermission(),
                                     summary = ReminderStr.autostartPermissionSummary(),
@@ -1347,6 +1369,7 @@ fun CourseReminderScreen(
                                         reminderController.openAppDetailsSettings(onBatterySettingsResult)
                                     }
                                 )
+                                }
                             }
                         }
                     }

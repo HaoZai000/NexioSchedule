@@ -43,7 +43,16 @@
           ],
           "when": "inuse"
         }
-      }
+      },
+      // 课程提醒：当前用**普通通知**（notificationManager.publish），不需要下面这个权限。
+      // 代理提醒（reminderAgentManager，进程被杀也能准时弹）是后续升级路径：
+      // 它是 system_basic 级受限权限，ACL 必须在签名 profile 里；没拿到 AGC「代理提醒」
+      // 开放能力之前声明它，安装会被系统拒绝（grant request permissions failed）。
+      // 申请通过后：换用带 ACL 的 Profile → 取消下面注释 → 重新打包签名，
+      // 再按 ReminderHost.ets 顶部注释把发布实现换回 reminderAgentManager。
+      // {
+      //   "name": "ohos.permission.PUBLISH_AGENT_REMINDER"
+      // }
     ],
     "abilities": [
       {
@@ -77,6 +86,20 @@
           {
             "name": "ohos.extension.backup",
             "resource": "$profile:backup_config"
+          }
+        ]
+      },
+      // 桌面课程卡片。数据由 Kotlin 写成沙箱里的 widget_snapshot.json，
+      // 这里只做「快照 → formBindingData」的搬运（卡片 UI 在 ets/widget/pages）。
+      {
+        "name": "CourseWidgetAbility",
+        "srcEntry": "./ets/widget/CourseWidgetAbility.ets",
+        "type": "form",
+        "exported": false,
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:form_config"
           }
         ]
       }

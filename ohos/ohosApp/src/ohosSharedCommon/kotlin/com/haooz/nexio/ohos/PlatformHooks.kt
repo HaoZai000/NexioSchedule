@@ -39,6 +39,14 @@ expect fun createBackupFileController(): BackupFileController
 /** 关于页展示的应用版本号（空串 = 尚未取到）。 */
 expect fun ohosAppVersion(): String
 
+/**
+ * 课程提醒控制器（代理提醒 + ArkTS 桥）。
+ *
+ * 实现在 `ohosSharedCore`（只有 `ohosMain` 看得到），路由表在 `commonMain`，
+ * 所以通过 expect/actual 暴露工厂，避免把整个平台实现挪进公共源集。
+ */
+expect fun createReminderController(): com.haooz.chedule.data.platform.ReminderController
+
 /** 关于页展示的应用名称（空串 = 尚未取到）。 */
 expect fun ohosAppName(): String
 
