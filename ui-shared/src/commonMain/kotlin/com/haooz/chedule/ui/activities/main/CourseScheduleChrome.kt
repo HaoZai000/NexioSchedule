@@ -26,8 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -280,7 +280,7 @@ internal fun PageLockedTopBarTheme(
  *
  * @param visible 隐藏时 alpha 归零但仍参与测量，保证「更多」占位槽首帧就有位置。
  * @param blurResampleKey 采样层重录的指纹；[blurSampleTrack] 为当前采样位移。
- * @param onMoreSlotTop 上报「更多」占位槽顶部（root 坐标 px）。
+ * @param onMoreSlotTop 上报「更多」占位槽坐标，由页面换算成相对页面根的局部坐标。
  * @param titleEndPadding 标题右侧额外内边距，避开折叠屏 iPhone 的竖排原生 tab bar。
  */
 @Composable
@@ -295,7 +295,7 @@ internal fun TodayTopBar(
     visible: Boolean = true,
     blurResampleKey: Int = 0,
     blurSampleTrack: () -> Float = { 0f },
-    onMoreSlotTop: (Float) -> Unit = {},
+    onMoreSlotTop: (LayoutCoordinates) -> Unit = {},
     onMoreMaterial: (Float) -> Unit = {},
     onMoreExpand: () -> Unit = {},
     titleEndPadding: Dp = 0.dp,
@@ -415,7 +415,7 @@ private fun RailTopBarActions(
 private fun MoreSlotPlaceholder(
     hostOwnsTopRight: Boolean,
     onExpand: () -> Unit,
-    onSlotTop: (Float) -> Unit,
+    onSlotTop: (LayoutCoordinates) -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Spacer(
@@ -434,6 +434,6 @@ private fun MoreSlotPlaceholder(
                         .semantics { contentDescription = CommonStr.more() }
                 }
             )
-            .onGloballyPositioned { onSlotTop(it.positionInRoot().y) }
+            .onGloballyPositioned { onSlotTop(it) }
     )
 }

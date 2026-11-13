@@ -101,10 +101,7 @@ object ChromeStr {
 
     /** 更新设置页（更新通道 / 下载源）。 */
     val updatePreferencesTitle = L("更新设置", "Update Settings")
-    val localBackup = L("本地备份", "Local Backup")
     val aiImport = L("AI 文本导入", "AI Text Import")
-    val webImport = L("网页导入", "Web Import")
-    val educationalImport = L("教务导入", "Academic System Import")
 
     val updating = L("更新中", "Updating")
     val holidaysTitle = L("节假日与调休", "Holidays & Adjusted Workdays")
@@ -115,10 +112,6 @@ object ChromeStr {
     val widgetGuideIos = L(
         "1. 长按主屏幕空白处\n2. 点击「编辑」→「添加小组件」\n3. 搜索「Nexio课程表」\n4. 添加「课程表」，调整大小切换课程视图",
         "1. Touch and hold an empty area of the Home Screen\n2. Tap “Edit” → “Add Widget”\n3. Search for “Nexio Schedule”\n4. Add “Schedule”, resize it to switch course views"
-    )
-    val widgetGuideHarmony = L(
-        "1. 长按桌面空白处或应用图标\n2. 选择「服务卡片」\n3. 找到「Nexio课程表」，选卡片后添加到桌面",
-        "1. Touch and hold an empty area of the home screen or the app icon\n2. Choose \u201CService Widgets\u201D\n3. Find \u201CNexio Schedule\u201D, pick a card and add it"
     )
     val widgetGuideAndroid = L(
         "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Nexio课程表」并添加",
@@ -131,17 +124,11 @@ object ChromeStr {
     val connected = L("已连接", "Connected")
     val testConnection = L("测试连接", "Test Connection")
     val webdavBackup = L("WebDAV 云同步", "WebDAV Cloud Sync")
-    val backingUp = L("备份中…", "Backing up…")
-    val backupToCloud = L("同步到云端", "Sync to Cloud")
-    val restoring = L("恢复中…", "Restoring…")
-    val restoreFromCloud = L("从云端恢复", "Restore from Cloud")
 
     /** %s = 能力名（口令导入 / 第三方来源显示名） */
     val platformUnsupported = L("当前平台不支持%s", "%s is not supported on this platform")
     val shareCodeImport = L("口令导入", "Share Code Import")
 
-    val scheduleImport = L("课表导入", "Import Schedule")
-    val scheduleExport = L("课表导出", "Export Schedule")
     val scheduleBackup = L("备份与同步", "Backup & Sync")
     /** 导入导出页胶囊短标签。 */
     val importTab = L("导入", "Import")

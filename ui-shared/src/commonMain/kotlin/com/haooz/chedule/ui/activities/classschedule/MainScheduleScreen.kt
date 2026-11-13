@@ -576,7 +576,7 @@ fun MainScheduleScreen(
     }
     val moreSlotTopPx = remember { mutableFloatStateOf(0f) }
     val moreMaterialAlpha = remember { mutableFloatStateOf(0f) }
-    val pageRootY = remember { mutableFloatStateOf(0f) }
+    val pageRootCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     // 顶栏单独录一层：展开的「更多」菜单采「本页内容 + 本页顶栏」，不会采到自己
     val topBarBackdrop = rememberLayerBackdrop()
     val menuBackdrop = if (wallpaperBackdrop != null) {
@@ -673,7 +673,7 @@ fun MainScheduleScreen(
                     Modifier
                 }
             )
-            .onGloballyPositioned { pageRootY.floatValue = it.positionInRoot().y }
+            .onGloballyPositioned { pageRootCoords[0] = it }
     ) {
         // 回弹状态由独立 composable 订阅，不在 content 直读
         val bounceState = remember { WallpaperBounceState() }
@@ -917,7 +917,14 @@ fun MainScheduleScreen(
                     blurResampleKey = c.blurResampleKey,
                     blurSampleTrack = c.blurSampleTrack,
                     titleEndPadding = c.titleEndPadding,
-                    onMoreSlotTop = { moreSlotTopPx.floatValue = it - pageRootY.floatValue },
+                    onMoreSlotTop = { slot ->
+                        // positionInRoot 会把外层开洞缩放算进去，外观页缩小时「更多」会被算得偏高；
+                        // 换算成相对页面根的局部坐标，与 MorePopupMenus 的绘制坐标系一致
+                        val root = pageRootCoords[0]
+                        if (root != null && root.isAttached && slot.isAttached) {
+                            moreSlotTopPx.floatValue = root.localPositionOf(slot, Offset.Zero).y
+                        }
+                    },
                     onMoreMaterial = { moreMaterialAlpha.floatValue = it },
                     onMoreExpand = { c.moreMenu?.onExpand?.invoke() },
                 )
@@ -1451,6 +1458,8 @@ private fun WeekGridPage(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .overScrollVertical()
+            .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
             .then(
                 if (scheduleScrollBehavior != null) {
                     Modifier.nestedScroll(scheduleScrollBehavior.nestedScrollConnection)
@@ -1458,9 +1467,6 @@ private fun WeekGridPage(
                     Modifier
                 }
             )
-            // overScroll 必须在 verticalScroll 外侧，作为滚动容器的 parent 才能收到 fling
-            .overScrollVertical()
-            .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
             .verticalScroll(externalScrollState)
             // 底部留白直接计入滚动内容高度；强制无界测量
             .layout { measurable, constraints ->

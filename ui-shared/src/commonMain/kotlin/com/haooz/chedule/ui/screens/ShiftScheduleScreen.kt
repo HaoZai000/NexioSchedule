@@ -31,8 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
@@ -147,7 +147,7 @@ fun ShiftScheduleScreen(
     }
     val moreSlotTopPx = remember { mutableFloatStateOf(0f) }
     val moreMaterialAlpha = remember { mutableFloatStateOf(0f) }
-    val pageRootY = remember { mutableFloatStateOf(0f) }
+    val pageRootCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     // 顶栏单独录一层：展开的「更多」菜单采「本页内容 + 本页顶栏」，不会采到自己
     val topBarBackdrop = rememberLayerBackdrop()
     val menuBackdrop = if (wallpaperBackdrop != null) {
@@ -178,7 +178,7 @@ fun ShiftScheduleScreen(
                     Modifier
                 }
             )
-            .onGloballyPositioned { pageRootY.floatValue = it.positionInRoot().y }
+            .onGloballyPositioned { pageRootCoords[0] = it }
     ) {
 
     HorizontalPageSwitch(
@@ -195,14 +195,13 @@ fun ShiftScheduleScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // 平板侧栏避让：与普通课表页一致，pager 容器保持全屏，每页自己留白
                 .then(LocalPageStartPadding.current)
+                .overScrollVertical()
+                .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
                 .then(
                     if (scheduleScrollBehavior != null) Modifier.nestedScroll(scheduleScrollBehavior.nestedScrollConnection)
                     else Modifier
                 )
-                .overScrollVertical()
-                .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
                 .verticalScroll(scrollState)
                 .padding(
                     top = statusBarHeight +
@@ -383,7 +382,13 @@ fun ShiftScheduleScreen(
                 blurResampleKey = c.blurResampleKey,
                 blurSampleTrack = c.blurSampleTrack,
                 titleEndPadding = c.titleEndPadding,
-                onMoreSlotTop = { moreSlotTopPx.floatValue = it - pageRootY.floatValue },
+                onMoreSlotTop = { slot ->
+                    // 换算成相对页面根的局部坐标，避免外层开洞缩放把「更多」位置算得偏高
+                    val root = pageRootCoords[0]
+                    if (root != null && root.isAttached && slot.isAttached) {
+                        moreSlotTopPx.floatValue = root.localPositionOf(slot, Offset.Zero).y
+                    }
+                },
                 onMoreMaterial = { moreMaterialAlpha.floatValue = it },
                 onMoreExpand = { c.moreMenu?.onExpand?.invoke() },
             )

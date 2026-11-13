@@ -344,14 +344,13 @@ internal fun TimelineWeekGrid(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .overScrollVertical()
+            .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
             .then(
                 if (scrollBehavior != null) {
                     Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
                 } else Modifier
             )
-            // overScroll 必须在 verticalScroll 外侧，作为滚动容器的 parent 才能收到 fling
-            .overScrollVertical()
-            .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
             .verticalScroll(scrollState)
             // 顶部避让顶栏、底部留白：与网格同一套算法（高度不进测量链）
             .layout { measurable, constraints ->

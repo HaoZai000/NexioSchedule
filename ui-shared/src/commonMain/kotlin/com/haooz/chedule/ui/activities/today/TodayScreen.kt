@@ -45,8 +45,8 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -580,7 +580,7 @@ fun TodayScreen(
     }
     val moreSlotTopPx = remember { mutableFloatStateOf(0f) }
     val moreMaterialAlpha = remember { mutableFloatStateOf(0f) }
-    val pageRootY = remember { mutableFloatStateOf(0f) }
+    val pageRootCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     // 顶栏单独录一层：展开的「更多」菜单采「本页内容 + 本页顶栏」，不会采到自己
     val topBarBackdrop = rememberLayerBackdrop()
     val menuBackdrop = if (wallpaperBackdrop != null) {
@@ -598,7 +598,7 @@ fun TodayScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .onGloballyPositioned { pageRootY.floatValue = it.positionInRoot().y }
+            .onGloballyPositioned { pageRootCoords[0] = it }
     ) {
     Box(Modifier.fillMaxSize().then(
         if (glassLayersEnabled) {
@@ -903,14 +903,13 @@ fun TodayScreen(
                                 .weight(1f)
                                 .collapsibleTopInset(settingsScrollBehavior)
                                 .fillMaxHeight()
+                                .overScrollVertical()
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
                                 )
                                 .then(
                                     if (settingsScrollBehavior != null) Modifier.nestedScroll(settingsScrollBehavior.nestedScrollConnection) else Modifier
-                                )
-                                // 放在最后 = 最靠近列表，优先收到 fling，与手机设置页一致
-                                .overScrollVertical(),
+                                ),
                             contentPadding = PaddingValues(
                                 top = paddingValues.calculateTopPadding() +
                                     CollapsibleTopAppBarDefaults.CollapsedHeight + 14.dp,
@@ -936,13 +935,14 @@ fun TodayScreen(
                         modifier = Modifier
                             .collapsibleTopInset(settingsScrollBehavior)
                             .fillMaxSize()
+                            // 采样连接必须最贴近列表：越界回弹位移不能算进 contentOffset
+                            .overScrollVertical()
                             .scrollEndHaptic(
                                 hapticFeedbackType = HapticFeedbackType.TextHandleMove
                             )
                             .then(
                                 if (settingsScrollBehavior != null) Modifier.nestedScroll(settingsScrollBehavior.nestedScrollConnection) else Modifier
-                            )
-                            .overScrollVertical(),
+                            ),
                         contentPadding = PaddingValues(
                             start = tabletHorizontalPadding,
                             top = paddingValues.calculateTopPadding() +
@@ -1153,7 +1153,13 @@ fun TodayScreen(
                     visible = true,
                     blurResampleKey = c.blurResampleKey,
                     blurSampleTrack = c.blurSampleTrack,
-                    onMoreSlotTop = { moreSlotTopPx.floatValue = it - pageRootY.floatValue },
+                    onMoreSlotTop = { slot ->
+                        // 换算成相对页面根的局部坐标，避免外层开洞缩放把「更多」位置算得偏高
+                        val root = pageRootCoords[0]
+                        if (root != null && root.isAttached && slot.isAttached) {
+                            moreSlotTopPx.floatValue = root.localPositionOf(slot, Offset.Zero).y
+                        }
+                    },
                     onMoreMaterial = { moreMaterialAlpha.floatValue = it },
                     onMoreExpand = { c.moreMenu?.onExpand?.invoke() },
                     titleEndPadding = c.titleEndPadding,

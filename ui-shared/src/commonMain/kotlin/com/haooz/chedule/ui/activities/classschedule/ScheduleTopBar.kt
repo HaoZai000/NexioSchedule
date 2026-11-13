@@ -26,9 +26,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -158,8 +158,8 @@ fun ScheduleTopBar(
     blurSampleTrack: () -> Float = { 0f },
     // 标题/星期行右侧额外内边距：避开右下角竖排的原生 tab bar
     titleEndPadding: Dp = 0.dp,
-    // 布局期上报「更多」占位槽位置，供下拉菜单按实际位置定位
-    onMoreSlotTop: (Float) -> Unit = {},
+    // 布局期上报「更多」占位槽坐标，供下拉菜单按实际位置定位
+    onMoreSlotTop: (LayoutCoordinates) -> Unit = {},
     // 上报顶栏材质透明度，供「更多」控件同步渐显渐隐
     onMoreMaterial: (Float) -> Unit = {},
     onMoreExpand: () -> Unit = {},
@@ -274,7 +274,7 @@ fun ScheduleTopBar(
                                                 .semantics { contentDescription = CommonStr.more() }
                                             else Modifier
                                         )
-                                        .onGloballyPositioned { onMoreSlotTop(it.positionInRoot().y) }
+                                        .onGloballyPositioned { onMoreSlotTop(it) }
                                 )
                             }
                         }
