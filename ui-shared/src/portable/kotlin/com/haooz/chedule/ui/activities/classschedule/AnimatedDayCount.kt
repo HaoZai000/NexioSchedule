@@ -18,22 +18,20 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import kotlin.math.roundToInt
 
-/** 滑入/退场那一格的模糊上限（dp）：完全露出时归零，这里只决定起点有多糊 */
+/** 滑入/退场那一格的模糊上限（dp）；完全露出时归零。 */
 internal const val DAY_CELL_REVEAL_BLUR_DP = 8f
 
 /**
- * 星期列数（5 / 6 / 7）的连贯过渡，**只服务顶栏星期行**。
+ * 星期列数（5/6/7）的连续过渡状态，只服务顶栏星期行。
  *
- * 列宽 = 可用宽度 / [AnimatedDayCountState.value]，[value] 是小数：5 → 6 时既有列
- * 一边收窄一边左移，新那一天从右边缘滑进来；反向切换则整体摊开。
- *
- * [value] 只在布局期（[DayColumnsLayout]）与绘制期（[dayCellReveal]）读，组合期不读。
+ * [value] 是小数：5 → 6 时既有列一边收窄一边左移，新的一天从右缘滑入。仅在布局期与
+ * 绘制期读取，组合期不读。
  */
 @Stable
 internal class AnimatedDayCountState(initialCount: Int) {
     val value = Animatable(initialCount.toFloat())
 
-    /** 一次过渡走完自增：调用方据此收掉正在退场的格子 */
+    /** 一次过渡结束自增，调用方据此收掉正在退场的格子。 */
     var settleTick by mutableIntStateOf(0)
         internal set
 }
@@ -60,11 +58,10 @@ internal fun rememberAnimatedDayCount(count: Int): AnimatedDayCountState {
 }
 
 /**
- * 滑入 / 退场那一格的淡入淡出 + 模糊。
+ * 滑入/退场那一格的淡入淡出与模糊。
  *
- * 露出比例就是 `列数 - index`（这一列左缘在 index×列宽）：5 → 6 时第 6 格从 0 淡到 1，
- * 6 → 5 时反过来。动画值在 graphicsLayer 块里读 —— 绘制期，不重组也不重新测量。
- * 只挂给最后两格（其余格恒为全露出），静止态不额外产生图层。
+ * 露出比例是 `列数 - index`，在 graphicsLayer 块里读动画值，只重绘不重组也不重新测量。
+ * 只挂给末尾两格，其余格恒为全露出。
  */
 internal fun Modifier.dayCellReveal(
     state: AnimatedDayCountState,
@@ -84,8 +81,7 @@ internal fun Modifier.dayCellReveal(
 /**
  * 按动画中的列数摆放 [content] 里的每一格。
  *
- * 不能用 `Row` + `weight`：weight 只能等分当前列数，做不出「列数在 5.3 这种中间态时
- * 每格该多宽」。列宽与落位都由 [count] 推出来，动画期间每一帧只是重新测量这几格文字。
+ * 不能用 `Row` + `weight`：weight 只能按当前整数列数等分，做不出 5.3 列这种中间态。
  */
 @Composable
 internal fun DayColumnsLayout(

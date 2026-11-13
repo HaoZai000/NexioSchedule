@@ -44,11 +44,25 @@ internal fun rememberCourseColors(course: Course, isDark: Boolean): CourseColors
         else -> colors.tertiaryContainer to colors.onTertiaryContainer
     }
     return remember(seed, foreground, isDark) {
-        // 课程卡使用半透明着色层，取强调色调而非很淡的 container，保证着色程度可见。
-        val hct = Hct.fromInt(seed.toArgb())
-        val tint = Color(Hct.from(hct.hue, hct.chroma, if (isDark) 80.0 else 40.0).toInt())
-        CourseColors(tint, foreground)
+        CourseColors(cachedCourseTint(seed, isDark), foreground)
     }
+}
+
+/**
+ * 课程色板只有 3 个种子，但卡片数量是几百张；Hct 往返换算放在共享缓存里，
+ * 避免首次组合时每张卡各算一次（首次加载的主要 CPU 热点之一）。
+ */
+private val courseTintCache = HashMap<Long, Color>()
+
+private fun cachedCourseTint(seed: Color, isDark: Boolean): Color {
+    val seedArgb = seed.toArgb()
+    val key = (seedArgb.toLong() shl 1) or (if (isDark) 1L else 0L)
+    courseTintCache[key]?.let { return it }
+    val hct = Hct.fromInt(seedArgb)
+    val tint = Color(Hct.from(hct.hue, hct.chroma, if (isDark) 80.0 else 40.0).toInt())
+    if (courseTintCache.size > 32) courseTintCache.clear()
+    courseTintCache[key] = tint
+    return tint
 }
 
 @Composable

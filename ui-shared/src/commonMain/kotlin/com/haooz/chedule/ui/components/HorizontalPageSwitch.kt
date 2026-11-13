@@ -4,10 +4,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
@@ -18,6 +23,17 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import kotlin.math.abs
+
+/**
+ * 新页入窗时的分帧组合时钟；null = 这页已在窗口内，保持一次性组合。
+ *
+ * 值从 0 逐帧递增到 [PageMountStages]，页内各自按阈值放行。只给首帧离锚点较远、
+ * 一定在屏外的页挂——相邻页随时可能被拖进视野，必须一次组合完。
+ */
+internal val LocalPageMountStage = staticCompositionLocalOf<State<Int>?> { null }
+
+/** 新页组合摊开的帧数：骨架之外的分批次数。 */
+internal const val PageMountStages = 3
 
 /**
  * 横向平铺 [pageCount] 页；切页只做位移，窗口内页常驻。
@@ -33,6 +49,13 @@ fun HorizontalPageSwitch(
     modifier: Modifier = Modifier,
     swipeEnabled: Boolean = true,
     beyondPageCount: Int = 1,
+    /**
+     * 组合窗口的锚点；null = 跟随当前页。
+     *
+     * 传入稳定锚点后，窗口不会在拖动过半时跟着 currentPage 跳变：翻页全程只有已经
+     * 组合好的页参与绘制，新页会在松手停稳后由调用方自己把锚点挪过去。
+     */
+    windowAnchor: (() -> Int)? = null,
     /** 被别的交互占用的指针（长按拖课的那根）：翻页要跳过它，但其余手指照常可用。 */
     blockedPointerId: () -> PointerId? = { null },
     /**
@@ -81,6 +104,7 @@ fun HorizontalPageSwitch(
                 state = state,
                 pageCount = pageCount.coerceAtLeast(1),
                 beyond = beyondPageCount.coerceAtLeast(0),
+                windowAnchor = windowAnchor,
                 content = content,
             )
         }
@@ -208,19 +232,26 @@ private fun Pages(
     state: PageSwitchState,
     pageCount: Int,
     beyond: Int,
+    windowAnchor: (() -> Int)?,
     content: @Composable (Int) -> Unit,
 ) {
-    // 只订阅当前页
-    val anchor = state.currentPage
+    // 自定义锚点时不要读 currentPage：窗口随锚点单独推进，翻页中途不换窗
+    val lastPage = (pageCount - 1).coerceAtLeast(0)
+    val anchor = (if (windowAnchor != null) windowAnchor() else state.currentPage)
+        .coerceIn(0, lastPage)
     val first = (anchor - beyond).coerceAtLeast(0)
-    val lastVisible = (anchor + beyond).coerceAtMost(pageCount - 1)
+    val lastVisible = (anchor + beyond).coerceAtMost(lastPage)
     Layout(
         content = {
             for (index in first..lastVisible) {
                 // key 用绝对页号
                 key(index) {
+                    // 首次入窗时离锚点 >= 2 的页一定在屏外，分帧组合，避免整页挤进一帧
+                    val staged = remember { abs(index - anchor) >= 2 }
                     // 一页 = 一个 measurable
-                    Box(Modifier.fillMaxSize()) { content(index) }
+                    Box(Modifier.fillMaxSize()) {
+                        if (staged) StagedPageMount { content(index) } else content(index)
+                    }
                 }
             }
         },
@@ -246,4 +277,21 @@ private fun Pages(
             }
         }
     }
+}
+
+/**
+ * 新页入窗：先组骨架，随后每帧放行一批，把整页组合摊到 [PageMountStages] + 1 帧。
+ *
+ * 时钟只往下传，页内用它决定各自何时挂载；页在屏外，晚几帧补齐看不见。
+ */
+@Composable
+private fun StagedPageMount(content: @Composable () -> Unit) {
+    val stage = remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (stage.intValue < PageMountStages) {
+            withFrameNanos { }
+            stage.intValue++
+        }
+    }
+    CompositionLocalProvider(LocalPageMountStage provides stage) { content() }
 }

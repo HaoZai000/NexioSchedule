@@ -7,6 +7,7 @@ internal data class CourseCardBadge(
     val usesWorkSwapStyle: Boolean,
 )
 
+/** 课程卡右上角的状态角标；假期的优先级高于调休。 */
 internal fun resolveCourseCardBadge(
     isHoliday: Boolean,
     isCourseCancelled: Boolean,
