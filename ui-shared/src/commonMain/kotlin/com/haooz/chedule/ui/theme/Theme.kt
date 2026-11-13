@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,10 +46,11 @@ import top.yukonga.miuix.kmp.material.LocalGlassPanelBlurDp
 import top.yukonga.miuix.kmp.material.LocalGlassSurfaceAlphaDrop
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
 import top.yukonga.miuix.kmp.material.LocalMiuixTextMotion
-import top.yukonga.miuix.kmp.material.LocalSoftGlassLayer
+import top.yukonga.miuix.kmp.material.LocalSoftGlassLayerVariants
 import top.yukonga.miuix.kmp.material.LocalUseFakeProgressiveBlur
 import top.yukonga.miuix.kmp.material.MiuixTextMotion
 import top.yukonga.miuix.kmp.material.SoftGlassLayer
+import top.yukonga.miuix.kmp.material.SoftGlassLayerVariants
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.LocalAppSettingDark
 import top.yukonga.miuix.kmp.theme.LocalMonetColorEnabled
@@ -175,94 +177,26 @@ fun CourseScheduleTheme(
             ScreenTopCornerRadii(screenCorners.topLeft.toDp(), screenCorners.topRight.toDp())
         } else null
     }
+    // 柔光玻璃：浅 / 深各一份、样式在组合期就绑定好的 layer。
+    val glassVariants = remember(AppMaterialSettings.level) {
+        buildSoftGlassLayerVariants()
+    }
+    // GlassEnvironment.isDark 降级为「少数 draw 期观感（按压高光 / 阴影）的只读镜像」：
+    // 全应用唯一写入点，不再由上百个 isAppDarkTheme() 调用点用 SideEffect 竞争写。
+    val effectiveGlassDark = appDark ?: isSystemInDarkTheme()
+    SideEffect { GlassEnvironment.update(isDark = effectiveGlassDark) }
     MiuixTheme(
         controller = controller,
         content = {
-            // MaterialTheme 会自己提供两样东西并顶掉 miuix 默认值，故必须在进入 MaterialTheme 前捕获、再在里层写回：
-            // 1. `LocalIndication = ripple()`（顶掉 miuix 的 MiuixIndication）；2. `ProvideTextStyle(bodyLarge)`（只写 fontSize 不写 lineHeight 的 Text）
             val miuixIndication: Indication = LocalIndication.current
             val outerTextStyle: TextStyle = LocalTextStyle.current
-            // :miuix 内部弹窗 / 搜索栏的描边降级解析器。实例身份必须随材质档变化：
-            // miuix 那边拿它当 remember key，身份不变就会一直复用切档前的旧描边。
-            // 柔光玻璃：shader 与 uniform 灌装注入给 :miuix（弹窗面板等直接复用）。
-            // 实例必须随档位稳定，下游拿它当 remember key。
-            // 样式按当前页面深浅在 draw 期选：壁纸可把主界面锁成浅色，而 theme_mode 仍是系统深色。
-            val softGlassLayer: SoftGlassLayer? =
-                remember(AppMaterialSettings.level) {
-                    if (!AppMaterialSettings.glassEffectsEnabled()) null
-                    else {
-                        val lightStyle = AppMaterialSettings.chromeGlassStyle(
-                            base = ScheduleSoftGlassStyle,
-                            isDark = false,
-                            fill = ThemeFill,
-                            tone = BrightTone,
-                        )
-                        val darkStyle = AppMaterialSettings.chromeGlassStyle(
-                            base = ScheduleSoftGlassStyle,
-                            isDark = true,
-                            fill = ThemeFill,
-                            tone = BrightTone,
-                        )
-                        val lightLargeStyle = AppMaterialSettings.chromeGlassStyle(
-                            base = ScheduleSoftGlassStyle,
-                            isDark = false,
-                            fill = ThemeFill,
-                            tone = BrightLargeTone,
-                        )
-                        val darkLargeStyle = AppMaterialSettings.chromeGlassStyle(
-                            base = ScheduleSoftGlassStyle,
-                            isDark = true,
-                            fill = ThemeFill,
-                            tone = BrightLargeTone,
-                        )
-                        val lightDialogStyle = AppMaterialSettings.chromeGlassStyle(
-                            base = ScheduleSoftGlassStyle,
-                            isDark = false,
-                            fill = BarFill,
-                            tone = BrightLargeTone,
-                        )
-                        val darkDialogStyle = AppMaterialSettings.chromeGlassStyle(
-                            base = ScheduleSoftGlassStyle,
-                            isDark = true,
-                            fill = BarFill,
-                            tone = BrightLargeTone,
-                        )
-                        SoftGlassLayer(
-                            shaderString = SOFT_GLASS_LIVE_SHADER,
-                            applyUniforms = { w, h, r ->
-                                applySoftGlass(
-                                    style = if (GlassEnvironment.isDark) darkStyle else lightStyle,
-                                    width = w, height = h, radiusPx = r,
-                                )
-                            },
-                            applyLargeUniforms = { w, h, r ->
-                                applySoftGlass(
-                                    style = if (GlassEnvironment.isDark) darkLargeStyle else lightLargeStyle,
-                                    width = w, height = h, radiusPx = r,
-                                )
-                            },
-                            applyDialogUniforms = { w, h, r ->
-                                applySoftGlass(
-                                    style = if (GlassEnvironment.isDark) darkDialogStyle else lightDialogStyle,
-                                    width = w, height = h, radiusPx = r,
-                                )
-                            },
-                        )
-                    }
-                }
             CompositionLocalProvider(
                 LocalScreenCornerRadius provides screenCornerRadius,
                 LocalScreenTopCornerRadii provides screenTopCorners,
                 LocalHapticFeedback provides gatedHaptic,
-                // 弹窗（BlurBottomSheet）会读它来决定自建 controller 用不用 Monet 模式，
-                // 所以这里下发的是**有效值**：偏好开启 && 平台支持。
                 LocalMonetColorEnabled provides (monetEnabled && isMonetColorAvailable()),
                 LocalSystemDarkTheme provides systemDarkTheme,
-                // A null system source retains the platform fallback on other hosts.
-                // iOS resolves automatic mode using the externally supplied system appearance.
                 LocalAppSettingDark provides appDark,
-                // :miuix 需要的 App 能力注入点（避免 :miuix → :app 反向依赖）；
-                // 调用点无需逐个改。
                 LocalMaterialNoneEnabled provides AppMaterialSettings.isNoneTier(),
                 LocalUseFakeProgressiveBlur provides AppMaterialSettings.progressiveBlurUseFake(),
                 LocalGlassBlurDp provides AppMaterialSettings.glassBlurDp(),
@@ -272,7 +206,7 @@ fun CourseScheduleTheme(
                     light = AppMaterialSettings.glassSurfaceAlphaDrop(isLight = true),
                     dark = AppMaterialSettings.glassSurfaceAlphaDrop(isLight = false),
                 ),
-                LocalSoftGlassLayer provides softGlassLayer,
+                LocalSoftGlassLayerVariants provides glassVariants,
                 LocalPredictiveBackEnabled provides PredictiveBackSettings.enabled,
                 // :miuix 内部绘制的展示文字（偏好项标题/副标题、下拉菜单当前值、
                 // 弹窗标题/摘要）交给我们的换字动效：模块不能反向依赖 :ui-shared，
@@ -290,6 +224,46 @@ fun CourseScheduleTheme(
             }
         }
     )
+}
+
+/**
+ * 构造浅 / 深两套柔光玻璃层。三个 uniform 灌装 lambda 各自捕获已解析好的样式，
+ * 绘制期只读尺寸与圆角，不读任何主题状态 —— 深浅在组合期就定死了。
+ *
+ * 只在 [CourseScheduleTheme] 的 `remember(材质档位)` 里调用：档位不变时两个实例身份稳定，
+ * 下游拿它当 effects 的 remember key 才不会每帧重建采样层；切深浅只是换用另一个实例，
+ * 不会重新编译 shader。
+ */
+private fun buildSoftGlassLayerVariants(): SoftGlassLayerVariants {
+    if (!AppMaterialSettings.glassEffectsEnabled()) return SoftGlassLayerVariants()
+
+    fun layer(isDark: Boolean): SoftGlassLayer {
+        val small = AppMaterialSettings.chromeGlassStyle(
+            base = ScheduleSoftGlassStyle,
+            isDark = isDark,
+            fill = ThemeFill,
+            tone = BrightTone,
+        )
+        val large = AppMaterialSettings.chromeGlassStyle(
+            base = ScheduleSoftGlassStyle,
+            isDark = isDark,
+            fill = ThemeFill,
+            tone = BrightLargeTone,
+        )
+        val dialog = AppMaterialSettings.chromeGlassStyle(
+            base = ScheduleSoftGlassStyle,
+            isDark = isDark,
+            fill = BarFill,
+            tone = BrightLargeTone,
+        )
+        return SoftGlassLayer(
+            shaderString = SOFT_GLASS_LIVE_SHADER,
+            applyUniforms = { w, h, r -> applySoftGlass(small, w, h, r) },
+            applyLargeUniforms = { w, h, r -> applySoftGlass(large, w, h, r) },
+            applyDialogUniforms = { w, h, r -> applySoftGlass(dialog, w, h, r) },
+        )
+    }
+    return SoftGlassLayerVariants(light = layer(false), dark = layer(true))
 }
 
 /**

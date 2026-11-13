@@ -67,12 +67,10 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.DecelerateEasing
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.MotionAwareText
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.material.LocalGlassDialogBlurDp
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
-import top.yukonga.miuix.kmp.material.LocalSoftGlassLayer
+import top.yukonga.miuix.kmp.material.currentSoftGlassLayer
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import com.haooz.softglass.shape.continuousSurface
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.LocalScreenCornerRadius
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -360,7 +358,7 @@ internal fun DialogContent(
         isRenderEffectSupported() &&
         !LocalMaterialNoneEnabled.current
     // 柔光玻璃由 App 在根部注入（shader + uniform 灌装）；null = 不启用，只剩半透明底色。
-    val softGlass = LocalSoftGlassLayer.current
+    val softGlass = currentSoftGlassLayer()
     val dialogBlur = LocalGlassDialogBlurDp.current
     val cornerRadiusPx = with(density) { bottomCornerRadius.toPx() }
     // drawBackdrop 按引用比较 effects；lambda 每帧新建会让节点每帧重新录制采样层

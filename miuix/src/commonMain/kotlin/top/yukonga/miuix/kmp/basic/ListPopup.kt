@@ -94,7 +94,7 @@ import top.yukonga.miuix.kmp.internal.drawBlurredRingShadow
 import top.yukonga.miuix.kmp.material.LocalGlassPanelBlurDp
 import top.yukonga.miuix.kmp.material.LocalGlassSurfaceAlphaDrop
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
-import top.yukonga.miuix.kmp.material.LocalSoftGlassLayer
+import top.yukonga.miuix.kmp.material.currentSoftGlassLayer
 import top.yukonga.miuix.kmp.material.SoftGlassLayer
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -891,7 +891,7 @@ fun ListPopupContent(
     // 面板玻璃模糊随材质档位（柔光玻璃档与其余档取值不同；弹窗跑在 root host，值来自主题快照）
     val panelBlur = LocalGlassPanelBlurDp.current
 
-    val softGlass = LocalSoftGlassLayer.current
+    val softGlass = currentSoftGlassLayer()
     val cornerRadiusPx = with(localDensity) { cornerRadius.toPx() }
     val glassEffects: com.haooz.softglass.backdrop.GlassEffectScope.() -> Unit =
         remember(panelBlur, materialNone, softGlass) {

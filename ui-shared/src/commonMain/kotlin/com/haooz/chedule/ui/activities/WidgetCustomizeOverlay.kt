@@ -6,7 +6,6 @@ import com.haooz.softglass.glass.BrightTone
 import com.haooz.softglass.glass.CustomizeFill
 import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.softglass.glass.applySoftGlass
-import com.haooz.softglass.GlassEnvironment
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.GlassEffectScope
@@ -15,7 +14,6 @@ import com.haooz.softglass.backdrop.effects.blur
 import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
-import top.yukonga.miuix.kmp.material.LocalSoftGlassLayer
 import top.yukonga.miuix.kmp.material.LocalGlassBlurDp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -585,7 +583,7 @@ private fun WidgetChromeCapsule(
     val capsuleShape = remember { ContinuousCapsule() }
     val glassStyle = AppMaterialSettings.chromeGlassStyle(
         base = ScheduleSoftGlassStyle,
-        isDark = GlassEnvironment.isDark,
+        isDark = isAppDarkTheme(),
         fill = CustomizeFill(containerColor),
         tone = BrightTone,
     )

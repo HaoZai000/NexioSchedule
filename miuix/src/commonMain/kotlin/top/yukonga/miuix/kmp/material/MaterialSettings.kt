@@ -1,11 +1,13 @@
 package top.yukonga.miuix.kmp.material
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.runtime.key
-import androidx.compose.ui.graphics.Color
 import com.haooz.softglass.platform.GlassRuntimeShader
+import top.yukonga.miuix.kmp.theme.LocalAppSettingDark
+import top.yukonga.miuix.kmp.theme.LocalForcedDarkTheme
 
 /**
  * 材质档位能力的注入点。
@@ -74,5 +76,37 @@ class SoftGlassLayer(
         applyLargeUniforms,
 )
 
-val LocalSoftGlassLayer = compositionLocalOf<SoftGlassLayer?> { null }
+/** 浅 / 深各一份、样式已在组合期绑定好的柔光玻璃层 */
+@Immutable
+data class SoftGlassLayerVariants(
+    val light: SoftGlassLayer? = null,
+    val dark: SoftGlassLayer? = null,
+) {
+    fun forDark(isDark: Boolean): SoftGlassLayer? = if (isDark) dark else light
+}
+
+val LocalSoftGlassLayerVariants = compositionLocalOf { SoftGlassLayerVariants() }
+
+/**
+ * 弹窗快照带过来的生效深浅；null = 按当前作用域的 CompositionLocal 自行推导。
+ * 弹窗 / 下拉渲染在 root host，读不到声明页面的 forced 口径，靠 `MiuixOverlayTheme` 传值。
+ */
+val LocalGlassIsDark = compositionLocalOf<Boolean?> { null }
+
+/**
+ * 当前作用域生效的深浅色：页面强制口径 > 应用主题口径 > 系统口径。
+ */
+@Composable
+@ReadOnlyComposable
+fun currentGlassIsDark(): Boolean =
+    LocalGlassIsDark.current
+        ?: LocalForcedDarkTheme.current
+        ?: LocalAppSettingDark.current
+        ?: isSystemInDarkTheme()
+
+/** 当前作用域生效的柔光玻璃层；绘制期不再读任何全局状态。 */
+@Composable
+@ReadOnlyComposable
+fun currentSoftGlassLayer(): SoftGlassLayer? =
+    LocalSoftGlassLayerVariants.current.forDark(currentGlassIsDark())
 

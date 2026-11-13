@@ -63,7 +63,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.haooz.softglass.GlassEnvironment
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.drawBackdrop
 import com.haooz.softglass.backdrop.effects.blur
@@ -78,7 +77,8 @@ import top.yukonga.miuix.kmp.icon.basic.SearchCleanup
 import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
 import top.yukonga.miuix.kmp.material.LocalGlassBlurDp
 import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
-import top.yukonga.miuix.kmp.material.LocalSoftGlassLayer
+import top.yukonga.miuix.kmp.material.currentGlassIsDark
+import top.yukonga.miuix.kmp.material.currentSoftGlassLayer
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
@@ -120,7 +120,7 @@ fun SearchBar(
     val glassBlur = LocalGlassBlurDp.current
     // 无材质档：玻璃材质整体关闭（只剩半透明底色）
     val materialNone = LocalMaterialNoneEnabled.current
-    val softGlass = LocalSoftGlassLayer.current
+    val softGlass = currentSoftGlassLayer()
 
     Column(
         modifier = modifier,
@@ -298,8 +298,8 @@ fun InputField(
      */
     isLightTheme: (() -> Boolean)? = null,
 ) {
-    // 系统主题要在组合期取一次（isSystemLightTheme 是 @Composable，不能塞进 lambda）
-    val systemIsLightTheme = !GlassEnvironment.isDark
+    // 默认口径在组合期读一次；调用方要「每帧现读」可传 isLightTheme lambda 覆盖。
+    val systemIsLightTheme = !currentGlassIsDark()
     val resolveIsLightTheme: () -> Boolean = isLightTheme ?: { systemIsLightTheme }
     val currentOnQueryChange by rememberUpdatedState(onQueryChange)
     val currentOnSearch by rememberUpdatedState(onSearch)
@@ -310,7 +310,7 @@ fun InputField(
     val glassBlur = LocalGlassBlurDp.current
     // 无材质档：玻璃材质整体关闭（只剩半透明底色）
     val materialNone = LocalMaterialNoneEnabled.current
-    val softGlass = LocalSoftGlassLayer.current
+    val softGlass = currentSoftGlassLayer()
 
     val actualLeadingIcon = leadingIcon ?: {
         Box(

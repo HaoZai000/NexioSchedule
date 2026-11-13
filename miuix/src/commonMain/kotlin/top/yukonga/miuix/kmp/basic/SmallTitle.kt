@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.haooz.softglass.GlassEnvironment
+import top.yukonga.miuix.kmp.material.currentGlassIsDark
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -35,9 +35,8 @@ fun SmallTitle(
 ) {
     val baseStyle = MiuixTheme.textStyles.subtitle.copy(fontWeight = FontWeight.Medium)
     val style = if (hasWallpaper) {
-        // 原来读 App 的 isAppDarkTheme()；这里改用 backdrop 的绘制期主题快照，
-        // 由 App 在组合期写入（值与 isAppDarkTheme 相同，行为不变）。
-        val isDark = GlassEnvironment.isDark
+        // 与玻璃同一份生效深浅口径，组合期读，不依赖绘制期全局快照。
+        val isDark = currentGlassIsDark()
         val shadowColor = if (isDark) Color.Black else Color.White
         remember(true, isDark) {
             baseStyle.copy(
