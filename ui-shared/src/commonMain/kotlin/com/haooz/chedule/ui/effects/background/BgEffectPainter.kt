@@ -23,10 +23,7 @@ internal class BgEffectPainter {
     private val pointsAnimBuffer = FloatArray(8)
 
     private var animTime = Float.NaN
-    private var isDarkCached: Boolean? = null
-    private var isTabletCached: Boolean? = null
-
-    private var presetApplied = false
+    private var appliedPreset: BgEffectConfig.Config? = null
 
     private var cachedLogoHeight = Float.NaN
     private var cachedTotalHeight = Float.NaN
@@ -128,22 +125,14 @@ internal class BgEffectPainter {
         cachedTotalWidth = totalWidth
     }
 
-    fun updatePresetIfNeeded(isDark: Boolean, isTablet: Boolean) {
-        if (presetApplied && isDarkCached == isDark && isTabletCached == isTablet) return
-
-        applyPreset(isDark, isTablet)
-
-        isDarkCached = isDark
-        isTabletCached = isTablet
-        presetApplied = true
-    }
-
-    private fun applyPreset(isDark: Boolean, isTablet: Boolean) {
-        val preset = BgEffectConfig.get(isDark, isTablet)
+    /** 预设按实例身份比较：调用方可以注入自己的配色而无需重建画笔。 */
+    fun updatePresetIfNeeded(preset: BgEffectConfig.Config) {
+        if (appliedPreset === preset) return
 
         runtimeShader.setFloatUniform("uPoints", preset.points)
         runtimeShader.setFloatUniform("uLightOffset", preset.lightOffset)
         runtimeShader.setFloatUniform("uSaturateOffset", preset.saturateOffset)
+        appliedPreset = preset
     }
 
     private fun updateBound(

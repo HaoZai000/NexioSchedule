@@ -3,11 +3,14 @@ package com.haooz.chedule.ui.activities.weather
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,8 +27,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,12 +39,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -57,6 +64,8 @@ import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.today.weatherIconRes
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text
+import com.haooz.chedule.ui.effects.background.BgEffectBackgroundWithPreset
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.weather.LifeIndex
 import com.haooz.chedule.weather.RainNowcast
@@ -73,10 +82,11 @@ import com.haooz.chedule.weather.windPowerFromKmh
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.sqrt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
@@ -118,98 +128,121 @@ fun WeatherScreen(
         ((widthDp - 600).coerceIn(0, 600) / 600f * 108 + 20).dp
     } else 16.dp
 
+    // 每分钟对一次时段：页面可能开着跨过日落，背景与主题要跟着换，不用等用户手动刷新
+    var minuteTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            delay(60_000L)
+            minuteTick++
+        }
+    }
+    val flowSpec = remember(snapshot, minuteTick) {
+        WeatherFlowSpec(
+            kind = weatherFlowKind(snapshot?.now?.text.orEmpty()),
+            phase = skyPhaseOrNow(snapshot),
+        )
+    }
+
     Scaffold(topBar = {}) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            val listState = rememberLazyListState()
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .overScrollVertical()
-                    .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
-                    .collapsibleTopInset(scrollBehavior)
-                    .then(scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier),
-                contentPadding = PaddingValues(
-                    start = horizontalPadding,
-                    end = horizontalPadding,
-                    top = paddingValues.calculateTopPadding() + contentTopPadding +
-                        CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        pageTopExtra(isTablet, hasSmallTitle = false),
-                    bottom = 60.dp,
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                when (val data = snapshot) {
-                    null if loading -> item { StatusCard(WeatherStr.loading(), null) }
-                    null -> item {
-                        StatusCard(
-                            title = if (failed) WeatherStr.failed() else WeatherStr.emptyHint(),
-                            hint = if (failed) WeatherStr.failedHint() else WeatherStr.tapRefresh(),
-                            onTap = { scope.launch { WeatherStore.requestRefresh() } },
-                        )
-                    }
-                    else -> {
-                        item {
-                            HeroCard(
-                                snapshot = data,
-                                loading = loading,
-                                onRefresh = { scope.launch { WeatherStore.requestRefresh() } },
-                                onOpenAir = { sheetTarget = WeatherSheetTarget.Air },
+        BgEffectBackgroundWithPreset(
+            dynamicBackground = true,
+            presetOverride = flowSpec.config,
+            timeScale = flowSpec.timeScale,
+            isFullSize = true,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                val listState = rememberLazyListState()
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .overScrollVertical()
+                        .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
+                        .collapsibleTopInset(scrollBehavior)
+                        .then(scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier),
+                    contentPadding = PaddingValues(
+                        start = horizontalPadding,
+                        end = horizontalPadding,
+                        top = paddingValues.calculateTopPadding() + contentTopPadding +
+                            CollapsibleTopAppBarDefaults.CollapsedHeight +
+                            pageTopExtra(isTablet, hasSmallTitle = false),
+                        bottom = 60.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    when (val data = snapshot) {
+                        null if loading -> item { StatusCard(WeatherStr.loading(), null) }
+                        null -> item {
+                            StatusCard(
+                                title = if (failed) WeatherStr.failed() else WeatherStr.emptyHint(),
+                                hint = if (failed) WeatherStr.failedHint() else WeatherStr.tapRefresh(),
+                                onTap = { scope.launch { WeatherStore.requestRefresh() } },
                             )
                         }
-                        if (data.alerts.isNotEmpty()) item { AlertCard(data.alerts) }
-                        // 两小时逐分钟降水：只有当窗口内确实出现降雨时才展示卡片。
-                        // 逐分钟强度全为 0（两小时内没有雨）时隐藏整张卡片，
-                        // 避免一排空柱图或「无降水」文字占位。
-                        data.nowcast?.let { cast ->
-                            if (cast.values.any { it > 0.1f }) {
-                                item {
-                                    when {
-                                        cast.values.isNotEmpty() -> NowcastChartCard(cast)
-                                        cast.headline.isNotBlank() || cast.detail.isNotBlank() ->
-                                            SectionCard(title = WeatherStr.nowcastTitle()) {
-                                                Text(
-                                                    text = cast.headline.ifBlank { cast.detail },
-                                                    fontSize = 15.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurface,
-                                                )
-                                                if (cast.detail.isNotBlank() && cast.detail != cast.headline) {
-                                                    Spacer(Modifier.height(5.dp))
+                        else -> {
+                            item {
+                                HeroCard(
+                                    snapshot = data,
+                                    loading = loading,
+                                    onRefresh = { scope.launch { WeatherStore.requestRefresh() } },
+                                    onOpenAir = { sheetTarget = WeatherSheetTarget.Air },
+                                )
+                            }
+                            if (data.alerts.isNotEmpty()) item { AlertCard(data.alerts) }
+                            // 两小时逐分钟降水：只有当窗口内确实出现降雨时才展示卡片。
+                            // 逐分钟强度全为 0（两小时内没有雨）时隐藏整张卡片，
+                            // 避免一排空柱图或「无降水」文字占位。
+                            data.nowcast?.let { cast ->
+                                if (cast.values.any { it > 0.1f }) {
+                                    item {
+                                        when {
+                                            cast.values.isNotEmpty() -> NowcastChartCard(cast)
+                                            cast.headline.isNotBlank() || cast.detail.isNotBlank() ->
+                                                SectionCard(title = WeatherStr.nowcastTitle()) {
                                                     Text(
-                                                        text = cast.detail,
-                                                        fontSize = 13.sp,
-                                                        lineHeight = 19.sp,
-                                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                                        text = cast.headline.ifBlank { cast.detail },
+                                                        fontSize = 15.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = MiuixTheme.colorScheme.onSurface,
                                                     )
+                                                    if (cast.detail.isNotBlank() && cast.detail != cast.headline) {
+                                                        Spacer(Modifier.height(5.dp))
+                                                        Text(
+                                                            text = cast.detail,
+                                                            fontSize = 13.sp,
+                                                            lineHeight = 19.sp,
+                                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                                        )
+                                                    }
                                                 }
-                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
-                        if (data.hourly.isNotEmpty()) {
-                            item { HourlyCard(data) }
-                        }
-                        if (data.daily.isNotEmpty()) {
-                            item {
-                                DailyCard(data) { sheetTarget = WeatherSheetTarget.Days }
+                            if (data.hourly.isNotEmpty()) {
+                                item { HourlyCard(data) }
                             }
+                            if (data.daily.isNotEmpty()) {
+                                item {
+                                    DailyCard(data) { sheetTarget = WeatherSheetTarget.Days }
+                                }
+                            }
+                            // 空气质量不再单独占一张卡：头部那颗胶囊点开就是它（整卡信息量比
+                            // 主页面其它卡多一倍，摆在这里会把"看天气"变成"看报表"）
+                            item {
+                                DetailGrid(data) { sheetTarget = WeatherSheetTarget.Metric(it) }
+                            }
+                            if (data.indices.isNotEmpty()) item { IndexCard(data) }
+                            item { SourceFooter(data) }
                         }
-                        // 空气质量不再单独占一张卡：头部那颗胶囊点开就是它（整卡信息量比
-                        // 主页面其它卡多一倍，摆在这里会把"看天气"变成"看报表"）
-                        item {
-                            DetailGrid(data) { sheetTarget = WeatherSheetTarget.Metric(it) }
-                        }
-                        if (data.indices.isNotEmpty()) item { IndexCard(data) }
-                        item { SourceFooter(data) }
                     }
                 }
-            }
 
-            // 面板压在最上层（含遮罩），必须在 LazyColumn 之后组合
-            snapshot?.let { snap ->
-                WeatherSheetHost(target = sheetTarget, snapshot = snap) { sheetTarget = null }
+                // 面板压在最上层（含遮罩），必须在 LazyColumn 之后组合
+                snapshot?.let { snap ->
+                    WeatherSheetHost(target = sheetTarget, snapshot = snap) { sheetTarget = null }
+                }
             }
         }
     }
@@ -218,6 +251,45 @@ fun WeatherScreen(
 // ── 通用外壳 ──────────────────────────────────────────────────────────
 
 private val CARD_H_PADDING = 18.dp
+
+/**
+ * 天气页的玻璃表面。
+ *
+ * 深浅跟着时段走（外层主题已按时间切换），不读应用深浅色。
+ * 无材质档退化为不透明表面，避免半透明底色压不住背景。
+ */
+@Composable
+internal fun Modifier.weatherGlassSurface(shape: Shape, topSheen: Boolean = false): Modifier {
+    val isNight = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+    val fill = if (isNight) Color(0xFF0B1220) else Color.White
+    val fillAlpha = AppMaterialSettings.solidSurfaceAlpha(if (isNight) 0.46f else 0.55f)
+    val rim = if (isNight) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.34f)
+    val sheen = if (isNight) Color.White.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.20f)
+    return this
+        .clip(shape)
+        .background(fill.copy(alpha = fillAlpha), shape)
+        .drawBehind {
+            if (topSheen) {
+                drawRect(Brush.verticalGradient(0f to sheen, 0.65f to Color.Transparent))
+            }
+        }
+        .border(0.7.dp, rim, shape)
+}
+
+@Composable
+private fun SkyCard(
+    modifier: Modifier = Modifier,
+    topSheen: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier.weatherGlassSurface(
+            shape = remember { ContinuousRoundedRectangle(20.dp) },
+            topSheen = topSheen,
+        ),
+        content = content,
+    )
+}
 
 /**
  * 分区卡：标题 + 内容。
@@ -233,7 +305,7 @@ internal fun SectionCard(
     bottomPadding: Dp = 16.dp,
     content: @Composable () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    SkyCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -263,7 +335,7 @@ internal fun SectionCard(
 
 @Composable
 private fun StatusCard(title: String, hint: String?, onTap: (() -> Unit)? = null) {
-    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    SkyCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -306,7 +378,7 @@ private fun HeroCard(
     val darkTheme = MiuixTheme.colorScheme.surface.luminance() < 0.5f
     val (skyTop, skyBottom) = heroSky(snapshot, darkTheme)
 
-    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    SkyCard(modifier = Modifier.fillMaxWidth(), topSheen = true) {
         Box {
             // 一层天空色天光（左上 → 右下）：纯色卡片在大屏上太"塑料"，
             // 又不能用壁纸采样（页面独立）。透明度压得很低，只当"光"，不抢文字。
@@ -404,10 +476,7 @@ private fun HeroCard(
 
 // ── 头部天光：天气 × 时段 ────────────────────────────────────────────
 
-/** 一天四个时段：日出前/后各留 30 分钟过渡，晨、暮各 90 分钟。 */
-private enum class SkyPhase { Dawn, Day, Dusk, Night }
-
-private fun skyPhase(snapshot: WeatherSnapshot): SkyPhase {
+internal fun skyPhase(snapshot: WeatherSnapshot): SkyPhase {
     val today = snapshot.daily.firstOrNull()
     val rise = today?.sunrise?.let(::minuteOfClock)
     val set = today?.sunset?.let(::minuteOfClock)
@@ -509,7 +578,7 @@ private const val NOWCAST_MAX = 1.2f
 @Composable
 private fun NowcastChartCard(cast: RainNowcast) {
     val darkTheme = MiuixTheme.colorScheme.surface.luminance() < 0.5f
-    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    SkyCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(
                 start = CARD_H_PADDING, end = CARD_H_PADDING, top = 16.dp, bottom = 14.dp
@@ -633,7 +702,7 @@ private fun DrawScope.dashedLine(color: Color, start: Offset, end: Offset, strok
 private fun AlertCard(alerts: List<WeatherAlert>) {
     val darkTheme = MiuixTheme.colorScheme.surface.luminance() < 0.5f
     val tone = alertColor(alerts.first())
-    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    SkyCard(modifier = Modifier.fillMaxWidth()) {
         Box {
             Box(
                 modifier = Modifier.matchParentSize().background(
@@ -1065,8 +1134,20 @@ internal fun minuteOfClock(raw: String): Int? {
 
 // ── 逐日 ──────────────────────────────────────────────────────────────
 
-/* 温度条宽度*/
-private val BAR_MAX_W = 52.dp
+/**
+ * 逐日行的列位置，全部是「行宽的百分比」：0 = 左缘，1 = 右缘，0.5 = 正中心。
+ * 各列之间互不影响，想让某一列靠右就单独加大它的 START/END。
+ */
+private const val DAY_LABEL_SPAN = 0.14f      // 日期
+private const val DAY_TEXT_START = 0.20f      // 天气
+private const val DAY_TEXT_SPAN = 0.24f
+private const val DAY_ICON_CENTER = 0.47f     // 图标中心
+private const val DAY_LOW_START = 0.565f      // 低温
+private const val DAY_LOW_SPAN = 0.11f
+private const val DAY_BAR_START = 0.70f       // 温度条
+private const val DAY_BAR_SPAN = 0.18f
+private const val DAY_HIGH_START = 0.88f      // 高温
+private const val DAY_HIGH_SPAN = 0.12f
 
 @Composable
 private fun DailyCard(snapshot: WeatherSnapshot, onMore: () -> Unit) {
@@ -1133,63 +1214,75 @@ private fun DailyRow(
     val label = dayLabel(index, day.date)
     val isToday = index == 0
     val secondary = MiuixTheme.colorScheme.onSurfaceVariantSummary
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    // 绝对比例定位：每列的起点/宽度直接写死成行宽的百分比，互不挤压。
+    // 0f 是左边、1f 是右边、0.5f 就是正中心 —— 调某一列不会牵动旁边的列。
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val w = maxWidth
         Text(
             text = label,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .width(w * DAY_LABEL_SPAN),
             fontSize = 15.sp,
             fontWeight = if (isToday) FontWeight.Medium else null,
             color = MiuixTheme.colorScheme.onSurface,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        Spacer(modifier = Modifier.width(24.dp))
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            Text(
-                text = day.dayText.ifBlank { day.nightText },
-                fontSize = 15.sp,
-                color = MiuixTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Start,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            Image(
-                painter = painterResource(weatherIconRes(day.dayText, false)),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-            )
-        }
-        Spacer(modifier = Modifier.width(24.dp))
-        // 右侧整体：低温 + 条 + 高温，作为一个 Row 收在行尾
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = day.low?.let { "${it.toInt()}°" } ?: "—",
-                fontSize = 15.sp,
-                color = secondary,
-                maxLines = 1,
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            TempRangeBar(
-                low = day.low,
-                high = day.high,
-                minTemp = minTemp,
-                maxTemp = maxTemp,
-                modifier = Modifier
-                    .width(BAR_MAX_W)
-                    .height(6.dp),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = day.high?.let { "${it.toInt()}°" } ?: "—",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 1,
-            )
-        }
+        Text(
+            text = day.dayText.ifBlank { day.nightText },
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset(x = w * DAY_TEXT_START)
+                .width(w * DAY_TEXT_SPAN),
+            fontSize = 15.sp,
+            color = MiuixTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Start,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Image(
+            painter = painterResource(weatherIconRes(day.dayText, false)),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset(x = w * DAY_ICON_CENTER - 12.dp)
+                .size(24.dp),
+        )
+        Text(
+            text = day.low?.let { "${it.toInt()}°" } ?: "—",
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset(x = w * DAY_LOW_START)
+                .width(w * DAY_LOW_SPAN),
+            fontSize = 15.sp,
+            color = secondary,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+        )
+        TempRangeBar(
+            low = day.low,
+            high = day.high,
+            minTemp = minTemp,
+            maxTemp = maxTemp,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset(x = w * DAY_BAR_START)
+                .width(w * DAY_BAR_SPAN)
+                .height(6.dp),
+        )
+        Text(
+            text = day.high?.let { "${it.toInt()}°" } ?: "—",
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset(x = w * DAY_HIGH_START)
+                .width(w * DAY_HIGH_SPAN),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = MiuixTheme.colorScheme.onSurface,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+        )
     }
 }
 

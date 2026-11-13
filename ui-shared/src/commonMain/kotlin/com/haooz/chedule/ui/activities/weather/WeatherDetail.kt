@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -37,11 +38,13 @@ import com.haooz.chedule.weather.WeatherSnapshot
 import com.haooz.chedule.weather.localHourMinute
 import com.haooz.chedule.weather.windDegFromName
 import com.haooz.chedule.weather.windPowerFromKmh
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlinx.datetime.Clock
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
@@ -225,8 +228,8 @@ private fun MetricTileView(
 /**
  * 一张正方形卡：标题 + 内容。
  *
- * 用 Miuix 的 `Card(onClick=)` 而不是自己 `background + clickable` —— 它与页面其它卡
- * 共用同一套材质、圆角和按下反馈（Sink），拼在一起才像一套。
+ * 保留 Miuix 的 `Card(onClick=)` 只是为了按下反馈（Sink）与无障碍语义：底色换成透明，
+ * 表面的半透明玻璃、描边和顶部反光交给 [weatherGlassSurface]，和页面其它卡是同一套材质。
  * 高度交给 [aspectRatio]，不要写死 dp。
  */
 @Composable
@@ -236,10 +239,16 @@ private fun Tile(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val shape = remember { ContinuousRoundedRectangle(20.dp) }
     Card(
-        modifier = modifier.aspectRatio(1f),
+        modifier = modifier.aspectRatio(1f).weatherGlassSurface(shape),
         insideMargin = PaddingValues(CARD_PAD),
-        pressFeedbackType = PressFeedbackType.Sink,
+        colors = CardDefaults.defaultColors(
+            color = Color.Transparent,
+            contentColor = MiuixTheme.colorScheme.onSurface,
+        ),
+        // 缩放反馈在玻璃卡上会让四周透出底色、看起来像"压暗"，只保留点击的水波纹
+        pressFeedbackType = PressFeedbackType.None,
         showIndication = onClick != null,
         onClick = onClick,
     ) {
@@ -422,24 +431,27 @@ private fun WindTile(
 /**
  * 风向罗盘。
  *
- * ⚠ **指针必须是一根从头画到尾的线**：分成「来向一小段 + 去向箭头」两笔，
- * 中间又被中心圆盖掉，看起来就是断成两截的两个零件（上一版的 bug）。
- * 现在一笔从「来自」侧画到尖端，中心圆最后才盖 —— 中间那段被盘面挡住，
- * 露出来的两截共线，读起来才是同一根针。
+ * 指针从「来自」侧画到尖端，但**在中心圆内断开**：中心是一块半透明玻璃圆，
+ * 针身如果整根穿过去，深色主题下会透出一根白杠。两端各停在圆边外 1.5dp，
+ * 圆头帽不会探进圆内，看上去仍是同一根针，只是从中心圆后面穿过。
  */
 @Composable
 private fun WindDial(deg: Int?) {
     val track = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.30f)
     val ink = MiuixTheme.colorScheme.onSurface
-    // 圆心那块底必须**等于瓦片底色**，否则就是一颗"洞"。固定口径（不跟主题色跑）：
-    // 浅色 = 纯白圆 + 6% 黑叠层；深色 = #242424 圆 + 10% 白叠层。
-    // 分两层画而不是先混成一个颜色，叠层才能正确压在底圆上。
+    // 中心圆是半透明玻璃，比卡片本身略亮一点，数字才有底可落。
+    // 不能再取实心白/深灰：卡片已经是半透明的，实心圆会像贴上去的一块补丁。
     val darkScheme = MiuixTheme.colorScheme.surface.luminance() < 0.5f
-    val coreBase = if (darkScheme) Color(0xFF242424) else Color.White
-    val coreTint = if (darkScheme) {
+    val hubFill = if (darkScheme) {
+        Color.White.copy(alpha = 0.07f)
+    } else {
+        Color.White.copy(alpha = 0.32f)
+    }
+    // 玻璃圆需要一圈极淡的边，针在圆边断开时才有"从圆后穿过"的落点，而不是凭空断成两截
+    val hubRing = if (darkScheme) {
         Color.White.copy(alpha = 0.10f)
     } else {
-        Color.Black.copy(alpha = 0.06f)
+        Color.Black.copy(alpha = 0.05f)
     }
     Canvas(modifier = Modifier.fillMaxSize()) {
         val c = center
@@ -478,7 +490,13 @@ private fun WindDial(deg: Int?) {
             // ⚠ 杆只画到箭头根部往里 55% 处。画到尖端的话，2dp 粗的**圆头帽**会顶出
             // 三角形顶点 1dp，远看就是"尖头和那根杠糊在一起"（上一版就这样）。
             val shaftEnd = Offset(tip.x - ux * head * 0.55f, tip.y - uy * head * 0.55f)
-            drawLine(ink, tail, shaftEnd, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+            // 中心圆是半透明的，针身不能整根穿过去。两段各停在圆边外 1.5dp：
+            // 留出圆头帽的 1dp 半径，针头不会探进玻璃圆里显出白杠。
+            val hubEdge = r * 0.46f + 1.5.dp.toPx()
+            val tailEdge = Offset(c.x - ux * hubEdge, c.y - uy * hubEdge)
+            val headEdge = Offset(c.x + ux * hubEdge, c.y + uy * hubEdge)
+            drawLine(ink, tail, tailEdge, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+            drawLine(ink, headEdge, shaftEnd, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
 
             // 箭头：实心三角，顶点就是针尖（53° 顶角，比小三角更像箭头）
             val px = -uy
@@ -494,9 +512,9 @@ private fun WindDial(deg: Int?) {
             // 点孤零零挂在刻度环上，就是"箭头断了"的来源）
             drawCircle(ink, radius = 3.2.dp.toPx(), center = tail)
         }
-        // 中心留白盖住刻度线与针身中段，数字才立得住
-        drawCircle(coreBase, radius = r * 0.46f, center = c)
-        drawCircle(coreTint, radius = r * 0.46f, center = c)
+        // 中心玻璃圆：不再遮针（针已在圆边断开），只负责给数字托一层底
+        drawCircle(hubFill, radius = r * 0.46f, center = c)
+        drawCircle(hubRing, radius = r * 0.46f, center = c, style = Stroke(0.7.dp.toPx()))
     }
 }
 

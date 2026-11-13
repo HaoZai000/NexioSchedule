@@ -30,6 +30,37 @@ fun BgEffectBackground(
     alpha: () -> Float = { 1f },
     content: @Composable (BoxScope.() -> Unit),
 ) {
+    BgEffectBackgroundWithPreset(
+        dynamicBackground = dynamicBackground,
+        presetOverride = null,
+        timeScale = 1f,
+        modifier = modifier,
+        bgModifier = bgModifier,
+        isFullSize = isFullSize,
+        effectBackground = effectBackground,
+        alpha = alpha,
+        content = content,
+    )
+}
+
+/**
+ * 与 [BgEffectBackground] 相同，但允许调用方注入配色预设与动画时间倍率。
+ *
+ * @param presetOverride null 时按深浅色 / 平板取内置预设；非 null 时完全以它为准。
+ * @param timeScale 动画时间倍率，越小流动越慢（1 = 关于页当前节奏）。
+ */
+@Composable
+internal fun BgEffectBackgroundWithPreset(
+    dynamicBackground: Boolean,
+    presetOverride: BgEffectConfig.Config?,
+    timeScale: Float,
+    modifier: Modifier = Modifier,
+    bgModifier: Modifier = Modifier,
+    isFullSize: Boolean = false,
+    effectBackground: Boolean = true,
+    alpha: () -> Float = { 1f },
+    content: @Composable (BoxScope.() -> Unit),
+) {
     val shaderSupported = remember { isRuntimeShaderSupported() }
     if (!shaderSupported) {
         Box(modifier = modifier, content = content)
@@ -45,8 +76,8 @@ fun BgEffectBackground(
         val isTablet = isTabletWidth()
         val painter = remember { BgEffectPainter() }
 
-        val preset = remember(isDarkTheme, isTablet) {
-            BgEffectConfig.get(isDarkTheme, isTablet)
+        val preset = remember(isDarkTheme, isTablet, presetOverride) {
+            presetOverride ?: BgEffectConfig.get(isDarkTheme, isTablet)
         }
 
         val colorStage = remember { Animatable(0f) }
@@ -82,6 +113,7 @@ fun BgEffectBackground(
                     colorStage = { colorStage.value },
                     alpha = alpha,
                     isTablet = isTablet,
+                    timeScale = timeScale,
                 ),
         )
         content()

@@ -23,6 +23,7 @@ internal fun Modifier.bgEffectDraw(
     colorStage: () -> Float,
     alpha: () -> Float,
     isTablet: Boolean,
+    timeScale: Float,
 ): Modifier = this then BgEffectElement(
     painter = painter,
     preset = preset,
@@ -34,6 +35,7 @@ internal fun Modifier.bgEffectDraw(
     colorStage = colorStage,
     alpha = alpha,
     isTablet = isTablet,
+    timeScale = timeScale,
 )
 
 private data class BgEffectElement(
@@ -47,6 +49,7 @@ private data class BgEffectElement(
     val colorStage: () -> Float,
     val alpha: () -> Float,
     val isTablet: Boolean,
+    val timeScale: Float,
 ) : ModifierNodeElement<BgEffectNode>() {
 
     override fun create(): BgEffectNode = BgEffectNode(
@@ -60,6 +63,7 @@ private data class BgEffectElement(
         colorStage = colorStage,
         alpha = alpha,
         isTablet = isTablet,
+        timeScale = timeScale,
     )
 
     override fun update(node: BgEffectNode) {
@@ -74,6 +78,7 @@ private data class BgEffectElement(
             colorStage = colorStage,
             alpha = alpha,
             isTablet = isTablet,
+            timeScale = timeScale,
         )
     }
 }
@@ -89,6 +94,7 @@ private class BgEffectNode(
     private var colorStage: () -> Float,
     private var alpha: () -> Float,
     private var isTablet: Boolean,
+    private var timeScale: Float,
 ) : Modifier.Node(),
     DrawModifierNode {
 
@@ -116,6 +122,7 @@ private class BgEffectNode(
         colorStage: () -> Float,
         alpha: () -> Float,
         isTablet: Boolean,
+        timeScale: Float,
     ) {
         this.painter = painter
         this.preset = preset
@@ -126,6 +133,7 @@ private class BgEffectNode(
         this.colorStage = colorStage
         this.alpha = alpha
         this.isTablet = isTablet
+        this.timeScale = timeScale
 
         if (this.playing != playing) {
             this.playing = playing
@@ -150,7 +158,7 @@ private class BgEffectNode(
                 val now = withFrameNanos { it }
                 if (now - lastEmit < minDeltaNanos) continue
                 lastEmit = now
-                animTime = startOffset + (now - origin) / 1_000_000_000f
+                animTime = startOffset + (now - origin) / 1_000_000_000f * timeScale
                 invalidateDraw()
             }
         }
@@ -165,7 +173,7 @@ private class BgEffectNode(
 
                 painter.updateResolution(size.width, size.height)
                 painter.updateBoundIfNeeded(drawHeight, size.height, size.width)
-                painter.updatePresetIfNeeded(isDarkTheme, isTablet)
+                painter.updatePresetIfNeeded(preset)
                 painter.updateColors(preset, colorStage())
                 painter.updateAnimTime(animTime)
                 painter.updatePointsAnim(animTime, preset)

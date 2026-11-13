@@ -129,7 +129,9 @@ import com.haooz.chedule.ui.activities.WidgetIntroScreen
 import com.haooz.chedule.ui.activities.main.RenderSettingsPane
 import com.haooz.chedule.ui.activities.main.SettingsPaneArgs
 import com.haooz.chedule.ui.activities.rememberFeedbackFormState
+import com.haooz.chedule.ui.activities.weather.SkyPhase
 import com.haooz.chedule.ui.activities.weather.WeatherScreen
+import com.haooz.chedule.ui.activities.weather.skyPhaseOrNow
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownShadowPadding
@@ -534,10 +536,21 @@ fun WeatherRoute(router: AppRouter) {
     // 数据、载入态、主题底色；折叠动画由脚手架自己的 mustRecord 负责。
     val snapshot by WeatherStore.snapshot.collectAsState()
     val loading by WeatherStore.loading.collectAsState()
-    val surface = MiuixTheme.colorScheme.surface
-    val recordKey = remember(snapshot, loading, surface) { listOf(snapshot, loading, surface) }
     val scope = rememberCoroutineScope()
     val refresh: () -> Unit = { scope.launch { WeatherStore.requestRefresh() } }
+
+    // 天气页的主题跟着「时段」走，而不是应用深浅色：白天永远浅色、夜里永远深色。
+    // 每分钟对一次，页面开着跨过日落也能平滑切换。
+    var minuteTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000L)
+            minuteTick++
+        }
+    }
+    val night = remember(snapshot, minuteTick) { skyPhaseOrNow(snapshot) == SkyPhase.Night }
+    val recordKey = remember(snapshot, loading, night) { listOf(snapshot, loading, night) }
+    val weatherThemeController = rememberAppThemeController(isDark = night)
 
     // iOS 原生文档页的顶栏由 Swift 画，Compose 顶栏看不到，因此把同一动作发布给原生 chrome。
     NativeDocumentActionEffect(
@@ -550,23 +563,29 @@ fun WeatherRoute(router: AppRouter) {
         )
     )
 
-    DocumentPageScaffold(
-        title = WeatherStr.title(),
-        onBack = { router.popBack() },
-        recordKey = recordKey,
-        endAction = { backdropAlpha, shadowAlpha, backdrop ->
-            RefreshTopBarAction(
-                loading = loading,
-                icon = MiuixIcons.Normal.Refresh,
-                contentDescription = CommonStr.update(),
-                onClick = refresh,
-                backdrop = backdrop,
-                backdropAlpha = backdropAlpha,
-                shadowAlpha = shadowAlpha,
-            )
-        },
-    ) { scrollBehavior, _ ->
-        WeatherScreen(scrollBehavior = scrollBehavior)
+    // 主题必须包住整个脚手架：顶栏、返回按钮、页面底色都在里面取色，
+    // 只包内容层会出现「深色页配浅色顶栏」的割裂。
+    MiuixTheme(controller = weatherThemeController) {
+        CompositionLocalProvider(LocalForcedDarkTheme provides night) {
+            DocumentPageScaffold(
+                title = WeatherStr.title(),
+                onBack = { router.popBack() },
+                recordKey = recordKey,
+                endAction = { backdropAlpha, shadowAlpha, backdrop ->
+                    RefreshTopBarAction(
+                        loading = loading,
+                        icon = MiuixIcons.Normal.Refresh,
+                        contentDescription = CommonStr.update(),
+                        onClick = refresh,
+                        backdrop = backdrop,
+                        backdropAlpha = backdropAlpha,
+                        shadowAlpha = shadowAlpha,
+                    )
+                },
+            ) { scrollBehavior, _ ->
+                WeatherScreen(scrollBehavior = scrollBehavior)
+            }
+        }
     }
 }
 
