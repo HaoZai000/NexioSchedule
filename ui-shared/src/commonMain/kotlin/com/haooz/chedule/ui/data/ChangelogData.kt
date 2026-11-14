@@ -11,6 +11,30 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
+        version = "v1.7.1-1115",
+        date = "2026-11-15",
+        changes = listOf(
+            L("新增今日页天气卡片隐藏开关", "Add a toggle to hide the weather card on the Today page"),
+            L("新增上课提醒按节次范围过滤", "Add period-range filtering for class reminders"),
+            L("新增学期课表预览页保存为固定比例图片", "Add saving the semester timetable preview as a fixed-ratio image"),
+            L("反馈与开发进度新增说明、官方回复展示优化", "Add descriptions to feedback and roadmap items, and improve official reply display"),
+            L("优化天气页昼夜变化的整页流光背景、半透明玻璃卡片，新增雨、雪、霜动态效果", "Improve the weather page with a full-page flowing background that follows day and night, half-transparent glass cards, and new rain, snow and frost effects"),
+            L("优化时间轴视图可与课表视图独立", "Improve the timeline view so it can be switched independently from the timetable view"),
+            L("重做更新页版本卡视觉与动效", "Redesign the version card visuals and animations on the update page"),
+            L("重写页面形变与背景缩放动画", "Rewrite the page morph and background scale animations"),
+            L("优化课程表翻页与玻璃重绘性能", "Improve timetable page-turn and glass redraw performance"),
+            L("优化课程卡片排版", "Improve course card layout"),
+            L("应用材质默认档位改为柔光玻璃", "Set the default app material tier to Soft Glass"),
+            L("优化本地备份，支持文件夹选择", "Improve local backup with folder selection"),
+            L("恢复云端备份的入口移至 WebDAV 页", "Move the restore-from-cloud entry to the WebDAV page"),
+            L("修复柔光玻璃卡片不跟随壁纸亮度调节", "Fix Soft Glass cards not following wallpaper brightness adjustments"),
+            L("修复切换深浅色主题时玻璃材质不跟随", "Fix glass material not updating when switching between light and dark themes"),
+            L("修复部分 WebDAV 服务端解析失败", "Fix parsing failures on some WebDAV servers"),
+            L("修复长文本输入时光标跳动", "Fix the cursor jumping during long text input"),
+            L("修复顶栏按钮材质回弹残留问题", "Fix lingering material rebound on top bar buttons"),
+        )
+    ),
+    ChangelogEntry(
         version = "v1.7.0-1113",
         date = "2026-11-13",
         changes = listOf(
