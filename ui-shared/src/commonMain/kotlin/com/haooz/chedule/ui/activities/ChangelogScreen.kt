@@ -18,11 +18,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -34,6 +38,7 @@ import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.utils.screenWidthDp
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import com.haooz.softglass.shape.continuousBackground
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -47,10 +52,15 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
+/** 预加载时先排的条目数：够铺满首屏，剩下的等展开到位再补齐。 */
+private const val ChangelogInitialRows = 4
+
 @Composable
 fun ChangelogScreen(
     scrollBehavior: SharedScrollBehavior? = null,
-    initialExpandCount: Int = 3
+    initialExpandCount: Int = 3,
+    /** 页面已落定（不是翻转中的预加载）：为 false 时只排首屏条目，避免拖慢预加载。 */
+    settled: Boolean = true,
 ) {
 
     val isTablet = screenWidthDp() >= 600
@@ -65,6 +75,33 @@ fun ChangelogScreen(
                 add(index < initialExpandCount)
             }
         }
+    }
+
+    // 展开到位后再补齐（补齐发生在页面已经静止的时候，看不见）。
+    var renderCount by remember {
+        mutableIntStateOf(if (settled) changelogData.size else ChangelogInitialRows)
+    }
+    LaunchedEffect(settled) {
+        if (settled) renderCount = changelogData.size
+    }
+
+    // 首尾两行的按下态/水波纹要跟着卡片的圆角走，否则点按时会从圆角处露出直角
+    val cardRadius = CardDefaults.CornerRadius
+    val topRowShape = remember(cardRadius) {
+        ContinuousRoundedRectangle(
+            topStart = cardRadius,
+            topEnd = cardRadius,
+            bottomEnd = 0.dp,
+            bottomStart = 0.dp,
+        )
+    }
+    val bottomRowShape = remember(cardRadius) {
+        ContinuousRoundedRectangle(
+            topStart = 0.dp,
+            topEnd = 0.dp,
+            bottomEnd = cardRadius,
+            bottomStart = cardRadius,
+        )
     }
 
     val rotations = List(changelogData.size) { index ->
@@ -106,10 +143,17 @@ fun ChangelogScreen(
                     .fillMaxWidth()
                     .continuousBackground(CardDefaults.defaultColors().color, CardDefaults.CornerRadius)
             ) {
-                changelogData.forEachIndexed { index, entry ->
+                changelogData.take(renderCount).forEachIndexed { index, entry ->
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .then(
+                                when (index) {
+                                    0 -> Modifier.clip(topRowShape)
+                                    renderCount - 1 -> Modifier.clip(bottomRowShape)
+                                    else -> Modifier
+                                }
+                            )
                             .clickable { expandedStates[index] = !expandedStates[index] }
                     ) {
                         Row(
@@ -171,8 +215,8 @@ fun ChangelogScreen(
                         }
                     }
 
-                    // 分割线（最后一个不显示）
-                    if (index < changelogData.lastIndex) {
+                    // 分割线（当前渲染的最后一条不显示）
+                    if (index < renderCount - 1) {
                         Spacer(
                             modifier = Modifier
                                 .fillMaxWidth()

@@ -38,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -119,6 +120,8 @@ import com.haooz.chedule.ui.activities.PrivacyPolicyScreen
 import com.haooz.chedule.ui.activities.ReminderPermissionRow
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.TimeConfigCardBounds
+import com.haooz.chedule.ui.activities.UpdateChangelogMorphLayer
+import com.haooz.chedule.ui.activities.UpdateChangelogOrigin
 import com.haooz.chedule.ui.activities.UpdateHeroChromeState
 import com.haooz.chedule.ui.activities.UpdatePreferencesScreen
 import com.haooz.chedule.ui.activities.UpdateSettingsScreen
@@ -185,7 +188,9 @@ import com.haooz.softglass.platform.isRenderEffectSupported
 import com.haooz.softglass.shape.addContinuousRoundRect
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -715,6 +720,109 @@ fun UpdateSettingsRoute(
     val pageBlur = remember { Animatable(0f) }
     // 翻开更新日志时，顶栏（返回 / 更多）要把点击让给卡片：状态由页面写、脚手架读
     val heroChrome = remember { UpdateHeroChromeState() }
+    // 更新日志页：翻转过程中由同一张卡长成的整页。整个翻/长过程都在本路由内完成，
+    // 不 navigate、不换页，所以结束时看到的就是这一份页面本身。
+    var changelogOrigin by remember { mutableStateOf<UpdateChangelogOrigin?>(null) }
+    var changelogOpen by remember { mutableStateOf(false) }
+    var changelogMounted by remember { mutableStateOf(false) }
+    // 翻出去的那张卡已经在这一层真正出图：这时才让列表里那张隐身，避免首帧看到卡一闪
+    var changelogCardReady by remember { mutableStateOf(false) }
+    // 整页内容等翻转走起来再挂：点击那一帧只画卡和遮罩，翻不会先楞一拍
+    var changelogPageReady by remember { mutableStateOf(false) }
+    // 整页已经完成首帧布局：这时才放动画，避免动画跑在页面还没出来的空帧上
+    var changelogPageLaidOut by remember { mutableStateOf(false) }
+    // 翻与长各有自己的时长：翻转 600ms 先翻完，页面缩放裁切 720ms 后收尾
+    val changelogFlip = remember { Animatable(0f) }
+    val changelogGrow = remember { Animatable(0f) }
+    // 背景：与项目里「卡片 → 整页」的连贯动画同一套做法——整页按需录一层，缩放/模糊的是快照，
+    // 不缩放实时页面；缩小后四周露出部分由 MirroredSnapshotBackdrop 用镜像补齐。
+    val changelogPageLayer = rememberGraphicsLayer()
+    var changelogRecordRequest by remember { mutableIntStateOf(0) }
+    val changelogLastRecorded = remember { intArrayOf(-1) }
+    var changelogBackdrop by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
+    val changelogBackdropScale = remember { Animatable(1f) }
+    val changelogBackdropBlur = remember { Animatable(0f) }
+    val routeScope = rememberCoroutineScope()
+    val routeDensity = LocalDensity.current
+
+    suspend fun capturePageSnapshot(): TransitionLayerSnapshot? {
+        changelogRecordRequest++
+        while (changelogLastRecorded[0] != changelogRecordRequest) withFrameNanos { }
+        return if (changelogPageLayer.size.width > 0 && changelogPageLayer.size.height > 0) {
+            TransitionLayerSnapshot(changelogPageLayer)
+        } else {
+            null
+        }
+    }
+    LaunchedEffect(changelogOpen) {
+        if (changelogOpen) {
+            // 先把日志页排好，再开动画：页面上屏后立刻开跑，不空等也不空帧
+            changelogPageReady = true
+            snapshotFlow { changelogPageLaidOut }.first { it }
+            coroutineScope {
+                launch {
+                    changelogFlip.animateTo(
+                        1f,
+                        tween(600, easing = OobeQuartOutEasing),
+                    )
+                }
+                launch {
+                    changelogGrow.animateTo(
+                        1f,
+                        tween(720, easing = OobeQuartOutEasing),
+                    )
+                }
+                // 背景缩放/模糊与翻转同一条曲线：1 → 0.9、0 → 12px（与连贯动画同款数值）
+                launch {
+                    changelogBackdropScale.animateTo(
+                        MORPH_BACKGROUND_SHRINK,
+                        tween(600, easing = OobeQuartOutEasing),
+                    )
+                }
+                launch {
+                    changelogBackdropBlur.animateTo(
+                        12f,
+                        tween(600, easing = OobeQuartOutEasing),
+                    )
+                }
+            }
+        } else if (changelogMounted) {
+            coroutineScope {
+                launch {
+                    changelogFlip.animateTo(
+                        0f,
+                        tween(460, easing = OobeCubicOutEasing),
+                    )
+                }
+                launch {
+                    changelogGrow.animateTo(
+                        0f,
+                        tween(540, easing = OobeCubicOutEasing),
+                    )
+                }
+                launch {
+                    changelogBackdropScale.animateTo(
+                        1f,
+                        tween(460, easing = OobeCubicOutEasing),
+                    )
+                }
+                launch {
+                    changelogBackdropBlur.animateTo(
+                        0f,
+                        tween(460, easing = OobeCubicOutEasing),
+                    )
+                }
+            }
+            changelogMounted = false
+            changelogPageReady = false
+            // 快照撤掉，实时页面重新开始画
+            changelogBackdrop = null
+            // 层卸载后把列表里那张卡放出来，否则退出后卡片一直是隐身的
+            changelogCardReady = false
+            // 下次打开是新挂的整页，等它重新布局（关闭途中又点开时则沿用上一次的结果）
+            changelogPageLaidOut = false
+        }
+    }
     // 右上角「更多」+ 玻璃下拉。触发器由组件自己画（收起态那颗圆），这里只维护开合状态。
     var moreOpen by remember { mutableStateOf(false) }
     val moreFraction = remember { Animatable(0f) }
@@ -731,97 +839,157 @@ fun UpdateSettingsRoute(
         val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         (if (statusBarTop > 0.dp) statusBarTop - 20.dp else 17.dp).coerceAtLeast(0.dp).toPx()
     }
-    DocumentPageScaffold(
-        title = ChromeStr.updateSettingsTitle(),
-        onBack = { router.popBack() },
-        pageBlurDp = { pageBlur.value },
-        chromeBlocked = heroChrome.blocked,
-        onChromeBlockedTap = { heroChrome.dismiss() },
-        endAction = { barAlpha, _, _ ->
-            SideEffect { moreMaterialAlpha.floatValue = barAlpha }
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .onGloballyPositioned {
-                        val pos = it.positionInRoot()
-                        moreSlotTopPx.floatValue = pos.y
-                        moreSlotRightPx.floatValue = pos.x + it.size.width
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 翻日志页时的背景：与连贯动画同款做法——整页按需录一层快照，
+        // 缩放/模糊的是快照；快照覆盖期间实时页面整块不画，避免缩放重排
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MiuixTheme.colorScheme.surface)
+                .drawWithContent {
+                    if (changelogLastRecorded[0] != changelogRecordRequest) {
+                        changelogPageLayer.record { this@drawWithContent.drawContent() }
+                        changelogLastRecorded[0] = changelogRecordRequest
+                        drawLayer(changelogPageLayer)
+                    } else if (changelogBackdrop == null) {
+                        drawContent()
                     }
-            )
-        },
-        overlay = { backdrop ->
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (moreOpen) {
-                    // 点空白收起
+                }
+        ) {
+            DocumentPageScaffold(
+                title = ChromeStr.updateSettingsTitle(),
+                onBack = { router.popBack() },
+                pageBlurDp = { pageBlur.value },
+                chromeBlocked = heroChrome.blocked,
+                onChromeBlockedTap = { heroChrome.dismiss() },
+                endAction = { barAlpha, _, _ ->
+                    SideEffect { moreMaterialAlpha.floatValue = barAlpha }
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { moreOpen = false }
+                            .size(42.dp)
+                            .onGloballyPositioned {
+                                val pos = it.positionInRoot()
+                                moreSlotTopPx.floatValue = pos.y
+                                moreSlotRightPx.floatValue = pos.x + it.size.width
+                            }
                     )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .onGloballyPositioned {
-                            val pos = it.positionInRoot()
-                            overlayLeftPx.floatValue = pos.x
-                            overlayTopPx.floatValue = pos.y
-                            overlayWidthPx.floatValue = it.size.width.toFloat()
-                        }
-                        .graphicsLayer {
-                            clip = false
-                            // 占位槽顶边减掉阴影外扩，才是菜单内容顶边（相对浮层，去掉页面平移）
-                            val measured = moreSlotTopPx.floatValue - overlayTopPx.floatValue - shadowPaddingPx
-                            translationY = if (measured > 0f) measured else fallbackAnchorTopPx
-                        }
-                        .offset {
-                            IntOffset(
-                                x = (
-                                    moreSlotRightPx.floatValue -
-                                        (overlayLeftPx.floatValue + overlayWidthPx.floatValue)
-                                    ).roundToInt() + LiquidGlassDropdownShadowPadding.roundToPx(),
-                                y = 0,
+                },
+                overlay = { backdrop ->
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (moreOpen) {
+                            // 点空白收起
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) { moreOpen = false }
                             )
-                        },
-                    contentAlignment = Alignment.TopEnd,
-                ) {
-                    LiquidGlassDropdownMenu(
-                        show = moreOpen,
-                        backdrop = backdrop,
-                        fraction = moreFraction,
-                        onDismiss = { moreOpen = false },
-                        onExpand = {
-                            // 更新日志卡片翻开期间，更多按钮在这一层（压住顶栏）之上，
-                            // 顶栏拦截盖不到：这里直接转成「退出卡片」，与点遮罩同义
-                            if (heroChrome.blocked) heroChrome.dismiss() else moreOpen = true
-                        },
-                        triggerIcon = MiuixIcons.More,
-                        triggerContentDescription = CommonStr.more(),
-                        materialAlpha = moreMaterialAlpha.floatValue,
-                    ) {
-                        LiquidGlassDropdownMenuItem(
-                            text = ChromeStr.updatePreferencesTitle(),
-                            onClick = {
-                                moreOpen = false
-                                router.navigate(AppRoute.UpdatePreferences)
-                            },
-                        )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .onGloballyPositioned {
+                                    val pos = it.positionInRoot()
+                                    overlayLeftPx.floatValue = pos.x
+                                    overlayTopPx.floatValue = pos.y
+                                    overlayWidthPx.floatValue = it.size.width.toFloat()
+                                }
+                                .graphicsLayer {
+                                    clip = false
+                                    // 占位槽顶边减掉阴影外扩，才是菜单内容顶边（相对浮层，去掉页面平移）
+                                    val measured = moreSlotTopPx.floatValue - overlayTopPx.floatValue - shadowPaddingPx
+                                    translationY = if (measured > 0f) measured else fallbackAnchorTopPx
+                                }
+                                .offset {
+                                    IntOffset(
+                                        x = (
+                                            moreSlotRightPx.floatValue -
+                                                (overlayLeftPx.floatValue + overlayWidthPx.floatValue)
+                                            ).roundToInt() + LiquidGlassDropdownShadowPadding.roundToPx(),
+                                        y = 0,
+                                    )
+                                },
+                            contentAlignment = Alignment.TopEnd,
+                        ) {
+                            LiquidGlassDropdownMenu(
+                                show = moreOpen,
+                                backdrop = backdrop,
+                                fraction = moreFraction,
+                                onDismiss = { moreOpen = false },
+                                onExpand = {
+                                    // 更新日志卡片翻开期间，更多按钮在这一层（压住顶栏）之上，
+                                    // 顶栏拦截盖不到：这里直接转成「退出卡片」，与点遮罩同义
+                                    if (heroChrome.blocked) heroChrome.dismiss() else moreOpen = true
+                                },
+                                triggerIcon = MiuixIcons.More,
+                                triggerContentDescription = CommonStr.more(),
+                                materialAlpha = moreMaterialAlpha.floatValue,
+                            ) {
+                                LiquidGlassDropdownMenuItem(
+                                    text = ChromeStr.updatePreferencesTitle(),
+                                    onClick = {
+                                        moreOpen = false
+                                        router.navigate(AppRoute.UpdatePreferences)
+                                    },
+                                )
+                            }
+                        }
                     }
-                }
+                },
+            ) { scrollBehavior, backdrop ->
+                UpdateSettingsScreen(
+                    scrollBehavior = scrollBehavior,
+                    liquidGlassBackdrop = backdrop,
+                    updateController = updateController,
+                    pageBlur = pageBlur,
+                    heroChrome = heroChrome,
+                    heroHidden = changelogCardReady,
+                    onOpenChangelog = { origin ->
+                        changelogOrigin = origin
+                        // 点击这一帧就把层和整页挂上，页面布局完再开跑
+                        changelogPageReady = true
+                        changelogMounted = true
+                        routeScope.launch {
+                            // 与课程卡 / 作息编辑同款：先让浮层那张卡以同一位置、同一外观上屏，
+                            // 再把列表里那张隐身——屏幕看不出变化，接着拍的整页快照里就没有原卡片了
+                            snapshotFlow { changelogCardReady }.first { it }
+                            changelogBackdropScale.snapTo(1f)
+                            changelogBackdropBlur.snapTo(0f)
+                            val background = capturePageSnapshot()
+                            background?.freezeSource()
+                            changelogBackdrop = background
+                            changelogOpen = true
+                        }
+                    },
+                )
             }
-        },
-    ) { scrollBehavior, backdrop ->
-        UpdateSettingsScreen(
-            scrollBehavior = scrollBehavior,
-            liquidGlassBackdrop = backdrop,
-            updateController = updateController,
-            pageBlur = pageBlur,
-            heroChrome = heroChrome,
-            onOpenChangelog = { router.navigate(AppRoute.Changelog) },
-        )
+        }
+
+        // 背景快照：按 shrink 居中缩小，四周露出部分用镜像补齐，模糊跟着同一条进度
+        changelogBackdrop?.let { snapshot ->
+            MirroredSnapshotBackdrop(
+                snapshot = snapshot,
+                shrink = { changelogBackdropScale.value },
+                backgroundColor = MiuixTheme.colorScheme.surface,
+                blurRadiusPx = { changelogBackdropBlur.value * routeDensity.density },
+            )
+        }
+
+        // 同一张卡翻出来的日志页：盖在更新页（含顶栏）之上，长满即页面本身
+        val cardOrigin = changelogOrigin
+        if (changelogMounted && cardOrigin != null) {
+            UpdateChangelogMorphLayer(
+                origin = cardOrigin,
+                flip = { changelogFlip.value },
+                grow = { changelogGrow.value },
+                pageReady = changelogPageReady,
+                onPageLaidOut = { changelogPageLaidOut = true },
+                onCardReady = { changelogCardReady = true },
+                onClose = { changelogOpen = false },
+            )
+        }
     }
 }
 
