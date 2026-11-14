@@ -21,6 +21,7 @@ import com.haooz.chedule.ui.components.WeatherAlertBadge
 import com.haooz.chedule.ui.components.text.miuix.Text
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
+import com.haooz.chedule.ui.utils.rememberWeatherVisible
 import com.haooz.chedule.weather.WeatherStore
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import org.jetbrains.compose.resources.painterResource
@@ -34,6 +35,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 @Composable
 internal fun ScheduleWeatherBadge(modifier: Modifier = Modifier) {
+    // 「显示天气」关掉后，课表顶栏也不再显示天气条
+    if (!rememberWeatherVisible()) return
     val snapshot by WeatherStore.snapshot.collectAsState()
     // 与今日卡一致：没有可用的实况就不画
     val weather = snapshot?.toCardData() ?: return

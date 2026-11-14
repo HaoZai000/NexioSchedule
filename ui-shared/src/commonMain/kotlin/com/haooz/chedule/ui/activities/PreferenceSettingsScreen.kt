@@ -49,7 +49,9 @@ import com.haooz.chedule.ui.theme.LocalSystemDarkTheme
 import com.haooz.chedule.ui.theme.isMonetColorAvailable
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.FeatureLog
+import com.haooz.chedule.ui.utils.KEY_TODAY_INFO_CARDS
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
+import com.haooz.chedule.ui.utils.rememberWeatherVisible
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.theme_preview_light
 import com.haooz.chedule.uishared.resources.theme_preview_night
@@ -417,6 +419,15 @@ fun PreferenceSettingsScreen(
                                     }
                                 )
                             }
+                            val weatherVisible = rememberWeatherVisible()
+                            SwitchPreference(
+                                title = PreferenceStr.showWeather(),
+                                summary = PreferenceStr.showWeatherSummary(),
+                                checked = weatherVisible,
+                                onCheckedChange = {
+                                    appPrefs.edit { putBoolean(KEY_TODAY_INFO_CARDS, it) }
+                                }
+                            )
                             SwitchPreference(
                                 title = PreferenceStr.hapticFeedback(),
                                 summary = PreferenceStr.hapticFeedbackSummary(),

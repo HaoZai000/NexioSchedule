@@ -2,8 +2,10 @@ package com.haooz.chedule.ui.utils
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import com.haooz.chedule.data.appearance.ThemeMode
 import com.haooz.chedule.data.storage.AppStorage
@@ -89,6 +91,27 @@ internal fun installAppSettingDarkBridge() {
     AppSettingDarkBridge.subscribe = subscribe
 }
 
+// ── 今日页天气显隐 ───────────────────────────────────────────────────────
+// 与触感反馈共用 app_preferences；键名是落盘契约，改了即丢用户选择。
+// 键名沿用旧值：历史上它同时控制信息卡，现在语义收窄为「只控制天气」。
+const val KEY_TODAY_INFO_CARDS = "today_info_cards_enabled"
+
+/** 关闭后今日页助手卡、课表顶栏都不再显示天气；日期、信息卡与课程不受影响。 */
+@Composable
+fun rememberWeatherVisible(): Boolean {
+    val prefs = remember { AppStorage.store("app_preferences") }
+    var enabled by remember { mutableStateOf(prefs.getBoolean(KEY_TODAY_INFO_CARDS, true)) }
+    DisposableEffect(prefs) {
+        val token = prefs.registerListener { key ->
+            if (key == KEY_CHANGED_ANYWHERE || key == KEY_TODAY_INFO_CARDS) {
+                enabled = prefs.getBoolean(KEY_TODAY_INFO_CARDS, true)
+            }
+        }
+        onDispose { prefs.unregisterListener(token) }
+    }
+    return enabled
+}
+
 // ── 课表页「默认主题」档位 ───────────────────────────────────────────────
 // 落盘是数据契约：**与全局应用主题共用 app_theme_prefs 文件但键不同**
 // （键名见 ThemeMode.SCHEDULE_THEME_MODE_KEY），文件名与键名逐字不可改。
@@ -133,6 +156,48 @@ fun saveScheduleViewMode(mode: ScheduleViewMode) {
             SCHEDULE_VIEW_MODE_KEY,
             if (mode == ScheduleViewMode.TIMELINE) VIEW_MODE_TIMELINE else VIEW_MODE_WEEK
         )
+    }
+}
+
+// ── 今日页视图模式（周网格 / 时间轴）──────────────────────────────────
+// 与课表页共用 app_theme_prefs 文件但键独立：今日页可以单独开时间轴，课表页保持周视图。
+
+private const val TODAY_VIEW_MODE_KEY = "today_view_mode"
+private const val TODAY_VIEW_WEEK = 0
+private const val TODAY_VIEW_TIMELINE = 1
+
+/** 今日页呈现方式：周网格 / 时间轴（不再提供「跟随课表页」档位）。 */
+enum class TodayViewMode(val prefsValue: Int) {
+    WEEK(TODAY_VIEW_WEEK),
+    TIMELINE(TODAY_VIEW_TIMELINE);
+
+    companion object {
+        fun fromPrefs(value: Int): TodayViewMode? =
+            entries.firstOrNull { it.prefsValue == value }
+    }
+}
+
+/**
+ * 读今日页视图模式。
+ *
+ * 没有存过值时按课表页当前视图初始化（旧版存的是「跟随」-1，也走这条）：
+ * 老用户升级后首屏观感不变，之后再改今日页视图就与课表页解耦。
+ */
+fun loadTodayViewMode(): TodayViewMode =
+    TodayViewMode.fromPrefs(
+        AppStorage.store(SCHEDULE_THEME_PREFS_FILE).getInt(TODAY_VIEW_MODE_KEY, -1)
+    ) ?: run {
+        if (loadScheduleViewMode() == ScheduleViewMode.TIMELINE) {
+            TodayViewMode.TIMELINE
+        } else {
+            TodayViewMode.WEEK
+        }
+    }
+
+/** 写今日页视图模式（课表外观弹窗切换时落盘） */
+fun saveTodayViewMode(mode: TodayViewMode) {
+    AppStorage.store(SCHEDULE_THEME_PREFS_FILE).edit {
+        putInt(TODAY_VIEW_MODE_KEY, mode.prefsValue)
     }
 }
 

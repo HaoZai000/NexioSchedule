@@ -18,6 +18,7 @@ object SchedStr {
     val viewAsTimeline = L("时间轴视图", "Timeline view")
     val viewAsWeek = L("周视图", "Week view")
     val viewAs = L("课表视图", "Schedule view")
+    val todayViewAs = L("今日页视图", "Today view")
     val timelineFixedHeight = L("时间轴按真实时长", "Real duration")
 
     // ── 课表网格 / 课程详情 ──

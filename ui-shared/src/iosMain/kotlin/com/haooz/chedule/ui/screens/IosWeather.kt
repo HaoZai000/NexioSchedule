@@ -15,6 +15,7 @@ import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.ui.activities.today.WeatherData
 import com.haooz.chedule.ui.activities.today.toCardData
+import com.haooz.chedule.ui.utils.rememberWeatherVisible
 import com.haooz.chedule.weather.WeatherPlace
 import com.haooz.chedule.weather.WeatherRepository
 import com.haooz.chedule.weather.WeatherStore
@@ -68,9 +69,12 @@ fun WeatherBootstrapIos() {
     // 快照被作废（改天气源 / 手动刷新）时自增，靠它把循环重启一遍
     val refreshToken by WeatherStore.refreshToken.collectAsState()
     val locationClient = remember { IosLocationClient() }
+    // 「显示天气」关闭时不再请求定位与天气
+    val weatherVisible = rememberWeatherVisible()
 
-    LaunchedEffect(privacyConsented, sourceKey, refreshToken) {
+    LaunchedEffect(privacyConsented, sourceKey, refreshToken, weatherVisible) {
         if (!privacyConsented) return@LaunchedEffect
+        if (!weatherVisible) return@LaunchedEffect
         if (!locationClient.isAuthorized()) return@LaunchedEffect
         // 前台循环：第一轮就是「打开应用 → 判定缓存是否过期」。
         // iOS 退到后台几秒内进程就被挂起，`delay` 的计时也跟着停 ——
@@ -109,9 +113,19 @@ fun rememberWeatherIos(): Triple<WeatherData, Boolean, () -> Unit> {
     var phase by remember { mutableStateOf(IosWeatherPhase.IDLE) }
     var hasLocationPermission by remember { mutableStateOf(locationClient.isAuthorized()) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
+    // 不显示天气时不定位、不拉取
+    val weatherVisible = rememberWeatherVisible()
 
-    LaunchedEffect(hasLocationPermission, sourceKey, refreshTrigger, privacyConsented, refreshToken) {
+    LaunchedEffect(
+        hasLocationPermission,
+        sourceKey,
+        refreshTrigger,
+        privacyConsented,
+        refreshToken,
+        weatherVisible,
+    ) {
         if (!privacyConsented) return@LaunchedEffect
+        if (!weatherVisible) return@LaunchedEffect
         val coords = if (hasLocationPermission) locationClient.requestLocation() else null
         if (coords == null) {
             phase = IosWeatherPhase.NEEDS_LOCATION

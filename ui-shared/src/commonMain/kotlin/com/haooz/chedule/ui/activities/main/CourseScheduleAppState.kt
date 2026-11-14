@@ -58,10 +58,13 @@ import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.HostNavigationState
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
+import com.haooz.chedule.ui.utils.TodayViewMode
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.captureScreenWithNativeChrome
 import com.haooz.chedule.ui.utils.loadScheduleViewMode
+import com.haooz.chedule.ui.utils.loadTodayViewMode
 import com.haooz.chedule.ui.utils.saveScheduleViewMode
+import com.haooz.chedule.ui.utils.saveTodayViewMode
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -1747,6 +1750,15 @@ class CourseScheduleAppState {
         if (scheduleViewMode == mode) return
         scheduleViewMode = mode
         saveScheduleViewMode(mode)
+    }
+
+    /** 今日页呈现方式（周网格 / 时间轴），落盘在 app_theme_prefs 的 today_view_mode */
+    var todayViewMode by mutableStateOf(loadTodayViewMode())
+
+    fun applyTodayViewMode(mode: TodayViewMode) {
+        if (todayViewMode == mode) return
+        todayViewMode = mode
+        saveTodayViewMode(mode)
     }
 
     // 按钮原地随菜单展开淡出，形成"按钮连贯变为菜单"的单一动画

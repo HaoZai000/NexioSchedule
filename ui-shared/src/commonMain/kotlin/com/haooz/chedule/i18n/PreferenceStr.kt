@@ -41,6 +41,9 @@ object PreferenceStr {
     val hideFromRecents = L("隐藏后台", "Hide from Recents")
     val hideFromRecentsSummary =
         L("返回桌面时，隐藏应用的最近任务卡片", "Hide the app's recent tasks card when returning to the home screen")
+    val showWeather = L("显示天气", "Show Weather")
+    val showWeatherSummary =
+        L("今日页与课表顶栏的天气显示", " Weather on the Today page and the schedule top bar")
 
     // 数据源
     val dataSources = L("数据源", "Data Sources")
@@ -48,8 +51,6 @@ object PreferenceStr {
     val eduRepoSource = L("教务数据仓库源", "Academic Data Repo Source")
     val eduRepoSourceSummary =
         L("更新教务系统数据源的仓库", "Repository for updating the academic system data source")
-    val aggregateApi = L("聚合接口", "Aggregated API")
-    val caiyunWeather = L("彩云天气", "Caiyun Weather")
     val weatherDataSource = L("天气数据源", "Weather Data Source")
     val stateCouncil = L("国务院", "State Council")
     val holidayDataSource = L("节假日数据源", "Holiday Data Source")

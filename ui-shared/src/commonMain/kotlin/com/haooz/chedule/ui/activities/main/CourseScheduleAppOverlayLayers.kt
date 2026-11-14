@@ -668,6 +668,8 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         // 视图模式：外观弹窗里切，切完即落盘（与主题档位一致）
                         scheduleViewMode = scheduleViewMode,
                         onScheduleViewModeChange = { applyScheduleViewMode(it) },
+                        todayViewMode = todayViewMode,
+                        onTodayViewModeChange = { applyTodayViewMode(it) },
                         combinations = customizeThumbnails,
                         currentCombinationIndex = currentCombinationIndex,
                         isExiting = isCustomizeExiting,

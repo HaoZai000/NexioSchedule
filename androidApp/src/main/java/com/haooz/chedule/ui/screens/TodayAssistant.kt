@@ -39,6 +39,7 @@ import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.ui.activities.today.WeatherData
 import com.haooz.chedule.ui.activities.today.toCardData
+import com.haooz.chedule.ui.utils.rememberWeatherVisible
 import com.haooz.chedule.weather.WeatherPlace
 import com.haooz.chedule.weather.WeatherRepository
 import com.haooz.chedule.weather.WeatherStore
@@ -142,9 +143,12 @@ fun WeatherBootstrap() {
     // 快照被作废（改天气源 / 手动刷新）时自增，靠它把循环重启一遍
     val refreshToken by WeatherStore.refreshToken.collectAsState()
     val activity = LocalActivity.current
+    // 「显示天气」关闭时连缓存也不主动刷新：不读定位、不发请求
+    val weatherVisible = rememberWeatherVisible()
 
-    LaunchedEffect(privacyConsented, refreshToken, activity) {
+    LaunchedEffect(privacyConsented, refreshToken, activity, weatherVisible) {
         if (!privacyConsented) return@LaunchedEffect
+        if (!weatherVisible) return@LaunchedEffect
         // LocalActivity 给的是 Activity，生命周期能力在 LifecycleOwner 上
         val owner = activity as? LifecycleOwner ?: return@LaunchedEffect
         // 只在 RESUMED（真正在前台）时循环：退到后台这个协程就被取消，
@@ -194,10 +198,20 @@ fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
     }
 
     var refreshTrigger by remember { mutableIntStateOf(0) }
+    // 今日页/课表顶栏不显示天气时，不再定位、不再拉取
+    val weatherVisible = rememberWeatherVisible()
 
-    LaunchedEffect(hasLocationPermission, sourceKey, refreshTrigger, privacyConsented, refreshToken) {
+    LaunchedEffect(
+        hasLocationPermission,
+        sourceKey,
+        refreshTrigger,
+        privacyConsented,
+        refreshToken,
+        weatherVisible,
+    ) {
         // 合规：用户同意隐私政策前，不进行定位与天气数据获取；同意后会因 key 变化自动重跑
         if (!privacyConsented) return@LaunchedEffect
+        if (!weatherVisible) return@LaunchedEffect
         phase = fetchWeather(context, hasLocationPermission)
     }
 

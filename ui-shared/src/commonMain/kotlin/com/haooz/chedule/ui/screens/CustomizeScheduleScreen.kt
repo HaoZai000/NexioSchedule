@@ -106,6 +106,7 @@ import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
+import com.haooz.chedule.ui.utils.TodayViewMode
 import com.haooz.chedule.ui.utils.addScreenCornerRect
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenHeightDp
@@ -241,6 +242,9 @@ fun CustomizeScheduleScreen(
     /** 课表页当前呈现方式（周网格 / 时间轴）。外观页里改它，回主界面即生效。 */
     scheduleViewMode: ScheduleViewMode = ScheduleViewMode.WEEK,
     onScheduleViewModeChange: (ScheduleViewMode) -> Unit = {},
+    /** 今日页呈现方式（可独立于课表页）：周网格 / 时间轴 */
+    todayViewMode: TodayViewMode = TodayViewMode.WEEK,
+    onTodayViewModeChange: (TodayViewMode) -> Unit = {},
     hasWallpaper: Boolean = false,
     /** 预览页：0=今日，1=课程表；椭圆滑块与取消/应用同一行 */
     previewPage: Int = 0,
@@ -1723,6 +1727,33 @@ fun CustomizeScheduleScreen(
                             OverlayDropdownMenu(
                                 title = SchedStr.viewAs(),
                                 entry = viewModeEntry,
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = LocalSheetContentBackdrop.current
+                                    ?: liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
+                            )
+                            // 今日页可以单独选视图，与课表页互不影响
+                            val todayViewModeEntry = DropdownEntry(
+                                items = listOf(
+                                    DropdownItem(
+                                        text = SchedStr.viewAsWeek(),
+                                        selected = todayViewMode == TodayViewMode.WEEK,
+                                        onClick = {
+                                            onTodayViewModeChange(TodayViewMode.WEEK)
+                                        }
+                                    ),
+                                    DropdownItem(
+                                        text = SchedStr.viewAsTimeline(),
+                                        selected = todayViewMode == TodayViewMode.TIMELINE,
+                                        onClick = {
+                                            onTodayViewModeChange(TodayViewMode.TIMELINE)
+                                        }
+                                    ),
+                                )
+                            )
+                            OverlayDropdownMenu(
+                                title = SchedStr.todayViewAs(),
+                                entry = todayViewModeEntry,
                                 collapseOnSelection = true,
                                 liquidGlassBackdrop = LocalSheetContentBackdrop.current
                                     ?: liquidGlassBackdrop,

@@ -69,6 +69,7 @@ import com.haooz.chedule.ui.components.WeatherAlertBadge
 import com.haooz.chedule.weather.WeatherAlert
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.rememberWeatherVisible
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.ic_widget_location
 import com.haooz.chedule.uishared.resources.icon_cloudy
@@ -750,6 +751,8 @@ fun TodayAssistantCard(
     onOpenWeather: (() -> Unit)? = null,
 ) {
     val courseStatus = rememberCourseStatus(courses, sectionTimes)
+    // 「显示天气」关闭时天气行不渲染，卡片底部留白要跟顶部对齐
+    val showWeather = rememberWeatherVisible()
     // 徽标、倒计时、进度条、柔光共用同一支强调色，避免多色打架
     val accent = MiuixTheme.colorScheme.primary
     // TextStyle.copy 会新建对象，按主题记一次，别每次重组都重建
@@ -836,7 +839,12 @@ fun TodayAssistantCard(
                     .fillMaxWidth()
                     // 渐变画在内容之下、玻璃面之上；alpha 在绘制期读，淡出只失效绘制
                     .drawBehind { tintBrush?.let { drawRect(it, alpha = tintFade.value) } }
-                    .padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 10.dp)
+                    .padding(
+                        start = 16.dp,
+                        top = 14.dp,
+                        end = 16.dp,
+                        bottom = if (showWeather) 10.dp else 14.dp,
+                    )
             ) {
                 val currentCourse = courseStatus.currentCourse
                 val nextCourse = courseStatus.nextCourse
@@ -964,6 +972,8 @@ fun TodayAssistantCard(
                     }
                     // 整行可点 = 天气详情入口。点击区把图标+文字+箭头包在一起，
                     // 不然只有文字窄条能点，手指按在图标上没反应。
+                    // 「显示天气」关闭时整行不渲染，卡片其余内容照常保留。
+                    if (showWeather) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = if (onOpenWeather != null) {
@@ -1057,6 +1067,7 @@ fun TodayAssistantCard(
                                 color = MiuixTheme.colorScheme.onSurfaceVariantActions
                             )
                         }
+                    }
                     }
                 }
             }

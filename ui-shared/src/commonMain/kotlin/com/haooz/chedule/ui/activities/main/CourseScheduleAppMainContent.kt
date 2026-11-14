@@ -131,6 +131,7 @@ import com.haooz.chedule.ui.utils.NativeTopBarMenuItem
 import com.haooz.chedule.ui.utils.NativeTopBarState
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
+import com.haooz.chedule.ui.utils.TodayViewMode
 import com.haooz.chedule.ui.utils.addScreenCornerRect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
@@ -748,8 +749,11 @@ internal fun CourseScheduleAppMainContent(
                                                             },
                                                             // 今日助手卡留在 :androidApp（天气/定位/Geocoder），通过槽位注入
                                                             todayAssistantCard = todayAssistantCard,
-                                                            // 视图模式与课表页共用同一个开关
-                                                            scheduleViewMode = scheduleViewMode,
+                                                            // 今日页视图独立于课表页：周网格 / 时间轴
+                                                            scheduleViewMode = when (todayViewMode) {
+                                                                TodayViewMode.WEEK -> ScheduleViewMode.WEEK
+                                                                TodayViewMode.TIMELINE -> ScheduleViewMode.TIMELINE
+                                                            },
                                                             // 顶栏与内容共用同一份越界状态（顶栏材质判据需要）
                                                             overScrollState = mainOverScrollState,
                                                             chrome = TodayPageChrome(

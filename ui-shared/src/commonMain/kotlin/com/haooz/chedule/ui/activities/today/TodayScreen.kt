@@ -410,7 +410,7 @@ fun TodayScreen(
     holidayDataTick: Int = 0,
     /** 今日助手卡（天气+智能提示）槽位：Android 宿主注入 TodayAssistantCard；null 不渲染 */
     todayAssistantCard: (@Composable (TodayAssistantCardData) -> Unit)? = null,
-    /** 课表页当前呈现方式：时间轴时今日页也换成时间轴（外观弹窗里那个开关，两页共用） */
+    /** 本页实际呈现方式：由宿主按「今日页视图」设置解析好（可独立于课表页） */
     scheduleViewMode: ScheduleViewMode = ScheduleViewMode.WEEK,
     /**
      * 越界状态：主界面注入同一实例，顶栏（Scaffold topBar 槽）与内容才读得到同一份越界量。
@@ -552,7 +552,6 @@ fun TodayScreen(
     val courseCardOpacity = p
     val highlightCardOpacity = (p + CombinationDefaults.HIGHLIGHT_SURFACE_ALPHA_BONUS)
         .coerceIn(0f, 1f)
-
 
     val isTablet = navBarStyle == "rail"
     val nativeChromeInset = LocalHostNavigation.current
