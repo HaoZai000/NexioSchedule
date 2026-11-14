@@ -171,6 +171,7 @@ object FeedbackClient {
             id = optString("id"),
             kind = FeedbackKind.fromWire(optString("type")),
             title = optString("title"),
+            summary = optString("summary"),
             content = optString("content"),
             status = optString("status"),
             statusLabel = optString("status_label"),
@@ -189,6 +190,7 @@ object FeedbackClient {
         summary = optString("summary"),
         status = optString("status"),
         statusLabel = optString("status_label"),
+        statusNote = optString("status_note"),
         version = optString("version"),
         updatedAt = optString("updated_at"),
     )
@@ -218,6 +220,7 @@ data class FeedbackRecord(
     val id: String,
     val kind: FeedbackKind,
     val title: String,
+    val summary: String,
     val content: String,
     val status: String,
     val statusLabel: String,
@@ -236,6 +239,7 @@ data class RoadmapRecord(
     val summary: String,
     val status: String,
     val statusLabel: String,
+    val statusNote: String,
     val version: String,
     val updatedAt: String,
 )

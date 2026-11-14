@@ -35,6 +35,7 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.ui.components.FeedbackKindLabel
+import com.haooz.chedule.ui.components.FeedbackReplyBlock
 import com.haooz.chedule.ui.components.FeedbackStageBar
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
@@ -242,41 +243,36 @@ private fun FeedbackHistoryCard(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (record.summary.isNotBlank() && record.summary != record.content) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = record.summary,
+                style = MiuixTheme.textStyles.body2,
+                color = theme.onSurfaceVariantActions,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
 
         // 与上方内容（说明 / 标题）之间 14dp
         Spacer(modifier = Modifier.height(14.dp))
         FeedbackStageBar(status = record.status, kind = record.kind)
 
-        val note = record.statusNote
-        val releaseVersion = record.version
-        if (note.isNotBlank() || (releaseVersion.isNotBlank() && record.status == "released")) {
+        if (record.statusNote.isNotBlank()) {
             Spacer(modifier = Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Text(
-                    text = "·",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = theme.onSurfaceVariantSummary,
-                    modifier = Modifier.padding(end = 6.dp),
-                )
-                Text(
-                    text = buildString {
-                        if (note.isNotBlank()) append(note)
-                        if (releaseVersion.isNotBlank()) {
-                            if (note.isNotBlank()) append("  ")
-                            append(FeedbackStr.versionTag(releaseVersion))
-                        }
-                    },
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = theme.onSurfaceVariantActions,
-                )
-            }
+            FeedbackReplyBlock(reply = record.statusNote)
+        }
+        if (record.version.isNotBlank()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = FeedbackStr.versionTag(record.version),
+                style = MiuixTheme.textStyles.footnote1,
+                color = theme.onSurfaceVariantSummary,
+            )
         }
 
-        // 只有「已收到」能删：一旦被采纳/进入流程，删掉会让用户以为进度也丢了
-        if (record.status == "received") {
+        // 只有「待处理」能删：一旦标为已收到就进入对外进度，删掉会让用户以为进度也丢了
+        if (record.status == "pending") {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

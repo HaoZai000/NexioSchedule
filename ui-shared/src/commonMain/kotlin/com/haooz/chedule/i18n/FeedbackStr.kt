@@ -58,7 +58,7 @@ object FeedbackStr {
 
     val delete = L("删除", "Delete")
     val deleteTitle = L("删除这条反馈？", "Delete this feedback?")
-    val deleteBody = L("删除后不可恢复，开发进度里的条目不受影响。", "This cannot be undone. Roadmap entries are not affected.")
+    val deleteBody = L("删除后不可恢复，开发进度里的这条也会一起移除。", "This cannot be undone and the roadmap entry will be removed too.")
     val deleteFailed = L("删除失败", "Delete failed")
 
     // ---- 我的反馈 ----
@@ -80,10 +80,13 @@ object FeedbackStr {
     val filterEmpty = L("没有符合筛选的条目", "Nothing matches this filter")
 
     val versionTag = L("版本 %s", "Version %s")
+    /** 官方回复（对外说明）的特殊标注 */
+    val officialReply = L("官方回复", "Official reply")
 
     // ---- 进度条节点（5 段，与服务端 9 个状态的压缩关系见 FeedbackStage）----
 
     val stageReceived = L("已收到", "Received")
+    val stagePending = L("待处理", "Pending")
     val stagePlanned = L("已排期", "Planned")
     val stageInProgress = L("开发中", "In progress")
     val stageFixing = L("修复中", "Fixing")
@@ -94,6 +97,7 @@ object FeedbackStr {
 
     // ---- 状态标签 ----
 
+    private val statusPending = L("待处理", "Pending")
     private val statusReceived = L("已收到", "Received")
     private val statusReviewing = L("评估中", "Under review")
     private val statusPlanned = L("已排期", "Planned")
@@ -113,6 +117,7 @@ object FeedbackStr {
      */
     fun statusLabel(status: String, kind: FeedbackKind = FeedbackKind.Feature, fallback: String = ""): String =
         when (status) {
+            "pending" -> statusPending()
             "received" -> statusReceived()
             "reviewing" -> statusReviewing()
             "planned" -> statusPlanned()

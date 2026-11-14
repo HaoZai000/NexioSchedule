@@ -5,17 +5,21 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.platform.FeedbackKind
 import com.haooz.chedule.i18n.FeedbackStr
@@ -52,7 +56,8 @@ enum class FeedbackStage(val index: Int) {
         val steps: List<FeedbackStage> = listOf(Received, Planned, InProgress, PendingRelease, Released)
 
         fun of(status: String): FeedbackStage = when (status) {
-            "received", "reviewing" -> Received
+            // 待处理还没进对外进度，视觉上停在第一段，标签单独显示「待处理」
+            "pending", "received", "reviewing" -> Received
             "planned" -> Planned
             "in_progress" -> InProgress
             "done", "pending_release" -> PendingRelease
@@ -97,6 +102,7 @@ fun FeedbackStageBar(
 ) {
     val theme = MiuixTheme.colorScheme
     val stage = FeedbackStage.of(status)
+    val label = if (status == "pending") FeedbackStr.stagePending() else stage.label(kind)
 
     if (stage == FeedbackStage.Closed) {
         Text(
@@ -131,7 +137,7 @@ fun FeedbackStageBar(
             }
         }
         Text(
-            text = stage.label(kind),
+            text = label,
             style = MiuixTheme.textStyles.body2,
             color = activeColor,
             modifier = Modifier.padding(start = 10.dp),
@@ -153,4 +159,37 @@ fun FeedbackKindLabel(
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         maxLines = 1,
     )
+}
+
+/**
+ * 官方回复（对外说明）：带「官方回复」标注的浅色块，与普通说明区分开。
+ * 空内容不占位。
+ */
+@Composable
+fun FeedbackReplyBlock(
+    reply: String,
+    modifier: Modifier = Modifier,
+) {
+    if (reply.isBlank()) return
+    val theme = MiuixTheme.colorScheme
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(theme.primary.copy(alpha = 0.08f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = FeedbackStr.officialReply(),
+            style = MiuixTheme.textStyles.footnote1,
+            fontWeight = FontWeight.Medium,
+            color = theme.primary,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = reply,
+            style = MiuixTheme.textStyles.body2,
+            color = theme.onSurfaceVariantActions,
+        )
+    }
 }
