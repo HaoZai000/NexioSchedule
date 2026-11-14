@@ -6,11 +6,19 @@ import androidx.compose.animation.core.AnimationVector1D
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.utils.HostNavigationState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -22,7 +30,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,32 +51,33 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.PI
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import com.haooz.chedule.data.platform.NoopUpdateController
 import com.haooz.chedule.data.platform.UpdateController
@@ -81,12 +89,12 @@ import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.CommonStr
-import com.haooz.chedule.ui.basic.OverlayDropdownMenu
-import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.data.ChangelogEntry
 import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.uishared.resources.Res
+import com.haooz.chedule.uishared.resources.about_app_icon
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.GlassEffectScope
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
@@ -102,26 +110,22 @@ import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import com.haooz.softglass.platform.isRenderEffectSupported
 import com.haooz.softglass.platform.isSoftGlassShaderAvailable
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.painterResource
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
@@ -132,16 +136,15 @@ import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import top.yukonga.miuix.kmp.layout.isTabletWidth
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
-/** 版本卡宽高比（宽 / 高）：0.78 是一个明确的纵向长方形，手机与平板同形不同尺寸。 */
-private const val HeroCardAspect = 0.78f
+/** 版本卡宽高比（宽 / 高）：横向短卡，和设置页里的普通卡片同呼吸，不做海报式竖版。 */
+private const val HeroCardAspect = 1.1f
 
-/** 版本卡平板端宽度上限：不做满宽，否则纵向长方形会被拉成一张大床单。 */
+/** 版本卡平板端宽度上限：不做满宽，避免短卡被拉成一条横带。 */
 private val HeroCardMaxWidth = 440.dp
 
 /**
@@ -149,17 +152,20 @@ private val HeroCardMaxWidth = 440.dp
  */
 private const val HeroFlipDegrees = 180f
 
-/** 翻转时下潜的深度（相对卡片高度）：U 的谷底离原位有多深 */
-private const val HeroFlipDipRatio = 0.65f
+/** 翻转时下潜的深度（相对卡片高度）：带一点明显的下潜惯性再翻上来。 */
+private const val HeroFlipDipRatio = 0.5f
+
+/** 翻到背面后额外增加的高度比例，给更新日志更多空间。 */
+private const val HeroOpenHeightRatio = 0.12f
 
 /** 相机距离（乘以 density 转成像素）：越小透视越猛 */
 private const val HeroFlipCamera = 40f
 
 /** 开卡动效时长（位移 + 翻转同一段）。 */
-private const val HeroOpenMotionMs = 560
+private const val HeroOpenMotionMs = 520
 
 /** 收卡动效时长：回程略快，点外面时手感更利落。 */
-private const val HeroCloseMotionMs = 420
+private const val HeroCloseMotionMs = 380
 
 /** 状态胶囊的柔光 shader 缓存键（尺寸与其它玻璃件不同，不能共用 uniform）。 */
 private const val HeroPillGlassKey = "NexioSoftGlassLiveHeroPill"
@@ -809,32 +815,47 @@ private fun HeroCardPlaceholder(
     onOpenChangelog: () -> Unit,
     onOpenUpdate: () -> Unit,
 ) {
+    // 首帧轻轻抬起：只动内层，外层矩形保持稳定，开卡起点不会跟着抖
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        enter.animateTo(1f, tween(520, easing = FastOutSlowInEasing))
+    }
     Box(
         modifier = Modifier
             .widthIn(max = HeroCardMaxWidth)
             .fillMaxWidth()
             .aspectRatio(HeroCardAspect)
             .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) }
-            // 浮层打开时留坑不画：位置不能变，否则关回来会错位
-            .graphicsLayer { alpha = if (hidden) 0f else 1f }
     ) {
-        HeroCardFace(watermark = true) { glass ->
-            HeroCardFront(
-                version = version,
-                entry = entry,
-                hasUpdate = hasUpdate,
-                checking = checking,
-                glass = glass,
-                onOpenChangelog = onOpenChangelog,
-                onOpenUpdate = onOpenUpdate,
-            )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .graphicsLayer {
+                    // 浮层打开时留坑不画：位置不能变，否则关回来会错位
+                    alpha = if (hidden) 0f else enter.value
+                    translationY = (1f - enter.value) * 6.dp.toPx()
+                    scaleX = 0.99f + 0.01f * enter.value
+                    scaleY = 0.99f + 0.01f * enter.value
+                }
+        ) {
+            HeroCardFace(sheenOnEnter = true, highlighted = hasUpdate) { glass ->
+                HeroCardFront(
+                    version = version,
+                    entry = entry,
+                    hasUpdate = hasUpdate,
+                    checking = checking,
+                    glass = glass,
+                    onOpenChangelog = onOpenChangelog,
+                    onOpenUpdate = onOpenUpdate,
+                )
+            }
         }
     }
 }
 
 /**
  * 打开态的浮层卡：从列表里的矩形位置滑到屏幕垂直居中，同时整卡翻 180°。
- * 轨迹是**U 型**：水平不动，垂直方向先下潜再回位（`sin(πp)`，两端速度为 0，起止不顿）
+ * 轨迹只保留一点下潜惯性（`sin(πp)`，两端速度为 0），不做夸张的 U 型绕场。
  */
 @Composable
 internal fun HeroOpenCard(
@@ -855,18 +876,31 @@ internal fun HeroOpenCard(
 ) {
     val densityScope = LocalDensity.current
     val cardWidth = with(densityScope) { rect.width.toDp() }
-    val cardHeight = with(densityScope) { rect.height.toDp() }
-    val centerTop = (rootHeightPx - rect.height) / 2f
     val startTop = rect.top
     val dipPx = rect.height * HeroFlipDipRatio
+    val endHeightPx = rect.height * (1f + HeroOpenHeightRatio)
+    // 高度随翻面进度平滑长高；布局和位移用同一条曲线，卡片中心不会跳
+    fun heightAt(p: Float): Float {
+        val eased = p * p * (3f - 2f * p)
+        return rect.height + (endHeightPx - rect.height) * eased
+    }
 
     Box(
         modifier = modifier
             .width(cardWidth)
-            .height(cardHeight)
+            .layout { measurable, constraints ->
+                val h = heightAt(progress()).roundToInt()
+                val placeable = measurable.measure(
+                    constraints.copy(minHeight = h, maxHeight = h)
+                )
+                layout(placeable.width, h) {
+                    placeable.place(0, 0)
+                }
+            }
             .graphicsLayer {
                 val p = progress()
-                translationY = startTop + (centerTop - startTop) * p +
+                val endTop = (rootHeightPx - heightAt(p)) / 2f
+                translationY = startTop + (endTop - startTop) * p +
                     dipPx * sin(PI.toFloat() * p)
             }
             .clickable(
@@ -886,7 +920,7 @@ internal fun HeroOpenCard(
                     alpha = if (deg < 90f) 1f else 0f
                 }
         ) {
-            HeroCardFace(watermark = true) { glass ->
+            HeroCardFace(highlighted = hasUpdate) { glass ->
                 HeroCardFront(
                     version = version,
                     entry = entry,
@@ -927,27 +961,49 @@ internal fun HeroOpenCard(
 }
 
 /**
- * 卡片底色 + 主色晕染 + 细描边；正反两面共用，翻面时跟着一起转。
+ * 卡片表面：中性底色 + 顶部微光 + 一次掠过的玻璃高光 + 细描边。
+ * 正反两面共用，翻面时跟着一起转；不再叠加主色渐变、光斑和巨型水印。
  */
 @Composable
 private fun HeroCardFace(
-    watermark: Boolean = false,
+    sheenOnEnter: Boolean = false,
+    highlighted: Boolean = false,
     content: @Composable (glass: GlassBackdrop?) -> Unit,
 ) {
-    val shape = remember { ContinuousRoundedRectangle(28.dp) }
-    val colorScheme = MiuixTheme.colorScheme
+    // 与设置页普通卡片同圆角，视觉上属于同一套器件
+    val shape = remember { ContinuousRoundedRectangle(20.dp) }
     val isDark = isAppDarkTheme()
-    val tint = colorScheme.primary
-    val cardColor = CardDefaults.defaultColors().color
-    val onCard = colorScheme.onSurface
-    val textStyles = MiuixTheme.textStyles
+    val baseCardColor = CardDefaults.defaultColors().color
+    val primary = MiuixTheme.colorScheme.primary
+    // 淡蓝底：纯白上微光几乎不可见，给卡片一点色相才能读出高光扫过
+    val cardColor = remember(baseCardColor, primary, isDark) {
+        lerp(baseCardColor, primary, if (isDark) 0.12f else 0.08f)
+    }
+    val onCard = MiuixTheme.colorScheme.onSurface
     val glassOn = true
     val cardBackdrop = rememberLayerBackdrop { drawContent() }
-    val recordKey = remember(isDark, tint, cardColor) { listOf(isDark, tint, cardColor) }
+    val recordKey = remember(isDark, cardColor) { listOf(isDark, cardColor) }
+    // 首次进场一道高光掠过；之后每隔约 9 秒再轻轻扫一次，让玻璃像在呼吸环境光
+    val sheen = remember { Animatable(0f) }
+    LaunchedEffect(sheenOnEnter) {
+        if (sheenOnEnter) {
+            sheen.animateTo(1f, tween(1100, easing = FastOutSlowInEasing))
+            while (true) {
+                delay(8000)
+                sheen.snapTo(0f)
+                sheen.animateTo(1f, tween(1200, easing = LinearEasing))
+            }
+        } else {
+            sheen.snapTo(1f)
+        }
+    }
+    // 课表格线跟随首次高光逐条显影
+    val gridReveal = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        gridReveal.animateTo(1f, tween(1000, delayMillis = 100, easing = LinearEasing))
+    }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val cardWidth = maxWidth
-        // 离屏合成放在最外层：镂空字要用 DstOut 擦这一层，采样层只是它的一部分
+    Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -965,28 +1021,78 @@ private fun HeroCardFace(
                     .clip(shape)
                     .background(cardColor)
                     .drawBehind {
-                        // 主色自顶向下化开：只染上层，不压暗正文
+                        // 顶部一层极淡的白，给平面一点玻璃的受光感
                         drawRect(
                             Brush.verticalGradient(
-                                0f to tint.copy(alpha = if (isDark) 0.30f else 0.16f),
-                                0.42f to tint.copy(alpha = if (isDark) 0.09f else 0.05f),
-                                1f to Color.Transparent,
+                                0f to Color.White.copy(alpha = if (isDark) 0.045f else 0.06f),
+                                0.55f to Color.Transparent,
                             )
                         )
-                        // 右上角光斑：给长方形一点体积感（圆心在卡片外，只露一段弧）
-                        val glowRadius = size.width * 1.05f
-                        val glowCenter = Offset(size.width * 0.92f, -size.height * 0.04f)
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    tint.copy(alpha = if (isDark) 0.26f else 0.15f),
-                                    Color.Transparent,
-                                ),
-                                center = glowCenter,
-                                radius = glowRadius,
+                        // 隐约的课表格线：从右上角向卡片内部渐隐，给平面一点专属质感
+                        val gridBrush = Brush.linearGradient(
+                            colors = listOf(
+                                onCard.copy(alpha = if (isDark) 0.05f else 0.035f),
+                                Color.Transparent,
                             ),
-                            radius = glowRadius,
-                            center = glowCenter,
+                            start = Offset(size.width, 0f),
+                            end = Offset(size.width * 0.34f, size.height * 0.92f),
+                        )
+                        val gridLeft = size.width * 0.46f
+                        val gridBottom = size.height * 0.78f
+                        val step = 20.dp.toPx()
+                        // 顺着首次高光的方向逐条显影：竖线从左到右，横线从上到下
+                        fun lineReveal(t: Float): Float =
+                            ((gridReveal.value - t * 0.45f) / 0.55f).coerceIn(0f, 1f)
+                        var gridX = gridLeft
+                        while (gridX < size.width) {
+                            val t = ((gridX - gridLeft) / (size.width - gridLeft)).coerceIn(0f, 1f)
+                            drawLine(
+                                brush = gridBrush,
+                                start = Offset(gridX, 0f),
+                                end = Offset(gridX, gridBottom),
+                                strokeWidth = 0.6.dp.toPx(),
+                                alpha = lineReveal(t),
+                            )
+                            gridX += step
+                        }
+                        var gridY = 0f
+                        while (gridY < gridBottom) {
+                            drawLine(
+                                brush = gridBrush,
+                                start = Offset(gridLeft, gridY),
+                                end = Offset(size.width, gridY),
+                                strokeWidth = 0.6.dp.toPx(),
+                                alpha = lineReveal((gridY / gridBottom).coerceIn(0f, 1f)),
+                            )
+                            gridY += step
+                        }
+                        if (sheenOnEnter && sheen.value < 1f) {
+                            val band = size.width * 0.55f
+                            val startX = -band + (size.width + band * 2f) * sheen.value
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color.White.copy(alpha = if (isDark) 0.06f else 0.10f),
+                                        Color.Transparent,
+                                    ),
+                                    startX = startX,
+                                    endX = startX + band,
+                                )
+                            )
+                        }
+                        // 顶边高光：玻璃件的上沿，比四周描边亮一点
+                        drawLine(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.White.copy(alpha = if (isDark) 0.16f else 0.40f),
+                                    Color.Transparent,
+                                )
+                            ),
+                            start = Offset(size.width * 0.06f, 0.5.dp.toPx()),
+                            end = Offset(size.width * 0.94f, 0.5.dp.toPx()),
+                            strokeWidth = 0.8.dp.toPx(),
                         )
                     }
                     .border(
@@ -995,40 +1101,29 @@ private fun HeroCardFace(
                         shape = shape,
                     )
             )
-            if (watermark) {
-                val watermarkStyle = remember(textStyles) {
-                    textStyles.main.copy(
-                        fontSize = 88.sp,
-                        lineHeight = 92.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp,
-                    )
-                }
-                val measurer = rememberTextMeasurer()
-                val cardWidthPx = with(LocalDensity.current) { cardWidth.toPx() }
-                val measuredWidth = remember(measurer, watermarkStyle) {
-                    measurer.measure("NEXIO", watermarkStyle).size.width.toFloat()
-                }
-                val fitScale = if (measuredWidth > 0f) cardWidthPx / measuredWidth else 1f
-                Text(
-                    text = "NEXIO",
-                    style = watermarkStyle,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .offset(y = (-42).dp)
-                        .graphicsLayer {
-                            // 以左下角为锚点等比放大到正好一行宽
-                            transformOrigin = TransformOrigin(0f, 1f)
-                            scaleX = fitScale
-                            scaleY = fitScale
-                            blendMode = BlendMode.DstOut
-                            alpha = 0.55f
-                        },
-                    color = Color.Black,
-                    maxLines = 1,
-                )
-            }
             content(if (glassOn) cardBackdrop else null)
+        }
+        // 有新版本时，外圈主色描边缓慢呼吸，作为「待处理」的提示
+        if (highlighted) {
+            val pulse = rememberInfiniteTransition(label = "updateBorderPulse")
+            val borderAlpha by pulse.animateFloat(
+                initialValue = 0.12f,
+                targetValue = 0.32f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1800, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "updateBorderAlpha",
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .border(
+                        width = 1.dp,
+                        color = MiuixTheme.colorScheme.primary.copy(alpha = borderAlpha),
+                        shape = shape,
+                    )
+            )
         }
     }
 }
@@ -1044,98 +1139,103 @@ private fun HeroCardFront(
     onOpenUpdate: () -> Unit,
 ) {
     val onCard = MiuixTheme.colorScheme.onSurface
+    val summary = MiuixTheme.colorScheme.onSurfaceVariantSummary
     val heroNumber = majorMinorVersion(version)
+    // 内容比卡片晚半拍落定：先看到卡，再看到版本号浮上来
+    val lift = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        lift.animateTo(1f, tween(520, delayMillis = 80, easing = FastOutSlowInEasing))
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp, vertical = 24.dp)
+            .padding(horizontal = 22.dp, vertical = 20.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            HeroMonogram()
+            Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = AboutStr.appName(),
-                    fontSize = 21.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    letterSpacing = (-0.2).sp,
-                    color = onCard.copy(alpha = 0.92f),
+                    letterSpacing = (-0.1).sp,
+                    color = onCard.copy(alpha = 0.90f),
+                    maxLines = 1,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = displayVersion(version),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.3.sp,
+                    color = summary,
                     maxLines = 1,
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            VersionChip(label = displayVersion(version))
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        val heroText = remember(heroNumber, version, onCard) {
-            buildAnnotatedString {
-                withStyle(
-                    SpanStyle(
-                        fontSize = 34.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = onCard.copy(alpha = 0.34f),
-                        letterSpacing = 1.sp,
-                    )
-                ) {
-                    append("V ")
-                }
-                withStyle(
-                    SpanStyle(
-                        fontSize = if (heroNumber != null) 92.sp else 34.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = if (heroNumber != null) (-4).sp else (-0.5).sp,
-                        color = onCard,
-                    )
-                ) {
-                    append(heroNumber ?: displayVersion(version))
-                }
+        Column(
+            modifier = Modifier.graphicsLayer {
+                alpha = lift.value
+                translationY = (1f - lift.value) * 8.dp.toPx()
             }
-        }
-        Text(
-            text = heroText,
-            lineHeight = if (heroNumber != null) 96.sp else 40.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (entry != null) {
-            Spacer(modifier = Modifier.height(9.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        ) {
+            if (heroNumber != null) {
+                AnimatedHeroVersion(heroNumber = heroNumber, color = onCard)
+            } else {
                 Text(
-                    text = entry.date,
-                    fontSize = 12.5.sp,
-                    letterSpacing = 0.6.sp,
-                    color = onCard.copy(alpha = 0.42f),
+                    text = displayVersion(version),
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.4).sp,
+                    lineHeight = 34.sp,
+                    color = onCard,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                if (entry.changes.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(9.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(3.dp)
-                            .clip(CircleShape)
-                            .background(onCard.copy(alpha = 0.22f))
-                    )
-                    Spacer(modifier = Modifier.width(9.dp))
+            }
+            if (entry != null) {
+                Spacer(modifier = Modifier.height(9.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = AboutStr.changelogItemCount(entry.changes.size),
-                        fontSize = 12.5.sp,
+                        text = entry.date,
+                        fontSize = 12.sp,
+                        letterSpacing = 0.4.sp,
                         color = onCard.copy(alpha = 0.42f),
                         maxLines = 1,
                     )
+                    if (entry.changes.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(3.dp)
+                                .clip(CircleShape)
+                                .background(onCard.copy(alpha = 0.22f))
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = AboutStr.changelogItemCount(entry.changes.size),
+                            fontSize = 12.sp,
+                            color = onCard.copy(alpha = 0.42f),
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
-        // 版本号与底部入口之间那块空间：上下左右都居中
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center
+        Spacer(modifier = Modifier.weight(1f))
+
+        // 底部一行：左边看状态（柔光玻璃胶囊），右边进更新日志
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             UpdateStatusAction(
                 hasUpdate = hasUpdate,
@@ -1143,12 +1243,84 @@ private fun HeroCardFront(
                 glass = glass,
                 onClick = onOpenUpdate,
             )
-        }
-
-        // 底部居中：更新日志入口（summary 色 + 右箭头，点击区带圆角与 padding）
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Spacer(modifier = Modifier.weight(1f))
             ChangelogLink(onClick = onOpenChangelog)
         }
+    }
+}
+
+/**
+ * 版本号遮罩上浮：数字从裁切框底部升起，按 30ms 错峰。
+ * 只用于 major.minor 形态，避免逐字排版影响完整版本号的可读性。
+ */
+@Composable
+private fun AnimatedHeroVersion(heroNumber: String, color: Color) {
+    val chars = remember(heroNumber) { heroNumber.toList() }
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(
+            text = "V ",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 0.5.sp,
+            color = color.copy(alpha = 0.34f),
+            modifier = Modifier.alignByBaseline(),
+        )
+        chars.forEachIndexed { index, ch ->
+            val rise = remember(heroNumber, index) { Animatable(0f) }
+            LaunchedEffect(heroNumber, index) {
+                rise.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 440,
+                        delayMillis = 120 + index * 30,
+                        easing = FastOutSlowInEasing,
+                    ),
+                )
+            }
+            Text(
+                text = ch.toString(),
+                fontSize = 56.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-1.5).sp,
+                color = color,
+                modifier = Modifier
+                    .alignByBaseline()
+                    // 先裁到自身边界，再在内部做位移，形成从下方升起的遮罩
+                    .clipToBounds()
+                    .graphicsLayer {
+                        translationY = (1f - rise.value) * 64.dp.toPx()
+                        alpha = rise.value
+                    },
+            )
+        }
+    }
+}
+
+/**
+ * 左上角应用图标：直接使用打包的应用图标，裁成和卡片同一套连续圆角。
+ * 加一圈极细描边，避免浅色模式下图标和卡片底色糊在一起。
+ */
+@Composable
+private fun HeroMonogram() {
+    val shape = remember { ContinuousRoundedRectangle(11.dp) }
+    val isDark = isAppDarkTheme()
+    val outline = if (isDark) {
+        Color.White.copy(alpha = 0.16f)
+    } else {
+        MiuixTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+    }
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(shape)
+            .border(width = 0.8.dp, color = outline, shape = shape),
+    ) {
+        Image(
+            painter = painterResource(Res.drawable.about_app_icon),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
 
@@ -1232,23 +1404,90 @@ private fun UpdateStatusAction(
             .background(containerColor)
     }
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.96f else 1f,
+        animationSpec = tween(90),
+        label = "heroStatusPress",
+    )
+
     Row(
         modifier = surfaceModifier
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .clickable(
                 enabled = actionable,
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = 20.dp, vertical = 9.dp),
+            .padding(horizontal = 18.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        StatusDot(
+            pulsing = checking,
+            tint = when {
+                actionable -> Color.White
+                checking -> colorScheme.primary
+                else -> colorScheme.onSurface.copy(alpha = 0.30f)
+            },
+        )
+        Spacer(modifier = Modifier.width(7.dp))
         Text(
             text = label,
-            fontSize = 15.sp,
+            fontSize = 14.sp,
             fontWeight = if (actionable) FontWeight.Medium else FontWeight.Normal,
             color = tint,
             maxLines = 1,
+        )
+    }
+}
+
+/**
+ * 状态点：检查中向外扩散一圈涟漪，有新版本时常亮，其余状态压低存在感。
+ * 三态都占同样的 5dp 宽度，切换时胶囊宽度不会跳。
+ */
+@Composable
+private fun StatusDot(
+    pulsing: Boolean,
+    tint: Color,
+) {
+    Box(
+        modifier = Modifier.size(5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (pulsing) {
+            val transition = rememberInfiniteTransition(label = "heroStatusPulse")
+            val pulse by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1200, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Restart,
+                ),
+                label = "heroStatusPulseRing",
+            )
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .graphicsLayer {
+                        val scale = 1f + pulse * 1.8f
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = (1f - pulse) * 0.42f
+                    }
+                    .clip(CircleShape)
+                    .background(tint)
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(5.dp)
+                .clip(CircleShape)
+                .background(tint)
         )
     }
 }
@@ -1259,26 +1498,26 @@ private fun ChangelogLink(onClick: () -> Unit) {
     val summary = MiuixTheme.colorScheme.onSurfaceVariantSummary
     Row(
         modifier = Modifier
-            .clip(ContinuousRoundedRectangle(14.dp))
+            .clip(ContinuousRoundedRectangle(12.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = 18.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = AboutStr.changelog(),
-            fontSize = 15.sp,
+            fontSize = 13.5.sp,
             color = summary,
             maxLines = 1,
         )
-        Spacer(modifier = Modifier.width(7.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Icon(
             imageVector = MiuixIcons.ChevronForward,
             contentDescription = null,
-            modifier = Modifier.size(14.dp),
+            modifier = Modifier.size(13.dp),
             tint = summary
         )
     }
@@ -1323,51 +1562,51 @@ private fun CurrentChangelogBack(
     val changes = entry?.changes.orEmpty()
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // 上半：标题 + 条目，仍按 24dp 内缩
+        // 上半：标题 + 条目，按 22dp 内缩
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(start = 24.dp, end = 24.dp, top = 24.dp)
+                .padding(start = 22.dp, end = 22.dp, top = 20.dp)
         ) {
             Text(
                 text = AboutStr.changelog(),
-                fontSize = 22.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = onCard,
                 maxLines = 1,
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(3.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = buildString {
                         append(displayVersion(version))
                         if (entry != null) append(" · ").append(entry.date)
                     },
-                    fontSize = 12.5.sp,
+                    fontSize = 12.sp,
                     letterSpacing = 0.4.sp,
                     color = onCard.copy(alpha = 0.42f),
                     maxLines = 1,
                 )
                 if (changes.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Box(
                         modifier = Modifier
                             .size(3.dp)
                             .clip(CircleShape)
                             .background(onCard.copy(alpha = 0.22f))
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = AboutStr.changelogItemCount(changes.size),
-                        fontSize = 12.5.sp,
+                        fontSize = 12.sp,
                         color = onCard.copy(alpha = 0.42f),
                         maxLines = 1,
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // 条目区吃掉中间的弹性空间，写不下时可以滚（卡片高度是固定的）
             Column(
@@ -1378,19 +1617,19 @@ private fun CurrentChangelogBack(
             ) {
                 Column {
                     changes.forEach { change ->
-                        Row(modifier = Modifier.padding(bottom = 11.dp)) {
+                        Row(modifier = Modifier.padding(bottom = 9.dp)) {
                             Box(
                                 modifier = Modifier
-                                    .padding(top = 8.dp)
+                                    .padding(top = 7.dp)
                                     .size(4.dp)
                                     .clip(CircleShape)
                                     .background(colorScheme.primary.copy(alpha = 0.65f))
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(9.dp))
                             Text(
                                 text = change(),
-                                fontSize = 14.sp,
-                                lineHeight = 21.sp,
+                                fontSize = 13.5.sp,
+                                lineHeight = 20.sp,
                                 color = onCard.copy(alpha = 0.80f),
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
@@ -1401,7 +1640,7 @@ private fun CurrentChangelogBack(
                 }
             }
 
-            // 分割线仍在 24dp 内缩的内容区里（不动它），只有下面那一行通到卡片两边
+            // 分割线仍在内容内缩区里，只有下面那一行通到卡片两边
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1418,12 +1657,12 @@ private fun CurrentChangelogBack(
                     enabled = interactive,
                     onClick = onOpenChangelog,
                 )
-                .padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 22.dp),
+                .padding(start = 22.dp, end = 22.dp, top = 12.dp, bottom = 18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = AboutStr.viewFullChangelog(),
-                fontSize = 17.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
                 color = colorScheme.primary,
                 maxLines = 1,
@@ -1433,7 +1672,7 @@ private fun CurrentChangelogBack(
             Icon(
                 imageVector = MiuixIcons.ChevronForward,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(15.dp),
                 tint = colorScheme.primary
             )
         }
@@ -1474,16 +1713,16 @@ private fun NewVersionBack(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(start = 24.dp, end = 24.dp, top = 24.dp)
+                .padding(start = 22.dp, end = 22.dp, top = 20.dp)
         ) {
             Text(
                 text = AboutStr.newVersionFound(),
-                fontSize = 22.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = onCard,
                 maxLines = 1,
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(3.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = buildString {
@@ -1491,30 +1730,30 @@ private fun NewVersionBack(
                         val date = release?.createdAt.orEmpty()
                         if (date.isNotBlank()) append(" · ").append(date)
                     },
-                    fontSize = 12.5.sp,
+                    fontSize = 12.sp,
                     letterSpacing = 0.4.sp,
                     color = onCard.copy(alpha = 0.42f),
                     maxLines = 1,
                 )
                 if (body.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Box(
                         modifier = Modifier
                             .size(3.dp)
                             .clip(CircleShape)
                             .background(onCard.copy(alpha = 0.22f))
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = AboutStr.changelogItemCount(body.lineSequence().count { it.isNotBlank() }),
-                        fontSize = 12.5.sp,
+                        fontSize = 12.sp,
                         color = onCard.copy(alpha = 0.42f),
                         maxLines = 1,
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Box(
                 modifier = Modifier
@@ -1525,10 +1764,10 @@ private fun NewVersionBack(
             ) {
                 Text(
                     text = if (body.isEmpty()) AboutStr.updateHasNoNotes() else body,
-                    fontSize = 14.sp,
-                    lineHeight = 22.sp,
+                    fontSize = 13.5.sp,
+                    lineHeight = 20.sp,
                     color = onCard.copy(alpha = 0.80f),
-                    maxLines = 11,
+                    maxLines = 9,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -1547,7 +1786,7 @@ private fun NewVersionBack(
                     enabled = interactive,
                     onClick = onStartUpdate,
                 )
-                .padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 22.dp),
+                .padding(start = 22.dp, end = 22.dp, top = 12.dp, bottom = 18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -1569,31 +1808,3 @@ private fun NewVersionBack(
     }
 }
 
-/** 版本号胶囊（主色浅底 + 主色字），正面右上角。 */
-@Composable
-private fun VersionChip(label: String) {
-    val tint = MiuixTheme.colorScheme.primary
-    Row(
-        modifier = Modifier
-            .clip(ContinuousRoundedRectangle(11.dp))
-            .background(tint.copy(alpha = 0.14f))
-            .padding(horizontal = 11.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(5.dp)
-                .clip(CircleShape)
-                .background(tint)
-        )
-        Spacer(modifier = Modifier.width(7.dp))
-        Text(
-            text = label,
-            fontSize = 12.5.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 0.3.sp,
-            color = tint,
-            maxLines = 1,
-        )
-    }
-}
