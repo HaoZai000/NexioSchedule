@@ -93,6 +93,8 @@ internal fun rememberScheduleGlassSurface(
     scheduleGlassStyle: SoftGlassStyle,
     wallpaperImage: ImageBitmap?,
     originalWallpaperImage: ImageBitmap?,
+    /** 已生效的壁纸亮度；玻璃采样源要烘进同一档，否则卡片色调和壁纸差一档 */
+    wallpaperBrightness: Float = 0f,
     /** 无材质档传 false：卡片不挂玻璃，这里连壁纸金字塔都不烘焙 */
     enabled: Boolean = true,
 ): SoftGlassSurface? {
@@ -154,6 +156,7 @@ internal fun rememberScheduleGlassSurface(
             wallpaperOffset = glassOffset,
             screenWidthPx = screenWPx,
             screenHeightPx = screenHPx,
+            wallpaperBrightness = wallpaperBrightness,
             style = scheduleGlassStyle,
             originTransform = glassOriginTransform,
         )

@@ -841,6 +841,7 @@ fun CourseScheduleApp(
                 scheduleGlassStyle = scheduleGlassStyle,
                 wallpaperImage = wallpaperBitmap,
                 originalWallpaperImage = originalWallpaperBitmap,
+                wallpaperBrightness = displayAppearance.wallpaperBrightness,
                 enabled = !materialNone,
             )
 

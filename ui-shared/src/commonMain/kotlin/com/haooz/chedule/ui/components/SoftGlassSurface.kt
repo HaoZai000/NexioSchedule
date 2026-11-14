@@ -3,33 +3,47 @@
 package com.haooz.chedule.ui.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageBitmapConfig
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.unit.Density
-import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
-import com.haooz.softglass.glass.SoftGlassBackdrop
-import com.haooz.softglass.glass.SoftGlassStyle
-import com.haooz.softglass.glass.applySoftGlass
-import com.haooz.softglass.glass.glassBlurRadiusForSigma
-import com.haooz.softglass.platform.isSoftGlassShaderAvailable
-import com.haooz.softglass.glass.prepareSoftGlassBackdrop
-import com.haooz.softglass.glass.softGlass
-import com.haooz.softglass.glass.wallpaperTexMap
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.GlassEffectScope
 import com.haooz.softglass.backdrop.drawBackdrop
 import com.haooz.softglass.backdrop.effects.blur
 import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.SoftGlassBackdrop
+import com.haooz.softglass.glass.SoftGlassStyle
+import com.haooz.softglass.glass.applySoftGlass
+import com.haooz.softglass.glass.glassBlurRadiusForSigma
+import com.haooz.softglass.glass.prepareSoftGlassBackdrop
+import com.haooz.softglass.glass.softGlass
+import com.haooz.softglass.glass.wallpaperTexMap
+import com.haooz.softglass.platform.asSoftwareBitmap
+import com.haooz.softglass.platform.isSoftGlassShaderAvailable
+import kotlinx.coroutines.delay
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
  * 玻璃控件的拖动手感常量。值统一定义在 miuix（玻璃档位），这里只做本模块别名；
@@ -143,13 +157,23 @@ fun Modifier.softGlassBackdrop(
 }
 
 
+/** 壁纸亮度的采样源重建延迟：亮度滑杆拖动中只跟手壁纸层，停手后卡片再补一帧。 */
+private const val WALLPAPER_BRIGHTNESS_SETTLE_MS = 120L
+
+/** 采样源最长边（与 `prepareSoftGlassBackdrop` 的 BASE_MAX_EDGE 一致），先缩小再调色省一次全尺寸拷贝。 */
+private const val GLASS_SOURCE_MAX_EDGE = 1024
+
 /**
  * 准备玻璃的采样源。
  *
- * ⚠ 只有 [wallpaperBitmap] 会触发重建（降采样 + 缩略图）。样式、缩放、偏移一律**不进任何
- * remember key**：它们分别只是 shader 的 uniform 与一个 2×2 仿射，改成 State 让绘制期去读，
- * 这样拖模糊 / 拖壁纸连卡片 modifier 都不会重建，更不会重烘位图。
+ * ⚠ 只有 [wallpaperBitmap] 与 [wallpaperBrightness] 会触发重建（降采样 + 缩略图）。样式、缩放、
+ * 偏移一律**不进任何 remember key**：它们分别只是 shader 的 uniform 与一个 2×2 仿射，改成 State
+ * 让绘制期去读，这样拖模糊 / 拖壁纸连卡片 modifier 都不会重建，更不会重烘位图。
  *
+ * 壁纸亮度是用 ColorFilter 画出来的，而玻璃采的是原图；这里先把同一档亮度烘进采样源，
+ * 否则卡片色调永远和壁纸差一档。拖动滑杆时不重建（每帧烘一座金字塔会卡），停手后再更新。
+ *
+ * @param wallpaperBrightness 已生效的壁纸亮度（-50..50），与壁纸层 `ColorFilter` 同口径
  * @param originTransform 绘制期求值的「窗口坐标 → 壁纸层逻辑坐标」修正
  */
 @Composable
@@ -159,16 +183,25 @@ fun rememberSoftGlassSurface(
     wallpaperOffset: Offset,
     screenWidthPx: Float,
     screenHeightPx: Float,
+    wallpaperBrightness: Float = 0f,
     style: SoftGlassStyle = SoftGlassStyle(),
     originTransform: (Offset) -> Offset = { it },
 ): SoftGlassSurface? {
-    val backdrop = remember(wallpaperBitmap) {
-        val bmp = wallpaperBitmap
-        if (bmp == null || !isSoftGlassShaderAvailable()) {
-            null
-        } else {
-            prepareSoftGlassBackdrop(bmp)
-        }
+    val sourceBitmap = wallpaperBitmap
+    if (sourceBitmap == null || !isSoftGlassShaderAvailable()) return null
+
+    // 亮度拖动中不停重烘金字塔会掉帧：先跟手壁纸层，停手后再生效。
+    var settledBrightness by remember(sourceBitmap) { mutableStateOf(wallpaperBrightness) }
+    LaunchedEffect(sourceBitmap, wallpaperBrightness) {
+        if (settledBrightness == wallpaperBrightness) return@LaunchedEffect
+        delay(WALLPAPER_BRIGHTNESS_SETTLE_MS)
+        settledBrightness = wallpaperBrightness
+    }
+    val backdropBitmap = remember(sourceBitmap, settledBrightness) {
+        tintWallpaperForGlass(sourceBitmap, settledBrightness)
+    }
+    val backdrop = remember(backdropBitmap) {
+        prepareSoftGlassBackdrop(backdropBitmap)
     } ?: return null
 
     val styleState = remember { mutableStateOf(style) }
@@ -191,6 +224,49 @@ fun rememberSoftGlassSurface(
     return remember(backdrop, originTransform) {
         DefaultSoftGlassSurface(backdrop, styleState, texMapState, originTransform)
     }
+}
+
+/**
+ * 把壁纸亮度烘进玻璃采样源。
+ *
+ * 亮度为 0 时直接复用原图；否则先缩到采样源分辨率再带上与壁纸层完全一致的
+ * 乘性 ColorFilter，避免多拷一份原尺寸位图。
+ */
+private fun tintWallpaperForGlass(bitmap: ImageBitmap, brightness: Float): ImageBitmap {
+    if (brightness == 0f) return bitmap
+    val gain = (1f + brightness / 50f).coerceIn(0f, 2f)
+    if (gain == 1f) return bitmap
+
+    // 硬件位图不能画进软件 Canvas
+    val source = bitmap.asSoftwareBitmap()
+    val longest = max(source.width, source.height)
+    val scale =
+        if (longest > GLASS_SOURCE_MAX_EDGE) GLASS_SOURCE_MAX_EDGE.toFloat() / longest else 1f
+    val width = (source.width * scale).roundToInt().coerceAtLeast(1)
+    val height = (source.height * scale).roundToInt().coerceAtLeast(1)
+
+    val out = ImageBitmap(width, height, ImageBitmapConfig.Argb8888)
+    Canvas(out).drawImageRect(
+        image = source,
+        srcOffset = IntOffset.Zero,
+        srcSize = IntSize(source.width, source.height),
+        dstOffset = IntOffset.Zero,
+        dstSize = IntSize(width, height),
+        paint = Paint().apply {
+            filterQuality = FilterQuality.Medium
+            colorFilter = ColorFilter.colorMatrix(
+                ColorMatrix(
+                    floatArrayOf(
+                        gain, 0f, 0f, 0f, 0f,
+                        0f, gain, 0f, 0f, 0f,
+                        0f, 0f, gain, 0f, 0f,
+                        0f, 0f, 0f, 1f, 0f,
+                    )
+                )
+            )
+        },
+    )
+    return out
 }
 
 private class DefaultSoftGlassSurface(
