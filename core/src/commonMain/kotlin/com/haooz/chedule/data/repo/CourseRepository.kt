@@ -2618,10 +2618,12 @@ class CourseRepository private constructor() : PeriodTimeSource {
                     sectionTimes = sectionTimes
                 )
             val routineId = base.effectiveRoutineId()
-            saveTimeConfig(
+            val next =
                 if (routineId == null) updated
                 else base.withRoutineTimesApplied(routineId, updated)
-            )
+            // 切换课表时目标配置通常就是当前配置：内容没变就不整份写库、不发变更
+            if (next == base) return
+            saveTimeConfig(next)
         } finally {
             batchingSettings = false
         }
