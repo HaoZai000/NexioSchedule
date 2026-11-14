@@ -3,6 +3,7 @@ package com.haooz.chedule.wearable
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
@@ -210,7 +211,9 @@ class BleScheduleSender(private val context: Context) {
             ) = Unit
         }
 
-        val gatt = remote.connectGatt(appContext, false, callback, BluetoothProfile.GATT)
+        // 必须显式指定 LE 传输：默认传输在部分机型（OPPO Watch X2 实测）会先尝试
+        // 经典蓝牙 BR/EDR 链路，导致 GATT 连接一直超时；TRANSPORT_LE 直连低功耗链路。
+        val gatt = remote.connectGatt(appContext, false, callback, BluetoothDevice.TRANSPORT_LE)
             ?: throw IllegalStateException("无法建立 GATT 连接")
 
         try {
