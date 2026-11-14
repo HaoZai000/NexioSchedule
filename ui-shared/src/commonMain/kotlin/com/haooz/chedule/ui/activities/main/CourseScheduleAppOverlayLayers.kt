@@ -1143,6 +1143,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 isScheduleShareable = { name ->
                                     buildShareScheduleMap(switchShareRepository, name) != null
                                 },
+                                onSaveScheduleImage = onSaveScheduleImage,
                                 initialScheduleNames = scheduleViewModel.scheduleNames.collectAsState().value,
                                 initialCurrentScheduleId = scheduleViewModel.currentScheduleName.collectAsState().value,
                                 initialScheduleSummaries = scheduleViewModel.scheduleSummaries.collectAsState().value

@@ -138,6 +138,8 @@ fun CourseScheduleApp(
     onHolidayDataChanged: () -> Unit = {},
     onPickWallpaperImage: (((ImageBitmap?) -> Unit) -> Unit)? = null,
     onShareSchedule: ((scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit)? = null,
+    /** 学期课表预览「保存为图片」；非 Android 宿主传 `null` 隐藏下载按钮。 */
+    onSaveScheduleImage: ((ImageBitmap) -> Unit)? = null,
     onReadSharedFileText: ((String) -> String?)? = null,
     sharedFileIntent: SharedFileIntent? = null,
     onShareIntentConsumed: () -> Unit = {},
@@ -184,6 +186,7 @@ fun CourseScheduleApp(
         this.onHolidayDataChanged = onHolidayDataChanged
         this.onPickWallpaperImage = onPickWallpaperImage
         this.onShareSchedule = onShareSchedule
+        this.onSaveScheduleImage = onSaveScheduleImage
         this.onReadSharedFileText = onReadSharedFileText
         this.sharedFileIntent = sharedFileIntent
         this.onShareIntentConsumed = onShareIntentConsumed

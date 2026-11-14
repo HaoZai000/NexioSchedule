@@ -42,6 +42,8 @@ object AndroidMiscStr {
     val codeCopiedValidN = L("口令已复制：「%s」%s 分钟内有效", "Code copied: \"%s\". Valid for %s minutes")
     val codeCopiedImageFailedN = L("口令已复制「%s」，但生成图片失败", "Code copied: \"%s\", but generating the image failed")
     val shareFailedN = L("分享失败：%s", "Share failed: %s")
+    val saveImageFailed = L("生成课表图片失败", "Failed to generate the schedule image")
+    val scheduleImageSaved = L("已保存到相册", "Saved to gallery")
     val networkErrorShort = L("网络错误", "Network error")
 
     // ---- 应用更新（UpdateChecker / UpdateInstaller / AndroidUpdateController）----

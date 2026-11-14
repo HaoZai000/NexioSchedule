@@ -1379,6 +1379,7 @@ internal fun CourseScheduleAppMainContent(
                                                             name
                                                         ) != null
                                                     },
+                                                    onSaveScheduleImage = onSaveScheduleImage,
                                                 )
                                             }
                                         }

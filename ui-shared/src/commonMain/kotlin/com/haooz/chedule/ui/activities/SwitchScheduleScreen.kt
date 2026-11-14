@@ -12,7 +12,9 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -54,12 +56,14 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -73,6 +77,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick as onSemanticsClick
 import androidx.compose.ui.semantics.role
@@ -83,7 +88,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
+import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.storage.ScheduleFolder
 import com.haooz.chedule.i18n.CommonStr
@@ -95,6 +102,14 @@ import com.haooz.chedule.ui.components.cardRevealLayer
 import com.haooz.chedule.ui.components.rememberCardRevealState
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.chedule.ui.navigation.NAV_BG_DIM
+import com.haooz.chedule.ui.navigation.NAV_ENTER_DURATION
+import com.haooz.chedule.ui.navigation.NAV_ENTER_EASING
+import com.haooz.chedule.ui.navigation.NAV_EXIT_DURATION
+import com.haooz.chedule.ui.navigation.NAV_EXIT_EASING
+import com.haooz.chedule.ui.navigation.NAV_PARALLAX
+import com.haooz.chedule.ui.screens.SemesterSchedulePreviewScreen
+import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.glass.BarFill
 import com.haooz.softglass.glass.BrightLargeTone
 import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
@@ -109,8 +124,11 @@ import com.haooz.chedule.ui.utils.NativeDocumentOverlayEffect
 import com.haooz.chedule.ui.utils.NativeDocumentSecondaryActionEffect
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
+import com.haooz.chedule.ui.utils.clipDuringTransition
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
+import com.haooz.chedule.ui.utils.toShape
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.haooz.softglass.backdrop.drawBackdrop
 import com.haooz.softglass.backdrop.effects.blur
@@ -118,11 +136,13 @@ import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
 import com.haooz.softglass.platform.isRenderEffectSupported
 import com.haooz.softglass.shape.ContinuousCapsule
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sign
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -144,6 +164,7 @@ import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.FolderFill
 import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.MoveFile
+import top.yukonga.miuix.kmp.icon.extended.Show
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
@@ -163,6 +184,13 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 /** 切换课表页底部胶囊的柔光 shader 缓存键：尺寸与其他玻璃件不同，不能共用 uniform。 */
 private const val LIVE_SWITCH_BAR_GLASS_KEY = "NexioSoftGlassLiveSwitchBar"
 
+/** 学期课表预览的入参快照：退出动画期间页面数据仍按打开时渲染 */
+private data class SemesterPreviewTarget(
+    val name: String,
+    val courses: List<Course>,
+    val sections: Triple<Int, Int, Int>,
+)
+
 @Composable
 fun SwitchScheduleScreen(
     onBack: (TransitionLayerSnapshot?, androidx.compose.ui.geometry.Rect?) -> Unit = { _, _ -> },
@@ -180,6 +208,8 @@ fun SwitchScheduleScreen(
     onShareSchedule: (scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit = { _, _ -> },
     /** 分享前置检查（课表是否为空）：宿主注入（buildShareScheduleMap 依赖 Gson=R2，留在宿主） */
     isScheduleShareable: (scheduleName: String) -> Boolean = { true },
+    /** 保存学期课表图片：宿主注入；`null` 时预览界面不显示下载按钮（非 Android 宿主） */
+    onSaveScheduleImage: ((ImageBitmap) -> Unit)? = null,
     /** 内嵌时由外部指定内容顶距，替代按整屏状态栏+折叠标题推算 */
     contentTopPadding: androidx.compose.ui.unit.Dp? = null,
     /** 列表纵向滚动量回调，供内嵌顶栏遮罩使用 */
@@ -311,6 +341,12 @@ fun SwitchScheduleScreen(
     var isSharingSchedule by remember { mutableStateOf(false) }
     var showShareConfirmDialog by remember { mutableStateOf(false) }
     var shareConfirmScheduleName by remember { mutableStateOf<String?>(null) }
+    // —— 学期课表预览（手机端入口）：点课表行右侧「预览」打开 ——
+    var previewScheduleName by remember { mutableStateOf<String?>(null) }
+
+    fun closePreview() {
+        previewScheduleName = null
+    }
 
     fun performShareSchedule(scheduleName: String) {
         if (isSharingSchedule) return
@@ -380,6 +416,9 @@ fun SwitchScheduleScreen(
                 }
             },
             onClick = { selectSchedule(scheduleName, cardBounds) },
+            onPreview = if (!embedded) {
+                { previewScheduleName = scheduleName }
+            } else null,
             onLongClick = {
                 hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                 if (!isEditMode) {
@@ -481,12 +520,22 @@ fun SwitchScheduleScreen(
     )
 
     NavigationBackHandlerFor(
-        enabled = !isEditMode && !embedded,
+        enabled = !isEditMode && !embedded && previewScheduleName == null,
         onBackCompleted = { dismissKeepCurrent() },
         onBackCancelled = { }
     )
 
-    val displayTitle = if (isEditMode) SwitchStr.editSchedule() else SwitchStr.allSchedules()
+    NavigationBackHandlerFor(
+        enabled = previewScheduleName != null && !isEditMode,
+        onBackCompleted = { closePreview() },
+        onBackCancelled = { }
+    )
+
+    val displayTitle = when {
+        isEditMode -> SwitchStr.editSchedule()
+        else -> SwitchStr.allSchedules()
+    }
+    val isPreviewing = previewScheduleName != null
 
     val modalActive = showAddDialog || showEditDialog || showDeleteDialog ||
         showAddFolderDialog || showEditFolderDialog || showMoveDialog ||
@@ -502,18 +551,24 @@ fun SwitchScheduleScreen(
             symbol = if (isEditMode) "xmark" else "chevron.backward",
             label = if (isEditMode) SwitchStr.closeEdit() else CommonStr.back(),
             enabled = !modalActive,
-            onClick = { if (isEditMode) exitEditMode() else dismissKeepCurrent() },
+            onClick = {
+                when {
+                    isPreviewing -> closePreview()
+                    isEditMode -> exitEditMode()
+                    else -> dismissKeepCurrent()
+                }
+            },
         ))
         NativeDocumentActionEffect(NativeDocumentAction(
-            symbol = if (isEditMode) "" else "plus",
+            symbol = if (isEditMode || isPreviewing) "" else "plus",
             label = SwitchStr.addSchedule(),
-            enabled = !isEditMode && !modalActive,
+            enabled = !isEditMode && !isPreviewing && !modalActive,
             onClick = {
                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                 showAddDialog = true
             },
         ))
-        NativeDocumentSecondaryActionEffect(if (isEditMode) null else NativeDocumentAction(
+        NativeDocumentSecondaryActionEffect(if (isEditMode || isPreviewing) null else NativeDocumentAction(
             symbol = "folder.badge.plus",
             label = SwitchStr.newFolder(),
             enabled = !modalActive,
@@ -524,7 +579,60 @@ fun SwitchScheduleScreen(
         ))
     }
 
+    // 学期课表预览：按标准路由转场（栈顶右侧推入 / 退出，底层视差 + 压暗）
+    val previewProgress = remember { Animatable(0f) }
+    var previewTarget by remember { mutableStateOf<SemesterPreviewTarget?>(null) }
+    LaunchedEffect(previewScheduleName) {
+        val name = previewScheduleName
+        if (name != null) {
+            // 读盘放 IO：课程与节次配置都要读仓储，放主线程会在点按当帧卡住转场
+            val loaded = withContext(ioDispatcher) {
+                SemesterPreviewTarget(
+                    name = name,
+                    courses = repository.getCoursesForSchedule(name),
+                    sections = Triple(
+                        repository.getMorningSections(name),
+                        repository.getAfternoonSections(name),
+                        repository.getEveningSections(name),
+                    ),
+                )
+            }
+            if (previewScheduleName != name) return@LaunchedEffect
+            previewTarget = loaded
+            // 等一帧让预览页完成首次组合与布局，再开始推入
+            withFrameNanos { }
+            previewProgress.animateTo(
+                1f,
+                tween(NAV_ENTER_DURATION, easing = NAV_ENTER_EASING),
+            )
+        } else {
+            previewProgress.animateTo(
+                0f,
+                tween(NAV_EXIT_DURATION, easing = NAV_EXIT_EASING),
+            )
+            previewTarget = null
+        }
+    }
+    val previewCornerRadii = rememberScreenCornerRadiiPx()
+    val previewClipShape = remember(previewCornerRadii, density) {
+        if (previewCornerRadii.maxRadius > 0f) previewCornerRadii.toShape(density) else null
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
+        // 预览打开时主页整体左移，模拟路由下层视差
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+                    layout(placeable.width, placeable.height) {
+                        placeable.place(
+                            (-NAV_PARALLAX * previewProgress.value * placeable.width).roundToInt(),
+                            0,
+                        )
+                    }
+                },
+        ) {
         Scaffold(
             modifier = Modifier.consumeWindowInsets(PaddingValues(top = nativeBarInset)),
             topBar = {
@@ -1507,6 +1615,44 @@ fun SwitchScheduleScreen(
                 }
             }
         }
+        }
+
+        // 预览层：标准路由式转场（底层压暗 + 栈顶右侧滑入）
+        val target = previewTarget
+        if (target != null) {
+            val p = previewProgress.value
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawBehind {
+                        if (p > 0f) drawRect(Color.Black.copy(alpha = NAV_BG_DIM * p))
+                    },
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints)
+                        layout(placeable.width, placeable.height) {
+                            placeable.place(
+                                ((1f - p) * placeable.width).roundToInt(),
+                                0,
+                            )
+                        }
+                    }
+                    .clipDuringTransition(previewClipShape) { p > 0f && p < 1f },
+            ) {
+                SemesterSchedulePreviewScreen(
+                    scheduleName = target.name,
+                    courses = target.courses,
+                    morningSections = target.sections.first,
+                    afternoonSections = target.sections.second,
+                    eveningSections = target.sections.third,
+                    onBack = { closePreview() },
+                    onSaveImage = onSaveScheduleImage,
+                )
+            }
+        }
     }
 }
 
@@ -1524,6 +1670,7 @@ private fun ScheduleCardRow(
     itemModifier: Modifier,
     onBoundsChanged: (androidx.compose.ui.geometry.Rect) -> Unit,
     onClick: () -> Unit,
+    onPreview: (() -> Unit)? = null,
     onLongClick: () -> Unit
 ) {
     // 入场/退场统一走 CardRevealSpec；当前课表不参与入场动画，与进场形变锚点对齐
@@ -1594,6 +1741,24 @@ private fun ScheduleCardRow(
                             tint = MiuixTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
+                    }
+                    if (onPreview != null) {
+                        // 预览入口：点它只打开学期课表预览，不切换课表
+                        // 固定放在行尾，当前课表的对勾在它左侧，按钮位置不随勾选变化
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable(onClick = onPreview),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Show,
+                                contentDescription = SwitchStr.preview(),
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.size(21.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -1916,3 +2081,4 @@ private fun RowScope.BottomBarItem(
         )
     }
 }
+

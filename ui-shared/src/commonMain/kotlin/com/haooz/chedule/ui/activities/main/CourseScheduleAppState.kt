@@ -238,6 +238,8 @@ class CourseScheduleAppState {
     var onPickWallpaperImage: (((ImageBitmap?) -> Unit) -> Unit)? = null
     var onShareSchedule: ((scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit)? =
         null
+    /** 学期课表预览「保存为图片」：出好的海报交给宿主落盘；`null` 时下载按钮不显示（非 Android 宿主）。 */
+    var onSaveScheduleImage: ((ImageBitmap) -> Unit)? = null
     var onReadSharedFileText: ((String) -> String?)? = null
     var sharedFileIntent: SharedFileIntent? = null
     var onShareIntentConsumed: () -> Unit = {}

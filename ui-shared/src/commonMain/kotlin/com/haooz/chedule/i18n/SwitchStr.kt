@@ -86,9 +86,13 @@ object SwitchStr {
     val dinnerBreak = L("晚休", "Dinner break")
     val scheduleDetail = L("课表详情", "Schedule Details")
 
-    // —— 平板学期课表预览 ——
+    // —— 学期课表预览 / 保存为图片 ——
     val semesterPreview = L("学期课表预览", "Semester schedule preview")
     val scheduleEmptyHint = L("这张课表还没有课程", "This schedule has no courses yet")
+    val preview = L("预览", "Preview")
+    val saveAsImage = L("保存为图片", "Save as Image")
+    val saveImageConfirm = L("将课表「%s」保存为图片？", "Save schedule \"%s\" as an image?")
+    val saveImageFailed = L("生成课表图片失败", "Failed to generate the schedule image")
     val dayHeaderMon = L("一", "M")
     val dayHeaderTue = L("二", "T")
     val dayHeaderWed = L("三", "W")

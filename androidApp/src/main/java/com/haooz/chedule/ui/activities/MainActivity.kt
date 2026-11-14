@@ -68,6 +68,7 @@ import com.haooz.chedule.ui.utils.AndroidUpdateController
 import com.haooz.chedule.ui.utils.ApiCompat
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.performScheduleShare
+import com.haooz.chedule.ui.utils.saveScheduleImageToGallery
 import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
 import kotlinx.coroutines.Dispatchers
@@ -619,6 +620,22 @@ fun AndroidCourseScheduleApp(privacyConsented: Boolean) {
                 scheduleName = name,
                 onSharingChanged = changed,
             )
+        },
+        onSaveScheduleImage = { image ->
+            val source = image.asAndroidBitmap()
+            // GraphicsLayer 出图可能是 HARDWARE 配置，PNG 压缩前转成 ARGB_8888
+            val bitmap = if (source.config == android.graphics.Bitmap.Config.HARDWARE) {
+                source.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+            } else {
+                source
+            }
+            if (saveScheduleImageToGallery(context, bitmap)) {
+                showToast(AndroidMiscStr.scheduleImageSaved())
+            } else {
+                showToast(AndroidMiscStr.saveImageFailed())
+            }
+            // 只在额外拷贝了就回收；source 归共享层
+            if (bitmap !== source && !bitmap.isRecycled) bitmap.recycle()
         },
         onReadSharedFileText = { uriString ->
             try {

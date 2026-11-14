@@ -6,13 +6,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -34,8 +33,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -61,7 +60,6 @@ import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
-import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
@@ -70,6 +68,7 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
+import top.yukonga.miuix.kmp.overlay.LocalOverlayDialogBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -89,6 +88,8 @@ fun TabletSwitchSchedulePane(
     onShareSchedule: (scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit = { _, _ -> },
     /** 分享前置检查（课表是否为空）：宿主注入（buildShareScheduleMap 依赖 Gson=R2，留在宿主） */
     isScheduleShareable: (scheduleName: String) -> Boolean = { true },
+    /** 保存学期课表图片：宿主注入；`null` 时右栏不显示下载按钮（非 Android 宿主） */
+    onSaveScheduleImage: ((ImageBitmap) -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
@@ -126,10 +127,19 @@ fun TabletSwitchSchedulePane(
 
     // 页面底色铺到屏幕边缘（含侧栏下），内容整体避让 —— background 在 padding 之前。
     val paneSurface = MiuixTheme.colorScheme.surface
+    // 浮层采样层：页级 backdrop 只录一栏，跨栏浮层会一半采样到空层
+    val overlayDialogBackdrop = rememberLayerBackdrop {
+        drawRect(paneSurface)
+        drawContent()
+    }
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(paneSurface)
+            .then(
+                if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) Modifier
+                else Modifier.layerBackdrop(overlayDialogBackdrop)
+            )
             .then(LocalPageStartPadding.current)
     ) {
         // 左栏固定为屏宽 0.39，与课程管理/设置分栏一致
@@ -152,6 +162,12 @@ fun TabletSwitchSchedulePane(
         val paneMaterial = rememberTopBarMaterialState(contentOffsetProvider = { -leftScrollPx })
         val maskAlpha = paneMaterial.alpha
 
+        CompositionLocalProvider(
+            // 浮层改用整页采样层，否则跨栏浮层背面一半是空的
+            LocalOverlayDialogBackdrop provides
+                if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) null
+                else overlayDialogBackdrop,
+        ) {
         Row(modifier = Modifier.fillMaxSize()) {
             // —— 左栏：切换课表列表 ——
             Box(
@@ -300,7 +316,22 @@ fun TabletSwitchSchedulePane(
                     maskHeight = maskHeight,
                     modifier = Modifier.align(Alignment.TopStart),
                 )
+                if (onSaveScheduleImage != null) {
+                    SaveScheduleImageButton(
+                        scheduleName = previewName,
+                        courses = previewCourses,
+                        morningSections = previewSections.first,
+                        afternoonSections = previewSections.second,
+                        eveningSections = previewSections.third,
+                        onSaveImage = onSaveScheduleImage,
+                        backdrop = rightBackdrop,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = topInset + 8.dp, end = 16.dp),
+                    )
+                }
             }
+        }
         }
         // 分界线画在 Row 之上：左栏内部有顶栏/底栏模糊层，画在栏内会被糊掉
         Box(
@@ -339,17 +370,7 @@ private fun TabletPaneTopChrome(
     }
 }
 
-private val DayLabels = listOf(
-    SwitchStr.dayHeaderMon,
-    SwitchStr.dayHeaderTue,
-    SwitchStr.dayHeaderWed,
-    SwitchStr.dayHeaderThu,
-    SwitchStr.dayHeaderFri,
-    SwitchStr.dayHeaderSat,
-    SwitchStr.dayHeaderSun,
-)
-
-/** 学期课表预览：紧凑周网格 */
+/** 学期课表预览：标题 + 紧凑周网格（网格与手机预览/图片导出共用 [SemesterScheduleGrid]） */
 @Composable
 private fun SemesterSchedulePreview(
     courses: List<Course>,
@@ -360,48 +381,10 @@ private fun SemesterSchedulePreview(
     contentTopPadding: Dp,
     modifier: Modifier = Modifier,
 ) {
-    // 实际节数：配置为基准，并覆盖课程用到的最大节次（避免课在配置之外被吃掉）
-    val maxCourseSection = remember(courses) {
-        courses.maxOfOrNull { it.endSection.coerceAtLeast(it.startSection) } ?: 0
-    }
-    val configTotal = morningSections + afternoonSections + eveningSections
-    val totalSections = maxOf(configTotal, maxCourseSection).coerceAtLeast(1)
-
-    val dayLabelHeight = 28.dp
-    val breakHeight = 24.dp
-    val sideWidth = 20.dp
-    val corner = 10.dp
-    val emptyCellMinHeight = 48.dp
-    val cellHPadding = 2.dp
-    val cellVPadding = 2.dp
-
-    val isDark = isAppDarkTheme()
-    val gridLine = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
+    val hasCourses = courses.isNotEmpty()
     val headerText = MiuixTheme.colorScheme.onSurfaceVariantSummary
     val emptyHint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.45f)
     val scrollState = rememberScrollState()
-
-    // (day, startSection) -> 该格课程列表
-    val slotMap = remember(courses) {
-        val map = HashMap<Pair<Int, Int>, MutableList<Course>>()
-        courses.forEach { c ->
-            if (c.dayOfWeek in 1..7 && c.startSection >= 1) {
-                map.getOrPut(c.dayOfWeek to c.startSection) { mutableListOf() }.add(c)
-            }
-        }
-        map.values.forEach { list -> list.sortBy { it.name } }
-        map
-    }
-
-    val hasCourses = courses.isNotEmpty()
-    // 严格按上午/下午/晚上三段渲染；配置外多出的节次追加在末尾
-    val extraSections = (totalSections - configTotal).coerceAtLeast(0)
-    val periodBands = buildList {
-        if (morningSections > 0) add(morningSections)
-        if (afternoonSections > 0) add(afternoonSections)
-        if (eveningSections > 0) add(eveningSections)
-        if (extraSections > 0) add(extraSections)
-    }
 
     Column(
         modifier = modifier
@@ -439,148 +422,11 @@ private fun SemesterSchedulePreview(
             return@Column
         }
 
-        // 表头
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .width(sideWidth)
-                    .height(dayLabelHeight),
-            )
-            DayLabels.forEach { label ->
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(dayLabelHeight),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = label(),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = headerText,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-        }
-
-        // 每段独立绘制，段间留空；节次号全局连续
-        var sectionNo = 1
-        periodBands.forEachIndexed { bandIndex, bandCount ->
-            if (bandIndex > 0) {
-                Spacer(Modifier.height(breakHeight))
-            }
-            repeat(bandCount) {
-                val section = sectionNo++
-                // 行高由内容决定；空格 defaultMinSize 撑下限、fillMaxHeight 随行拉高
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(sideWidth)
-                            .fillMaxHeight(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = section.toString(),
-                            fontSize = 12.sp,
-                            color = headerText,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-
-                    DayLabels.forEachIndexed { dayIndex, _ ->
-                        val day = dayIndex + 1
-                        val stack = slotMap[day to section]
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .padding(horizontal = cellHPadding, vertical = cellVPadding),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (stack != null) {
-                                // 单课撑满当行；多课按文字高度堆叠；整格最低 emptyCellMinHeight
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .defaultMinSize(minHeight = emptyCellMinHeight),
-                                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
-                                    if (stack.size == 1) {
-                                        PreviewCourseChip(
-                                            course = stack[0],
-                                            corner = corner,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .fillMaxHeight(),
-                                        )
-                                    } else {
-                                        stack.forEach { course ->
-                                            PreviewCourseChip(
-                                                course = course,
-                                                corner = corner,
-                                                modifier = Modifier.fillMaxWidth(),
-                                            )
-                                        }
-                                    }
-                                }
-                            } else {
-                                // 空格：最低 emptyCellMinHeight，随行拉高
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .defaultMinSize(minHeight = emptyCellMinHeight)
-                                        .fillMaxHeight()
-                                        .clip(ContinuousRoundedRectangle(corner))
-                                        .background(gridLine.copy(alpha = gridLine.alpha * 0.35f)),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** 课卡：高度随文字变化，同一格多门课上下堆叠 */
-@Composable
-private fun PreviewCourseChip(
-    course: Course,
-    corner: Dp,
-    modifier: Modifier = Modifier,
-) {
-    val base = Color(course.colorRes)
-    Column(
-        modifier = modifier
-            .clip(ContinuousRoundedRectangle(corner))
-            .background(base.copy(alpha = 0.88f))
-            .padding(horizontal = 4.dp, vertical = 3.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = course.name,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.White,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
+        SemesterScheduleGrid(
+            courses = courses,
+            morningSections = morningSections,
+            afternoonSections = afternoonSections,
+            eveningSections = eveningSections,
         )
-        val weekText = course.weekTextLocalized()
-        if (weekText.isNotEmpty()) {
-            Text(
-                text = weekText,
-                fontSize = 11.sp,
-                color = Color.White.copy(alpha = 0.85f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
     }
 }

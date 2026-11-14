@@ -1,6 +1,9 @@
 package com.haooz.chedule.ui.utils
 
+import android.Manifest
+import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -8,7 +11,12 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
+import android.media.MediaScannerConnection
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.text.TextPaint
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.platform.showToast
@@ -273,6 +281,67 @@ object ShareImageGenerator {
         } catch (_: Exception) {
             false
         }
+    }
+}
+
+// ── 3.5 课表图片保存 ─────────────────────────────────────────────
+
+/**
+ * 把学期课表海报写入系统相册（Pictures/NexioSchedule）。
+ *
+ * Android 10+ 走 MediaStore，无需存储权限；旧版本需要 WRITE_EXTERNAL_STORAGE，
+ * 未授权时返回 `false` 由调用方提示。返回 `false` 时调用方提示失败。
+ */
+fun saveScheduleImageToGallery(context: Context, bitmap: Bitmap): Boolean {
+    val fileName = "schedule_${System.currentTimeMillis()}.png"
+    return try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(
+                    MediaStore.Images.Media.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_PICTURES}/NexioSchedule"
+                )
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return false
+            resolver.openOutputStream(uri)?.use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            } ?: return false
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+        } else {
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                return false
+            }
+            @Suppress("DEPRECATION")
+            val dir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                "NexioSchedule"
+            ).apply { mkdirs() }
+            val file = File(dir, fileName)
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            @Suppress("DEPRECATION")
+            MediaScannerConnection.scanFile(
+                context,
+                arrayOf(file.absolutePath),
+                arrayOf("image/png"),
+                null
+            )
+        }
+        true
+    } catch (_: Exception) {
+        false
     }
 }
 
