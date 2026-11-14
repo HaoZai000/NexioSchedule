@@ -12,7 +12,7 @@ import kotlinx.datetime.toLocalDateTime
 /** 一天四个时段：日出前/后各留 30 分钟过渡，晨、暮各 90 分钟。 */
 internal enum class SkyPhase { Dawn, Day, Dusk, Night }
 
-internal enum class WeatherFlowKind { Clear, Cloudy, Rain, Snow, Thunder, Fog, Dust }
+internal enum class WeatherFlowKind { Clear, Cloudy, Rain, Snow, Frost, Thunder, Fog, Dust }
 
 /**
  * 现象 → 流光种类。
@@ -22,7 +22,9 @@ internal enum class WeatherFlowKind { Clear, Cloudy, Rain, Snow, Thunder, Fog, D
  */
 internal fun weatherFlowKind(text: String): WeatherFlowKind = when {
     text.contains("雷") -> WeatherFlowKind.Thunder
-    text.contains("雪") || text.contains("冰") -> WeatherFlowKind.Snow
+    // 冰粒/冻雨走结霜效果；「雨夹雪」没有冰字，仍归到雪
+    text.contains("冻") || text.contains("冰") -> WeatherFlowKind.Frost
+    text.contains("雪") -> WeatherFlowKind.Snow
     text.contains("雨") -> WeatherFlowKind.Rain
     text.contains("雾") || text.contains("霾") -> WeatherFlowKind.Fog
     text.contains("沙") || text.contains("尘") -> WeatherFlowKind.Dust
@@ -109,6 +111,11 @@ private fun motionOf(kind: WeatherFlowKind): FlowMotion = when (kind) {
         colorInterpPeriod = 20f, lightOffset = 0.08f, saturateOffset = 0.16f,
         pointOffset = 0.30f, timeScale = 0.20f,
     )
+    WeatherFlowKind.Frost -> FlowMotion(
+        points = floatArrayOf(0.22f, 0.24f, 0.62f, 0.70f, 0.34f, 0.46f, 0.40f, 0.72f, 0.60f, 0.84f, 0.88f, 0.56f),
+        colorInterpPeriod = 24f, lightOffset = 0.04f, saturateOffset = 0.10f,
+        pointOffset = 0.26f, timeScale = 0.16f,
+    )
     WeatherFlowKind.Thunder -> FlowMotion(
         points = floatArrayOf(0.20f, 0.12f, 1.00f, 0.76f, 0.34f, 0.70f, 0.60f, 0.90f, 0.85f, 0.94f, 0.68f, 0.60f),
         colorInterpPeriod = 11f, lightOffset = 0.00f, saturateOffset = 0.30f,
@@ -143,6 +150,10 @@ private fun wheelOf(kind: WeatherFlowKind): List<Color> = when (kind) {
     WeatherFlowKind.Snow -> listOf(
         Color(0xFFA9CBE6), Color(0xFFD6E8F5), Color(0xFFC4D9E8),
         Color(0xFFEAF4FA), Color(0xFFB7D3E8), Color(0xFFDDEBF6),
+    )
+    WeatherFlowKind.Frost -> listOf(
+        Color(0xFFBFD9EC), Color(0xFFE4F1FA), Color(0xFF9FC4DE),
+        Color(0xFFF2FAFF), Color(0xFFB2D2E8), Color(0xFFD8EAF6),
     )
     WeatherFlowKind.Thunder -> listOf(
         Color(0xFF6E6FA4), Color(0xFF9A93C4), Color(0xFF4B4E86),
@@ -190,4 +201,25 @@ private fun cycle(wheel: List<Color>, start: Int, alpha: Float): FloatArray {
         colors[i * 4 + 3] = alpha
     }
     return colors
+}
+
+
+/**
+ * 雨势 0（毛毛雨）..1（暴雨）：降水量优先，没有就按文本里的强度词兜底。
+ * 只用于雨的 shader 参数，不影响配色。
+ */
+internal fun rainIntensity(snapshot: WeatherSnapshot?): Float {
+    val text = snapshot?.now?.text.orEmpty()
+    val byText = when {
+        text.contains("暴") -> 1f
+        text.contains("大") -> 0.85f
+        text.contains("中") -> 0.62f
+        text.contains("阵") -> 0.45f
+        text.contains("小") -> 0.22f
+        text.contains("雷") -> 0.75f
+        text.contains("雨") -> 0.45f
+        else -> 0f
+    }
+    val mm = (snapshot?.now?.precipMm ?: 0.0) / 12.0
+    return maxOf(byText, mm.toFloat().coerceIn(0f, 1f))
 }
