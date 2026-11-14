@@ -913,6 +913,8 @@ internal fun HeroOpenCard(
                     hasUpdate = hasUpdate,
                     checking = checking,
                     glass = glass,
+                    // 从列表卡接着翻面：正面内容必须保持可见，不能重跑进场淡入
+                    animateIn = false,
                     onOpenChangelog = onOpenChangelog,
                     onOpenUpdate = {},
                 )
@@ -1119,16 +1121,21 @@ private fun HeroCardFront(
     hasUpdate: Boolean,
     checking: Boolean = false,
     glass: GlassBackdrop? = null,
+    animateIn: Boolean = true,
     onOpenChangelog: () -> Unit,
     onOpenUpdate: () -> Unit,
 ) {
     val onCard = MiuixTheme.colorScheme.onSurface
     val summary = MiuixTheme.colorScheme.onSurfaceVariantSummary
     val heroNumber = majorMinorVersion(version)
-    // 内容比卡片晚半拍落定：先看到卡，再看到版本号浮上来
-    val lift = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        lift.animateTo(1f, tween(520, delayMillis = 80, easing = FastOutSlowInEasing))
+    // 内容比卡片晚半拍落定：先看到卡，再看到版本号浮上来。
+    // 但浮层卡是「同一张卡接着翻面」，不是新进场：必须直接落到终态，
+    // 否则版本号 / 日期 / 「共 N 项」会在点下去的瞬间重新从透明淡入，看起来就是立刻消失。
+    val lift = remember(animateIn) { Animatable(if (animateIn) 0f else 1f) }
+    LaunchedEffect(animateIn) {
+        if (animateIn) {
+            lift.animateTo(1f, tween(520, delayMillis = 80, easing = FastOutSlowInEasing))
+        }
     }
     Column(
         modifier = Modifier
@@ -1171,7 +1178,7 @@ private fun HeroCardFront(
             }
         ) {
             if (heroNumber != null) {
-                AnimatedHeroVersion(heroNumber = heroNumber, color = onCard)
+                AnimatedHeroVersion(heroNumber = heroNumber, color = onCard, animateIn = animateIn)
             } else {
                 Text(
                     text = displayVersion(version),
@@ -1238,7 +1245,7 @@ private fun HeroCardFront(
  * 只用于 major.minor 形态，避免逐字排版影响完整版本号的可读性。
  */
 @Composable
-private fun AnimatedHeroVersion(heroNumber: String, color: Color) {
+private fun AnimatedHeroVersion(heroNumber: String, color: Color, animateIn: Boolean = true) {
     val chars = remember(heroNumber) { heroNumber.toList() }
     Row(verticalAlignment = Alignment.Bottom) {
         Text(
@@ -1250,16 +1257,20 @@ private fun AnimatedHeroVersion(heroNumber: String, color: Color) {
             modifier = Modifier.alignByBaseline(),
         )
         chars.forEachIndexed { index, ch ->
-            val rise = remember(heroNumber, index) { Animatable(0f) }
-            LaunchedEffect(heroNumber, index) {
-                rise.animateTo(
-                    targetValue = 1f,
-                    animationSpec = tween(
-                        durationMillis = 440,
-                        delayMillis = 120 + index * 30,
-                        easing = FastOutSlowInEasing,
-                    ),
-                )
+            val rise = remember(heroNumber, index, animateIn) {
+                Animatable(if (animateIn) 0f else 1f)
+            }
+            LaunchedEffect(heroNumber, index, animateIn) {
+                if (animateIn) {
+                    rise.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(
+                            durationMillis = 440,
+                            delayMillis = 120 + index * 30,
+                            easing = FastOutSlowInEasing,
+                        ),
+                    )
+                }
             }
             Text(
                 text = ch.toString(),

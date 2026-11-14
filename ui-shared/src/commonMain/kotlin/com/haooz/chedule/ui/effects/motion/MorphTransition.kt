@@ -171,6 +171,8 @@ class MorphTransition internal constructor(
  * @param onBack 收起动画结束后回调
  * @param interceptBack 返回被拦截时调用，返回 true 表示已处理
  * @param embedded 内嵌模式（平板右栏）：直接到全屏静态态，不播形变、不拦返回
+ * @param autoStart false 时先停在起点（卡片态）不播展开：调用方借此先把「起点卡图」
+ * 上屏，再藏掉源卡、拍整页快照，最后置 true 放行动画，动画首帧就不会有空洞。
  */
 @Composable
 fun rememberMorphTransition(
@@ -186,6 +188,7 @@ fun rememberMorphTransition(
     onBack: () -> Unit,
     interceptBack: () -> Boolean = { false },
     embedded: Boolean = false,
+    autoStart: Boolean = true,
 ): MorphTransition {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
@@ -326,7 +329,7 @@ fun rememberMorphTransition(
             }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(autoStart) {
         closeFromGesture = false
         if (embedded) {
             scaleProgress.snapTo(1f)
@@ -337,6 +340,8 @@ fun rememberMorphTransition(
         if (!hasCardBounds) return@LaunchedEffect
         // 原生取消/保存在展开开始前就到达时，别再把它拉回全屏
         if (animatingState.value) return@LaunchedEffect
+        // 调用方还没放行：停在起点卡态，等它把源卡藏掉、快照拍好
+        if (!autoStart) return@LaunchedEffect
         // 等一帧让静态首帧完整上屏，再从下一帧开始播放
         withFrameNanos { }
         launch { scaleProgress.animateTo(1f, tween(OPEN_MILLIS, easing = OpenEase)) }

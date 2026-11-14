@@ -293,11 +293,15 @@ class CourseScheduleAppState {
     var detailCardHeight by mutableFloatStateOf(0f)
     var detailSnapshot by mutableStateOf<TransitionLayerSnapshot?>(null)
     var showDetail by mutableStateOf(false)
+    /** 详情页是否已放行播放展开动画（见 openCourseDetail：先上屏卡态，再藏源卡拍快照） */
+    var detailMorphStarted by mutableStateOf(false)
 
     // 详情页退出中：主内容提前恢复绘制（快照垫底），画出来后再撤快照。见 onBackStart。
     var detailExiting by mutableStateOf(false)
     var detailFromToday by mutableStateOf(false)
     var detailTargetWeek by mutableIntStateOf(0)
+    /** 进详情前要藏掉的源卡片：先藏再截整页，快照里才不会留下它 */
+    var hiddenCourseIds by mutableStateOf(setOf<String>())
     var isDraggingCard by mutableStateOf(false)
     // 被浮层顶替的 (课程 id, 周次)。必须带周次：多周课在每一周都是同一条记录，
     // 只按 id 隐藏会让所有周的原卡一起消失。只隐藏源周/落点周那一份。
@@ -1571,6 +1575,7 @@ class CourseScheduleAppState {
         cardHeight: Float,
         cardLayer: TransitionLayerSnapshot?,
         fromToday: Boolean,
+        courseIdToHide: String = courses.firstOrNull()?.id ?: "",
         targetWeek: Int = 0
     ) {
         detailCourses = courses
@@ -1596,29 +1601,31 @@ class CourseScheduleAppState {
             }
             TransitionLayerSnapshot(retainedDetailLayer, source.bounds)
         }
-        // 先录整屏背景快照，源卡片此时仍在画面里
+        // 先藏源卡片、再录整屏背景
+        detailMorphStarted = false
         coroutineScope.launch {
-            // 卡片快照也冻结成位图：`drawLayer` 只是**活引用**，源卡片所在列表随后可能重绘/移动，
-            // 退出 morph 重放时就只剩玻璃背景、没有文字。回读放在动画开始前，免得动画中途卡一帧。
+            // 卡片快照先冻结成位图
             val cardSnapshot = detailSnapshot
             if (cardSource != null && cardSnapshot != null) {
                 runCatching { cardSource.layer.toImageBitmap() }.getOrNull()
                     ?.let { cardSnapshot.frozen = it }
             }
+            // 详情页先按「起点卡态」上屏
+            // 同一帧再藏掉源卡片，下一帧起浮层卡就接替了它的位置
+            showDetail = true
+            // 没有卡片快照就没有浮层卡接替位置，此时不能藏源卡，否则会露白
+            hiddenCourseIds = if (cardSnapshot != null) setOf(courseIdToHide) else emptySet()
+            // 这里录制到的是「源卡已隐藏」后的绘制，快照自然不含源卡片
             prepareMainContentLayer()
             val background = TransitionLayerSnapshot(screenGraphicsLayer)
-            // 背景要 3×3 平铺整屏：先光栅化，形变期间只画一张纹理，
-            // 不再每帧把整棵主界面绘制列表重放多次。开销落在动画开始前。
+            // 背景要 3×3 平铺整屏：先光栅化，形变期间只画一张纹理
             background.freezeSource()
             detailBackgroundSnapshot = background
             detailBackgroundScale.snapTo(1f)
-            showDetail = true
-            // 等两帧：第一帧组合详情页，第二帧才带着它上屏。只等一帧的话动画首帧会和
-            // 首次组合/布局撞在同一帧，起手就有一次几十毫秒的卡顿。
+            // 快照层上屏后再放行动画，展开首帧不会空洞
             withFrameNanos { }
             withFrameNanos { }
-            // 不再隐藏源卡片：背景是一张冻结好的整页快照，形变全程盖住实时列表，
-            // 源卡片根本不可见。省掉动画末尾那次列表重组/重排。
+            detailMorphStarted = true
             launch {
                 managePageBlurRadius.animateTo(
                     HostNavigationState.DETAIL_BACKDROP_BLUR_DP,

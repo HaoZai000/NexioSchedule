@@ -1378,6 +1378,8 @@ fun CourseTimeSettingsRoute(
     var editingConfig by remember { mutableStateOf<TimeConfig?>(null) }
     var editingRoutineId by remember { mutableStateOf<Long?>(null) }
     var editingCardBounds by remember { mutableStateOf<TimeConfigCardBounds?>(null) }
+    /** 编辑页是否已放行展开动画（先上屏卡态、藏源行、拍快照，再开跑） */
+    var editMorphStarted by remember { mutableStateOf(false) }
     var listRefreshTrigger by remember { mutableIntStateOf(0) }
     // 列表页持有卡片本体，这里只留快照完成转场
     var cardSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
@@ -1452,18 +1454,21 @@ fun CourseTimeSettingsRoute(
                         editingRoutineId = routine.id
                         editingCardBounds = bounds
                         cardSnapshot = bounds.snapshot
+                        editMorphStarted = false
                         coroutineScope.launch {
                             if (editingExitStarted || currentPage == "edit") return@launch
-                            // 先录整页再切页：切页后 hideRoutinesCard 会立刻把源行藏掉
+                            // 先切页：编辑页以「起点卡态」上屏，画的正是同一张卡；同时
+                            // morphActive 让实时页的源行不画。屏幕此时没有任何变化，
+                            // 接着拍的整页快照里就没有源行了。
+                            currentPage = "edit"
                             val background = capturePageSnapshot()
                             background?.freezeSource()
                             editBackgroundScale.snapTo(1f)
                             editBackgroundSnapshot = background
-                            currentPage = "edit"
-                            // 等两帧：第一帧组合编辑页，第二帧才带着它上屏。否则动画首帧会和
-                            // 首次组合/布局撞在同一帧，起手出现几十毫秒的卡顿。
+                            // 快照层上屏（替换实时页面）后再放行动画
                             withFrameNanos { }
                             withFrameNanos { }
+                            editMorphStarted = true
                             launch {
                                 managePageBlurRadius.animateTo(
                                     targetValue = 12f,
@@ -1565,6 +1570,7 @@ fun CourseTimeSettingsRoute(
                             listRefreshTrigger++
                         },
                         liquidGlassBackdrop = editLiquidGlassBackdrop,
+                        morphStarted = editMorphStarted,
                     )
                 }
             }
@@ -1621,6 +1627,10 @@ fun CourseManageRoute(
     var cardAlpha by remember { mutableFloatStateOf(0.12f) }
     var shrinkingCourseIds by remember { mutableStateOf(setOf<String>()) }
     var pendingAutoExitDeleteIds by remember { mutableStateOf(setOf<String>()) }
+    /** 进编辑形变前藏掉的源卡片：先藏再截整页，快照里才不会留下它 */
+    var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
+    /** 编辑页是否已放行展开动画（先上屏卡态、藏源卡、拍快照，再开跑） */
+    var editMorphStarted by remember { mutableStateOf(false) }
 
     var showShortcutMenu by remember { mutableStateOf(false) }
     var shortcutMenuPosition by remember { mutableStateOf(Offset.Zero) }
@@ -1721,6 +1731,7 @@ fun CourseManageRoute(
                 SideEffect { managePageBackdrop = liquidGlassBackdrop }
                 CourseManageScreen(
                     scrollBehavior = scrollBehavior,
+                    hiddenCourseIds = hiddenCourseIds,
                     shrinkingCourseIds = shrinkingCourseIds,
                     sectionTimes = sectionTimes,
                     onDialogVisibilityChanged = { courseDialogVisible = it },
@@ -1756,11 +1767,6 @@ fun CourseManageRoute(
                     onCourseClick = { courses, left, top, width, height, snapshot, color, alpha ->
                         coroutineScope.launch {
                             if (showEditScreen) return@launch
-                            // 先录整页再隐藏源卡片，否则背景快照里会缺这张卡
-                            val background = capturePageSnapshot()
-                            // 同作息编辑：先光栅化，形变期间只画位图，避免每帧重放整页
-                            background?.freezeSource()
-                            editBackgroundScale.snapTo(1f)
                             selectedCourses = courses
                             cardLeft = left
                             cardTop = top
@@ -1769,15 +1775,22 @@ fun CourseManageRoute(
                             cardColor = color
                             cardAlpha = alpha
                             cardSnapshot = snapshot
-                            editBackgroundSnapshot = background
                             // 打开即视为编辑过
                             editedCourseIds = editedCourseIds + courses.map { it.id }
-
+                            editMorphStarted = false
+                            // 先让编辑页以「起点卡态」上屏（画的正是这些卡），同帧再藏源卡：
+                            // 屏幕看不出变化，随后拍的整页快照里也就没有源卡。
                             showEditScreen = true
-                            // 等两帧：第一帧组合编辑页，第二帧才带着它上屏。否则动画首帧会和
-                            // 首次组合/布局撞在同一帧，起手出现几十毫秒的卡顿。
+                            hiddenCourseIds = courses.map { it.id }.toSet()
+                            val background = capturePageSnapshot()
+                            // 同作息编辑：先光栅化，形变期间只画位图，避免每帧重放整页
+                            background?.freezeSource()
+                            editBackgroundScale.snapTo(1f)
+                            editBackgroundSnapshot = background
+                            // 快照层上屏（替换实时页面）后再放行动画
                             withFrameNanos { }
                             withFrameNanos { }
+                            editMorphStarted = true
                             launch {
                                 managePageBlurRadius.animateTo(
                                     targetValue = 12f,
@@ -1822,6 +1835,7 @@ fun CourseManageRoute(
                 cardSnapshot = cardSnapshot,
                 cardColor = cardColor,
                 cardAlpha = cardAlpha,
+                morphStarted = editMorphStarted,
                 onBackStart = {
                     coroutineScope.launch {
                         launch {
@@ -1839,6 +1853,8 @@ fun CourseManageRoute(
                     }
                 },
                 onBack = {
+                    // 编辑页缩回时源卡片要重新出现，morph 才落得回去
+                    hiddenCourseIds = emptySet()
                     if (pendingAutoExitDeleteIds.isNotEmpty()) {
                         showEditScreen = false
                         cardSnapshot = null

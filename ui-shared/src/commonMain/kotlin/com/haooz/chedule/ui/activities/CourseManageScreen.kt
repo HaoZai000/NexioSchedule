@@ -104,6 +104,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 fun CourseManageScreen(
     scrollBehavior: SharedScrollBehavior? = null,
     viewModel: CourseViewModel = courseViewModel(),
+    hiddenCourseIds: Set<String> = emptySet(),
     shrinkingCourseIds: Set<String> = emptySet(),
     onCourseClick: (
         courses: List<Course>,
@@ -352,6 +353,7 @@ fun CourseManageScreen(
                                     color = courseColors.tint,
                                     daySections = daySections,
                                     sectionCount = courseList.size,
+                                    isHidden = courseList.any { it.id in hiddenCourseIds },
                                     isSelected = courseName == selectedCourseName,
                                     onClick = { left, top, width, height, snapshot ->
                                         onCourseClick(courseList, left, top, width, height, snapshot, courseColors.tint, 0.12f)
@@ -769,6 +771,7 @@ private fun CourseManageCard(
     daySections: List<String>,
     /** 同名课程聚合出的记录条数，>1 时在标题行末尾给一枚「N 节」标记 */
     sectionCount: Int = 1,
+    isHidden: Boolean = false,
     isSelected: Boolean = false,
     onClick: (left: Float, top: Float, width: Float, height: Float, snapshot: TransitionLayerSnapshot?) -> Unit,
     onLongPress: (left: Float, top: Float, width: Float, height: Float, snapshot: TransitionLayerSnapshot) -> Unit = { _, _, _, _, _ -> }
@@ -801,6 +804,8 @@ private fun CourseManageCard(
                     onLongPress(cardLeft, cardTop, cardWidth, cardHeight, TransitionLayerSnapshot(cardLayer))
                 }
             )
+            // 隐藏只乘透明度、且留在录制之外：编辑页要重放这张卡的图层，内容不能被抹掉
+            .graphicsLayer { alpha = if (isHidden) 0f else 1f }
             .drawWithContent {
                 cardLayer.record {
                     drawRect(cardBackground)

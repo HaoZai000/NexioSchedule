@@ -104,6 +104,8 @@ fun CourseDetailScreen(
     // 点击来源所在的周次（今日页=当前浏览日期所在周，bottomsheet=当前查看周），
     // 进入后自动滚动到对应周分组；<=0 表示不滚动。
     targetWeek: Int = 0,
+    /** false = 先以起点卡态上屏，等宿主持源卡藏掉、整页快照就位后再放行动画 */
+    morphStarted: Boolean = true,
     onBackStart: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -160,6 +162,7 @@ fun CourseDetailScreen(
         startCornerRadiusDp = 20f,
         onBackStart = onBackStart,
         onBack = onBack,
+        autoStart = morphStarted,
     )
 
 

@@ -217,7 +217,9 @@ fun TimeConfigEditScreen(
     isFabCreation: Boolean = false,
     /** 删除当前作息并回到一级列表（宿主负责落库与刷新列表） */
     onDeleteRoutine: (Long) -> Unit = {},
-    liquidGlassBackdrop: LayerBackdrop? = null
+    liquidGlassBackdrop: LayerBackdrop? = null,
+    /** false = 先停在起点卡态，等宿主持源卡藏掉、整页快照上屏后再放行展开 */
+    morphStarted: Boolean = true,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
@@ -322,6 +324,7 @@ fun TimeConfigEditScreen(
         onBack = onBack,
         // 对话框开着时返回只回弹页面，不关页
         interceptBack = { showTimeDialog || showQuickItemDialog },
+        autoStart = morphStarted,
     )
 
     fun triggerExitAndBack(onSavePending: (() -> Unit)? = null) {

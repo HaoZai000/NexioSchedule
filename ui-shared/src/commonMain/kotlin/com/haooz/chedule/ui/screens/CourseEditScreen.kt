@@ -182,6 +182,8 @@ fun CourseEditScreen(
     dialogBackdrop: GlassBackdrop? = null,
     /** 内嵌时由外部指定内容顶距（与左栏 chromeTop 对齐），替代按顶栏高度推算 */
     contentTopPadding: androidx.compose.ui.unit.Dp? = null,
+    /** false = 先停在起点卡态，等宿主持源卡藏掉、整页快照上屏后再放行展开 */
+    morphStarted: Boolean = true,
 ) {
     // 弹窗默认跟随自身玻璃层；内嵌时由外层指定全屏层
     val dialogGlass: GlassBackdrop? = dialogBackdrop ?: liquidGlassBackdrop
@@ -218,6 +220,7 @@ fun CourseEditScreen(
         onBackStart = onBackStart,
         onBack = onBack,
         embedded = embedded,
+        autoStart = morphStarted,
     )
 
     // ---- UI State ----

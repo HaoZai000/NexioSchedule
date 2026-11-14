@@ -710,8 +710,9 @@ internal fun CourseScheduleAppMainContent(
                                                         TodayScreen(
                                                             viewModel = viewModel,
                                                             settingsViewModel = settingsViewModel,
+                                                            hiddenCourseIds = hiddenCourseIds,
                                                             holidayDataTick = resumeCount,
-                                                            onCourseClick = { c, l, t, w, h, layer, week ->
+                                                            onCourseClick = { c, l, t, w, h, layer, hideId, week ->
                                                                 openCourseDetail(
                                                                     courses = c,
                                                                     cardLeft = l,
@@ -720,6 +721,7 @@ internal fun CourseScheduleAppMainContent(
                                                                     cardHeight = h,
                                                                     cardLayer = layer,
                                                                     fromToday = true,
+                                                                    courseIdToHide = hideId,
                                                                     targetWeek = week,
                                                                 )
                                                             },
@@ -812,8 +814,9 @@ internal fun CourseScheduleAppMainContent(
                                                                 // 顶栏与内容共用同一份越界状态（顶栏材质判据需要）
                                                                 overScrollState = mainOverScrollState,
                                                                 jumpNeighbor = weekJumpNeighbor,
+                                                                hiddenCourseIds = hiddenCourseIds,
                                                                 draggingCourseSlots = draggingCourseSlots,
-                                                                onCourseClick = { c, l, t, w, h, layer, week ->
+                                                                onCourseClick = { c, l, t, w, h, layer, hideId, week ->
                                                                     openCourseDetail(
                                                                         courses = c,
                                                                         cardLeft = l,
@@ -822,6 +825,7 @@ internal fun CourseScheduleAppMainContent(
                                                                         cardHeight = h,
                                                                         cardLayer = layer,
                                                                         fromToday = false,
+                                                                        courseIdToHide = hideId,
                                                                         targetWeek = week,
                                                                     )
                                                                 },

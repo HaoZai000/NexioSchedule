@@ -374,7 +374,14 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
 fun TodayScreen(
     viewModel: CourseViewModel,
     settingsViewModel: SettingsViewModel,
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: TransitionLayerSnapshot?, targetWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
+    /**
+     * 只在课程详情弹窗里用：点弹窗卡片进全屏详情时，要把那张源卡片藏掉，
+     * 否则整页快照里会留下它，形变里就多出一张原卡。
+     *
+     * 今日页的课程列表**不读**这个值 —— 它不直接进详情。
+     */
+    hiddenCourseIds: Set<String> = emptySet(),
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: TransitionLayerSnapshot?, courseIdToHide: String, targetWeek: Int) -> Unit = { _, _, _, _, _, _, _, _ -> },
     /** 翻日位置来源。 */
     pageState: PageSwitchState,
     /** 长距跳日的借位页：让相邻页临时显示目标日期（见 PagerJumpNeighbor） */
@@ -553,8 +560,8 @@ fun TodayScreen(
     val tabletHorizontalPadding = if (isTablet) 24.dp else 16.dp
 
     // 点课程只开弹窗：卡片位置/图层这些 morph 参数在这里用不上，全屏详情由弹窗里的卡片再触发
-    val openDetailSheet: (List<Course>, Float, Float, Float, Float, TransitionLayerSnapshot?, Int) -> Unit =
-        { coursesAtSlot, _, _, _, _, _, targetWeek ->
+    val openDetailSheet: (List<Course>, Float, Float, Float, Float, TransitionLayerSnapshot?, String, Int) -> Unit =
+        { coursesAtSlot, _, _, _, _, _, _, targetWeek ->
             detailSheetCourses = coursesAtSlot
             detailSheetWeek = targetWeek
             showDetailSheet = true
@@ -1015,6 +1022,8 @@ fun TodayScreen(
             selectedCourses = detailSheetCourses,
             viewingWeek = detailSheetWeek,
             isTablet = isTablet,
+            // 弹窗里的源卡片要先藏掉：进全屏详情时整页快照不能拍进它
+            hiddenCourseIds = hiddenCourseIds,
             onDismiss = { showDetailSheet = false },
             onCourseClick = onCourseClick,
             onNoteSave = { course, week, text ->
@@ -1487,6 +1496,7 @@ private typealias CourseDetailClick = (
     cardWidth: Float,
     cardHeight: Float,
     snapshot: TransitionLayerSnapshot?,
+    courseIdToHide: String,
     targetWeek: Int,
 ) -> Unit
 
@@ -1529,7 +1539,7 @@ private fun CourseDetailSectionCard(
             .onGloballyPositioned { sectionOrigin[0] = it.localToRoot(Offset.Zero) },
         transitionRecording = recording,
     ) {
-        content { courses, left, top, width, height, _, targetWeek ->
+        content { courses, left, top, width, height, _, courseId, targetWeek ->
             if (!capturePending[0]) {
                 capturePending[0] = true
                 val origin = sectionOrigin[0]
@@ -1543,7 +1553,7 @@ private fun CourseDetailSectionCard(
                         }
                         latestOnCourseClick(
                             courses, left, top, width, height,
-                            TransitionLayerSnapshot(sectionLayer, crop), targetWeek,
+                            TransitionLayerSnapshot(sectionLayer, crop), courseId, targetWeek,
                         )
                     } finally {
                         capturePending[0] = false
@@ -1593,7 +1603,7 @@ private fun LazyListScope.addCourseSections(
     pageDate: LocalDate,
     pageWeek: Int,
     sectionTimes: Map<Int, String>,
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: TransitionLayerSnapshot?, targetWeek: Int) -> Unit,
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: TransitionLayerSnapshot?, courseIdToHide: String, targetWeek: Int) -> Unit,
     surfaceOpacity: Float,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
@@ -1690,10 +1700,10 @@ private fun LazyListScope.addCourseSections(
 private fun openTodayCourse(
     course: Course,
     pageWeek: Int,
-    openDetailSheet: (List<Course>, Float, Float, Float, Float, TransitionLayerSnapshot?, Int) -> Unit,
+    openDetailSheet: (List<Course>, Float, Float, Float, Float, TransitionLayerSnapshot?, String, Int) -> Unit,
 ) {
     // 位置/图层参数供「点卡片直接 morph 进详情」用；今日页先弹详情弹窗，起点由弹窗内卡片提供
-    openDetailSheet(listOf(course), 0f, 0f, 0f, 0f, null, pageWeek)
+    openDetailSheet(listOf(course), 0f, 0f, 0f, 0f, null, course.id, pageWeek)
 }
 
 @Composable
@@ -1702,7 +1712,7 @@ private fun CourseItemWithClick(
     sectionTimes: Map<Int, String>,
     pageDate: LocalDate,
     pageWeek: Int,
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: TransitionLayerSnapshot?, targetWeek: Int) -> Unit,
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: TransitionLayerSnapshot?, courseIdToHide: String, targetWeek: Int) -> Unit,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true
 ) {

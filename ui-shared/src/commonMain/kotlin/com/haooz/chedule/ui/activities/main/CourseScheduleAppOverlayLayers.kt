@@ -897,6 +897,8 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                     classStartTime = classStartTime,
                     teachingWeekReorganizations = teachingWeekRules,
                     targetWeek = detailTargetWeek,
+                    // 先停在起点卡态：等宿主持源卡藏掉、整页快照上屏后再放行展开
+                    morphStarted = detailMorphStarted,
                     onBackStart = {
                         detailExiting = true
                         coroutineScope.launch {
@@ -913,8 +915,8 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         }
                     },
                     onBack = {
-                        // ⚠ 详情页延后一帧再消失：morph 结束时卡片已缩回原位，此刻 sheet 里
-                        // 的原卡片还没画出来，同帧摘掉详情页就闪一帧空白。
+                        // 详情页缩回原位时源卡片要重新出现，morph 才落得回去
+                        hiddenCourseIds = emptySet()
                         coroutineScope.launch {
                             withFrameNanos { }
                             showDetail = false
