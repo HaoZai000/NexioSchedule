@@ -6,6 +6,8 @@ agp = "9.2.1"                        # Android Gradle Plugin
 composeMultiplatform = "1.12.0"     # Compose Multiplatform（backdrop 模块用；Android 上映射回 AndroidX Compose）
 kotlin = "2.4.10"                     # Kotlin 编译器（含 Compose 编译插件）
 sqldelight = "2.3.2"                  # SQLDelight：SQL-first 的 KMP 数据库，编译期校验 SQL + 显式迁移文件
+# 用户 fork 的 :backdrop（fork 自 kyant0:backdrop 2.0.1）依赖的形状库；上游 1.7.0 已改用 softglass
+kyantShapes = "1.2.1"
 
 # 跨平台（:core KMP 模块）
 kotlinxDatetime = "0.6.2"             # kotlinx-datetime：java.time 的 KMP 替代（0.7+ 重命名了 monthNumber→month、Clock 改为 kotlin.time 别名，留到阶段 2 再评估升级）
@@ -47,6 +49,9 @@ shizuku = "13.1.5"                    # Shizuku 免 Root 高权限框架
 navigationevent = "1.1.2"             # AndroidX NavigationEvent（SearchBar 返回处理）
 
 [libraries]
+# ===== 用户 fork 的 :backdrop 依赖 =====
+kyant-shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "kyantShapes" }
+
 # ===== AndroidX 基础 =====
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }                       # 核心 KTX 扩展
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }  # 生命周期运行时

@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.i18n.TodayStr
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.utils.NativeBottomBarHost
 import com.haooz.chedule.ui.utils.NativeBottomBarState
@@ -124,7 +125,7 @@ fun ScheduleBottomBar(
                         contentDescription = null,
                         colorFilter = ColorFilter.tint(iconTint)
                     )
-                    Text(CommonStr.today(), fontSize = 11.sp, color = iconTint)
+                    Text(TodayStr.agenda(), fontSize = 11.sp, color = iconTint)
                 }
                 LiquidBottomTab() {
                     Image(
@@ -172,7 +173,7 @@ internal fun PublishNativeBottomBar(
         labels = if (isShiftMode) {
             listOf(ChromeStr.shiftSchedule())
         } else {
-            listOf(CommonStr.today(), ChromeStr.schedule())
+            listOf(TodayStr.agenda(), ChromeStr.schedule())
         },
         onSurfaceArgb = MiuixTheme.colorScheme.onSurface.argbValue(),
         accentArgb = MiuixTheme.colorScheme.primary.argbValue(),

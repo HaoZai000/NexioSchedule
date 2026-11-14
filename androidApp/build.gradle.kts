@@ -12,12 +12,16 @@ val keystorePropertiesProvider = providers.fileContents(
     rootProject.layout.projectDirectory.file("keystore.properties"),
 ).asText.map { text -> Properties().apply { text.reader().use { load(it) } } }
 
-fun keyMaterial(name: String): String? =
-    (project.findProperty(name) as String?)?.takeIf { it.isNotBlank() }
-        ?: System.getenv(name)?.takeIf { it.isNotBlank() }
-        ?: keystorePropertiesProvider.orNull?.getProperty(name)?.takeIf { it.isNotBlank() }
+fun keyMaterial(vararg names: String): String? =
+    names.asSequence().mapNotNull { name ->
+        (project.findProperty(name) as String?)?.takeIf { it.isNotBlank() }
+            ?: System.getenv(name)?.takeIf { it.isNotBlank() }
+            ?: keystorePropertiesProvider.orNull?.getProperty(name)?.takeIf { it.isNotBlank() }
+    }.firstOrNull()
 
-val signingStoreFile = keyMaterial("RELEASE_STORE_FILE")?.let { rootProject.file(it) }?.takeIf { it.isFile }
+// 本仓库沿用自备的 nexio-release.jks + keystore.properties（存的是 storePassword / keyAlias / keyPassword 旧键名）
+val signingStoreFile = (keyMaterial("RELEASE_STORE_FILE") ?: "nexio-release.jks")
+    .let { rootProject.file(it) }?.takeIf { it.isFile }
 val hasSigningKey = signingStoreFile != null
 
 android {
@@ -25,7 +29,8 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.haooz.chedule"
+        // 允许 -PappId=xxx 覆盖包名，默认保持上游的 com.haooz.chedule
+        applicationId = (findProperty("appId") as String?)?.takeIf { it.isNotBlank() } ?: "com.haooz.chedule"
         minSdk = 26
         targetSdk = 37
         versionCode = 171
@@ -41,9 +46,9 @@ android {
         if (hasSigningKey) {
             create("haooz") {
                 storeFile = signingStoreFile
-                storePassword = keyMaterial("RELEASE_STORE_PASSWORD")
-                keyAlias = keyMaterial("RELEASE_KEY_ALIAS")
-                keyPassword = keyMaterial("RELEASE_KEY_PASSWORD")
+                storePassword = keyMaterial("RELEASE_STORE_PASSWORD", "storePassword")
+                keyAlias = keyMaterial("RELEASE_KEY_ALIAS", "keyAlias")
+                keyPassword = keyMaterial("RELEASE_KEY_PASSWORD", "keyPassword")
             }
         }
     }
@@ -148,6 +153,9 @@ dependencies {
     implementation(libs.shizuku.provider)
 
     implementation(libs.okhttp)
+
+    // 用户首页时间轴的液态玻璃（fork 自 kyant0:backdrop，与上游 softglass 并存）
+    implementation(project(":backdrop"))
 
     // Layout Inspector
     debugImplementation(libs.androidx.compose.ui.tooling)

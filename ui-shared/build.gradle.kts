@@ -55,6 +55,11 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
+        // 日程页读取系统日历：运行时权限申请与权限状态检查（SystemCalendar.android.kt）
+        androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.core.ktx)
+        }
         // shader 冒烟测试要 Skia 的运行时编译器（SkSL）。currentOs 会带上当前平台的 skiko
         // native，否则测试里 `RuntimeEffect` 一加载就 LibraryLoadException。
         jvmTest.dependencies {
@@ -72,6 +77,8 @@ kotlin {
             api(project(":core"))
             // 页面骨架与组件
             api(project(":miuix"))
+            // 用户首页时间轴的液态玻璃（fork 自 kyant0:backdrop，与上游 softglass 并存）
+            api(project(":backdrop"))
             // 液态玻璃采样
 
             // miuix 子库用不带 -android 的根坐标（写死会让 jvm 编不过），

@@ -45,5 +45,8 @@ include(":core")
 include(":miuix")
 include(":ui-shared")
 include(":desktopApp")
+// 用户 fork 自带的 backdrop（fork 自 kyant0:backdrop 2.0.1）：首页时间轴的折射/边缘光需要它，
+// 上游 1.7.0 换成了 softglass，这里两块并存。
+include(":backdrop")
  
 
