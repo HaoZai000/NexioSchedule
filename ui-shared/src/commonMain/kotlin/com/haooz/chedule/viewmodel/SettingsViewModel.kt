@@ -163,6 +163,15 @@ class SettingsViewModel : ViewModel() {
     private val _preClassReminderMinutes = MutableStateFlow(repository.getPreClassReminderMinutes())
     val preClassReminderMinutes: StateFlow<Int> = _preClassReminderMinutes.asStateFlow()
 
+    private val _preClassReminderStartSection =
+        MutableStateFlow(repository.getPreClassReminderStartSection())
+    val preClassReminderStartSection: StateFlow<Int> = _preClassReminderStartSection.asStateFlow()
+
+    /** 0 = 不限（到最后节） */
+    private val _preClassReminderEndSection =
+        MutableStateFlow(repository.getPreClassReminderEndSection())
+    val preClassReminderEndSection: StateFlow<Int> = _preClassReminderEndSection.asStateFlow()
+
     private val _nextDayReminder = MutableStateFlow(repository.getNextDayReminder())
     val nextDayReminder: StateFlow<Boolean> = _nextDayReminder.asStateFlow()
 
@@ -255,6 +264,16 @@ class SettingsViewModel : ViewModel() {
 
         val newPreClassReminderMinutes = repository.getPreClassReminderMinutes()
         if (_preClassReminderMinutes.value != newPreClassReminderMinutes) _preClassReminderMinutes.value = newPreClassReminderMinutes
+
+        val newPreClassReminderStartSection = repository.getPreClassReminderStartSection()
+        if (_preClassReminderStartSection.value != newPreClassReminderStartSection) {
+            _preClassReminderStartSection.value = newPreClassReminderStartSection
+        }
+
+        val newPreClassReminderEndSection = repository.getPreClassReminderEndSection()
+        if (_preClassReminderEndSection.value != newPreClassReminderEndSection) {
+            _preClassReminderEndSection.value = newPreClassReminderEndSection
+        }
 
         val newNextDayReminder = repository.getNextDayReminder()
         if (_nextDayReminder.value != newNextDayReminder) _nextDayReminder.value = newNextDayReminder
@@ -369,6 +388,16 @@ class SettingsViewModel : ViewModel() {
     fun setPreClassReminderMinutes(minutes: Int) {
         _preClassReminderMinutes.value = minutes
         repository.setPreClassReminderMinutes(minutes)
+    }
+
+    fun setPreClassReminderStartSection(section: Int) {
+        _preClassReminderStartSection.value = section
+        repository.setPreClassReminderStartSection(section)
+    }
+
+    fun setPreClassReminderEndSection(section: Int) {
+        _preClassReminderEndSection.value = section
+        repository.setPreClassReminderEndSection(section)
     }
 
     fun setNextDayReminder(enabled: Boolean) {

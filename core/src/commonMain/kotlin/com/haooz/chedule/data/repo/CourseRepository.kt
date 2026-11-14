@@ -457,6 +457,10 @@ class CourseRepository private constructor() : PeriodTimeSource {
         internal const val DEFAULT_FOLDER_ID = "folder_default"
         internal const val KEY_PRE_CLASS_REMINDER = "pre_class_reminder"
         internal const val KEY_PRE_CLASS_REMINDER_MINUTES = "pre_class_reminder_minutes"
+        /** 上课提醒的节次范围：起始节（1 起） */
+        internal const val KEY_PRE_CLASS_REMINDER_START_SECTION = "pre_class_reminder_start_section"
+        /** 上课提醒的节次范围：结束节；0 = 不限（到最后） */
+        internal const val KEY_PRE_CLASS_REMINDER_END_SECTION = "pre_class_reminder_end_section"
         internal const val KEY_NEXT_DAY_REMINDER = "next_day_reminder"
         internal const val KEY_NEXT_DAY_REMINDER_HOUR = "next_day_reminder_hour"
         internal const val KEY_NEXT_DAY_REMINDER_MINUTE = "next_day_reminder_minute"
@@ -1694,6 +1698,24 @@ class CourseRepository private constructor() : PeriodTimeSource {
 
     fun setPreClassReminderMinutes(minutes: Int) {
         prefs.edit {putInt(KEY_PRE_CLASS_REMINDER_MINUTES, minutes) }
+    }
+
+    /** 上课提醒起始节（默认 1，即从第一节开始提醒） */
+    fun getPreClassReminderStartSection(): Int {
+        return safeGetInt(KEY_PRE_CLASS_REMINDER_START_SECTION, 1).coerceAtLeast(1)
+    }
+
+    fun setPreClassReminderStartSection(section: Int) {
+        prefs.edit { putInt(KEY_PRE_CLASS_REMINDER_START_SECTION, section.coerceAtLeast(1)) }
+    }
+
+    /** 上课提醒结束节；0 = 不限（一直到最后节） */
+    fun getPreClassReminderEndSection(): Int {
+        return safeGetInt(KEY_PRE_CLASS_REMINDER_END_SECTION, 0).coerceAtLeast(0)
+    }
+
+    fun setPreClassReminderEndSection(section: Int) {
+        prefs.edit { putInt(KEY_PRE_CLASS_REMINDER_END_SECTION, section.coerceAtLeast(0)) }
     }
 
     fun getNextDayReminder(): Boolean {

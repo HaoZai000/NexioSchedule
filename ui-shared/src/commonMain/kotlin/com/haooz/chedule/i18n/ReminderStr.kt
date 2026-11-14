@@ -14,6 +14,16 @@ object ReminderStr {
         L("提供下节上课时间、地点等信息，和上课勿扰等操作建议", "Shows next class time, location, and suggestions like in-class Do Not Disturb")
     val reminderLeadTime = L("提前提醒时间", "Reminder Lead Time")
     val minutesN = L("%d分钟", "%d min")
+    val reminderSections = L("提醒节次", "Reminder periods")
+    val allSections = L("全部节次", "All periods")
+    val sectionRangeN = L("第%d-%d节", "Period %d-%d")
+    val sectionRangeFromN = L("第%d节起", "From period %d")
+    val sectionRangeUntilN = L("第1-%d节", "Period 1-%d")
+    val sectionStart = L("起始节", "From")
+    val sectionEnd = L("结束节", "To")
+    val sectionN = L("第%d节", "P%d")
+    val sectionRangeHint =
+        L("只提醒落在该节次范围内的课程，结束节拉到最后一节即一直提醒", "Only classes starting in this period range trigger reminders; the last period means no upper limit")
     val nextDayReminder = L("次日课程提醒", "Next-Day Class Reminder")
     val nextDayReminderSummary =
         L("提供明天课程、首节时间、地点等信息，和定闹钟等操作建议", "Shows tomorrow's classes, first period time and location, with suggestions like setting an alarm")

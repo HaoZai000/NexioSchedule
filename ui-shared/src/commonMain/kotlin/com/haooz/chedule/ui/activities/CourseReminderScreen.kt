@@ -254,6 +254,12 @@ fun CourseReminderScreen(
 ) {
     val preClassReminder by settingsViewModel.preClassReminder.collectAsState()
     val preClassReminderMinutes by settingsViewModel.preClassReminderMinutes.collectAsState()
+    val preClassReminderStartSection by settingsViewModel.preClassReminderStartSection.collectAsState()
+    val preClassReminderEndSection by settingsViewModel.preClassReminderEndSection.collectAsState()
+    val morningSections by settingsViewModel.morningSections.collectAsState()
+    val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
+    val eveningSections by settingsViewModel.eveningSections.collectAsState()
+    val totalSections = (morningSections + afternoonSections + eveningSections).coerceAtLeast(1)
     val nextDayReminder by settingsViewModel.nextDayReminder.collectAsState()
     val nextDayReminderHour by settingsViewModel.nextDayReminderHour.collectAsState()
     val nextDayReminderMinute by settingsViewModel.nextDayReminderMinute.collectAsState()
@@ -267,6 +273,14 @@ fun CourseReminderScreen(
     var showMinutesDialog by remember { mutableStateOf(false) }
     var showTimeDialog by remember { mutableStateOf(false) }
     var tempMinutes by remember { mutableIntStateOf(preClassReminderMinutes) }
+    var showSectionRangeDialog by remember { mutableStateOf(false) }
+    // 结束节为 0 表示「到最后」，UI 上落到最后一节
+    var tempStartSection by remember { mutableIntStateOf(preClassReminderStartSection) }
+    var tempEndSection by remember(totalSections) {
+        mutableIntStateOf(
+            if (preClassReminderEndSection <= 0) totalSections else preClassReminderEndSection
+        )
+    }
     var tempHour by remember { mutableIntStateOf(nextDayReminderHour) }
     var tempMinute by remember { mutableIntStateOf(nextDayReminderMinute) }
 
@@ -605,6 +619,47 @@ fun CourseReminderScreen(
                                         rlog("preclass_minutes_dialog_open", "cur=${preClassReminderMinutes}min")
                                         tempMinutes = preClassReminderMinutes
                                         showMinutesDialog = true
+                                    }
+                                )
+                                // 提醒节次范围：只提醒指定节次，晚休之后的课可以不再打扰
+                                val reminderAllSections = preClassReminderStartSection <= 1 &&
+                                    (preClassReminderEndSection <= 0 || preClassReminderEndSection >= totalSections)
+                                val reminderSectionLabel = when {
+                                    reminderAllSections -> ReminderStr.allSections()
+                                    preClassReminderEndSection <= 0 || preClassReminderEndSection >= totalSections ->
+                                        ReminderStr.sectionRangeFromN(preClassReminderStartSection)
+                                    preClassReminderStartSection <= 1 ->
+                                        ReminderStr.sectionRangeUntilN(preClassReminderEndSection)
+                                    else -> ReminderStr.sectionRangeN(
+                                        preClassReminderStartSection,
+                                        preClassReminderEndSection
+                                    )
+                                }
+                                ArrowPreference(
+                                    title = ReminderStr.reminderSections(),
+                                    endActions = {
+                                        Text(
+                                            text = reminderSectionLabel,
+                                            fontSize = 14.5.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                            textAlign = TextAlign.End,
+                                        )
+                                    },
+                                    holdDownState = showSectionRangeDialog,
+                                    onClick = {
+                                        rlog(
+                                            "preclass_sections_dialog_open",
+                                            "start=$preClassReminderStartSection end=$preClassReminderEndSection total=$totalSections"
+                                        )
+                                        tempStartSection = preClassReminderStartSection
+                                            .coerceIn(1, totalSections)
+                                        tempEndSection = if (preClassReminderEndSection <= 0) {
+                                            totalSections
+                                        } else {
+                                            preClassReminderEndSection
+                                                .coerceIn(tempStartSection, totalSections)
+                                        }
+                                        showSectionRangeDialog = true
                                     }
                                 )
                             }
@@ -1683,6 +1738,96 @@ fun CourseReminderScreen(
                                 showMinutesDialog = false
                                 reminderController.startReminderService()
                                 rlog("reminder_service", "start_after_preclass_minutes")
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // 提醒节次范围弹窗
+            OverlayDialog(
+                title = ReminderStr.reminderSections(),
+                show = showSectionRangeDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = { showSectionRangeDialog = false }
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NumberPicker(
+                            value = tempStartSection,
+                            onValueChange = {
+                                tempStartSection = it
+                                if (tempEndSection < it) tempEndSection = it
+                            },
+                            range = 1..totalSections,
+                            visibleItemCount = 3,
+                            itemHeight = 60.dp,
+                            label = { ReminderStr.sectionN(it) },
+                            textStyle = MiuixTheme.textStyles.title2,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "-",
+                            fontSize = 20.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                        NumberPicker(
+                            value = tempEndSection.coerceIn(tempStartSection, totalSections),
+                            onValueChange = { tempEndSection = it.coerceAtLeast(tempStartSection) },
+                            range = tempStartSection..totalSections,
+                            visibleItemCount = 3,
+                            itemHeight = 60.dp,
+                            label = { ReminderStr.sectionN(it) },
+                            textStyle = MiuixTheme.textStyles.title2,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Text(
+                        text = ReminderStr.sectionRangeHint(),
+                        fontSize = 12.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 20.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = CommonStr.cancel(),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                rlog("preclass_sections_dialog_cancel")
+                                showSectionRangeDialog = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = CommonStr.ok(),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                val start = tempStartSection.coerceIn(1, totalSections)
+                                val end = tempEndSection
+                                    .coerceIn(start, totalSections)
+                                    .let { if (it >= totalSections) 0 else it }
+                                rlog("preclass_sections_dialog_ok", "start=$start end=$end")
+                                settingsViewModel.setPreClassReminderStartSection(start)
+                                settingsViewModel.setPreClassReminderEndSection(end)
+                                showSectionRangeDialog = false
+                                reminderController.startReminderService()
+                                rlog("reminder_service", "start_after_preclass_sections")
                             },
                             colors = ButtonDefaults.textButtonColorsPrimary(),
                             modifier = Modifier.weight(1f)

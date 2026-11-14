@@ -174,11 +174,19 @@ internal object OhosCourseReminder {
         repo: CourseRepository,
     ): List<Item> {
         val leadMinutes = repo.getPreClassReminderMinutes()
+        val rangeStart = repo.getPreClassReminderStartSection()
+        val rangeEnd = repo.getPreClassReminderEndSection()
+        val rangeLimited = rangeStart > 1 || rangeEnd > 0
         val now = Clock.System.now().toEpochMilliseconds()
         val tz = TimeZone.currentSystemDefault()
         val rule = ClassroomLabel.read(AppStorage.store(PREF_IN_CLASS))
 
         return courses.mapIndexedNotNull { index, course ->
+            // 与 Android 一致：只提醒落在用户设定节次范围内的课
+            if (rangeLimited && !course.hasValidCustomTime()) {
+                if (course.startSection < rangeStart) return@mapIndexedNotNull null
+                if (rangeEnd > 0 && course.startSection > rangeEnd) return@mapIndexedNotNull null
+            }
             val start = CourseTimeResolver.getStartTime(course, repo) ?: return@mapIndexedNotNull null
             val startTime = parseClock(start) ?: return@mapIndexedNotNull null
             val endTime = CourseTimeResolver.getEndTime(course, repo)?.let { parseClock(it) }
