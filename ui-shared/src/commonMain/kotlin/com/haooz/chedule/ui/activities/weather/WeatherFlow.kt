@@ -136,8 +136,8 @@ private fun motionOf(kind: WeatherFlowKind): FlowMotion = when (kind) {
 /** 白天的基础色轮：取 6 色是为了让三组预设错位取色后仍能首尾相接。 */
 private fun wheelOf(kind: WeatherFlowKind): List<Color> = when (kind) {
     WeatherFlowKind.Clear -> listOf(
-        Color(0xFFF8C96B), Color(0xFFF2A25C), Color(0xFF8FC8E8),
-        Color(0xFFBFE6F5), Color(0xFFF6D9A8), Color(0xFF7FB6DE),
+        Color(0xFF8FC8E8), Color(0xFFC6E6F7), Color(0xFFA5D6F0),
+        Color(0xFFF7DCB0), Color(0xFF7FB6DE), Color(0xFFD9EEFA),
     )
     WeatherFlowKind.Cloudy -> listOf(
         Color(0xFF8FB4CF), Color(0xFFBACDDA), Color(0xFFA9BECC),

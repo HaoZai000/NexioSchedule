@@ -127,7 +127,12 @@ private fun DrawScope.drawRainfall(night: Boolean, intensity: Float, t: Float, f
             (0.6f + 0.5f * level) * fade
         drawLine(
             brush = Brush.linearGradient(
-                colors = listOf(base.copy(alpha = alpha * 0.3f), base.copy(alpha = alpha)),
+                colorStops = arrayOf(
+                    0f to base.copy(alpha = 0f),
+                    0.45f to base.copy(alpha = alpha * 0.3f),
+                    0.85f to base.copy(alpha = alpha * 0.85f),
+                    1f to base.copy(alpha = alpha),
+                ),
                 start = Offset(x, y),
                 end = Offset(x, y + len),
             ),
