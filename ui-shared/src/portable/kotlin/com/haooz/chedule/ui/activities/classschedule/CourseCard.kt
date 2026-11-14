@@ -9,6 +9,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -585,13 +587,12 @@ private fun BoxScope.CardContent(
     val availableHeightDp = cardHeightDp - 16f
     val courseNameLineH = with(density) { courseNameLineHeight.toDp().value }
     val infoLineH = with(density) { infoLineHeight.toDp().value }
-    val reservedForInfo =
-        ((if (effectiveShowClassroom) 1 else 0) + (if (effectiveShowTeacher) 1 else 0)) * infoLineH
+    // 课名与地点/教师之间留一点边距，避免几行文字糊成一团（用户反馈）
+    val infoGapDp = 2f
+    val infoCount = (if (effectiveShowClassroom) 1 else 0) + (if (effectiveShowTeacher) 1 else 0)
+    val reservedForInfo = infoCount * (infoLineH + infoGapDp)
     val nameMaxLines =
         ((availableHeightDp - reservedForInfo) / courseNameLineH).toInt().coerceAtLeast(1)
-    val bodyMaxLines = nameMaxLines +
-        (if (effectiveShowClassroom) 1 else 0) +
-        (if (effectiveShowTeacher) 1 else 0)
 
     val textAlign = when (cardContentAlignment) {
         CardContentAlignment.TOP_START,
@@ -600,6 +601,11 @@ private fun BoxScope.CardContent(
         CardContentAlignment.TOP_CENTER,
         CardContentAlignment.CENTER_CENTER -> TextAlign.Center
     }
+    val horizontalAlignment = if (textAlign == TextAlign.Center) {
+        Alignment.CenterHorizontally
+    } else {
+        Alignment.Start
+    }
     val contentAlignment = when (cardContentAlignment) {
         CardContentAlignment.TOP_START -> Alignment.TopStart
         CardContentAlignment.TOP_CENTER -> Alignment.TopCenter
@@ -607,47 +613,51 @@ private fun BoxScope.CardContent(
         CardContentAlignment.CENTER_CENTER -> Alignment.Center
     }
 
-    // 课名 + 地点 + 教师合成一段 Text，省掉多个 Text 与 Spacer
-    val bodyText = remember(
-        course.name,
-        course.classroom,
-        course.teacher,
-        effectiveShowClassroom,
-        effectiveShowTeacher,
-        courseNameFontSize,
-        infoFontSize,
-    ) {
-        buildAnnotatedString {
-            pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = courseNameFontSize))
-            append(course.name)
-            pop()
-            if (effectiveShowClassroom) {
-                append('\n')
-                pushStyle(SpanStyle(fontSize = infoFontSize))
-                append("@${course.classroom}")
-                pop()
-            }
-            if (effectiveShowTeacher) {
-                append('\n')
-                pushStyle(SpanStyle(fontSize = infoFontSize))
-                append(course.teacher)
-                pop()
-            }
-        }
-    }
-
-    Text(
-        text = bodyText,
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .align(contentAlignment)
             .padding(horizontal = 4.dp, vertical = 6.dp),
-        lineHeight = courseNameLineHeight,
-        color = textColor,
-        textAlign = textAlign,
-        maxLines = bodyMaxLines,
-        overflow = TextOverflow.Ellipsis,
-    )
+        horizontalAlignment = horizontalAlignment,
+    ) {
+        Text(
+            text = course.name,
+            fontSize = courseNameFontSize,
+            lineHeight = courseNameLineHeight,
+            fontWeight = FontWeight.Bold,
+            color = textColor,
+            textAlign = textAlign,
+            maxLines = nameMaxLines,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (effectiveShowClassroom) {
+            Spacer(Modifier.height(infoGapDp.dp))
+            Text(
+                text = "@${course.classroom}",
+                fontSize = infoFontSize,
+                lineHeight = infoLineHeight,
+                color = textColor,
+                textAlign = textAlign,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (effectiveShowTeacher) {
+            Spacer(Modifier.height(infoGapDp.dp))
+            Text(
+                text = course.teacher,
+                fontSize = infoFontSize,
+                lineHeight = infoLineHeight,
+                color = textColor,
+                textAlign = textAlign,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
 
     if (hasMultipleCourses) {
         Box(
