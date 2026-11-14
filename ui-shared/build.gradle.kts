@@ -89,3 +89,17 @@ kotlin {
         }
     }
 }
+
+// Android 分享卡片读的是 :androidApp 的 assets/share_card_template.png，
+// composeResources 里这份只给 iOS / 鸿蒙用，从 Android 资源拷贝里剔掉，省一份 34 KB。
+tasks.configureEach {
+    if (name == "copyAndroidMainComposeResourcesToAndroidAssets") {
+        doLast {
+            outputs.files.files.forEach { dir ->
+                dir.resolve(
+                    "composeResources/com.haooz.chedule.uishared.resources/drawable/share_card_template.png"
+                ).delete()
+            }
+        }
+    }
+}

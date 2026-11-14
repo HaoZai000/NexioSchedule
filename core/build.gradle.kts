@@ -2,7 +2,8 @@
 
 import org.gradle.api.tasks.testing.Test
 
-plugins {
+
+.plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kmp.library)
     alias(libs.plugins.sqldelight)
