@@ -741,13 +741,21 @@ internal fun CourseScheduleAppMainContent(
                                                             onJumpToDateProcessed = {
                                                                 todayJumpToDateTrigger = 0
                                                             },
-                                                            useSharedWallpaper = !isShiftMode && wallpaperBitmap != null,
+                                                            useSharedWallpaper = false,
                                                             softGlassSurface = softGlassSurface,
                                                             tabRedraw = tabGlassRedraw,
                                                             cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
                                                             liquidGlassBackdrop = chromeBackdrop,
                                                             showClassroom = displayAppearance.showClassroom,
                                                             showTeacher = displayAppearance.showTeacher,
+                                                            // 用户版首页自己画壁纸并用 :backdrop 采样
+                                                            wallpaperBitmap = sharedWallpaperBitmap,
+                                                            wallpaperOffset = sharedWallpaperOffset,
+                                                            wallpaperScale = sharedWallpaperScale,
+                                                            wallpaperBrightness = displayAppearance.wallpaperBrightness,
+                                                            wallpaperBlur = displayAppearance.wallpaperBlur,
+                                                            cardBlurRadius = displayAppearance.cardBlurRadius,
+                                                            cardRefraction = displayAppearance.cardRefraction,
                                                             onListScrollInProgress = {
                                                                 todayListScrollInProgress.value = it
                                                             },

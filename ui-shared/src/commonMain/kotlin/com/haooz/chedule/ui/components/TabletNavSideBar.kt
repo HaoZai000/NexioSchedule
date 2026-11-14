@@ -71,6 +71,7 @@ import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.i18n.TodayStr
 import top.yukonga.miuix.kmp.interactive.DropdownPanelDragSelectState
 import top.yukonga.miuix.kmp.interactive.dropdownPanelDragSelect
 import top.yukonga.miuix.kmp.interactive.dropdownPanelEntry
@@ -349,7 +350,7 @@ fun TabletNavSideBar(
         )
     } else {
         listOf(
-            CommonStr.today() to MiuixIcons.Album,
+            TodayStr.agenda() to MiuixIcons.Album,
             ChromeStr.schedule() to MiuixIcons.Months,
             CommonStr.settings() to MiuixIcons.Demibold.Settings,
             ChromeStr.courseManage() to MiuixIcons.Backup,
@@ -366,7 +367,7 @@ fun TabletNavSideBar(
         )
     } else {
         listOf(
-            CommonStr.today() to MiuixIcons.Album,
+            TodayStr.agenda() to MiuixIcons.Album,
             ChromeStr.schedule() to MiuixIcons.Months,
             CommonStr.settings() to MiuixIcons.Demibold.Settings,
         )

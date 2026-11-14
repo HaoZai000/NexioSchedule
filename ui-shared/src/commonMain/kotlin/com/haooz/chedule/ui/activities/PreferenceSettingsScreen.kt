@@ -366,7 +366,7 @@ fun PreferenceSettingsScreen(
                             val homepageEntry = DropdownEntry(
                                 items = listOf(
                                     DropdownItem(
-                                        text = CommonStr.today(),
+                                        text = com.haooz.chedule.i18n.TodayStr.agenda(),
                                         selected = defaultHomepage == "今日",
                                         onClick = {
                                             FeatureLog.preference("default_homepage=今日")

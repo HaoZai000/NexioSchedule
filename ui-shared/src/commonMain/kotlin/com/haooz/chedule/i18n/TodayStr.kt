@@ -19,6 +19,21 @@ object TodayStr {
     // ── 节次时间缺省时的兜底显示 ──
     val sectionRange = L("第%d-%d节", "Periods %d-%d")
 
+    // ── 日程时间轴 / 系统日历 ──
+    val agenda = L("日程", "Agenda")
+    val systemCalendar = L("系统日历", "System calendar")
+    val allDay = L("全天", "All day")
+    val noSchedule = L("这一天还没有日程", "No events on this day")
+    val scheduleSummary = L("%d 项日程 · %d 门课程", "%d events · %d classes")
+    val calendarPermissionTitle = L("合并显示系统日历", "Show system calendar events")
+    val calendarPermissionSummary = L("授权后，系统日程会与课程显示在同一时间轴中，仅在本机读取。", "Allow access to show calendar events and classes together. Events are read locally only.")
+    val calendarPermissionAction = L("读取系统日历", "Read calendar")
+    val calendarLoadFailed = L("系统日历读取失败，请重试", "Couldn't read the system calendar. Try again.")
+    val pinchToZoom = L("双指缩放时间轴", "Pinch to zoom the timeline")
+    val zoomIn = L("放大时间轴", "Zoom in timeline")
+    val zoomOut = L("缩小时间轴", "Zoom out timeline")
+    val untitledEvent = L("无标题日程", "Untitled event")
+
     // ── 跳转日期弹窗 ──
     val jumpToDate = L("跳转日期", "Jump to Date")
     val yearN = L("%d年", "%d")
