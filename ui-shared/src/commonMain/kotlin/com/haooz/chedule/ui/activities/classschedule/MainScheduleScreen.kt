@@ -178,9 +178,8 @@ fun MainScheduleScreen(
     pageState: PageSwitchState,
     /** 长距跳转借位页：让相邻页临时显示目标周。 */
     jumpNeighbor: PagerJumpNeighbor? = null,
-    hiddenCourseIds: Set<String> = emptySet(),
     draggingCourseSlots: Set<Pair<String, Int>> = emptySet(),
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: TransitionLayerSnapshot?, courseIdToHide: String, targetWeek: Int) -> Unit = { _, _, _, _, _, _, _, _ -> },
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: TransitionLayerSnapshot?, targetWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
     onPopupStateChange: (Boolean) -> Unit = {},
     // 空白格长按：返回 Root 绝对坐标供上层定位快捷菜单
     onEmptyLongPress: (
@@ -755,7 +754,6 @@ fun MainScheduleScreen(
                 listOfNotNull(selection.course.value)
             },
             isTablet = isTablet,
-            hiddenCourseIds = hiddenCourseIds,
             onDismiss = {
                 selection.show.value = false
                 onPopupStateChange(false)
@@ -2215,7 +2213,6 @@ private fun CourseDetailSheetHost(
     allCourses: List<Course>,
     selectedCourses: List<Course>,
     isTablet: Boolean,
-    hiddenCourseIds: Set<String>,
     onDismiss: () -> Unit,
     onCourseClick: (
         courses: List<Course>,
@@ -2224,7 +2221,6 @@ private fun CourseDetailSheetHost(
         cardWidth: Float,
         cardHeight: Float,
         snapshot: TransitionLayerSnapshot?,
-        courseIdToHide: String,
         targetWeek: Int,
     ) -> Unit,
     onNoteSave: (course: Course, week: Int?, text: String) -> Unit,
@@ -2237,7 +2233,6 @@ private fun CourseDetailSheetHost(
         selectedCourses = selectedCourses,
         viewingWeek = viewingWeek.value,
         isTablet = isTablet,
-        hiddenCourseIds = hiddenCourseIds,
         onDismiss = onDismiss,
         onCourseClick = onCourseClick,
         onNoteSave = onNoteSave,

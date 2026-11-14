@@ -61,6 +61,7 @@ import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.TodayViewMode
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.captureScreenWithNativeChrome
+import com.haooz.chedule.ui.utils.freezeSource
 import com.haooz.chedule.ui.utils.loadScheduleViewMode
 import com.haooz.chedule.ui.utils.loadTodayViewMode
 import com.haooz.chedule.ui.utils.saveScheduleViewMode
@@ -297,7 +298,6 @@ class CourseScheduleAppState {
     var detailExiting by mutableStateOf(false)
     var detailFromToday by mutableStateOf(false)
     var detailTargetWeek by mutableIntStateOf(0)
-    var hiddenCourseIds by mutableStateOf(setOf<String>())
     var isDraggingCard by mutableStateOf(false)
     // 被浮层顶替的 (课程 id, 周次)。必须带周次：多周课在每一周都是同一条记录，
     // 只按 id 隐藏会让所有周的原卡一起消失。只隐藏源周/落点周那一份。
@@ -1571,7 +1571,6 @@ class CourseScheduleAppState {
         cardHeight: Float,
         cardLayer: TransitionLayerSnapshot?,
         fromToday: Boolean,
-        courseIdToHide: String = courses.firstOrNull()?.id ?: "",
         targetWeek: Int = 0
     ) {
         detailCourses = courses
@@ -1583,9 +1582,10 @@ class CourseScheduleAppState {
         detailTargetWeek = targetWeek
         // 重新进入：上次退出若没来得及复位（异常路径），这里兜底
         detailExiting = false
-        detailSnapshot = cardLayer?.takeIf {
+        val cardSource = cardLayer?.takeIf {
             it.layer.size.width > 0 && it.layer.size.height > 0
-        }?.let { source ->
+        }
+        detailSnapshot = cardSource?.let { source ->
             // 子图层依赖要保留在上面的 lazy / 响应式分支之外
             retainedDetailLayer.record(
                 densityProvider,
@@ -1594,43 +1594,43 @@ class CourseScheduleAppState {
             ) {
                 drawLayer(source.layer)
             }
-            val snapshot = TransitionLayerSnapshot(retainedDetailLayer, source.bounds)
-            // 再异步冻结一份位图：`drawLayer` 只是**活引用**，源行随后会被 hiddenCourseIds 藏掉，
-            // 退出 morph 重放时就只剩玻璃背景、没有文字（进入时源还活着，只有退出缺内容）。
-            // 光栅化后与源图层彻底脱钩：进入先用活引用，位图就绪后原地替换。
-            coroutineScope.launch {
-                val frozen = runCatching { source.layer.toImageBitmap() }.getOrNull()
-                    ?: return@launch
-                if (detailSnapshot === snapshot) {
-                    detailSnapshot = snapshot.copy(frozen = frozen)
-                }
-            }
-            snapshot
+            TransitionLayerSnapshot(retainedDetailLayer, source.bounds)
         }
         // 先录整屏背景快照，源卡片此时仍在画面里
         coroutineScope.launch {
+            // 卡片快照也冻结成位图：`drawLayer` 只是**活引用**，源卡片所在列表随后可能重绘/移动，
+            // 退出 morph 重放时就只剩玻璃背景、没有文字。回读放在动画开始前，免得动画中途卡一帧。
+            val cardSnapshot = detailSnapshot
+            if (cardSource != null && cardSnapshot != null) {
+                runCatching { cardSource.layer.toImageBitmap() }.getOrNull()
+                    ?.let { cardSnapshot.frozen = it }
+            }
             prepareMainContentLayer()
-            detailBackgroundSnapshot = TransitionLayerSnapshot(screenGraphicsLayer)
+            val background = TransitionLayerSnapshot(screenGraphicsLayer)
+            // 背景要 3×3 平铺整屏：先光栅化，形变期间只画一张纹理，
+            // 不再每帧把整棵主界面绘制列表重放多次。开销落在动画开始前。
+            background.freezeSource()
+            detailBackgroundSnapshot = background
             detailBackgroundScale.snapTo(1f)
             showDetail = true
-            // 首帧静态态上屏后再起动画，与编辑页一致
+            // 等两帧：第一帧组合详情页，第二帧才带着它上屏。只等一帧的话动画首帧会和
+            // 首次组合/布局撞在同一帧，起手就有一次几十毫秒的卡顿。
             withFrameNanos { }
-            val blurJob = launch {
+            withFrameNanos { }
+            // 不再隐藏源卡片：背景是一张冻结好的整页快照，形变全程盖住实时列表，
+            // 源卡片根本不可见。省掉动画末尾那次列表重组/重排。
+            launch {
                 managePageBlurRadius.animateTo(
                     HostNavigationState.DETAIL_BACKDROP_BLUR_DP,
                     animationSpec = tween(580, easing = OobeQuartOutEasing)
                 )
             }
-            val scaleJob = launch {
+            launch {
                 detailBackgroundScale.animateTo(
                     MORPH_BACKGROUND_SHRINK,
                     animationSpec = tween(580, easing = OobeQuartOutEasing)
                 )
             }
-            // 动画跑完再藏源卡片：动画期间不做列表重排，避免测量/布局尖峰
-            blurJob.join()
-            scaleJob.join()
-            hiddenCourseIds = setOf(courseIdToHide)
         }
     }
 

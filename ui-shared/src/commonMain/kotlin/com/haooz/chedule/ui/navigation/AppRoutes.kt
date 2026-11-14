@@ -167,6 +167,7 @@ import com.haooz.chedule.ui.utils.ThirdPartySharePayload
 import com.haooz.chedule.ui.utils.ThirdPartyShareSource
 import com.haooz.chedule.ui.utils.TransitionLayerImage
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
+import com.haooz.chedule.ui.utils.freezeSource
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.isIosPlatform
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
@@ -1455,10 +1456,13 @@ fun CourseTimeSettingsRoute(
                             if (editingExitStarted || currentPage == "edit") return@launch
                             // 先录整页再切页：切页后 hideRoutinesCard 会立刻把源行藏掉
                             val background = capturePageSnapshot()
+                            background?.freezeSource()
                             editBackgroundScale.snapTo(1f)
                             editBackgroundSnapshot = background
                             currentPage = "edit"
-                            // 先让首帧静态态完整上屏，再开始播放，避免动画首帧带着一次性开销
+                            // 等两帧：第一帧组合编辑页，第二帧才带着它上屏。否则动画首帧会和
+                            // 首次组合/布局撞在同一帧，起手出现几十毫秒的卡顿。
+                            withFrameNanos { }
                             withFrameNanos { }
                             launch {
                                 managePageBlurRadius.animateTo(
@@ -1615,7 +1619,6 @@ fun CourseManageRoute(
     }
     var cardColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
     var cardAlpha by remember { mutableFloatStateOf(0.12f) }
-    var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
     var shrinkingCourseIds by remember { mutableStateOf(setOf<String>()) }
     var pendingAutoExitDeleteIds by remember { mutableStateOf(setOf<String>()) }
 
@@ -1718,7 +1721,6 @@ fun CourseManageRoute(
                 SideEffect { managePageBackdrop = liquidGlassBackdrop }
                 CourseManageScreen(
                     scrollBehavior = scrollBehavior,
-                    hiddenCourseIds = hiddenCourseIds,
                     shrinkingCourseIds = shrinkingCourseIds,
                     sectionTimes = sectionTimes,
                     onDialogVisibilityChanged = { courseDialogVisible = it },
@@ -1756,6 +1758,8 @@ fun CourseManageRoute(
                             if (showEditScreen) return@launch
                             // 先录整页再隐藏源卡片，否则背景快照里会缺这张卡
                             val background = capturePageSnapshot()
+                            // 同作息编辑：先光栅化，形变期间只画位图，避免每帧重放整页
+                            background?.freezeSource()
                             editBackgroundScale.snapTo(1f)
                             selectedCourses = courses
                             cardLeft = left
@@ -1766,12 +1770,13 @@ fun CourseManageRoute(
                             cardAlpha = alpha
                             cardSnapshot = snapshot
                             editBackgroundSnapshot = background
-                            hiddenCourseIds = courses.map { it.id }.toSet()
                             // 打开即视为编辑过
                             editedCourseIds = editedCourseIds + courses.map { it.id }
 
                             showEditScreen = true
-                            // 先让首帧静态态完整上屏，再开始播放，避免动画首帧带着一次性开销
+                            // 等两帧：第一帧组合编辑页，第二帧才带着它上屏。否则动画首帧会和
+                            // 首次组合/布局撞在同一帧，起手出现几十毫秒的卡顿。
+                            withFrameNanos { }
                             withFrameNanos { }
                             launch {
                                 managePageBlurRadius.animateTo(
@@ -1838,7 +1843,6 @@ fun CourseManageRoute(
                         showEditScreen = false
                         cardSnapshot = null
                         editBackgroundSnapshot = null
-                        hiddenCourseIds = emptySet()
                         shrinkingCourseIds = pendingAutoExitDeleteIds
                         coroutineScope.launch {
                             delay(300.milliseconds)
@@ -1852,7 +1856,6 @@ fun CourseManageRoute(
                         showEditScreen = false
                         cardSnapshot = null
                         editBackgroundSnapshot = null
-                        hiddenCourseIds = emptySet()
                     }
                 },
                 onCourseUpdated = { course ->

@@ -103,7 +103,6 @@ fun CourseDetailSheet(
     selectedCourses: List<Course>,
     viewingWeek: Int,
     isTablet: Boolean,
-    hiddenCourseIds: Set<String> = emptySet(),
     onDismiss: () -> Unit,
     onCourseClick: (
         courses: List<Course>,
@@ -112,7 +111,6 @@ fun CourseDetailSheet(
         cardWidth: Float,
         cardHeight: Float,
         snapshot: TransitionLayerSnapshot?,
-        courseIdToHide: String,
         targetWeek: Int,
     ) -> Unit,
     onNoteSave: (course: Course, week: Int?, text: String) -> Unit,
@@ -138,7 +136,6 @@ fun CourseDetailSheet(
             selectedCourses = selectedCourses,
             viewingWeek = viewingWeek,
             isTablet = isTablet,
-            hiddenCourseIds = hiddenCourseIds,
             onCourseClick = onCourseClick,
             onNoteSave = onNoteSave,
             onEdit = onEdit,
@@ -174,7 +171,6 @@ private fun CourseDetailSheetContent(
     selectedCourses: List<Course>,
     viewingWeek: Int,
     isTablet: Boolean,
-    hiddenCourseIds: Set<String>,
     onCourseClick: (
         courses: List<Course>,
         cardLeft: Float,
@@ -182,7 +178,6 @@ private fun CourseDetailSheetContent(
         cardWidth: Float,
         cardHeight: Float,
         snapshot: TransitionLayerSnapshot?,
-        courseIdToHide: String,
         targetWeek: Int,
     ) -> Unit,
     onNoteSave: (course: Course, week: Int?, text: String) -> Unit,
@@ -226,7 +221,6 @@ private fun CourseDetailSheetContent(
                     allCourses = allCourses,
                     viewingWeek = viewingWeek,
                     index = index,
-                    isHidden = course.id in hiddenCourseIds,
                     onCourseClick = onCourseClick,
                     onNoteSave = onNoteSave,
                     onEdit = onEdit,
@@ -247,7 +241,6 @@ private fun CourseDetailCard(
     allCourses: List<Course>,
     viewingWeek: Int,
     index: Int,
-    isHidden: Boolean,
     onCourseClick: (
         courses: List<Course>,
         cardLeft: Float,
@@ -255,7 +248,6 @@ private fun CourseDetailCard(
         cardWidth: Float,
         cardHeight: Float,
         snapshot: TransitionLayerSnapshot?,
-        courseIdToHide: String,
         targetWeek: Int,
     ) -> Unit,
     onNoteSave: (course: Course, week: Int?, text: String) -> Unit,
@@ -291,13 +283,7 @@ private fun CourseDetailCard(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (isHidden || cardReveal.isAnimating) {
-                    Modifier.cardRevealLayer(
-                        reveal = cardReveal,
-                        // 隐藏的课程只留占位：透明度乘 0，图层照样要挂
-                        alphaMultiplier = if (isHidden) 0f else 1f,
-                    )
-                } else Modifier
+                if (cardReveal.isAnimating) Modifier.cardRevealLayer(reveal = cardReveal) else Modifier
             )
     ) {
         Card(
@@ -316,9 +302,7 @@ private fun CourseDetailCard(
                 }
                 .drawWithContent {
                     // The outer visibility/reveal transform is deliberately not recorded.
-                    if (!isHidden) {
-                        cardLayer.record { this@drawWithContent.drawContent() }
-                    }
+                    cardLayer.record { this@drawWithContent.drawContent() }
                     drawLayer(cardLayer)
                 },
             insideMargin = PaddingValues(0.dp),
@@ -350,7 +334,6 @@ private fun CourseDetailCard(
                     bounds.width,
                     bounds.height,
                     TransitionLayerSnapshot(cardLayer),
-                    course.id,
                     targetWeek,
                 )
             },

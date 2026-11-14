@@ -913,7 +913,6 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         }
                     },
                     onBack = {
-                        hiddenCourseIds = emptySet()
                         // ⚠ 详情页延后一帧再消失：morph 结束时卡片已缩回原位，此刻 sheet 里
                         // 的原卡片还没画出来，同帧摘掉详情页就闪一帧空白。
                         coroutineScope.launch {
@@ -981,7 +980,8 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                             recycleSnapshot(staleShot)
                                             switchReloadJob?.join()
                                             switchReloadJob = null
-                                            withFrameNanos { }
+                                            // 直接请求录制：同一帧内会先完成数据驱动的重组再录制新内容，
+                                            // 省掉额外一帧等待（旧实现 withFrameNanos 只是保险）
                                             prepareMainContentLayer()
                                         }
                                         switchOverlayActive = true
@@ -1053,7 +1053,6 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 onScheduleChanged = {
                                     FeatureLog.t("切换课表", "schedule_changed")
                                     switchReloadJob = viewModel.reloadCourses()
-                                    settingsViewModel.refreshSettings()
                                     scheduleChanged = true
                                     // 切换页直接改 repository，须把 ScheduleViewModel 拉回一致；摘要放 IO
                                     coroutineScope.launch(ioDispatcher) {

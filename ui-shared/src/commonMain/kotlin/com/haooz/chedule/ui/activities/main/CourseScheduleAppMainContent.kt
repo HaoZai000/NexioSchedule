@@ -340,6 +340,12 @@ internal fun CourseScheduleAppMainContent(
                         // 详情背景快照层已整块盖住主内容，动画期间不再绘制整棵主内容树，
                         // 省掉每帧页面重录 + 玻璃重采样
                         if (detailBackgroundSnapshot != null) return@drawWithContent
+                        if (showSwitchSchedule &&
+                            !switchPreparingLayer &&
+                            mainSnapshotRequester.lastRecordedToken == mainSnapshotToken
+                        ) {
+                            return@drawWithContent
+                        }
                         // 仅在被请求时录制一帧，避免每帧重绘整棵主内容树
                         if (mainSnapshotRequester.lastRecordedToken != mainSnapshotToken) {
                             screenGraphicsLayer.record {
@@ -704,11 +710,8 @@ internal fun CourseScheduleAppMainContent(
                                                         TodayScreen(
                                                             viewModel = viewModel,
                                                             settingsViewModel = settingsViewModel,
-                                                            // 今日页课程列表不直接进详情；这个只传给详情弹窗：
-                                                            // 点弹窗卡片进全屏时要藏掉源卡片，morph 才干净。
-                                                            hiddenCourseIds = hiddenCourseIds,
                                                             holidayDataTick = resumeCount,
-                                                            onCourseClick = { c, l, t, w, h, layer, hideId, week ->
+                                                            onCourseClick = { c, l, t, w, h, layer, week ->
                                                                 openCourseDetail(
                                                                     courses = c,
                                                                     cardLeft = l,
@@ -717,7 +720,6 @@ internal fun CourseScheduleAppMainContent(
                                                                     cardHeight = h,
                                                                     cardLayer = layer,
                                                                     fromToday = true,
-                                                                    courseIdToHide = hideId,
                                                                     targetWeek = week,
                                                                 )
                                                             },
@@ -810,9 +812,8 @@ internal fun CourseScheduleAppMainContent(
                                                                 // 顶栏与内容共用同一份越界状态（顶栏材质判据需要）
                                                                 overScrollState = mainOverScrollState,
                                                                 jumpNeighbor = weekJumpNeighbor,
-                                                                hiddenCourseIds = hiddenCourseIds,
                                                                 draggingCourseSlots = draggingCourseSlots,
-                                                                onCourseClick = { c, l, t, w, h, layer, hideId, week ->
+                                                                onCourseClick = { c, l, t, w, h, layer, week ->
                                                                     openCourseDetail(
                                                                         courses = c,
                                                                         cardLeft = l,
@@ -821,7 +822,6 @@ internal fun CourseScheduleAppMainContent(
                                                                         cardHeight = h,
                                                                         cardLayer = layer,
                                                                         fromToday = false,
-                                                                        courseIdToHide = hideId,
                                                                         targetWeek = week,
                                                                     )
                                                                 },
