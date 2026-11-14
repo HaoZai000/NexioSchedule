@@ -1794,7 +1794,7 @@ fun CourseReminderScreen(
                     }
                     Text(
                         text = ReminderStr.sectionRangeHint(),
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
