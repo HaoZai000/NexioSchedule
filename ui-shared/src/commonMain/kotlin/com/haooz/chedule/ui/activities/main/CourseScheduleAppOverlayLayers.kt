@@ -900,13 +900,13 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         coroutineScope.launch {
                             managePageBlurRadius.animateTo(
                                 0f,
-                                animationSpec = tween(320, easing = OobeCubicOutEasing)
+                                animationSpec = tween(340, easing = OobeCubicOutEasing)
                             )
                         }
                         coroutineScope.launch {
                             detailBackgroundScale.animateTo(
                                 1f,
-                                animationSpec = tween(320, easing = OobeCubicOutEasing)
+                                animationSpec = tween(340, easing = OobeCubicOutEasing)
                             )
                         }
                     },

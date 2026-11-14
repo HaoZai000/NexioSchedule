@@ -336,6 +336,9 @@ internal fun CourseScheduleAppMainContent(
                     Modifier.drawWithContent {
                         // 逐帧把页面级模糊半径推给宿主（iOS 原生 chrome 与弹窗层不在主内容模糊层内）
                         hostNavigation?.updateDetailBackgroundBlur(managePageBlurRadius.value)
+                        // 详情背景快照层已整块盖住主内容，动画期间不再绘制整棵主内容树，
+                        // 省掉每帧页面重录 + 玻璃重采样
+                        if (detailBackgroundSnapshot != null) return@drawWithContent
                         // 仅在被请求时录制一帧，避免每帧重绘整棵主内容树
                         if (mainSnapshotRequester.lastRecordedToken != mainSnapshotToken) {
                             screenGraphicsLayer.record {

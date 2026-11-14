@@ -32,6 +32,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -168,19 +169,21 @@ fun CourseDetailScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = morph.state.value.bgAlpha)
-                else ComposeColor.Black.copy(alpha = morph.state.value.bgAlpha)
-            )
+            .drawBehind {
+                val alpha = morph.state.value.bgAlpha
+                drawRect(
+                    if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = alpha)
+                    else ComposeColor.Black.copy(alpha = alpha)
+                )
+            }
             // 只挡下层穿透、不 consume：consumeAllTouches 会连 LazyColumn 拖动一起吃掉
             .blockTouchPassThrough()
     ) {
-        val s = morph.state.value
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
+                    val s = morph.state.value
                     clip = false
                     transformOrigin = TransformOrigin(s.anchorX, 0.5f)
                     scaleX = s.scale
@@ -191,14 +194,14 @@ fun CourseDetailScreen(
                 .morphClip(morph)
                 .background(MiuixTheme.colorScheme.background)
         ) {
-            if (cardSnapshot != null && s.snapshotAlpha > 0f) {
+            if (cardSnapshot != null) {
                 TransitionLayerImage(
                     snapshot = cardSnapshot,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .fillMaxWidth()
                         .clip(ContinuousRoundedRectangle(20.dp))
-                        .graphicsLayer { alpha = s.snapshotAlpha },
+                        .graphicsLayer { alpha = morph.state.value.snapshotAlpha },
                     contentScale = ContentScale.FillWidth,
                     alignment = Alignment.TopStart,
                 )
@@ -207,7 +210,7 @@ fun CourseDetailScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = s.contentAlpha }
+                    .graphicsLayer { alpha = morph.state.value.contentAlpha }
             ) {
                 // 按钮玻璃走全站统一判据（本页遮罩常驻，不接 maskAlpha）
                 val material = rememberTopBarMaterialState(scrollBehavior)

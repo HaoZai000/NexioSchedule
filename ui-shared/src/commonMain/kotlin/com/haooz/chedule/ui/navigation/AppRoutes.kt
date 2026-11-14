@@ -1463,13 +1463,13 @@ fun CourseTimeSettingsRoute(
                             launch {
                                 managePageBlurRadius.animateTo(
                                     targetValue = 12f,
-                                    animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                    animationSpec = tween(580, easing = OobeQuartOutEasing)
                                 )
                             }
                             launch {
                                 editBackgroundScale.animateTo(
                                     targetValue = MORPH_BACKGROUND_SHRINK,
-                                    animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                    animationSpec = tween(580, easing = OobeQuartOutEasing)
                                 )
                             }
                         }
@@ -1512,13 +1512,13 @@ fun CourseTimeSettingsRoute(
                                 launch {
                                     managePageBlurRadius.animateTo(
                                         targetValue = 0f,
-                                        animationSpec = tween(320, easing = OobeCubicOutEasing)
+                                        animationSpec = tween(340, easing = OobeCubicOutEasing)
                                     )
                                 }
                                 launch {
                                     editBackgroundScale.animateTo(
                                         targetValue = 1f,
-                                        animationSpec = tween(320, easing = OobeCubicOutEasing)
+                                        animationSpec = tween(340, easing = OobeCubicOutEasing)
                                     )
                                 }
                             }
@@ -1776,13 +1776,13 @@ fun CourseManageRoute(
                             launch {
                                 managePageBlurRadius.animateTo(
                                     targetValue = 12f,
-                                    animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                    animationSpec = tween(580, easing = OobeQuartOutEasing)
                                 )
                             }
                             launch {
                                 editBackgroundScale.animateTo(
                                     targetValue = MORPH_BACKGROUND_SHRINK,
-                                    animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                    animationSpec = tween(580, easing = OobeQuartOutEasing)
                                 )
                             }
                         }
@@ -1822,13 +1822,13 @@ fun CourseManageRoute(
                         launch {
                             managePageBlurRadius.animateTo(
                                 targetValue = 0f,
-                                animationSpec = tween(320, easing = OobeCubicOutEasing)
+                                animationSpec = tween(340, easing = OobeCubicOutEasing)
                             )
                         }
                         launch {
                             editBackgroundScale.animateTo(
                                 targetValue = 1f,
-                                animationSpec = tween(320, easing = OobeCubicOutEasing)
+                                animationSpec = tween(340, easing = OobeCubicOutEasing)
                             )
                         }
                     }

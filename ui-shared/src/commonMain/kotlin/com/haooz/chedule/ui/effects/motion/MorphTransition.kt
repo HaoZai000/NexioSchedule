@@ -65,10 +65,10 @@ private const val EDGE_LEFT = 0
 private const val EDGE_RIGHT = 1
 private const val EDGE_NONE = 2
 
-private const val OPEN_MILLIS = 560
-private const val OPEN_TRANS_MILLIS = 500
-private const val EXIT_MILLIS = 320
-private const val EXIT_TRANS_MILLIS = 320
+private const val OPEN_MILLIS = 580
+private const val OPEN_TRANS_MILLIS = 520
+private const val EXIT_MILLIS = 340
+private const val EXIT_TRANS_MILLIS = 340
 
 /** 预测返回松手后的回弹 / 放开锚点时长。 */
 private const val GESTURE_SETTLE_MILLIS = 180
@@ -122,7 +122,10 @@ private class MorphClipShape(
                 screenCornerRadiusPx
             }
             s.progress <= 0.7f ->
-                screenCornerRadiusPx.interpolateFrom(startCornerRadiusPx, s.progress / 0.7f)
+                screenCornerRadiusPx.interpolateFrom(
+                    startCornerRadiusPx,
+                    (s.progress / 0.7f).coerceIn(0f, 1f),
+                )
             else -> screenCornerRadiusPx
         }
         // 展开到底按实测高度裁：clipBottom 由宿主传入的 screenHeight 推导，

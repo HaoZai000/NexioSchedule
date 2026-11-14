@@ -37,6 +37,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.ColorFilter
@@ -520,21 +521,23 @@ fun TimeConfigEditScreen(
     val isTablet = isTabletWidth()
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
-    val s = morph.state.value
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = s.bgAlpha)
-                else ComposeColor.Black.copy(alpha = s.bgAlpha)
-            )
+            .drawBehind {
+                val alpha = morph.state.value.bgAlpha
+                drawRect(
+                    if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = alpha)
+                    else ComposeColor.Black.copy(alpha = alpha)
+                )
+            }
             .pointerInput(Unit) { }
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
+                    val s = morph.state.value
                     clip = false
                     transformOrigin = TransformOrigin(s.anchorX, 0.5f)
                     scaleX = s.scale
@@ -548,14 +551,18 @@ fun TimeConfigEditScreen(
                     else MiuixTheme.colorScheme.background
                 )
         ) {
-            if (cardSnapshot != null && s.snapshotAlpha > 0f) {
+            if (cardSnapshot != null) {
                 TransitionLayerImage(
                     snapshot = cardSnapshot,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .fillMaxWidth()
-                        .clip(ContinuousRoundedRectangle((cardStartCornerRadius / s.scale).dp))
-                        .graphicsLayer { alpha = s.snapshotAlpha },
+                        .graphicsLayer {
+                            val s = morph.state.value
+                            shape = ContinuousRoundedRectangle((cardStartCornerRadius / s.scale).dp)
+                            clip = true
+                            alpha = s.snapshotAlpha
+                        },
                     contentScale = ContentScale.FillWidth
                 )
             }
@@ -563,7 +570,7 @@ fun TimeConfigEditScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = s.contentAlpha }
+                    .graphicsLayer { alpha = morph.state.value.contentAlpha }
             ) {
                 Scaffold(
                     topBar = {

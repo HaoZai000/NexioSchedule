@@ -1602,27 +1602,30 @@ class CourseScheduleAppState {
             }
             snapshot
         }
-        // 先录整屏背景快照，再隐藏源卡片：录制那一帧源卡片必须还在
+        // 先录整屏背景快照，源卡片此时仍在画面里
         coroutineScope.launch {
             prepareMainContentLayer()
             detailBackgroundSnapshot = TransitionLayerSnapshot(screenGraphicsLayer)
             detailBackgroundScale.snapTo(1f)
-            hiddenCourseIds = setOf(courseIdToHide)
             showDetail = true
             // 首帧静态态上屏后再起动画，与编辑页一致
             withFrameNanos { }
-            launch {
+            val blurJob = launch {
                 managePageBlurRadius.animateTo(
                     HostNavigationState.DETAIL_BACKDROP_BLUR_DP,
-                    animationSpec = tween(560, easing = OobeQuartOutEasing)
+                    animationSpec = tween(580, easing = OobeQuartOutEasing)
                 )
             }
-            launch {
+            val scaleJob = launch {
                 detailBackgroundScale.animateTo(
                     MORPH_BACKGROUND_SHRINK,
-                    animationSpec = tween(560, easing = OobeQuartOutEasing)
+                    animationSpec = tween(580, easing = OobeQuartOutEasing)
                 )
             }
+            // 动画跑完再藏源卡片：动画期间不做列表重排，避免测量/布局尖峰
+            blurJob.join()
+            scaleJob.join()
+            hiddenCourseIds = setOf(courseIdToHide)
         }
     }
 
