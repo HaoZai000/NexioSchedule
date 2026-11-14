@@ -78,6 +78,7 @@ import com.haooz.chedule.ui.utils.HostedOverlay
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalHostOverlays
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
+import com.haooz.chedule.ui.utils.MirroredSnapshotBackdrop
 import com.haooz.chedule.ui.utils.addScreenCornerRect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
@@ -862,9 +863,19 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
         // 课程详情页必须盖在弹窗层之上（见 HostOverlayEntry.abovePopups）：它是在课程表弹出的
         // 「课程详情」底部弹窗里点卡片长出来的，弹窗得留在它下面（对齐 Android 的层级）。
         HostedOverlay(
-            active = showDetail || detailSnapshot != null,
+            active = showDetail || detailSnapshot != null || detailBackgroundSnapshot != null,
             abovePopups = true,
         ) {
+            // 详情 morph 背景：整屏快照独立缩放，和详情页同层，底部 sheet 一并被背景盖住
+            detailBackgroundSnapshot?.let { background ->
+                MirroredSnapshotBackdrop(
+                    snapshot = background,
+                    shrink = { detailBackgroundScale.value },
+                    modifier = Modifier.fillMaxSize(),
+                    backgroundColor = MiuixTheme.colorScheme.surface,
+                    blurRadiusPx = { managePageBlurRadius.value * densityProvider.density },
+                )
+            }
             if (showDetail) {
                 val windowInfo = LocalWindowInfo.current
                 val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
@@ -892,6 +903,12 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                 animationSpec = tween(320, easing = OobeCubicOutEasing)
                             )
                         }
+                        coroutineScope.launch {
+                            detailBackgroundScale.animateTo(
+                                1f,
+                                animationSpec = tween(320, easing = OobeCubicOutEasing)
+                            )
+                        }
                     },
                     onBack = {
                         hiddenCourseIds = emptySet()
@@ -902,6 +919,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                             showDetail = false
                             detailExiting = false
                             detailSnapshot = null
+                            detailBackgroundSnapshot = null
                         }
                     }
                 )

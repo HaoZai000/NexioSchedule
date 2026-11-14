@@ -225,6 +225,8 @@ internal fun CourseScheduleAppMainContent(
             // 宿主已自己压一层系统 material（iOS）：主内容不再叠第二层。
             // 长按菜单不走宿主，仍在上面那支里自糊。
             else if (hostNavigation?.ownsDetailBackdropBlur == true) 0f
+            // 详情背景已由快照层自己模糊
+            else if (detailBackgroundSnapshot != null) 0f
             else managePageBlurRadius.value
 
         // 顶栏/底栏那两层采样层的重录谓词。⚠️ 不能复用 liquidGlassMustRecord：那份闭包里

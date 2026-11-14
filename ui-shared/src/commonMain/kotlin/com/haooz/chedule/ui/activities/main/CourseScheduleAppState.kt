@@ -51,6 +51,7 @@ import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.today.TodayAssistantCardData
 import com.haooz.chedule.ui.components.PageSwitchState
 import com.haooz.chedule.ui.components.SharedFileIntent
+import com.haooz.chedule.ui.effects.motion.MORPH_BACKGROUND_SHRINK
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.navigation.AppRouter
@@ -659,6 +660,10 @@ class CourseScheduleAppState {
     var switchReloadJob by mutableStateOf<Job?>(null)
     val switchAnimProgress = Animatable(0f)
     val managePageBlurRadius = Animatable(0f)
+
+    // 详情 morph 的整屏背景快照：录一帧主内容后独立缩放，避免实时内容缩放导致的整页重组
+    var detailBackgroundSnapshot by mutableStateOf<TransitionLayerSnapshot?>(null)
+    val detailBackgroundScale = Animatable(1f)
 
     // 仅课程长按菜单模糊；空白格菜单不模糊
     val shortcutMenuBlurRadius = Animatable(0f)
@@ -1597,14 +1602,27 @@ class CourseScheduleAppState {
             }
             snapshot
         }
-        hiddenCourseIds = setOf(courseIdToHide)
-        showDetail = true
-        // 详情 morph 只做下层模糊，不做缩放（整屏离屏层是掉帧第一来源）
+        // 先录整屏背景快照，再隐藏源卡片：录制那一帧源卡片必须还在
         coroutineScope.launch {
-            managePageBlurRadius.animateTo(
-                HostNavigationState.DETAIL_BACKDROP_BLUR_DP,
-                animationSpec = tween(540, easing = OobeQuartOutEasing)
-            )
+            prepareMainContentLayer()
+            detailBackgroundSnapshot = TransitionLayerSnapshot(screenGraphicsLayer)
+            detailBackgroundScale.snapTo(1f)
+            hiddenCourseIds = setOf(courseIdToHide)
+            showDetail = true
+            // 首帧静态态上屏后再起动画，与编辑页一致
+            withFrameNanos { }
+            launch {
+                managePageBlurRadius.animateTo(
+                    HostNavigationState.DETAIL_BACKDROP_BLUR_DP,
+                    animationSpec = tween(560, easing = OobeQuartOutEasing)
+                )
+            }
+            launch {
+                detailBackgroundScale.animateTo(
+                    MORPH_BACKGROUND_SHRINK,
+                    animationSpec = tween(560, easing = OobeQuartOutEasing)
+                )
+            }
         }
     }
 

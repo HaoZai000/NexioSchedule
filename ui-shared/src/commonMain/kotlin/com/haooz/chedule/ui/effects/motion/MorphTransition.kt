@@ -15,8 +15,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
@@ -34,52 +37,48 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.utils.rememberNavigationBack
 
-/**
- * 「卡片 ⇄ 全屏」连贯形变（课程详情 / 编辑作息 / 课程编辑共用一套）。
- *
- * 三个进度驱动：animProgress（0=卡片，1=全屏）管位移、裁切高度、快照/内容透明度；
- * animTransY（0..1）是位移曲线参数，前快后慢，让卡片中心沿抛物线落到屏幕中心；
- * scaleProgress（1=全屏，0=卡片）管缩放，预测返回手势单独驱动它、走完整行程。
- * 预测返回期间位移锁 0（锚点固定屏幕正中心），松手后由内部平滑放开，详见 centerLock 注释。
- */
+// 「卡片 ⇄ 全屏」连贯形变，课程详情、课程编辑、作息编辑共用。
+//
+// 三条进度：animProgress 驱动裁切高度与快照/内容透明度，animTransY 驱动位移曲线，
+// scaleProgress 驱动缩放。预测性返回手势单独驱动缩放与锚点。
 
-/** 展开：前快后慢，收尾绵。 */
-private val MorphOpenEase = OobeQuartOutEasing
+/** 展开：前快后慢。 */
+private val OpenEase = OobeQuartOutEasing
 
 /** 收起：起步快、末段缓。 */
-private val MorphExitEase = OobeCubicOutEasing
+private val ExitEase = OobeCubicOutEasing
 
-/** 位移展开：比缩放更陡（五阶），让卡片先「冲」到位。 */
-private val MorphTransOpenEase = OobeFifthpowerOutEasing
+/** 位移展开比缩放更陡，让卡片先到位。 */
+private val TransOpenEase = OobeFifthpowerOutEasing
 
-/** 位移收起：二次曲线，回卡片时更贴身。 */
-private val MorphTransExitEase = OobeQuadraticOutEasing
+/** 位移收起更贴身。 */
+private val TransExitEase = OobeQuadraticOutEasing
 
-/** 预测返回滑到底时，页面缩到全屏的多少倍。 */
+/** 预测返回滑到底时页面缩到全屏的倍数。 */
 private const val PREDICTIVE_BACK_SCALE = 0.4f
 
-/**
- * 预测返回时缩放锚点的横向偏移量（占屏宽比例）。
- * 锚点朝「滑动来向的反面」偏，缩小时页面朝手指来的那侧收。
- */
+/** 预测返回缩放锚点的横向偏移比例，朝滑动来向的反面偏。 */
 private const val PREDICTIVE_ANCHOR_SHIFT = 1.0f
 
-/** [NavigationBackState.backSwipeEdge] 的取值，与 navigationevent 的 EDGE_* 一致。 */
+/** 与 navigationevent 的 EDGE_* 取值一致。 */
 private const val EDGE_LEFT = 0
 private const val EDGE_RIGHT = 1
 private const val EDGE_NONE = 2
 
-/** 展开时长：缩放与裁切同步，位移稍快。 */
-private const val MORPH_OPEN_MILLIS = 540
-private const val TRANS_OPEN_MILLIS = 500
-
-/** 收起时长：缩放与裁切同步，位移稍快。 */
-private const val MORPH_EXIT_MILLIS = 320
-private const val TRANS_EXIT_MILLIS = 320
+private const val OPEN_MILLIS = 560
+private const val OPEN_TRANS_MILLIS = 500
+private const val EXIT_MILLIS = 320
+private const val EXIT_TRANS_MILLIS = 320
 
 /** 预测返回松手后的回弹 / 放开锚点时长。 */
 private const val GESTURE_SETTLE_MILLIS = 180
 private const val GESTURE_RELEASE_MILLIS = 140
+
+/** 认为页面已回到全屏的缩放阈值。 */
+private const val FULL_SCALE_EPSILON = 0.999f
+
+/** 形变背景快照的收缩比例（1 = 原尺寸），编辑页与课程详情共用。 */
+const val MORPH_BACKGROUND_SHRINK = 0.9f
 
 /** 卡片 → 全屏形变的一帧状态。 */
 data class MorphAnimState(
@@ -92,19 +91,15 @@ data class MorphAnimState(
     val clipBottom: Float,
     val progress: Float,
     val gesture: Float,
-    /**
-     * 缩放锚点的横向比例（0.5 = 屏幕正中）。
-     * 手势进行中直接取偏移锚点（不从中心渐进）；松手后的收尾按时间轴回中心
-     * （提交走 p、取消走 gesture），落地时必须回到 0.5。直接喂给 `transformOrigin`。
-     */
+    /** 缩放锚点横向比例，0.5 为屏幕正中；直接喂给 `transformOrigin`。 */
     val anchorX: Float,
 )
 
 /**
- * 裁切形状。
+ * 页面裁切形状。
  *
- * 宽度取当次回调的 `size`，别在构造时捕获外部宽度：clipShape 是 remember 单例，
- * 折叠屏展开 / 分屏 / 横竖切换时宽度会变，捕获旧宽度会让裁切停在旧值（平板右侧被裁掉）。
+ * 宽度取每次回调的 `size`：clipShape 是 remember 单例，分屏、折叠屏、横竖切换后
+ * 捕获旧宽度会让裁切停在旧值。
  */
 private class MorphClipShape(
     private val screenCornerRadiusPx: ScreenCornerRadiiPx,
@@ -117,44 +112,44 @@ private class MorphClipShape(
         density: Density,
     ): Outline {
         val s = animState.value
-        // 预测返回：裁切圆角固定为屏幕圆角（不除以 scale，随页面缩放一起缩放）；
-        // 其余按 morph 进度插值
+        // 预测返回松手时手势进度可能先归零、页面还没回到全屏：此时保持屏幕圆角，
+        // 等 scale 真正到 1 再收成直角，否则左下/右下会瞬间变方。
         val radiusPx = when {
             s.gesture > 0f -> screenCornerRadiusPx
-            s.progress >= 1f -> ScreenCornerRadiiPx.Zero
-            s.progress <= 0.7f -> screenCornerRadiusPx.interpolateFrom(startCornerRadiusPx, s.progress / 0.7f)
+            s.progress >= 1f -> if (s.scale >= FULL_SCALE_EPSILON) {
+                ScreenCornerRadiiPx.Zero
+            } else {
+                screenCornerRadiusPx
+            }
+            s.progress <= 0.7f ->
+                screenCornerRadiusPx.interpolateFrom(startCornerRadiusPx, s.progress / 0.7f)
             else -> screenCornerRadiusPx
         }
-        // 补偿在"预测返回不补偿（×1）"与"正常 morph 除以 scale"之间按 gesture 平滑插值，
-        // 避免松手瞬间圆角跳变大
-        val compensate = (1f - s.gesture) / s.scale + s.gesture
-        // 展开到底（无手势）时按实测高度裁：clipBottom 由宿主传入的 screenHeight 推导，
-        // 窗口尺寸变化后它可能小于实际布局高度，那样会把页面底部整片切掉。
+        // 展开到底按实测高度裁：clipBottom 由宿主传入的 screenHeight 推导，
+        // 窗口尺寸变化后可能小于实际布局高度。
         val bottom = if (s.progress >= 1f && s.gesture <= 0f) size.height else s.clipBottom
-        return radiusPx.scaled(compensate).toShape(density).createOutline(
-            Size(size.width, bottom),
-            layoutDirection,
-            density,
-        )
+        val target = Size(size.width, bottom)
+        // 全屏静止态不裁圆角，省掉每帧构建 squircle path。
+        if (radiusPx == ScreenCornerRadiiPx.Zero) {
+            return Outline.Rectangle(Rect(Offset.Zero, target))
+        }
+        // 预测返回不补偿，正常形变除以 scale，按手势平滑过渡，避免松手时圆角跳变。
+        val compensate = (1f - s.gesture) / s.scale + s.gesture
+        return radiusPx.scaled(compensate).toShape(density).createOutline(target, layoutDirection, density)
     }
 }
 
-/**
- * 形变控制器。宿主读 [state] / [clipShape] 画页面，用 [close] 播退出形变。
- */
+/** 形变控制器：宿主读 [state] / [clipShape] 绘制页面，用 [close] 播放退出形变。 */
 class MorphTransition internal constructor(
     /** 当前帧的形变状态。 */
     val state: State<MorphAnimState>,
-    /** 页面裁切形状，直接交给 `Modifier.clip`。 */
+    /** 页面裁切形状，交给 `Modifier.morphClip`。 */
     val clipShape: Shape,
-    /** 是否正在播进出形变。宿主据此隐藏原生 chrome（避免它盖在形变上）。 */
+    /** 是否正在播放进出形变，宿主据此隐藏原生 chrome。 */
     val animating: State<Boolean>,
     private val onClose: (onBeforeFinish: (() -> Unit)?) -> Unit,
 ) {
-    /**
-     * 播放退出形变，结束后回调 [onBeforeFinish] 再走 [onBack]。
-     * 没有卡片边界时直接返回（不播形变）。
-     */
+    /** 播放退出形变，动画结束后先回调 [onBeforeFinish] 再走 `onBack`。 */
     fun close(onBeforeFinish: (() -> Unit)? = null) = onClose(onBeforeFinish)
 }
 
@@ -163,16 +158,16 @@ class MorphTransition internal constructor(
  *
  * @param cardLeft 源卡片左边缘（px）
  * @param cardTop 源卡片上边缘（px）
- * @param cardWidth 源卡片宽（px）；为 0 表示没有可交叉的卡片，不播形变
+ * @param cardWidth 源卡片宽（px），为 0 表示没有可交叉的卡片，不播形变
  * @param cardHeight 源卡片高（px）
  * @param screenWidth 屏幕宽（px）
  * @param screenHeight 屏幕高（px）
- * @param screenCornerRadius 屏幕物理圆角（px），形变到位时按它裁切
- * @param startCornerRadiusDp 源卡片的圆角（dp），形变起点用它
- * @param onBackStart 开始收起时立刻回调（宿主据此同步撤掉下层模糊等）
- * @param onBack 收起动画播完后回调（宿主据此真正出栈）
- * @param interceptBack 返回被拦截时调用（例如对话框开着）；返回 true 表示已处理、不关闭页面
- * @param embedded 内嵌模式（平板右栏）：直接到全尺寸静态态，不播形变、不拦返回手势
+ * @param screenCornerRadius 屏幕物理圆角（px）
+ * @param startCornerRadiusDp 源卡片圆角（dp）
+ * @param onBackStart 开始收起时立即回调
+ * @param onBack 收起动画结束后回调
+ * @param interceptBack 返回被拦截时调用，返回 true 表示已处理
+ * @param embedded 内嵌模式（平板右栏）：直接到全屏静态态，不播形变、不拦返回
  */
 @Composable
 fun rememberMorphTransition(
@@ -197,44 +192,45 @@ fun rememberMorphTransition(
     val animProgress = remember { Animatable(initial) }
     val animTransY = remember { Animatable(initial) }
     val scaleProgress = remember { Animatable(initial) }
-    // 手势进度（0..1）：>0 表示预测性返回进行中
+    /** 手势进度 0..1，大于 0 表示预测返回进行中。 */
     val gestureBackProgress = remember { Animatable(0f) }
-    // 手势起点的缩放位置。打开动画还没播完就滑返回时，要从当前位置接着缩；
-    // 固定从 1f 起会先把页面放大到全屏再缩小，视觉上跳一下。
-    var gestureScaleBase by remember { mutableFloatStateOf(1f) }
-    // 「锚点锁中心」权重：1 = 位移强制 0（缩放围绕屏幕中心），0 = 走正常形变位移。
-    // 用 Animatable 而不是布尔：松手时 gesture 停在你滑到的位置（不一定是 1），
-    // 布尔一翻转，translation 会从 0 直接跳到 normalY*(1-gesture) —— 视觉上闪到最上面。
+    /**
+     * 锚点锁中心权重：1 = 位移强制 0（围绕屏幕中心缩放），0 = 正常形变位移。
+     * 用 Animatable 而非布尔，松手时不会因翻转而跳变。
+     */
     val centerLock = remember { Animatable(0f) }
-    // 手势是否正在推进：进行中裁切完全跟随页面缩放，松手/取消后进入平滑过渡
+
+    /** 手势起点的缩放位置，打开动画未播完就滑返回时从当前位置接着缩。 */
+    var gestureScaleBase by remember { mutableFloatStateOf(1f) }
     var isGestureActive by remember { mutableStateOf(false) }
     /**
-     * 本次关闭是否由预测返回手势触发。
-     *
-     * 手势提交时页面正停在屏幕中心（全屏的 PREDICTIVE_BACK_SCALE 倍），位移要走
-     * 「屏幕中心 → 卡片中心」的直线插值；套 normalY 的话会掺进顶部锚点补偿
-     * （`- screenHeight/2*(1-scale)`），中途先向上窜一截再落到卡片。
+     * 本次关闭是否由预测返回手势触发：提交时位移走「屏幕中心 → 卡片中心」的直线，
+     * 避免混入顶部锚点补偿。
      */
     var closeFromGesture by remember { mutableStateOf(false) }
-    // 手势来向：决定缩放锚点往哪边偏
     var gestureEdge by remember { mutableIntStateOf(EDGE_NONE) }
     val animatingState = remember { mutableStateOf(false) }
 
     val startCornerRadiusPx = startCornerRadiusDp * density.density
     val navigationBackState = rememberNavigationBack()
 
-    // 宿主传进来的 lambda 每帧都可能换实例，用 UpdatedState 取最新的
+    // 宿主的 lambda 与几何值每帧都可能换实例，统一用 UpdatedState 取最新值
     val currentOnBackStart by rememberUpdatedState(onBackStart)
     val currentOnBack by rememberUpdatedState(onBack)
     val currentInterceptBack by rememberUpdatedState(interceptBack)
+    val cardLeftState = rememberUpdatedState(cardLeft)
+    val cardTopState = rememberUpdatedState(cardTop)
+    val cardWidthState = rememberUpdatedState(cardWidth)
+    val cardHeightState = rememberUpdatedState(cardHeight)
+    val screenWidthState = rememberUpdatedState(screenWidth)
+    val screenHeightState = rememberUpdatedState(screenHeight)
+    val embeddedState = rememberUpdatedState(embedded)
 
-    /** 手势取消 / 被拦截：回弹到全屏，并把锚点锁平滑放开。 */
+    /** 手势取消或返回被拦截：回弹全屏并平滑放开锚点。 */
     fun settleBack() {
         isGestureActive = false
         scope.launch {
             if (gestureBackProgress.value > 0f) {
-                // 回弹三条一起走：缩放回全屏 / 手势进度归零 / 锚点锁放开。
-                // 放开由 centerLock 平滑完成，所以不需要靠「先 scale 后 gesture」来避跳。
                 coroutineScope {
                     launch { scaleProgress.animateTo(1f, tween(GESTURE_SETTLE_MILLIS)) }
                     launch { gestureBackProgress.animateTo(0f, tween(GESTURE_SETTLE_MILLIS)) }
@@ -246,7 +242,7 @@ fun rememberMorphTransition(
         }
     }
 
-    /** 播放退出形变；[onBeforeFinish] 在动画播完、[onBack] 之前调用。 */
+    /** 播放退出形变；[onBeforeFinish] 在动画播完、`onBack` 之前调用。 */
     fun playClose(onBeforeFinish: (() -> Unit)?) {
         if (!hasCardBounds) {
             onBeforeFinish?.invoke()
@@ -264,9 +260,9 @@ fun rememberMorphTransition(
                 // 缩放中心从屏幕中心平滑过渡回卡片锚点，形变位移随之接管
                 launch { gestureBackProgress.animateTo(0f, tween(GESTURE_RELEASE_MILLIS)) }
                 launch { centerLock.animateTo(0f, tween(GESTURE_RELEASE_MILLIS)) }
-                launch { scaleProgress.animateTo(0f, tween(MORPH_EXIT_MILLIS, easing = MorphExitEase)) }
-                launch { animProgress.animateTo(0f, tween(MORPH_EXIT_MILLIS, easing = MorphExitEase)) }
-                launch { animTransY.animateTo(0f, tween(TRANS_EXIT_MILLIS, easing = MorphTransExitEase)) }
+                launch { scaleProgress.animateTo(0f, tween(EXIT_MILLIS, easing = ExitEase)) }
+                launch { animProgress.animateTo(0f, tween(EXIT_MILLIS, easing = ExitEase)) }
+                launch { animTransY.animateTo(0f, tween(EXIT_TRANS_MILLIS, easing = TransExitEase)) }
             }
             onBeforeFinish?.invoke()
             currentOnBack()
@@ -289,40 +285,37 @@ fun rememberMorphTransition(
         },
     )
 
-    // 逐帧收集返回手势进度（单独协程，避免手势期间每帧取消/重启 LaunchedEffect）
+    // 逐帧收集返回手势进度，单独协程避免手势期间反复重启 LaunchedEffect
     LaunchedEffect(Unit) {
-        // backProgress() 已内含「转场进行中且方向为后退」判定，非手势期间为 null —— 保持静止。
+        // backProgress() 已内含「转场进行中且方向为后退」判定，非手势期间为 null
         snapshotFlow { navigationBackState.backProgress() }
-            .collect { progress ->
-                if (progress == null || embedded) return@collect
-                // 收起动画进行中、或没有卡片边界时不驱动页面形变
+            .collect { raw ->
+                val progress = raw ?: return@collect
+                // 0 是松手后的收尾推送，不能 snap 掉进行中的回弹动画
+                if (progress <= 0f || embeddedState.value) return@collect
                 if (animatingState.value || !hasCardBounds) return@collect
-                // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
                 if (!PredictiveBackSettings.enabled) return@collect
 
                 if (!isGestureActive) {
-                    // 手势第一帧记下当前缩放位置：打开动画没播完就滑返回时从这儿接着缩。
-                    // 直接 snapTo(1f) 会先把页面放大到全屏再缩，跳一下。
+                    // 手势第一帧记下当前缩放位置，打开未播完时从当前位置接着缩
                     gestureScaleBase = scaleProgress.value
-                    // 锁中心在第一帧就压满，手势全程锚点固定在屏幕正中
                     centerLock.snapTo(1f)
-                    // 来向决定锚点往哪边偏
                     gestureEdge = navigationBackState.backSwipeEdge()
                 }
                 isGestureActive = true
                 gestureBackProgress.snapTo(progress)
-                // 行程按「滑到底缩到全屏的 PREDICTIVE_BACK_SCALE 倍」反解：
-                val cardRatio = if (screenWidth > 0f) {
-                    (cardWidth / screenWidth).coerceIn(0f, 0.9f)
+
+                val width = screenWidthState.value
+                val cardRatio = if (width > 0f) {
+                    (cardWidthState.value / width).coerceIn(0f, 0.9f)
                 } else {
                     0f
                 }
                 val targetSp = (PREDICTIVE_BACK_SCALE - cardRatio) / (1f - cardRatio)
-                // 缩放进度由手指水平位移占屏宽的比例驱动：划一半缩一半、划满一屏缩到底。
-                // 左右边缘的 offsetX 符号相反，取绝对值；无触摸数据时退回 progress。
+                // 缩放由手指水平位移占屏宽的比例驱动；左右边缘符号相反，取绝对值
                 val swipePx = navigationBackState.backSwipeOffsetX()
-                val swipeRatio = if (swipePx != null && screenWidth > 0f) {
-                    (abs(swipePx) / screenWidth).coerceIn(0f, 1f)
+                val swipeRatio = if (swipePx != null && width > 0f) {
+                    (abs(swipePx) / width).coerceIn(0f, 1f)
                 } else {
                     progress
                 }
@@ -333,7 +326,6 @@ fun rememberMorphTransition(
     LaunchedEffect(Unit) {
         closeFromGesture = false
         if (embedded) {
-            // 内嵌：直接到全尺寸静态态，不播展开形变
             scaleProgress.snapTo(1f)
             animProgress.snapTo(1f)
             animTransY.snapTo(1f)
@@ -342,23 +334,16 @@ fun rememberMorphTransition(
         if (!hasCardBounds) return@LaunchedEffect
         // 原生取消/保存在展开开始前就到达时，别再把它拉回全屏
         if (animatingState.value) return@LaunchedEffect
-        launch { scaleProgress.animateTo(1f, tween(MORPH_OPEN_MILLIS, easing = MorphOpenEase)) }
-        launch { animProgress.animateTo(1f, tween(MORPH_OPEN_MILLIS, easing = MorphOpenEase)) }
-        launch { animTransY.animateTo(1f, tween(TRANS_OPEN_MILLIS, easing = MorphTransOpenEase)) }
+        // 等一帧让静态首帧完整上屏，再从下一帧开始播放
+        withFrameNanos { }
+        launch { scaleProgress.animateTo(1f, tween(OPEN_MILLIS, easing = OpenEase)) }
+        launch { animProgress.animateTo(1f, tween(OPEN_MILLIS, easing = OpenEase)) }
+        launch { animTransY.animateTo(1f, tween(OPEN_TRANS_MILLIS, easing = TransOpenEase)) }
     }
 
-    // ⚠ 宿主传进来的几何值都是普通 Float，直接捕获进 derivedStateOf 会被冻结在首次组合的值上
-    val cardLeftState = rememberUpdatedState(cardLeft)
-    val cardTopState = rememberUpdatedState(cardTop)
-    val cardWidthState = rememberUpdatedState(cardWidth)
-    val cardHeightState = rememberUpdatedState(cardHeight)
-    val screenWidthState = rememberUpdatedState(screenWidth)
-    val screenHeightState = rememberUpdatedState(screenHeight)
-
     val animState = remember {
-        // 跟手位移的冻结值：松手后 backSwipeOffsetY 变 null，若直接归零页面会瞬移回原位。
-        // 记住最后一帧的手指数值，收尾期间按权重衰减。普通 var（draw 阶段读写，主线程），
-        // 不用 state —— 在 derivedStateOf 计算块里写 state 会自触发重算。
+        // 跟手位移的冻结值：松手后 backSwipeOffsetY 变 null，直接归零会瞬移。
+        // 普通 var 而非 state：在 derivedStateOf 里写 state 会自触发重算。
         var lastFollowYRaw = 0f
         derivedStateOf {
             val cardLeft = cardLeftState.value
@@ -367,7 +352,7 @@ fun rememberMorphTransition(
             val cardHeight = cardHeightState.value
             val screenWidth = screenWidthState.value
             val screenHeight = screenHeightState.value
-            // 1 = 位移完全放开，0 = 锁死在屏幕中心（预测返回期间）
+            val embedded = embeddedState.value
             val centerLockWeight = 1f - centerLock.value
 
             if (!(cardWidth > 0f && cardHeight > 0f && screenWidth > 0f)) {
@@ -384,31 +369,26 @@ fun rememberMorphTransition(
 
                 val gesture = gestureBackProgress.value
                 val normalX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
-                // 预测返回期间不做平移：横向位移全部来自「固定锚点 + 缩放」（见 anchorX），
-                // 手指水平位移只驱动缩放进度。提交时走「屏幕中心 → 卡片中心」的直线。
+                // 手势期间不做平移，横向位移全由「固定锚点 + 缩放」产生；
+                // 提交时走「屏幕中心 → 卡片中心」的直线
                 val translationX = if (closeFromGesture) {
                     (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
                 } else {
                     normalX * (1f - gesture)
                 }
 
-                // 可见区域中心 Y 直接沿曲线插值，不依赖 p 和 ty 的时间差
+                // 可见区域中心 Y 沿曲线插值，不依赖 p 与 ty 的时间差
                 val cardCenterY = cardTop + cardHeight / 2f
                 val screenCenterY = screenHeight / 2f
                 val targetCenterY = cardCenterY + (screenCenterY - cardCenterY) * ty
                 val normalY = targetCenterY - screenHeight / 2f * (1f - scale) -
                     (cardHeight + (screenHeight - cardHeight) * p) / 2f
-                // 预测返回的收敛起点：用 gestureScaleBase 反推手势第一帧的 scale，再算当时的位移。
-                // 打开动画没播完就滑返回时，起点就是当前位移，不会被 centerLock 一把拽到 0
-                //（那样会向上闪一下）；已展开时 startScale=1、起点本来就是 0。
+                // 手势起点位移：由 gestureScaleBase 反推，打开未播完时不会被拽到 0
                 val startScale = (cardRatio + (1f - cardRatio) * gestureScaleBase).coerceAtLeast(0.05f)
                 val normalYStart = targetCenterY - screenHeight / 2f * (1f - startScale) -
                     (cardHeight + (screenHeight - cardHeight) * p) / 2f
                 val lockedY = normalYStart * (1f - gesture)
-                // 提交位移：从屏幕中心直线收到「内容顶部对齐卡片顶部」，终点须与
-                // p=0/scale=cardRatio 时的 normalY 相等（裁切框从内容顶部算，按中心
-                // 对齐会整体偏上）。垂直跟随 = touchY − 首帧 touchY（progress 只归一化
-                // 水平方向），阻尼 0.65×手势进度、按 1/(1+|o|/6.5·range) 衰减防露白。
+
                 val rawY = navigationBackState.backSwipeOffsetY()
                 if (rawY != null) lastFollowYRaw = rawY
                 val followRange = screenHeight * 0.25f
@@ -421,9 +401,7 @@ fun rememberMorphTransition(
                         followY * gesture
                 }
 
-                // 缩放锚点：手势首帧按 edge 定好（右边缘返回 → 偏左），期间不变；变的
-                // 是缩放进度（手指水平位移比例驱动）。围绕固定锚点缩放，横向位移天然有限。
-                // 松手后按时间轴收回中心（提交 p、取消 gesture），落地必须回 0.5。
+                // 缩放锚点在手势首帧按 edge 定好，期间不变；松手后按时间轴回中心
                 val anchorShift = when (gestureEdge) {
                     EDGE_LEFT -> PREDICTIVE_ANCHOR_SHIFT
                     EDGE_RIGHT -> -PREDICTIVE_ANCHOR_SHIFT
@@ -435,16 +413,15 @@ fun rememberMorphTransition(
                     else -> 0.5f + anchorShift * gesture
                 }
 
-                // 手势推进期间裁切跟随"当前展开高度×缩放"（打开未完成时也连续，底部不瞬间归位）；
-                // 松手/取消过渡期按 gesture 平滑插值衔接形变的底部收缩
-                val morphClip = cardHeight + (screenHeight - cardHeight) * p
-                val predictiveClip = morphClip * scale
+                // 手势期间裁切跟随「当前展开高度 × 缩放」；松手过渡期按 gesture 插值衔接
+                val morphClipHeight = cardHeight + (screenHeight - cardHeight) * p
+                val predictiveClip = morphClipHeight * scale
                 val rawClipBottom = if (isGestureActive) {
                     predictiveClip
                 } else {
-                    predictiveClip * gesture + morphClip * (1f - gesture)
+                    predictiveClip * gesture + morphClipHeight * (1f - gesture)
                 }
-                val clipBottom = rawClipBottom / scale
+
                 MorphAnimState(
                     bgAlpha = bgAlpha,
                     snapshotAlpha = snapAlpha,
@@ -452,7 +429,7 @@ fun rememberMorphTransition(
                     translationX = translationX,
                     translationY = translationY,
                     scale = scale,
-                    clipBottom = clipBottom,
+                    clipBottom = rawClipBottom / scale,
                     progress = p,
                     gesture = gesture,
                     anchorX = anchorX,
@@ -473,9 +450,7 @@ fun rememberMorphTransition(
     )
 }
 
-/**
- * 按当前形变状态裁剪页面内容 —— 必须在**绘制阶段**做
- */
+/** 按当前形变状态裁剪页面内容，必须在绘制阶段调用。 */
 fun Modifier.morphClip(morph: MorphTransition): Modifier = drawWithContent {
     // MorphClipShape 只读 size / density，不读布局方向
     val outline = morph.clipShape.createOutline(size, LayoutDirection.Ltr, this)

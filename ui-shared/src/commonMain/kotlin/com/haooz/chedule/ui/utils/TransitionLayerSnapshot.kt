@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.utils
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -9,52 +10,56 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
+import com.haooz.softglass.platform.isRenderEffectSupported
+
+/** 快照的源区域：指定了 [TransitionLayerSnapshot.bounds] 用 bounds，否则取整层尺寸。 */
+private fun sourceBoundsOf(snapshot: TransitionLayerSnapshot): Rect =
+    snapshot.bounds ?: Rect(
+        0f,
+        0f,
+        snapshot.layer.size.width.toFloat(),
+        snapshot.layer.size.height.toFloat(),
+    )
+
+/** 有光栅化副本就画它，否则重放源图层。 */
+private fun DrawScope.drawSnapshot(snapshot: TransitionLayerSnapshot) {
+    val frozen = snapshot.frozen
+    if (frozen != null) drawImage(frozen) else drawLayer(snapshot.layer)
+}
 
 /**
- * A retained drawing layer, optionally restricted to a region in its local pixel coordinates.
+ * 保留的绘制图层，可限定到其局部像素坐标中的一块区域。
  *
- * 这里用 `GraphicsLayer` + `clipRect` 做裁剪，**不分配位图**。早期实现走的是
- * `ImageBitmap` 裁剪（`Bitmap.createBitmap(src,x,y,w,h)` 的跨平台替身），已删除 ——
- * 它在 Android 上有个绕不开的坑，值得记下来：
- *
- * - `GraphicsLayer.toImageBitmap()` 在 Android 走 `Bitmap.createBitmap(Picture)`，
- *   内部固定 `Config.HARDWARE` → 读回的是**硬件位图**；
- * - 目标却是 `ImageBitmap(w,h)` 这种**软件**位图，`Canvas.throwIfCannotDraw` 遇
- *   「HARDWARE 源 + 软件canvas」直接抛
- *   `IllegalArgumentException: Software rendering doesn't support hardware bitmaps`；
- * - 异常被 `runCatching { }.getOrNull()` 兜住 → 静默返回 null → 卡片底图凭空消失。
- *   整屏不裁剪的那条路（快捷菜单）走**硬件** canvas 一切正常，所以现象只在
- *   **需要裁剪**的页面出现，且只有 Android 端有。
- * - 顺带：Skiko 上 `drawLayer` 是重放录制命令而非光栅化，零分配 —— 这正是本实现
- *   在 iOS/桌面也不掉帧的原因（对比：承载静止快照必须落成 ImageBitmap）。
+ * 裁剪用 `GraphicsLayer` + `clipRect`，不分配位图。`toImageBitmap()` 在 Android 上
+ * 返回硬件位图，喂给软件 canvas 会抛 `Software rendering doesn't support hardware bitmaps`。
  */
 data class TransitionLayerSnapshot(
     val layer: GraphicsLayer,
     val bounds: Rect? = null,
     /**
-     * 源图层的光栅化副本（**整层尺寸，不预裁剪**；裁剪仍按 [bounds] 在绘制期做）。
+     * 源图层的光栅化副本（整层尺寸，裁剪仍按 [bounds] 在绘制期做）。
      *
-     * `drawLayer` 是**活引用**而不是画面：源图层（以及它内部再引用的图层）被隐藏、
-     * 回收或重录，重放出来就跟着变。今日页进详情时源行被 `hiddenCourseIds` 藏起来，
-     * 于是「进入时有内容、退出时只剩玻璃背景」—— 退出那次重放读的是被藏之后的源。
-     * 有这份副本就与源图层彻底脱钩，进出看到同一张图。
-     *
-     * ⚠ Android 上 `toImageBitmap()` 给的是**硬件位图**，只用于上屏绘制，
-     *   不要再喂软件 canvas（原因见上面那段注释）。
+     * `drawLayer` 是活引用：源图层被隐藏或重录后，重放内容会跟着变。副本让进出
+     * 看到同一张图，适合源内容会在形变期间消失的场景。
+     * ⚠ Android 上是硬件位图，只能用于上屏绘制。
      */
     val frozen: ImageBitmap? = null,
 )
 
-/** Image layout and scaling semantics without allocating or rasterizing a bitmap. */
+/** 按 [contentScale] / [alignment] 布局快照，不分配、不光栅化位图。 */
 @Composable
 fun TransitionLayerImage(
     snapshot: TransitionLayerSnapshot,
@@ -62,30 +67,19 @@ fun TransitionLayerImage(
     contentScale: ContentScale = ContentScale.Crop,
     alignment: Alignment = Alignment.TopCenter,
 ) {
-    val painter = remember(snapshot) {
+    val painter = remember(snapshot, snapshot.layer.size) {
         object : Painter() {
-            private val sourceBounds: Rect
-                get() = snapshot.bounds ?: Rect(
-                    0f,
-                    0f,
-                    snapshot.layer.size.width.toFloat(),
-                    snapshot.layer.size.height.toFloat(),
-                )
+            // 源区域只算一次，避免每帧分配 Rect
+            private val source: Rect = sourceBoundsOf(snapshot)
 
             override val intrinsicSize: Size
-                get() = sourceBounds.size.takeIf { it.width > 0f && it.height > 0f }
-                    ?: Size.Unspecified
+                get() = source.size.takeIf { it.width > 0f && it.height > 0f } ?: Size.Unspecified
 
             override fun DrawScope.onDraw() {
-                val source = sourceBounds
                 if (source.width <= 0f || source.height <= 0f) return
                 clipRect {
                     scale(size.width / source.width, size.height / source.height, pivot = Offset.Zero) {
-                        translate(-source.left, -source.top) {
-                            // 有光栅化副本就画它：不依赖源图层的存活状态
-                            val frozen = snapshot.frozen
-                            if (frozen != null) drawImage(frozen) else drawLayer(snapshot.layer)
-                        }
+                        translate(-source.left, -source.top) { drawSnapshot(snapshot) }
                     }
                 }
             }
@@ -98,4 +92,89 @@ fun TransitionLayerImage(
         contentScale = contentScale,
         alignment = alignment,
     )
+}
+
+/**
+ * 用整页快照充当形变期间的下层背景：按 [shrink] 居中缩小，四周露出部分用快照镜像
+ * 补齐（3×3 平铺、四角双向翻转），因此不会露出下面的实时页面。
+ *
+ * [shrink] / [blurRadiusPx] 只在绘制阶段读取，不触发组合或布局。
+ */
+@Composable
+fun MirroredSnapshotBackdrop(
+    snapshot: TransitionLayerSnapshot,
+    shrink: () -> Float,
+    modifier: Modifier = Modifier,
+    backgroundColor: Color = Color.Black,
+    blurRadiusPx: () -> Float = { 0f },
+) {
+    val effectSupported = remember { isRenderEffectSupported() }
+    // 源区域只算一次，绘制阶段不再分配
+    val source = remember(snapshot, snapshot.layer.size) { sourceBoundsOf(snapshot) }
+
+    Canvas(
+        modifier = modifier.graphicsLayer {
+            val radius = blurRadiusPx()
+            renderEffect = if (radius > 0.01f && effectSupported) {
+                BlurEffect(null, radius, radius, TileMode.Clamp)
+            } else {
+                null
+            }
+        }
+    ) {
+        drawRect(backgroundColor)
+        if (source.width <= 0f || source.height <= 0f) return@Canvas
+
+        val factor = shrink().coerceIn(0f, 1f)
+        val width = size.width * factor
+        val height = size.height * factor
+        val left = (size.width - width) * 0.5f
+        val top = (size.height - height) * 0.5f
+        val right = left + width
+        val bottom = top + height
+        // 图层像素 → 容器像素的基准比例，整页快照恒为 1
+        val baseX = size.width / source.width
+        val baseY = size.height / source.height
+
+        for (xi in -1..1) {
+            val clipLeft = when (xi) {
+                -1 -> 0f
+                0 -> left
+                else -> right
+            }
+            val clipRight = when (xi) {
+                -1 -> left
+                0 -> right
+                else -> size.width
+            }
+            if (clipRight <= clipLeft) continue
+
+            for (yi in -1..1) {
+                val clipTop = when (yi) {
+                    -1 -> 0f
+                    0 -> top
+                    else -> bottom
+                }
+                val clipBottom = when (yi) {
+                    -1 -> top
+                    0 -> bottom
+                    else -> size.height
+                }
+                if (clipBottom <= clipTop) continue
+
+                val scaleX = (if (xi == 0) 1f else -1f) * factor * baseX
+                val scaleY = (if (yi == 0) 1f else -1f) * factor * baseY
+                val destX = if (xi > 0) right + width else left
+                val destY = if (yi > 0) bottom + height else top
+
+                clipRect(clipLeft, clipTop, clipRight, clipBottom) {
+                    translate(destX, destY) {
+                        scale(scaleX, scaleY, pivot = Offset.Zero) {
+                            translate(-source.left, -source.top) { drawSnapshot(snapshot) }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

@@ -3,8 +3,6 @@ package com.haooz.chedule.ui.activities
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
-import com.haooz.chedule.ui.components.pageTopExtra
-import com.haooz.chedule.ui.utils.HostNavigationState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -13,10 +11,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -37,8 +35,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -58,9 +56,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -76,9 +74,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.PI
-import kotlin.math.roundToInt
-import kotlin.math.sin
 import com.haooz.chedule.data.platform.NoopUpdateController
 import com.haooz.chedule.data.platform.UpdateController
 import com.haooz.chedule.data.platform.UpdateRelease
@@ -89,9 +84,13 @@ import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.ui.components.pageTopExtra
+import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.data.ChangelogEntry
 import com.haooz.chedule.ui.data.changelogData
-import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.utils.AppMaterialSettings
+import com.haooz.chedule.ui.utils.HostNavigationState
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.about_app_icon
@@ -107,11 +106,7 @@ import com.haooz.softglass.glass.CustomizeFill
 import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.softglass.glass.ThemeFill
 import com.haooz.softglass.glass.applySoftGlass
-import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.utils.AppMaterialSettings
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.haooz.softglass.platform.isRenderEffectSupported
-import com.haooz.softglass.platform.isSoftGlassShaderAvailable
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
@@ -122,14 +117,12 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
-import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.collapsibleTopInset
@@ -140,6 +133,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlin.math.PI
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.time.Duration.Companion.milliseconds
+import androidx.compose.ui.graphics.Color as ComposeColor
 
 /** 版本卡宽高比（宽 / 高）：横向短卡，和设置页里的普通卡片同呼吸，不做海报式竖版。 */
 private const val HeroCardAspect = 1.1f
@@ -173,7 +171,7 @@ private const val HeroPillGlassKey = "NexioSoftGlassLiveHeroPill"
 /** 今日日期 `yyyy-MM-dd`（手写零填充；⚠ 与迁移前逐字一致，勿改）。 */
 private fun todayIsoDate(): String {
     val date = todayLocalDate()
-    return "${date.year.toString().padStart(4, '0')}" +
+    return date.year.toString().padStart(4, '0') +
         "-${date.monthNumber.toString().padStart(2, '0')}" +
         "-${date.dayOfMonth.toString().padStart(2, '0')}"
 }
@@ -190,16 +188,6 @@ private fun majorMinorVersion(version: String): String? {
     return "$major.$minor"
 }
 
-
-/**
- * ISO 时间串只取日期：`2026-11-10T18:45:16+08:00` → `2026-11-10`。
- * 服务端给的是完整时间戳，直接拼在版本号后面会变成「v1.7.1 · 2026-11-10T18:45:16+08:00」。
- */
-private fun isoDateOnly(raw: String): String {
-    val text = raw.trim()
-    val datePart = text.substringBefore('T').substringBefore(' ')
-    return if (datePart.length == 10 && datePart.count { it == '-' } == 2) datePart else text
-}
 
 /**
  * 版本号去掉前缀与构建号：`1.6.7-1103` / `v1.6.7` → `1.6.7`。
@@ -258,7 +246,7 @@ class UpdateHeroChromeState {
 @Composable
 fun UpdateSettingsScreen(
     scrollBehavior: SharedScrollBehavior? = null,
-    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     /** 更新能力控制器（Android 注入 `AndroidUpdateController`；桌面/iOS 用 [NoopUpdateController]）。 */
     updateController: UpdateController = NoopUpdateController,
     /** 进完整更新日志页 */
@@ -272,10 +260,6 @@ fun UpdateSettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember { AppStorage.store("update_settings") }
     // 液态玻璃效果的透明下拉颜色
-    val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
-        containerColor = Color.Transparent,
-        selectedContainerColor = Color.Transparent,
-    )
 
     var autoCheckUpdate by remember { mutableStateOf(prefs.getBoolean("auto_check_update", true)) }
     var updateChannel by remember {
@@ -989,7 +973,7 @@ private fun HeroCardFace(
         if (sheenOnEnter) {
             sheen.animateTo(1f, tween(1100, easing = FastOutSlowInEasing))
             while (true) {
-                delay(8000)
+                delay(8000.milliseconds)
                 sheen.snapTo(0f)
                 sheen.animateTo(1f, tween(1200, easing = LinearEasing))
             }
@@ -1686,15 +1670,13 @@ private fun CurrentChangelogBack(
 private fun prettyReleaseBody(raw: String): String =
     raw.lineSequence()
         .map { it.trim().replace("**", "") }
-        .filter { it.isNotEmpty() }
-        .map { line ->
+        .filter { it.isNotEmpty() }.joinToString("\n") { line ->
             when {
                 line.startsWith("- ") || line.startsWith("* ") -> "· " + line.substring(2).trim()
                 line.startsWith("#") -> line.trimStart('#').trim()
                 else -> line
             }
         }
-        .joinToString("\n")
         .trim()
 
 /** 背面（新版本）：标题 + 新版本号/日期 + 更新说明 + 开始更新。 */
@@ -1763,7 +1745,7 @@ private fun NewVersionBack(
                 contentAlignment = Alignment.CenterStart
             ) {
                 Text(
-                    text = if (body.isEmpty()) AboutStr.updateHasNoNotes() else body,
+                    text = body.ifEmpty { AboutStr.updateHasNoNotes() },
                     fontSize = 13.5.sp,
                     lineHeight = 20.sp,
                     color = onCard.copy(alpha = 0.80f),

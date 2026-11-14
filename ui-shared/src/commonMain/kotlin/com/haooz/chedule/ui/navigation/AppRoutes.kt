@@ -53,6 +53,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
@@ -144,6 +146,7 @@ import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.components.HorizontalPageSwitch
 import com.haooz.chedule.ui.components.rememberPageSwitchState
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.effects.motion.MORPH_BACKGROUND_SHRINK
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.CourseEditScreen
@@ -154,6 +157,7 @@ import com.haooz.chedule.ui.screens.rememberSettingsSearchState
 import com.haooz.chedule.ui.theme.rememberAppThemeController
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
+import com.haooz.chedule.ui.utils.MirroredSnapshotBackdrop
 import com.haooz.chedule.ui.utils.NativeDocumentAction
 import com.haooz.chedule.ui.utils.NativeDocumentActionEffect
 import com.haooz.chedule.ui.utils.NativeDocumentOverlayEffect
@@ -1377,6 +1381,24 @@ fun CourseTimeSettingsRoute(
     // 列表页持有卡片本体，这里只留快照完成转场
     var cardSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
 
+    // 形变背景：整页按需录一层，缩放它而不是缩放实时页面。
+    // 露出部分由 MirroredSnapshotBackdrop 用同一张图的镜像补齐，不会透出下层内容。
+    val pageLayer = rememberGraphicsLayer()
+    var pageRecordRequest by remember { mutableIntStateOf(0) }
+    val pageLastRecorded = remember { intArrayOf(-1) }
+    var editBackgroundSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
+    val editBackgroundScale = remember { Animatable(1f) }
+
+    suspend fun capturePageSnapshot(): TransitionLayerSnapshot? {
+        pageRecordRequest++
+        while (pageLastRecorded[0] != pageRecordRequest) withFrameNanos { }
+        return if (pageLayer.size.width > 0 && pageLayer.size.height > 0) {
+            TransitionLayerSnapshot(pageLayer)
+        } else {
+            null
+        }
+    }
+
     // 页面级背景模糊
     val managePageBlurRadius = remember { Animatable(0f) }
     // 二级编辑页的玻璃层是独立的（与一级页不共享采样源）
@@ -1395,14 +1417,28 @@ fun CourseTimeSettingsRoute(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    // 用 renderEffect 在绘制阶段求半径，避免动画时重组
-                    //（isRenderEffectSupported 跨平台；不支持时返回 null = 不模糊）
-                    val blurRadiusPx = managePageBlurRadius.value * density.density
-                    renderEffect = if (blurRadiusPx > 0f && isRenderEffectSupported()) {
+                    // 背景快照就位后模糊交给快照层；只有取不到快照时才回落到实时模糊。
+                    // 半径仍在绘制阶段求，避免动画时重组。
+                    val blurRadiusPx = if (editBackgroundSnapshot == null) {
+                        managePageBlurRadius.value * density.density
+                    } else {
+                        0f
+                    }
+                    renderEffect = if (blurRadiusPx > 0.01f && isRenderEffectSupported()) {
                         BlurEffect(null, blurRadiusPx, blurRadiusPx, TileMode.Clamp)
                     } else null
                 }
                 .background(MiuixTheme.colorScheme.surface)
+                .drawWithContent {
+                    // 只在被请求时录一帧整页（形变背景用）；快照覆盖期间实时页面整块不画
+                    if (pageLastRecorded[0] != pageRecordRequest) {
+                        pageLayer.record { this@drawWithContent.drawContent() }
+                        pageLastRecorded[0] = pageRecordRequest
+                        drawLayer(pageLayer)
+                    } else if (editBackgroundSnapshot == null) {
+                        drawContent()
+                    }
+                }
         ) {
             DocumentPageScaffold(
                 title = ChromeStr.classTimeSettings(),
@@ -1416,13 +1452,27 @@ fun CourseTimeSettingsRoute(
                         editingCardBounds = bounds
                         cardSnapshot = bounds.snapshot
                         coroutineScope.launch {
-                            if (editingExitStarted || currentPage != "edit") return@launch
-                            managePageBlurRadius.animateTo(
-                                targetValue = 16f,
-                                animationSpec = tween(540, easing = OobeQuartOutEasing)
-                            )
+                            if (editingExitStarted || currentPage == "edit") return@launch
+                            // 先录整页再切页：切页后 hideRoutinesCard 会立刻把源行藏掉
+                            val background = capturePageSnapshot()
+                            editBackgroundScale.snapTo(1f)
+                            editBackgroundSnapshot = background
+                            currentPage = "edit"
+                            // 先让首帧静态态完整上屏，再开始播放，避免动画首帧带着一次性开销
+                            withFrameNanos { }
+                            launch {
+                                managePageBlurRadius.animateTo(
+                                    targetValue = 12f,
+                                    animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                )
+                            }
+                            launch {
+                                editBackgroundScale.animateTo(
+                                    targetValue = MORPH_BACKGROUND_SHRINK,
+                                    animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                )
+                            }
                         }
-                        currentPage = "edit"
                     },
                     refreshTrigger = listRefreshTrigger,
                     scrollBehavior = scrollBehavior,
@@ -1430,6 +1480,17 @@ fun CourseTimeSettingsRoute(
                     morphActive = currentPage == "edit",
                 )
             }
+        }
+
+        // 编辑页背景：整页快照缩放，露出部分用同一张图的镜像补齐，不缩放实时页面
+        editBackgroundSnapshot?.let { background ->
+            MirroredSnapshotBackdrop(
+                snapshot = background,
+                shrink = { editBackgroundScale.value },
+                modifier = Modifier.fillMaxSize(),
+                backgroundColor = MiuixTheme.colorScheme.surface,
+                blurRadiusPx = { managePageBlurRadius.value * density.density },
+            )
         }
 
         // 编辑页渲染在脚手架外面
@@ -1448,10 +1509,18 @@ fun CourseTimeSettingsRoute(
                         onBackStart = {
                             editingExitStarted = true
                             coroutineScope.launch {
-                                managePageBlurRadius.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = tween(320, easing = OobeCubicOutEasing)
-                                )
+                                launch {
+                                    managePageBlurRadius.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = tween(320, easing = OobeCubicOutEasing)
+                                    )
+                                }
+                                launch {
+                                    editBackgroundScale.animateTo(
+                                        targetValue = 1f,
+                                        animationSpec = tween(320, easing = OobeCubicOutEasing)
+                                    )
+                                }
                             }
                         },
                         onBack = {
@@ -1460,6 +1529,7 @@ fun CourseTimeSettingsRoute(
                             editingRoutineId = null
                             editingCardBounds = null
                             cardSnapshot = null
+                            editBackgroundSnapshot = null
                         },
                         onSave = { savedConfig ->
                             // 只替换这一个作息；节次骨架由一级页面管理，这里不碰。
@@ -1525,6 +1595,24 @@ fun CourseManageRoute(
     var cardWidth by remember { mutableFloatStateOf(0f) }
     var cardHeight by remember { mutableFloatStateOf(0f) }
     var cardSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
+
+    // 形变背景：整页按需录一层，缩放它而不是缩放实时页面。
+    // 露出部分由 MirroredSnapshotBackdrop 用同一张图的镜像补齐，不会透出下层内容。
+    val pageLayer = rememberGraphicsLayer()
+    var pageRecordRequest by remember { mutableIntStateOf(0) }
+    val pageLastRecorded = remember { intArrayOf(-1) }
+    var editBackgroundSnapshot by remember { mutableStateOf<TransitionLayerSnapshot?>(null) }
+    val editBackgroundScale = remember { Animatable(1f) }
+
+    suspend fun capturePageSnapshot(): TransitionLayerSnapshot? {
+        pageRecordRequest++
+        while (pageLastRecorded[0] != pageRecordRequest) withFrameNanos { }
+        return if (pageLayer.size.width > 0 && pageLayer.size.height > 0) {
+            TransitionLayerSnapshot(pageLayer)
+        } else {
+            null
+        }
+    }
     var cardColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
     var cardAlpha by remember { mutableFloatStateOf(0.12f) }
     var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
@@ -1599,9 +1687,11 @@ fun CourseManageRoute(
                 .fillMaxSize()
                 .graphicsLayer {
                     // renderEffect 在绘制阶段赋半径，避免动画每帧重组整页
+                    // 背景快照就位后编辑形变的模糊交给快照层；快捷菜单模糊仍走实时页
                     val blurAnim =
                         if (shortcutMenuBlurRadius.value > 0.01f) shortcutMenuBlurRadius.value
-                        else managePageBlurRadius.value
+                        else if (editBackgroundSnapshot == null) managePageBlurRadius.value
+                        else 0f
                     renderEffect = if (blurAnim > 0.01f && isRenderEffectSupported()) {
                         val blurPx = blurAnim.dp.toPx()
                         BlurEffect(null, blurPx, blurPx, TileMode.Clamp)
@@ -1610,6 +1700,16 @@ fun CourseManageRoute(
                     scaleY = shortcutMenuPageScale.value
                 }
                 .background(MiuixTheme.colorScheme.surface)
+                .drawWithContent {
+                    // 只在被请求时录一帧整页（形变背景用）；快照覆盖期间实时页面整块不画
+                    if (pageLastRecorded[0] != pageRecordRequest) {
+                        pageLayer.record { this@drawWithContent.drawContent() }
+                        pageLastRecorded[0] = pageRecordRequest
+                        drawLayer(pageLayer)
+                    } else if (editBackgroundSnapshot == null) {
+                        drawContent()
+                    }
+                }
         ) {
             DocumentPageScaffold(
                 title = ChromeStr.courseManage(),
@@ -1653,6 +1753,10 @@ fun CourseManageRoute(
                     onDeleteConfirmDismiss = { showDeleteConfirmDialog = false },
                     onCourseClick = { courses, left, top, width, height, snapshot, color, alpha ->
                         coroutineScope.launch {
+                            if (showEditScreen) return@launch
+                            // 先录整页再隐藏源卡片，否则背景快照里会缺这张卡
+                            val background = capturePageSnapshot()
+                            editBackgroundScale.snapTo(1f)
                             selectedCourses = courses
                             cardLeft = left
                             cardTop = top
@@ -1661,15 +1765,24 @@ fun CourseManageRoute(
                             cardColor = color
                             cardAlpha = alpha
                             cardSnapshot = snapshot
+                            editBackgroundSnapshot = background
                             hiddenCourseIds = courses.map { it.id }.toSet()
                             // 打开即视为编辑过
                             editedCourseIds = editedCourseIds + courses.map { it.id }
 
                             showEditScreen = true
+                            // 先让首帧静态态完整上屏，再开始播放，避免动画首帧带着一次性开销
+                            withFrameNanos { }
                             launch {
                                 managePageBlurRadius.animateTo(
-                                    targetValue = 16f,
-                                    animationSpec = tween(540, easing = OobeQuartOutEasing)
+                                    targetValue = 12f,
+                                    animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                )
+                            }
+                            launch {
+                                editBackgroundScale.animateTo(
+                                    targetValue = MORPH_BACKGROUND_SHRINK,
+                                    animationSpec = tween(560, easing = OobeQuartOutEasing)
                                 )
                             }
                         }
@@ -1677,6 +1790,17 @@ fun CourseManageRoute(
                     liquidGlassBackdrop = liquidGlassBackdrop,
                 )
             }
+        }
+
+        // 编辑页背景：整页快照缩放，露出部分用同一张图的镜像补齐，不缩放实时页面
+        editBackgroundSnapshot?.let { background ->
+            MirroredSnapshotBackdrop(
+                snapshot = background,
+                shrink = { editBackgroundScale.value },
+                modifier = Modifier.fillMaxSize(),
+                backgroundColor = MiuixTheme.colorScheme.surface,
+                blurRadiusPx = { managePageBlurRadius.value * density.density },
+            )
         }
 
         // 编辑页在模糊层之上
@@ -1695,16 +1819,25 @@ fun CourseManageRoute(
                 cardAlpha = cardAlpha,
                 onBackStart = {
                     coroutineScope.launch {
-                        managePageBlurRadius.animateTo(
-                            targetValue = 0f,
-                            animationSpec = tween(320, easing = OobeCubicOutEasing)
-                        )
+                        launch {
+                            managePageBlurRadius.animateTo(
+                                targetValue = 0f,
+                                animationSpec = tween(320, easing = OobeCubicOutEasing)
+                            )
+                        }
+                        launch {
+                            editBackgroundScale.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(320, easing = OobeCubicOutEasing)
+                            )
+                        }
                     }
                 },
                 onBack = {
                     if (pendingAutoExitDeleteIds.isNotEmpty()) {
                         showEditScreen = false
                         cardSnapshot = null
+                        editBackgroundSnapshot = null
                         hiddenCourseIds = emptySet()
                         shrinkingCourseIds = pendingAutoExitDeleteIds
                         coroutineScope.launch {
@@ -1718,6 +1851,7 @@ fun CourseManageRoute(
                     } else {
                         showEditScreen = false
                         cardSnapshot = null
+                        editBackgroundSnapshot = null
                         hiddenCourseIds = emptySet()
                     }
                 },
