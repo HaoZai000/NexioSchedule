@@ -170,22 +170,22 @@ private fun FeedbackForm(
 
     NativeMiuixTextField(
         value = state.title,
-        onValueChange = { if (it.length <= FeedbackClient.MAX_TITLE_LENGTH) state.title = it },
+        onValueChange = { state.title = it },
         label = FeedbackStr.titleLabel(),
         useLabelAsPlaceholder = true,
         singleLine = true,
+        maxLength = FeedbackClient.MAX_TITLE_LENGTH,
     )
     Spacer(modifier = Modifier.height(10.dp))
     NativeMiuixTextField(
         value = state.content,
-        onValueChange = {
-            if (it.length <= FeedbackClient.MAX_CONTENT_LENGTH) state.content = it
-        },
+        onValueChange = { state.content = it },
         // 占位符直接给填写结构（3 条），比「具体内容」四个字有用；开始输入即隐藏
         label = FeedbackStr.contentPlaceholder(),
         useLabelAsPlaceholder = true,
         minLines = 6,
         maxLines = 10,
+        maxLength = FeedbackClient.MAX_CONTENT_LENGTH,
     )
     Text(
         text = FeedbackStr.contentCounter(state.content.length, FeedbackClient.MAX_CONTENT_LENGTH),
@@ -201,14 +201,13 @@ private fun FeedbackForm(
     NativeMiuixTextField(
         value = state.email,
         onValueChange = {
-            if (it.length <= FeedbackClient.MAX_EMAIL_LENGTH) {
-                state.email = it
-                if (state.emailError) state.validateEmail()
-            }
+            state.email = it
+            if (state.emailError) state.validateEmail()
         },
         label = if (state.emailError) FeedbackStr.emailInvalid() else FeedbackStr.emailLabel(),
         useLabelAsPlaceholder = true,
         singleLine = true,
+        maxLength = FeedbackClient.MAX_EMAIL_LENGTH,
     )
 
     // 不提交也能看历史：入口常驻，不必先写一条

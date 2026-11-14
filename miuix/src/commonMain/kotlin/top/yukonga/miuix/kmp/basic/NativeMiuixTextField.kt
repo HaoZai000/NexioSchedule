@@ -35,6 +35,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * @param singleLine 单行
  * @param maxLines 最大行数
  * @param minLines 最小行数
+ * @param maxLength 最大字符数（超出部分在输入层直接截断，不经过状态回写，避免光标跳动）
  * @param requestFocus 进入即请求焦点（弹窗打开时置 true 自动聚焦并弹键盘）
  */
 @Composable
@@ -54,6 +55,7 @@ expect fun NativeMiuixTextField(
     singleLine: Boolean = false,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     minLines: Int = 1,
+    maxLength: Int = Int.MAX_VALUE,
     requestFocus: Boolean = false,
 )
 

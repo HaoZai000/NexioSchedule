@@ -59,6 +59,7 @@ actual fun NativeMiuixTextField(
     singleLine: Boolean,
     maxLines: Int,
     minLines: Int,
+    maxLength: Int,
     requestFocus: Boolean,
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -99,7 +100,7 @@ actual fun NativeMiuixTextField(
     ) {
         BasicTextField(
             value = value,
-            onValueChange = onValueChange,
+            onValueChange = { onValueChange(if (it.length > maxLength) it.take(maxLength) else it) },
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)

@@ -6,6 +6,7 @@ package top.yukonga.miuix.kmp.basic
 import android.content.Context
 import android.graphics.Typeface
 import android.text.Editable
+import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
@@ -26,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -68,6 +70,7 @@ actual fun NativeMiuixTextField(
     singleLine: Boolean,
     maxLines: Int,
     minLines: Int,
+    maxLength: Int,
     requestFocus: Boolean,
 ) {
     val isFocused = remember { mutableStateOf(false) }
@@ -140,12 +143,15 @@ actual fun NativeMiuixTextField(
         },
     )
 
-    val textWatcher = remember(onValueChange) {
+    // 监听器必须稳定：内联 onValueChange 每次重组都是新引用，用 remember(onValueChange)
+    // 会让 EditText 上残留旧监听，长文本连续输入时多个旧回调一起回写，光标会来回跳。
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
+    val textWatcher = remember {
         object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                s?.toString()?.let { onValueChange(it) }
+                s?.toString()?.let { currentOnValueChange(it) }
             }
         }
     }
@@ -234,14 +240,30 @@ actual fun NativeMiuixTextField(
                                 textSize = textStyle.fontSize.value
                                 applyWeightedTypeface(typeface, weight)
 
-                                inputType = InputType.TYPE_CLASS_TEXT
-                                imeOptions = EditorInfo.IME_ACTION_DONE
+                                // 多行框必须带 MULTI_LINE 标志，否则输入法只给「完成」不换行；
+                                // 单行才使用「完成」收起键盘。
+                                inputType = if (singleLine) {
+                                    InputType.TYPE_CLASS_TEXT
+                                } else {
+                                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                                }
+                                imeOptions = if (singleLine) {
+                                    EditorInfo.IME_ACTION_DONE
+                                } else {
+                                    EditorInfo.IME_ACTION_NONE
+                                }
 
                                 background = null
                                 setPadding(0, 0, 0, 0)
                                 // 原生 EditText 在「高度大于一行」时默认把文字垂直居中（多行框尤其明显），
                                 // 光标、hint、正文会各自居中/贴顶，看起来互相错位。统一钉在左上角。
                                 gravity = Gravity.TOP or Gravity.START
+
+                                // 字数上限在输入层截断：超出时不再回写状态再 setText，
+                                // 避免每敲一个字都把光标重置到末尾（长文本输入时表现为光标乱飘）。
+                                if (maxLength != Int.MAX_VALUE) {
+                                    filters = arrayOf(InputFilter.LengthFilter(maxLength))
+                                }
 
                                 // 光标与选择手柄颜色（API 29+，低版本保留系统默认样式）
                                 applySelectionHandlesTint(themeColor.toArgb())
@@ -261,9 +283,11 @@ actual fun NativeMiuixTextField(
                         },
                         update = { editText ->
                             if (editText.text.toString() != value) {
+                                // 外部回写（清空 / 截断）时保留光标附近的位置，不再一律跳到末尾
+                                val caret = editText.selectionStart.coerceIn(0, value.length)
                                 editText.removeTextChangedListener(textWatcher)
                                 editText.setText(value)
-                                editText.setSelection(editText.text.length)
+                                editText.setSelection(if (editText.hasFocus()) caret else value.length)
                                 editText.addTextChangedListener(textWatcher)
                             }
                             editText.isEnabled = enabled
@@ -456,8 +480,18 @@ actual fun NativeMiuixTextField(
                                 textSize = textStyle.fontSize.value
                                 applyWeightedTypeface(typeface, weight)
 
-                                inputType = InputType.TYPE_CLASS_TEXT
-                                imeOptions = EditorInfo.IME_ACTION_DONE
+                                // 多行框必须带 MULTI_LINE 标志，否则输入法只给「完成」不换行；
+                                // 单行才使用「完成」收起键盘。
+                                inputType = if (singleLine) {
+                                    InputType.TYPE_CLASS_TEXT
+                                } else {
+                                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                                }
+                                imeOptions = if (singleLine) {
+                                    EditorInfo.IME_ACTION_DONE
+                                } else {
+                                    EditorInfo.IME_ACTION_NONE
+                                }
 
                                 background = null
                                 setPadding(0, 0, 0, 0)
