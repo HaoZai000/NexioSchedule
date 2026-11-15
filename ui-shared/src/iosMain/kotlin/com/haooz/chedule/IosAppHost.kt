@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeUIViewController
 import com.haooz.chedule.data.platform.NexioLog
+import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
@@ -355,6 +356,14 @@ class IosAppHost {
 
     /** System appearance comes from SwiftUI above all app and wallpaper style overrides. */
     fun updateSystemDarkTheme(isDark: Boolean) {
+        // Seed UIKit before the first Compose frame; later page/wallpaper overrides own navigation.isDark.
+        if (systemDarkTheme == null) {
+            navigation.isDark = when (AppStorage.store("app_theme_prefs").getString("theme_mode", "system")) {
+                "dark" -> true
+                "light" -> false
+                else -> isDark
+            }
+        }
         systemDarkTheme = isDark
     }
 

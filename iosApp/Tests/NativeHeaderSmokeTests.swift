@@ -296,6 +296,63 @@ final class NativeHeaderSmokeTests: XCTestCase {
         requireNativeHeader("关于应用")
     }
 
+    private func requireAppearance(_ dark: Bool, _ phase: String) throws {
+        settle()
+        let image = try XCTUnwrap(app.screenshot().image.cgImage)
+        // The empty right gutter stays outside text, cards and native glass chrome.
+        let pixel = try XCTUnwrap(image.cropping(to: CGRect(
+            x: CGFloat(image.width) * 0.98, y: CGFloat(image.height) * 0.5,
+            width: 1, height: 1)))
+        var rgba = [UInt8](repeating: 0, count: 4)
+        try rgba.withUnsafeMutableBytes { bytes in
+            let context = try XCTUnwrap(CGContext(
+                data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(pixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        let brightness = Double(Int(rgba[0]) + Int(rgba[1]) + Int(rgba[2])) / (3 * 255)
+        capture("Theme - \(phase)")
+        XCTAssertTrue(dark ? brightness < 0.25 : brightness > 0.65,
+                      "\(phase): expected \(dark ? "dark" : "light"), brightness=\(brightness)")
+    }
+
+    /// Save a fixed theme first, without wallpaper/theme overrides, then opt in with
+    /// TEST_RUNNER_MANUAL_THEME_EXPECTED=dark/light. This test never changes the preference.
+    func testManualThemeColdLaunchBeforeOpeningSettings() throws {
+        let expected = ProcessInfo.processInfo.environment["MANUAL_THEME_EXPECTED"]
+        try XCTSkipUnless(expected == "dark" || expected == "light",
+                          "Save a fixed theme and opt into the manual cold-launch fixture")
+        let dark = expected == "dark"
+        try requirePhoneWidthSettings()
+
+        for attempt in 1...3 {
+            if attempt > 1 {
+                app.terminate()
+                app.launch()
+                XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+            }
+            XCTAssertTrue(settingsEntry.waitForExistence(timeout: 5), app.debugDescription)
+            XCTAssertFalse(settingsEntry.isSelected, "Fixture must launch on the main tab")
+            try requireAppearance(dark, "fixed theme cold launch \(attempt), before settings")
+        }
+
+        showSettings()
+        try requireAppearance(dark, "settings after fixed-theme cold launch")
+        open("应用个性化")
+        requireNativeHeader("应用个性化")
+        let automatic = app.switches.matching(NSPredicate(
+            format: "label CONTAINS %@", "自动切换深色模式")).firstMatch
+        XCTAssertTrue(automatic.exists, app.debugDescription)
+        let toggle = try XCTUnwrap(app.switches.allElementsBoundByIndex.first {
+            $0.frame.width < 100 && $0.frame.intersects(automatic.frame) && $0.isHittable
+        }, app.debugDescription)
+        XCTAssertFalse(toggle.isSelected, "Fixture must use a saved fixed theme")
+        nativeBack()
+        app.tabBars.buttons.element(boundBy: 0).tap()
+        try requireAppearance(dark, "main tab after returning from settings")
+    }
+
     /// Opt in with TEST_RUNNER_SYSTEM_THEME_EXPECTED=dark/light and set simctl appearance first.
     /// The simulator fixture must use automatic mode and no wallpaper/theme override.
     func testAutomaticThemeColdLaunchAndManualOverride() throws {
@@ -304,27 +361,6 @@ final class NativeHeaderSmokeTests: XCTestCase {
                           "Set the system appearance and opt into the theme regression fixture")
         let systemDark = expected == "dark"
         try requirePhoneWidthSettings()
-
-        func requireAppearance(_ dark: Bool, _ phase: String) throws {
-            settle()
-            let image = try XCTUnwrap(app.screenshot().image.cgImage)
-            // The empty right gutter stays outside text, cards and native glass chrome.
-            let pixel = try XCTUnwrap(image.cropping(to: CGRect(
-                x: CGFloat(image.width) * 0.98, y: CGFloat(image.height) * 0.5,
-                width: 1, height: 1)))
-            var rgba = [UInt8](repeating: 0, count: 4)
-            try rgba.withUnsafeMutableBytes { bytes in
-                let context = try XCTUnwrap(CGContext(
-                    data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
-                    space: CGColorSpaceCreateDeviceRGB(),
-                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-                context.draw(pixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
-            }
-            let brightness = Double(Int(rgba[0]) + Int(rgba[1]) + Int(rgba[2])) / (3 * 255)
-            capture("Theme - \(phase)")
-            XCTAssertTrue(dark ? brightness < 0.25 : brightness > 0.65,
-                          "\(phase): expected \(dark ? "dark" : "light"), brightness=\(brightness)")
-        }
 
         try requireAppearance(systemDark, "cold launch before opening any page")
         showSettings()
