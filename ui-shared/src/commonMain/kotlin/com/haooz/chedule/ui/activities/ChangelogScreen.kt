@@ -104,15 +104,6 @@ fun ChangelogScreen(
         )
     }
 
-    val rotations = List(changelogData.size) { index ->
-        val rotation by animateFloatAsState(
-            targetValue = if (expandedStates[index]) 90f else -90f,
-            animationSpec = tween(durationMillis = 200),
-            label = "changelogRotation$index"
-        )
-        rotation
-    }
-
     Scaffold(
         topBar = {}
     ) { paddingValues ->
@@ -144,6 +135,13 @@ fun ChangelogScreen(
                     .continuousBackground(CardDefaults.defaultColors().color, CardDefaults.CornerRadius)
             ) {
                 changelogData.take(renderCount).forEachIndexed { index, entry ->
+                    // 只为当前可见条目建旋转动画。预加载期只排首屏 4 条，别为全部 42 条
+                    // 各建一份 Animatable + State + 协程；补齐发生在落定后的静止帧。
+                    val rotation by animateFloatAsState(
+                        targetValue = if (expandedStates[index]) 90f else -90f,
+                        animationSpec = tween(durationMillis = 200),
+                        label = "changelogRotation$index",
+                    )
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -186,7 +184,7 @@ fun ChangelogScreen(
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(16.dp)
-                                    .graphicsLayer { rotationZ = rotations[index] },
+                                    .graphicsLayer { rotationZ = rotation },
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantActions
                             )
                         }

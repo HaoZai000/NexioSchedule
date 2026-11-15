@@ -61,12 +61,7 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
@@ -101,7 +96,10 @@ import com.haooz.chedule.ui.basic.LiquidGlassTextButton
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.components.text.miuix.Text
+import com.haooz.chedule.ui.effects.motion.ArcBendShape
 import com.haooz.chedule.ui.effects.motion.MORPH_BACKGROUND_DIM
+import com.haooz.chedule.ui.effects.motion.arcBend
+import com.haooz.chedule.ui.effects.motion.arcBendSupported
 import com.haooz.chedule.ui.navigation.NAV_BG_DIM
 import com.haooz.chedule.ui.navigation.NAV_ENTER_DURATION
 import com.haooz.chedule.ui.navigation.NAV_ENTER_EASING
@@ -129,7 +127,6 @@ import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
-import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import top.yukonga.miuix.kmp.basic.Card
@@ -872,10 +869,20 @@ private const val OobeFlipDipRatio = 0.5f
 /** 卡片圆角（dp），与 miuix Card 一致。 */
 private const val OobeFlipCardCornerDp = 20f
 
-/** 翻转中上下的最大收缩量（dp）：透视下像纸被折弯。 */
+/** 第二段：翻转中上下的最大收缩量（dp），背面协议页专用，保持原值。 */
 private const val OobeFlipMaxCurveDp = 110f
 
-/** 弧度强度：起始与落定为直边，翻到中段最弯。 */
+/**
+ * 第一段：正面语言卡「左内凹 → 右鼓起」的最大弯曲幅度（相对半高，无量纲）。
+ * 用比例而不是 dp：卡片高度远小于屏高，按绝对像素限幅会让两段的弯度对不上。
+ */
+private const val OobeFlipFrontBend = 0.35f
+
+/** 降级「模糊切换」的起始模糊（dp）与缩放幅度；落定时都归零。 */
+private const val OobeFallbackBlurDp = 12f
+private const val OobeFallbackShrink = 0.04f
+
+/** 弧度强度：起始与落定为直边，翻到中段最弯。两段曲线共用这条时间线。 */
 private fun oobeFlipCurve(p: Float): Float = sin(PI.toFloat() * p)
 
 /** 展开相位：平滑 0 → 1。正反面的宽高与圆角都读它，保证三者在同一条曲线上。 */
@@ -954,13 +961,19 @@ internal fun OobeFlipLayer(
     language: LanguagePref,
     page: @Composable () -> Unit,
 ) {
+    // AGSL/SkSL 是这段转场唯一的实现路径；能力探测（含 shader 编译）只在组合期做一次。
+    val shaderAvailable = remember { arcBendSupported() }
+    // 只有 Android < 33（无 AGSL）或 shader 编译失败才降级成模糊淡入切换；
+    // 桌面 / iOS / 鸿蒙走 SkSL 跑同一份 shader，这里同样拿到 true。
+    if (!shaderAvailable) {
+        OobeBlurCrossfade(progress = progress, content = page)
+        return
+    }
+
     val densityScope = LocalDensity.current
     val cornerPx = with(densityScope) { OobeFlipCardCornerDp.dp.toPx() }
     val maxCurvePx = with(densityScope) { OobeFlipMaxCurveDp.dp.toPx() }
     val screenCorners = rememberScreenCornerRadiiPx()
-    // 逐列变形的录制层：正反面各一份，每帧内容只完整画一次
-    val pageLayer = rememberGraphicsLayer()
-    val cardLayer = rememberGraphicsLayer()
     val frame = remember { OobeFlipFrame() }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -990,10 +1003,7 @@ internal fun OobeFlipLayer(
             OobeFlipCardShape(progress, cardWidth, cardHeight, screenWidth, screenHeight, cornerPx)
         }
 
-        // 背景压暗：翻转期间盖一层黑幕，退场的语言页被按下去，卡片面才立得住。
-        // 峰值取 MORPH_BACKGROUND_DIM，与课程详情/编辑的卡片 ⇄ 全屏形变同一档；
-        // 进度单调递增（背景只能一路变暗，不能回亮），落定那一帧直接不画：
-        // 此时页面已铺满、黑幕本就看不见，留着反而会在页面圆角之外露出四个黑色直角。
+        // 背景压暗：翻转期间盖一层黑幕，退场的语言页被按下去，卡片面才立得住
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1029,11 +1039,10 @@ internal fun OobeFlipLayer(
                     rotationY = -OobeFlipDegrees * (1f + p)
                     alpha = if (p > 0.5f) 1f else 0f
                 }
-                .oobeArcShrink(
-                    pageLayer,
-                    { maxCurvePx * oobeFlipCurve(progress()) },
+                .arcBend(
+                    shape = ArcBendShape.RightShrink,
+                    amplitude = { maxCurvePx * oobeFlipCurve(progress()) },
                     visible = { progress() > 0.5f },
-                    shrinkRight = true,
                 )
                 .clip(revealShape),
         ) { page() }
@@ -1062,13 +1071,12 @@ internal fun OobeFlipLayer(
                     translationX = frame.dip
                     alpha = if (p < 0.5f) 1f else 0f
                 }
-                // 与背面同一套逐列变形，收缩端在左；卡片矮，弧量按卡片高度限幅
-                .oobeArcShrink(
-                    cardLayer,
-                    { min(maxCurvePx, cardHeight * 0.35f) * oobeFlipCurve(progress()) },
+                // 第一段独立曲线：左内凹、右鼓起，动画里随 oobeFlipCurve 逐渐展开。
+                // 不再按卡片高度限幅，也不再与背面共用曲线。
+                .arcBend(
+                    shape = ArcBendShape.InwardOutward,
+                    amplitude = { OobeFlipFrontBend * oobeFlipCurve(progress()) },
                     visible = { progress() <= 0.5f },
-                    shrinkRight = false,
-                    concave = true,
                 )
                 .clip(cardCornerShape),
         ) {
@@ -1086,44 +1094,43 @@ internal fun OobeFlipLayer(
 }
 
 /**
- * 按列把内容纵向压缩，做出「一侧弧形收缩」的变形（内容本身一起弯，不只是外形）。
- *
- * 内容先录进 [layer]，再按列切片绘制该图层。逐列直接 drawContent() 会让一帧把整页
- * 重绘 64 次，必掉帧；切片后每帧只完整画一次。
+ * 兜底降级（Android < 33 或 shader 编译失败）：不做 3D 翻转和弯曲，
+ * 只做引导页常见的「模糊淡入」切换
  */
-private fun Modifier.oobeArcShrink(
-    layer: GraphicsLayer,
-    curve: () -> Float,
-    /** 这一面当前是否可见；不可见时连录制一起跳过 */
-    visible: () -> Boolean = { true },
-    shrinkRight: Boolean = true,
-    concave: Boolean = false,
-): Modifier = drawWithContent {
-    if (!visible()) return@drawWithContent
-    layer.record { this@drawWithContent.drawContent() }
-    val c = curve()
-    val w = size.width
-    val h = size.height
-    if (c < 0.5f || w <= 0f || h <= 0f) {
-        drawLayer(layer)
-        return@drawWithContent
-    }
-    val cy = h / 2f
-    // 列数越多曲线越顺；相邻列边缘各外扩半像素，压掉接缝
-    val cols = 64
-    for (i in 0 until cols) {
-        val u0 = i / cols.toFloat()
-        val u1 = (i + 1) / cols.toFloat()
-        val mid = (u0 + u1) / 2f
-        val k = if (shrinkRight) mid else 1f - mid
-        // 正面卡反弧形（一端满高、另一端内凹），背面右侧弧形收缩
-        val arc = if (concave) k * k * (3f - 2f * k) else k * k * k
-        val squeeze = 1f - (c * arc) / cy
-        clipRect(u0 * w - 0.5f, 0f, u1 * w + 0.5f, h) {
-            scale(1f, squeeze, pivot = Offset(mid * w, cy)) {
-                drawLayer(layer)
+@Composable
+private fun OobeBlurCrossfade(
+    progress: () -> Float,
+    content: @Composable () -> Unit,
+) {
+    val density = LocalDensity.current
+    val maxBlurPx = remember(density) { with(density) { OobeFallbackBlurDp.dp.toPx() } }
+    val blurSupported = remember { isRenderEffectSupported() }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .drawBehind {
+                val p = progress()
+                // 压暗比翻转档轻一档；落定帧不画，避免露出黑色直角
+                if (p < 1f) {
+                    val a = MORPH_BACKGROUND_DIM * 0.5f * p
+                    if (a > 0.001f) drawRect(Color.Black.copy(alpha = a))
+                }
             }
-        }
+            .graphicsLayer {
+                val p = progress().coerceIn(0f, 1f)
+                alpha = p
+                val scale = 1f - OobeFallbackShrink * (1f - p)
+                scaleX = scale
+                scaleY = scale
+                val radius = maxBlurPx * (1f - p)
+                renderEffect = if (blurSupported && radius > 0.01f) {
+                    BlurEffect(null, radius, radius, TileMode.Clamp)
+                } else {
+                    null
+                }
+            },
+    ) {
+        content()
     }
 }
 

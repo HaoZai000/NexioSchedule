@@ -272,11 +272,14 @@ private fun OnboardingFlowContent(
 
             // 停在完成页时，语言页撤掉；流光背景要留着——完成页正是铺在它上面
             val onFinishPage = page == OobePage.Setup && setupState.isFinishStep()
+            // 翻转未落定时暂停流光：此时下层被缩小 + 模糊 + 压暗盖着，逐帧重绘
+            // 只会让上层那张全屏模糊每帧失效。derivedStateOf 只在落定那一帧重组一次。
+            val flipping = page == OobePage.Setup && !flipSettled
 
             // 常驻一份实时流光背景：流光不停，进出引导都不会像快照那样闪一下。
             // 完成页自己带一份（必须落在玻璃采样层里，按钮才采得到），这里就不再叠第二个
             if (!onFinishPage) {
-                OnboardingWelcomeBackdrop()
+                OnboardingWelcomeBackdrop(playing = !flipping)
             }
 
             if (rippleSupported && page == OobePage.Welcome) {

@@ -98,11 +98,17 @@ internal object WelcomeLayout {
  * 欢迎页的实时流光背景（与「关于」页同款，淡蓝色调）。
  *
  * 由 [OnboardingFlow] 常驻一份，形变时只做缩放 + 模糊，流光本身不停，进出不会闪。
+ *
+ * @param playing 翻转期间置 false：下层此时被缩放、模糊、压暗盖着，流光继续逐帧
+ *   重绘只会让上层的全屏模糊每帧失效，暂停 520ms 肉眼无感。
  */
 @Composable
-internal fun OnboardingWelcomeBackdrop(modifier: Modifier = Modifier) {
+internal fun OnboardingWelcomeBackdrop(
+    modifier: Modifier = Modifier,
+    playing: Boolean = true,
+) {
     BgEffectBackgroundWithPreset(
-        dynamicBackground = true,
+        dynamicBackground = playing,
         presetOverride = if (isAppDarkTheme()) OobeBluePresetDark else OobeBluePresetLight,
         timeScale = 0.6f,
         isFullSize = true,

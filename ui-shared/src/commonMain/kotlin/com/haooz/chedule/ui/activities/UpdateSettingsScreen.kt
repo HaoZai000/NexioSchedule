@@ -106,6 +106,9 @@ import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.data.ChangelogEntry
 import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.effects.motion.ArcBendAxis
+import com.haooz.chedule.ui.effects.motion.ArcBendShape
+import com.haooz.chedule.ui.effects.motion.arcBend
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.HostNavigationState
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
@@ -190,6 +193,31 @@ private const val HeroOpenHeightRatio = 0.12f
 
 /** 相机距离（乘以 density 转成像素）：越小透视越猛 */
 private const val HeroFlipCamera = 40f
+
+/**
+ * 版本卡 → 日志页的两段弯曲，复用引导页那套通用形变（见 ArcBendShader.kt）。
+ * 引导页是绕纵轴（rotationY）左右翻，弯曲按 x 变化；**这里是绕横轴（rotationX）上下翻，
+ * 两段都必须传 `ArcBendAxis.Vertical`**，按 y 变化、做横向缩放。
+ * 正面卡（flip < 0.5）走 InwardOutward「上内凹 → 下鼓起」，背面日志页（flip > 0.5）
+ * 走 RightShrink「下端收缩」。第一段幅度与引导页一致；第二段因为 Vertical 轴分母更小，
+ * 补偿后又单独放大，见 HeroChangelogBackCurveBoost，别把两处幅度当成同一个值。
+ */
+
+/** 第一段：正面卡的最大弯曲幅度（相对半轴，无量纲）。 */
+private const val HeroChangelogFrontBend = 0.35f
+
+/** 第二段：背面日志页的收缩基准（dp），还要按屏幕宽高比补偿、再乘下方倍数。 */
+private const val HeroChangelogBackCurveDp = 110f
+
+/**
+ * 第二段幅度相对引导页基准的放大倍数。
+ * 补偿到 Vertical 轴后基准只把宽度收到约 75%，更新页要明显得多才有「翻过去」的形变感；
+ * 真机调这一个常量即可，别去改 shader 曲线。
+ */
+private const val HeroChangelogBackCurveBoost = 2.2f
+
+/** 弯曲强度：两端直边、中段最弯，与 U 型下潜共用同一条 sin(πp) 时间线。 */
+private fun heroFlipCurve(p: Float): Float = sin(PI.toFloat() * p)
 
 /** 开卡动效时长（位移 + 翻转同一段）。 */
 private const val HeroOpenMotionMs = 520
@@ -1045,6 +1073,9 @@ internal fun UpdateChangelogMorphLayer(
     val cardRect = origin.rect
     val densityScope = LocalDensity.current
     val screenCorners = rememberScreenCornerRadiiPx()
+    // 第二段的基准幅度（与引导页同值）；Vertical 轴下还要在 BoxWithConstraints 里
+    // 乘 screenWidth/screenHeight，补偿「分母从半高变半宽」带来的强度差异
+    val maxCurvePx = with(densityScope) { HeroChangelogBackCurveDp.dp.toPx() }
     // 展开到位后才补齐日志页剩余条目：点开那一刻只排首屏那几条，预加载才够快
     val settled by remember { derivedStateOf { heroGrowProgress(grow()) >= 0.999f } }
     // 翻过 90° 正面那张卡已经看不见了，必须卸载：它压在日志页之上，
@@ -1119,7 +1150,7 @@ internal fun UpdateChangelogMorphLayer(
                         // 中心跟着展开一起从卡片中心滑向屏幕中心
                         val centerX = cardCenterX + (screenWidth / 2f - cardCenterX) * grown
                         // 与正面同一条 U 型轨迹：先下潜，再翻上来
-                        val dip = cardHeight * HeroFlipDipRatio * sin(PI.toFloat() * p)
+                        val dip = cardHeight * HeroFlipDipRatio * heroFlipCurve(p)
                         val centerY =
                             cardCenterY + (screenHeight / 2f - cardCenterY) * grown + dip
                         cameraDistance = HeroFlipCamera * density
@@ -1136,6 +1167,13 @@ internal fun UpdateChangelogMorphLayer(
                         rotationX = HeroFlipDegrees * (1f + p)
                         alpha = if (p > 0.5f) 1f else 0f
                     }
+                    // 第二段：日志页「末段收缩逐渐收」，曲线与引导页同一条
+                    .arcBend(
+                        shape = ArcBendShape.RightShrink,
+                        amplitude = { maxCurvePx * heroFlipCurve(flip()) },
+                        axis = ArcBendAxis.Vertical,
+                        visible = { flip() > 0.5f },
+                    )
                     .clip(revealShape)
                     // 整页自己接住点击：铺开后点空白处不该再落到下面的遮罩上退出。
                     // 必须放在 graphicsLayer 之内，触摸区域才会跟着翻转/缩放的那条矩形走
@@ -1144,6 +1182,10 @@ internal fun UpdateChangelogMorphLayer(
                 DocumentPageScaffold(
                     title = ChromeStr.changelog(),
                     onBack = onClose,
+                    // 翻转期间内容静止（只排首屏 4 条、页内不可滚动）：给采样层一个稳定键。
+                    // recordKey 默认 null = 每帧把整页重录一遍供顶栏玻璃采样，那才是卡顿主因。
+                    // 落定后回到 null 恢复常规重录，滚动时玻璃不会冻结在旧帧。
+                    recordKey = if (settled) null else Unit,
                 ) { scrollBehavior, _ ->
                     ChangelogScreen(scrollBehavior = scrollBehavior, settled = settled)
                 }
@@ -1167,16 +1209,24 @@ internal fun UpdateChangelogMorphLayer(
                         transformOrigin = TransformOrigin(0.5f, 0.5f)
                         rotationX = HeroFlipDegrees * p
                         // 与背面同一条 U 型轨迹
-                        translationY = cardHeight * HeroFlipDipRatio * sin(PI.toFloat() * p)
+                        translationY = cardHeight * HeroFlipDipRatio * heroFlipCurve(p)
                         alpha = if (p < 0.5f) 1f else 0f
                     }
+                    // 第一段：版本卡「上内凹 → 下鼓起」逐渐展开，单曲率无拐点。
+                    // 与引导页语言卡同一幅度（相对半轴比例），只把弯曲轴换成上下方向。
+                    .arcBend(
+                        shape = ArcBendShape.InwardOutward,
+                        amplitude = { HeroChangelogFrontBend * heroFlipCurve(flip()) },
+                        axis = ArcBendAxis.Vertical,
+                        visible = { flip() <= 0.5f },
+                    )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onClose,
                     )
             ) {
-                HeroCardFace(highlighted = origin.hasUpdate) { glass ->
+                HeroCardFace(highlighted = origin.hasUpdate, replayEnter = false) { glass ->
                     HeroCardFront(
                         version = origin.version,
                         entry = origin.entry,
@@ -1201,6 +1251,8 @@ internal fun UpdateChangelogMorphLayer(
 private fun HeroCardFace(
     sheenOnEnter: Boolean = false,
     highlighted: Boolean = false,
+    /** 浮层替身卡是「同一张卡接着翻面」，不重播任何进场动效 */
+    replayEnter: Boolean = true,
     content: @Composable (glass: GlassBackdrop?) -> Unit,
 ) {
     // 与设置页普通卡片同圆角，视觉上属于同一套器件
@@ -1230,10 +1282,13 @@ private fun HeroCardFace(
             sheen.snapTo(1f)
         }
     }
-    // 课表格线跟随首次高光逐条显影
-    val gridReveal = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        gridReveal.animateTo(1f, tween(1000, delayMillis = 100, easing = LinearEasing))
+    // 课表格线跟随首次高光逐条显影。浮层替身卡直接落到终态：它若重播这段 1s 动画，
+    // 翻转的 600ms 里 drawBehind 每帧读 state、整张卡（含 layerBackdrop）每帧重绘。
+    val gridReveal = remember { Animatable(if (replayEnter) 0f else 1f) }
+    LaunchedEffect(replayEnter) {
+        if (replayEnter) {
+            gridReveal.animateTo(1f, tween(1000, delayMillis = 100, easing = LinearEasing))
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
