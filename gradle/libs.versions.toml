@@ -38,6 +38,9 @@ miuixNavigation3 = "0.9.3"
 
 materialKolor = "4.1.1"               # Material Color for Multiplatform（miuix theme 依赖）
 
+# Lottie 播放
+compottie = "2.3.3"
+
 # 序列化 / 网络
 gson = "2.11.0"                       # Gson JSON 序列化
 okhttp = "4.12.0"                     # OkHttp HTTP 客户端（版本硬编码于 libraries 段）
@@ -95,6 +98,8 @@ shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref
 navigationevent-compose = { group = "androidx.navigationevent", name = "navigationevent-compose", version.ref = "navigationevent" }  # SearchBar 返回处理
 
 materialKolor-utilities = { group = "com.materialkolor", name = "material-color-utilities", version.ref = "materialKolor" } # Material Color（miuix theme 依赖）
+
+compottie = { group = "io.github.alexzhirkevich", name = "compottie", version.ref = "compottie" } # Lottie 解析与绘制（KMP）
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }     # Android 应用插件

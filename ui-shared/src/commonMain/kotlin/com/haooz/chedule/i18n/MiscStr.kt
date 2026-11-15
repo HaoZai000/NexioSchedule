@@ -2,7 +2,7 @@ package com.haooz.chedule.i18n
 
 /**
  * 杂项工具与页面的文案：分享编解码（ShareScheduleCodec）、玻璃材质档位（AppMaterialSettings）、
- * 隐私同意弹窗（PrivacyConsentScreen）、第三方口令导入（ThirdPartyShare）、WebDAV 设置页。
+ * 隐私政策入口、第三方口令导入（ThirdPartyShare）、WebDAV 设置页。
  */
 object MiscStr {
 
@@ -40,16 +40,9 @@ object MiscStr {
     val materialBalanced = L("清透磨砂", "Frosted Glass")
     val materialNone = L("无材质", "No Material")
 
-    // ---- 隐私政策同意弹窗 ----
+    // ---- 隐私政策 ----
 
-    val privacyPolicyTitle = L("隐私政策", "Privacy Policy")
-    val privacyConsentSummary = L(
-        "欢迎使用 Nexio 课程表。\n\n为提供课程表、课程提醒、天气等功能，我们需要在您同意后申请必要权限，并处理实现功能所必需的信息。\n您的课程数据默认仅保存在本机，设备信息仅用于匿名统计且不含身份信息。",
-        "Welcome to Nexio Schedule.\n\nTo provide the schedule, course reminders, weather and other features, we need your consent to request the necessary permissions and to process the information required to implement them.\nYour course data is stored on this device only by default; device information is used for anonymous statistics only and contains no identity information.",
-    )
     val privacyPolicyLink = L("《Nexio 课程表隐私政策》", "Nexio Schedule Privacy Policy")
-    val agreeAndContinue = L("同意并继续", "Agree & Continue")
-    val disagree = L("不同意", "Disagree")
 
     // ---- 第三方口令导入（WakeUp / 星链） ----
 

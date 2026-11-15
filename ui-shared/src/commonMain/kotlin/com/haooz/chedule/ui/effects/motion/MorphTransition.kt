@@ -80,6 +80,12 @@ private const val FULL_SCALE_EPSILON = 0.999f
 /** 形变背景快照的收缩比例（1 = 原尺寸），编辑页与课程详情共用。 */
 const val MORPH_BACKGROUND_SHRINK = 0.9f
 
+/**
+ * 「纵深」转场的背景压暗峰值：黑幕 alpha = 进度 × 它。
+ * 卡片 ⇄ 全屏这一类（课程详情/编辑的形变、引导页的语言卡翻转）统一读这一档
+ */
+const val MORPH_BACKGROUND_DIM = 0.5f
+
 /** 卡片 → 全屏形变的一帧状态。 */
 data class MorphAnimState(
     val bgAlpha: Float,
@@ -368,7 +374,11 @@ fun rememberMorphTransition(
             } else {
                 val p = animProgress.value
                 val ty = animTransY.value
-                val bgAlpha = if (embedded) 0f else (p * 0.5f).coerceIn(0f, 0.5f)
+                val bgAlpha = if (embedded) {
+                    0f
+                } else {
+                    (p * MORPH_BACKGROUND_DIM).coerceIn(0f, MORPH_BACKGROUND_DIM)
+                }
                 val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
                 val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
                 // coerceAtLeast 防止窄卡片时 scale 变负翻转

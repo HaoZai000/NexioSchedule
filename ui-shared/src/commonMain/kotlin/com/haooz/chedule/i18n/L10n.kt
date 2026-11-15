@@ -20,6 +20,9 @@ class L10n(private val zh: String, private val en: String) {
     /** 值是否为本条目的某一语言原文（默认名匹配等基础设施用） */
     internal fun matchesRaw(text: String): Boolean = text == zh || text == en
 
+    /** 指定语言取原文：轮播/预览需要在同一屏同时展示中英文时用。 */
+    internal fun raw(isZh: Boolean): String = if (isZh) zh else en
+
     operator fun invoke(vararg args: Any?): String {
         val template = if (AppLanguage.isZh) zh else en
         if (args.isEmpty()) return template

@@ -2,6 +2,7 @@ package com.haooz.chedule.ui.activities.main
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -26,7 +28,9 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -52,6 +56,7 @@ import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.LanguageStore
+import com.haooz.chedule.ui.screens.OnboardingFlow
 import com.haooz.chedule.ui.activities.today.TodayAssistantCardData
 import com.haooz.chedule.ui.components.SharedFileIntent
 import com.haooz.chedule.ui.components.TabletNavSamplingTracker
@@ -60,6 +65,11 @@ import com.haooz.chedule.ui.components.rememberPageSwitchState
 import com.haooz.chedule.ui.effects.motion.CUSTOMIZE_COVER_FADE_MILLIS
 import com.haooz.chedule.ui.effects.motion.CUSTOMIZE_COVER_SCALE_MILLIS
 import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
+import com.haooz.chedule.ui.effects.motion.OOBE_HOME_ENTER_MILLIS
+import com.haooz.chedule.ui.effects.motion.OOBE_HOME_FADE_DELAY_MILLIS
+import com.haooz.chedule.ui.effects.motion.OOBE_HOME_FADE_MILLIS
+import com.haooz.chedule.ui.effects.motion.OobeHomeSpringEasing
+import com.haooz.chedule.ui.effects.motion.OobeSinOutEasing
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.utils.AppMaterialSettings
@@ -73,6 +83,7 @@ import com.haooz.chedule.ui.utils.rememberScheduleThemeMode
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
+import com.haooz.chedule.ui.utils.toShape
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -150,6 +161,52 @@ fun CourseScheduleApp(
 ) {
     // 语言偏好只在根组合恢复一次：AppLanguage.set 自己落盘，重建后读回同值。
     remember { AppLanguage.init(LanguageStore.load()) }
+
+    // 隐私同意完全由引导的协议页接管，展示条件与同意状态等价：
+    // 未同意「当前版本」隐私政策就先走一遍引导（政策版本递增即全员重新经历）。
+    var showOnboarding by remember { mutableStateOf(!privacyConsented) }
+    LaunchedEffect(privacyConsented) {
+        if (!privacyConsented) showOnboarding = true
+    }
+    // 主界面延迟加载：引导走到「欢迎使用 Nexio 课程表」页之前，主内容一个都不组合
+    var mainContentReady by remember { mutableStateOf(!showOnboarding) }
+    // 主界面首帧画完才算加载完成：引导用它决定「开始使用」何时出现
+    var mainContentLoaded by remember { mutableStateOf(!showOnboarding) }
+    // 引导退场时主界面从 1.36 弹到 1，同时延迟 60ms 淡入（参考 oobeToHomeTransform，幅度略放大）
+    var onboardingFinishing by remember { mutableStateOf(false) }
+    // 入场圆角裁切要在动画结束前一直保留（引导消失比入场动画早，不能拿 showOnboarding 当判据）
+    var mainEnterClipActive by remember { mutableStateOf(false) }
+    LaunchedEffect(onboardingFinishing) {
+        if (!onboardingFinishing) return@LaunchedEffect
+        mainEnterClipActive = true
+        delay(OOBE_HOME_ENTER_MILLIS.toLong())
+        mainEnterClipActive = false
+    }
+    val mainEnterScale by animateFloatAsState(
+        targetValue = if (onboardingFinishing || !showOnboarding) 1f else 1.36f,
+        animationSpec = tween(
+            OOBE_HOME_ENTER_MILLIS,
+            easing = OobeHomeSpringEasing,
+        ),
+        label = "mainEnterScale",
+    )
+    val mainEnterAlpha by animateFloatAsState(
+        targetValue = if (onboardingFinishing || !showOnboarding) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = OOBE_HOME_FADE_MILLIS,
+            delayMillis = OOBE_HOME_FADE_DELAY_MILLIS,
+            easing = OobeSinOutEasing,
+        ),
+        label = "mainEnterAlpha",
+    )
+    LaunchedEffect(mainContentReady) {
+        if (!mainContentReady) return@LaunchedEffect
+        withFrameNanos { }
+        withFrameNanos { }
+        // 再等一会儿：主界面首帧的布局/绘制落地后再让按钮出现，避免出现时卡一下
+        delay(200)
+        mainContentLoaded = true
+    }
 
     val viewModel: CourseViewModel = courseViewModel()
     val scheduleViewModel: ScheduleViewModel = scheduleViewModel()
@@ -651,7 +708,9 @@ fun CourseScheduleApp(
                 host.selectedTab = selectedTab
                 host.tabCount = if (isShiftMode) 2 else 3
                 host.shiftMode = isShiftMode
-                host.showsNativeTabBar = nativeBottomBar
+                // 引导期间收起原生底栏与顶栏：引导盖满全屏，原生的 UITabBar / 导航栏是
+                // UIKit 画的、压在 Compose 之上，不收起会浮在引导页上面
+                host.showsNativeTabBar = nativeBottomBar && !showOnboarding
                 host.isTabletLayout = isTablet
                 host.isDark = effectiveIsDark
                 // Swift 侧读这些值自行施加与 Compose 主内容 / 底栏同一套开洞变换
@@ -665,7 +724,8 @@ fun CourseScheduleApp(
                         switchPendingReverse || (showSwitchSchedule && switchExiting)
                 // 不含 `!showDetail`：详情页盖满全屏，原生顶栏本就被挡住。
                 host.showsNativeHeader = nativeBottomBar && !isTablet && !isWindowCutoutActive &&
-                        !showCustomizePage && (!showSwitchSchedule || switchExiting)
+                        !showCustomizePage && (!showSwitchSchedule || switchExiting) &&
+                        !showOnboarding
                 // 课表外观页（含开洞进出场）不清空原生顶栏：宿主拿 cutoutScale 自己施加同一套变换，
                 // 右上角菜单跟着一起移动缩小，而不是消失。
                 host.keepsNativeHeaderDuringCutout = nativeBottomBar && !isTablet &&
@@ -845,22 +905,59 @@ fun CourseScheduleApp(
                 enabled = !materialNone,
             )
 
-            CourseScheduleAppMainContent(
-                state = state,
-                displayAppearance = displayAppearance,
-                chromeBackdrop = mainContentBackdrop,
-                liquidGlassRecordKey = liquidGlassRecordKey,
-                liquidGlassMustRecord = liquidGlassMustRecord,
-                wallpaperImage = wallpaperBitmap,
-                originalWallpaperImage = originalWallpaperBitmap,
-                softGlassSurface = scheduleGlassSurface,
-            )
-            CourseScheduleAppOverlayLayers(
-                state = state,
-                displayAppearance = displayAppearance,
-                isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning,
-                scheduleGlassStyle = scheduleGlassStyle,
-            )
+            if (mainContentReady) {
+                // 引导退场期间主界面同步从 1.36 弹到 1，弹出过程中按屏幕圆角裁切
+                val enterClipShape = remember(screenCornerRadius, densityProvider) {
+                    if (screenCornerRadius.maxRadius > 0f) {
+                        screenCornerRadius.toShape(densityProvider)
+                    } else {
+                        null
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = mainEnterAlpha
+                            scaleX = mainEnterScale
+                            scaleY = mainEnterScale
+                        }
+                        .then(
+                            if (mainEnterClipActive && enterClipShape != null) {
+                                Modifier.clip(enterClipShape)
+                            } else {
+                                Modifier
+                            },
+                        ),
+                ) {
+                    CourseScheduleAppMainContent(
+                        state = state,
+                        displayAppearance = displayAppearance,
+                        chromeBackdrop = mainContentBackdrop,
+                        liquidGlassRecordKey = liquidGlassRecordKey,
+                        liquidGlassMustRecord = liquidGlassMustRecord,
+                        wallpaperImage = wallpaperBitmap,
+                        originalWallpaperImage = originalWallpaperBitmap,
+                        softGlassSurface = scheduleGlassSurface,
+                    )
+                    CourseScheduleAppOverlayLayers(
+                        state = state,
+                        displayAppearance = displayAppearance,
+                        isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning,
+                        scheduleGlassStyle = scheduleGlassStyle,
+                    )
+                }
+            }
+
+            // 首启引导：盖在主界面与全部浮层之上；隐私同意也在这里完成
+            if (showOnboarding) {
+                OnboardingFlow(
+                    onFinish = { showOnboarding = false },
+                    onFinishStart = { onboardingFinishing = true },
+                    onReachedFinishPage = { mainContentReady = true },
+                    mainContentLoaded = mainContentLoaded,
+                )
+            }
         }
 
         // 「当前可见页背后有没有壁纸」要在组合期算再交给 SideEffect：只在 SideEffect 里读

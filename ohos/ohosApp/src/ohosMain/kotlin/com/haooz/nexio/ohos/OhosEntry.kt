@@ -20,7 +20,6 @@ import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.navigation.MainLayerTransition
 import com.haooz.chedule.ui.navigation.rememberNavTransitionState
-import com.haooz.chedule.ui.screens.PrivacyConsentScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import kotlin.experimental.ExperimentalNativeApi
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -83,9 +82,9 @@ private fun OhosRoot() {
     // 先同步一次磁盘状态，再按 StateFlow 观察：关于页「撤回同意」后弹窗会立即回来
     remember { PrivacyConsent.refresh() }
     val privacyAgreed by PrivacyConsent.consented.collectAsState()
-    LaunchedEffect(Unit) {
-        // 合规：仅在用户已同意隐私政策后上报设备信息
-        if (PrivacyConsent.hasConsented()) {
+    LaunchedEffect(privacyAgreed) {
+        // 合规：仅在用户已同意隐私政策后上报设备信息；首次同意发生在引导里，这里同样会触发
+        if (privacyAgreed) {
             StatsReporter.reportActive()
             StatsReporter.reportInstallOnce()
         }
@@ -114,23 +113,7 @@ private fun OhosRoot() {
                     OhosRouteContent(sharedRouter, route)
                 }
 
-                // 隐私弹窗是模态层：画在最后，自然盖住 Compose 画的底栏
-                if (!privacyAgreed) {
-                    PrivacyConsentScreen(
-                        onAgree = {
-                            PrivacyConsent.setConsented()
-                            StatsReporter.reportActive()
-                            StatsReporter.reportInstallOnce()
-                        },
-                        onDecline = { ShareHostBridge.request("exitApp", "") },
-                        onOpenPolicy = {
-                            sharedRouter.navigate(com.haooz.chedule.ui.navigation.AppRoute.PrivacyPolicy)
-                        },
-                        policyPageVisible = sharedRouter.routes.any {
-                            it == com.haooz.chedule.ui.navigation.AppRoute.PrivacyPolicy
-                        },
-                    )
-                }
+                // 隐私同意已由首启引导接管（引导覆盖在主界面之上），这里不再叠同意弹窗
             }
         }
     }

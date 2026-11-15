@@ -17,7 +17,12 @@ package com.haooz.chedule.ui.effects.motion
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 val OobeQuadraticOutEasing = Easing { fraction ->
     1f - (1f - fraction) * (1f - fraction)
@@ -80,4 +85,30 @@ const val CUSTOMIZE_COVER_WINDOW_MILLIS =
 val OobeFifthpowerOutEasing = Easing { fraction ->
     val inverse = 1f - fraction
     1f - inverse * inverse * inverse * inverse * inverse
+}
+
+/** 引导完成进入主界面的入场时长（毫秒）：参考为 619，这里略放长一点 */
+const val OOBE_HOME_ENTER_MILLIS = 700
+
+/** 引导完成时主界面淡入的时长与延迟（毫秒）。 */
+const val OOBE_HOME_FADE_MILLIS = 230
+const val OOBE_HOME_FADE_DELAY_MILLIS = 60
+
+val OobeSinOutEasing = Easing { fraction -> sin(fraction * PI.toFloat() / 2f) }
+
+/**
+ * 进入主界面的弹簧缓动（照抄参考 `OobeHomeSpringEasing`）：阻尼 0.65、角频率 10.5 的
+ * 欠阻尼阶跃响应，1.3 → 1 时过冲一次再收敛；曲线在 1f 处强制收敛。
+ */
+val OobeHomeSpringEasing = Easing { fraction ->
+    if (fraction <= 0f) return@Easing 0f
+    if (fraction >= 1f) return@Easing 1f
+    val dampingRatio = 0.65f
+    val angularFrequency = 10.5f
+    val dampedFrequency = angularFrequency * sqrt(1f - dampingRatio * dampingRatio)
+    val envelope = exp((-dampingRatio * angularFrequency * fraction).toDouble()).toFloat()
+    1f - envelope * (
+        cos(dampedFrequency * fraction) +
+            dampingRatio / sqrt(1f - dampingRatio * dampingRatio) * sin(dampedFrequency * fraction)
+        )
 }

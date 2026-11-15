@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.activities
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.content.Context
@@ -22,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,12 +62,12 @@ import com.haooz.chedule.ui.navigation.rememberAppRouter
 import com.haooz.chedule.ui.navigation.rememberNavTransitionState
 import com.haooz.chedule.ui.screens.AndroidSettingsPane
 import com.haooz.chedule.ui.screens.FireworksOverlay
-import com.haooz.chedule.ui.screens.PrivacyConsentScreen
 import com.haooz.chedule.ui.screens.WeatherBootstrap
 import com.haooz.chedule.ui.screens.rememberWeather
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.AndroidUpdateController
 import com.haooz.chedule.ui.utils.ApiCompat
+import com.haooz.chedule.ui.utils.LocalLocationPermissionRequester
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.performScheduleShare
 import com.haooz.chedule.ui.utils.saveScheduleImageToGallery
@@ -207,27 +209,24 @@ class MainActivity : ComponentActivity() {
             IslandNotificationHelper.init(appContext)
         }
 
-        // 同步隐私同意状态到可观察状态：主界面已预加载，依赖同意的副作用据此判断是否可执行
+        // 同步隐私同意状态到可观察状态：主界面已预加载，依赖同意的副作用据此判断是否可执行。
+        // 设备信息上报不在这里做，改为按同意状态触发（见 setContent 内的 LaunchedEffect），
+        // 否则首次在引导里同意时不会上报。
         PrivacyConsent.refresh()
-
-        // 合规：仅在用户同意隐私政策后，才进行设备信息上报
-        if (PrivacyConsent.hasConsented()) {
-            StatsReporter.reportActive()
-            StatsReporter.reportInstallOnce()
-        }
 
 
         setContent {
             CourseScheduleTheme {
-                // 合规：未同意隐私政策前不申请权限、不收集信息
-                var privacyAgreed by remember {
-                    mutableStateOf(PrivacyConsent.hasConsented())
+                // 隐私同意由首启引导接管：这里只观察状态，不再弹单独的同意弹窗
+                val privacyAgreed by PrivacyConsent.consented.collectAsState()
+                // 合规：仅在用户同意隐私政策后才上报设备信息；首次同意发生在引导里，这里同样会触发
+                LaunchedEffect(privacyAgreed) {
+                    if (privacyAgreed) {
+                        StatsReporter.reportActive()
+                        StatsReporter.reportInstallOnce()
+                    }
                 }
                 val router = rememberAppRouter()
-                // 《隐私政策》全文页在栈上时，把隐私弹窗让开：它挂在 AppNavHost 之上，
-                // 遮罩不撤的话全文页读不了也滑不动（见 PrivacyConsentScreen）
-                val policyPageVisible =
-                    router.routes.any { it == com.haooz.chedule.ui.navigation.AppRoute.PrivacyPolicy }
                 // 主界面（常驻底座，不在 AppNavHost 的 AnimatedContent 里）的首层转场进度。
                 // 栈被 rememberSaveable 恢复成非空时（旋转 / 进程重建），主界面应已是「被盖住」的 1，
                 // 不能从 0 起步白播一次进入动画。
@@ -241,8 +240,20 @@ class MainActivity : ComponentActivity() {
                         pendingRoute = null
                     }
                 }
+                // 引导页「使用位置信息」点继续时申请定位权限（天气依赖它）
+                val locationPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestMultiplePermissions()
+                ) { }
                 CompositionLocalProvider(
                     LocalAppRouter provides router,
+                    LocalLocationPermissionRequester provides {
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION,
+                            )
+                        )
+                    },
                     // 平板设置右栏用自己的局部 router
                     LocalTabletSettingsPaneRouteContent provides { paneRouter, route ->
                         AppRouteContent(paneRouter, route)
@@ -270,23 +281,6 @@ class MainActivity : ComponentActivity() {
                         // ── 子页叠加层 ──
                         AppNavHost(router, mainTransition = mainTransition) { _, route ->
                             AppRouteContent(router, route)
-                        }
-
-                        if (!privacyAgreed) {
-                            PrivacyConsentScreen(
-                                onAgree = {
-                                    PrivacyConsent.setConsented()
-                                    // 同意后方可进行设备信息上报
-                                    StatsReporter.reportActive()
-                                    StatsReporter.reportInstallOnce()
-                                    privacyAgreed = true
-                                },
-                                onDecline = { finish() },
-                                onOpenPolicy = {
-                                    router.navigate(com.haooz.chedule.ui.navigation.AppRoute.PrivacyPolicy)
-                                },
-                                policyPageVisible = policyPageVisible,
-                            )
                         }
                     }
                 }

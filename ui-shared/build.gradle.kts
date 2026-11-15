@@ -66,6 +66,8 @@ kotlin {
             implementation(compose.material3)
             // 必须 api：Res / painterResource 被 :androidApp 直接引用
             api(compose.components.resources)
+            // 开机引导播放小米原版 Lottie 素材
+            implementation(libs.compottie)
             // 柔光玻璃档位与材质口径
             api("com.github.HaoZai000.softglass:softglass:0.1.1")
             // 数据层与跨平台抽象

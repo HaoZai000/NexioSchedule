@@ -103,6 +103,10 @@ object ChromeStr {
     val updatePreferencesTitle = L("更新设置", "Update Settings")
     val aiImport = L("AI 文本导入", "AI Text Import")
 
+    /** 教务导入第一步（学校 / 适配器选择）与第二步（网页导入）的原生文档页标题。 */
+    val educationalImport = L("教务系统导入", "Academic System Import")
+    val webImport = L("网页导入", "Web Import")
+
     val updating = L("更新中", "Updating")
     val holidaysTitle = L("节假日与调休", "Holidays & Adjusted Workdays")
 
