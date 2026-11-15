@@ -594,6 +594,19 @@ private fun BoxScope.CardContent(
     val nameMaxLines =
         ((availableHeightDp - reservedForInfo) / courseNameLineH).toInt().coerceAtLeast(1)
 
+    // 课名实际占几行决定地点/教师还能换行到几行：剩余高度平分给两者，至少各留一行
+    var nameLineCount by remember(course.name, courseNameFontSize, nameMaxLines) {
+        mutableIntStateOf(1)
+    }
+    val infoMaxLines = if (infoCount == 0) {
+        1
+    } else {
+        val leftover = availableHeightDp -
+            nameLineCount.coerceIn(1, nameMaxLines) * courseNameLineH -
+            infoCount * infoGapDp
+        ((leftover / infoLineH).toInt() / infoCount).coerceAtLeast(1)
+    }
+
     val textAlign = when (cardContentAlignment) {
         CardContentAlignment.TOP_START,
         CardContentAlignment.CENTER_START -> TextAlign.Start
@@ -629,6 +642,7 @@ private fun BoxScope.CardContent(
             textAlign = textAlign,
             maxLines = nameMaxLines,
             overflow = TextOverflow.Ellipsis,
+            onTextLayout = { nameLineCount = it.lineCount },
             modifier = Modifier.fillMaxWidth(),
         )
         if (effectiveShowClassroom) {
@@ -639,7 +653,7 @@ private fun BoxScope.CardContent(
                 lineHeight = infoLineHeight,
                 color = textColor,
                 textAlign = textAlign,
-                maxLines = 1,
+                maxLines = infoMaxLines,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -652,7 +666,7 @@ private fun BoxScope.CardContent(
                 lineHeight = infoLineHeight,
                 color = textColor,
                 textAlign = textAlign,
-                maxLines = 1,
+                maxLines = infoMaxLines,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth(),
             )
