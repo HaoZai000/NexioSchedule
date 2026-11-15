@@ -99,7 +99,7 @@ navigationevent-compose = { group = "androidx.navigationevent", name = "navigati
 
 materialKolor-utilities = { group = "com.materialkolor", name = "material-color-utilities", version.ref = "materialKolor" } # Material Color（miuix theme 依赖）
 
-compottie = { group = "io.github.alexzhirkevich", name = "compottie", version.ref = "compottie" } # Lottie 解析与绘制（KMP）
+compottie = { group = "io.github.alexzhirkevich", name = "compottie-lite", version.ref = "compottie" } # Lottie 解析与绘制（KMP，lite 版不带 JS 表达式）
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }     # Android 应用插件
