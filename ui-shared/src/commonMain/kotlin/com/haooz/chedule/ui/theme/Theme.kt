@@ -34,8 +34,11 @@ import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.softglass.glass.ThemeFill
 import com.haooz.softglass.glass.applySoftGlass
+import com.haooz.chedule.ui.utils.APP_THEME_PREFS_FILE
 import com.haooz.chedule.ui.utils.AppMaterialSettings
+import com.haooz.chedule.ui.utils.KEY_THEME_MODE
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
+import com.haooz.chedule.ui.utils.THEME_MODE_SYSTEM
 import com.haooz.chedule.ui.utils.installAppSettingDarkBridge
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
@@ -107,8 +110,8 @@ fun CourseScheduleTheme(
 ) {
     // 注入 :miuix 的深浅色数据源，须早于其组件组合
     remember { installAppSettingDarkBridge() }
-    val prefs = remember { AppStorage.store("app_theme_prefs") }
-    val themeMode = remember { mutableStateOf(prefs.getString("theme_mode", "system")) }
+    val prefs = remember { AppStorage.store(APP_THEME_PREFS_FILE) }
+    val themeMode = remember { mutableStateOf(prefs.getString(KEY_THEME_MODE, THEME_MODE_SYSTEM)) }
     var monetEnabled by remember { mutableStateOf(prefs.getBoolean(KEY_MONET_COLOR, false)) }
 
     // 全局触感开关：关闭后屏蔽全 App 触感
@@ -120,11 +123,11 @@ fun CourseScheduleTheme(
 
     DisposableEffect(prefs) {
         // ⚠ iOS 回调不带 key（传 `KEY_CHANGED_ANYWHERE` 哨兵），Android 才给准确 key。
-        // 不能用 `key == "theme_mode"` 精确过滤：那样 iOS 收到通知也会被丢掉、主题不刷新。
+        // 不能用 `key == KEY_THEME_MODE` 精确过滤：那样 iOS 收到通知也会被丢掉、主题不刷新。
         // key 未知时无条件复查，已知时才精确过滤。
         val token = prefs.registerListener { key ->
-            if (key == KEY_CHANGED_ANYWHERE || key == "theme_mode") {
-                themeMode.value = prefs.getString("theme_mode", "system")
+            if (key == KEY_CHANGED_ANYWHERE || key == KEY_THEME_MODE) {
+                themeMode.value = prefs.getString(KEY_THEME_MODE, THEME_MODE_SYSTEM)
             }
             if (key == KEY_CHANGED_ANYWHERE || key == KEY_MONET_COLOR) {
                 monetEnabled = prefs.getBoolean(KEY_MONET_COLOR, false)

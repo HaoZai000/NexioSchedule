@@ -70,19 +70,33 @@ fun isAppDarkTheme(): Boolean =
 fun rememberAppSettingDark(): Boolean = miuixRememberAppSettingDark()
 
 /**
+ * 全局主题偏好（`app_theme_prefs.theme_mode`）的落盘契约。
+ *
+ * 键名与三档取值只在 [readThemeModePref] 一处读，其它地方别再造字面量：
+ * 改了这里就等于换了持久化格式，用户选择会丢。
+ */
+internal const val APP_THEME_PREFS_FILE = "app_theme_prefs"
+internal const val KEY_THEME_MODE = "theme_mode"
+internal const val THEME_MODE_SYSTEM = "system"
+internal const val THEME_MODE_LIGHT = "light"
+internal const val THEME_MODE_DARK = "dark"
+
+/** 读当前全局主题偏好：system / light / dark。纯读，不写任何全局快照。 */
+internal fun readThemeModePref(): String =
+    AppStorage.store(APP_THEME_PREFS_FILE).getString(KEY_THEME_MODE, THEME_MODE_SYSTEM)
+
+/**
  * 向 :miuix 注入读 `theme_mode` 的实现。由 [CourseScheduleTheme] 在组合根部调用，
  * 必须在任何 miuix 组件之前。重复调用无副作用。
  */
 internal fun installAppSettingDarkBridge() {
     if (AppSettingDarkBridge.read != null) return
-    AppSettingDarkBridge.read = {
-        AppStorage.store("app_theme_prefs").getString("theme_mode", "system")
-    }
+    AppSettingDarkBridge.read = { readThemeModePref() }
     val subscribe: (onChange: () -> Unit) -> (() -> Unit) = { onChange ->
-        val store = AppStorage.store("app_theme_prefs")
+        val store = AppStorage.store(APP_THEME_PREFS_FILE)
         // iOS 的通知不带 key（传哨兵），必须接受它
         val token = store.registerListener { key ->
-            if (key == KEY_CHANGED_ANYWHERE || key == "theme_mode") onChange()
+            if (key == KEY_CHANGED_ANYWHERE || key == KEY_THEME_MODE) onChange()
         }
         // 取消订阅，否则每次主题重建泄漏一个监听
         val unsubscribe: () -> Unit = { store.unregisterListener(token) }
