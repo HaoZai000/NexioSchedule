@@ -1819,6 +1819,8 @@ fun CourseReminderScreen(
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 val start = tempStartSection.coerceIn(1, totalSections)
+                                // 选到最后一节即「全部节次」（存 0 = 不限），与列表里的文案一致；
+                                // 存真实节数的话，日后调大总节数会把它变成「只到第 N 节」
                                 val end = tempEndSection
                                     .coerceIn(start, totalSections)
                                     .let { if (it >= totalSections) 0 else it }

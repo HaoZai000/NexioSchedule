@@ -267,14 +267,12 @@ object IosCourseNotifier {
         val leadMinutes = repo.getPreClassReminderMinutes()
         val rangeStart = repo.getPreClassReminderStartSection()
         val rangeEnd = repo.getPreClassReminderEndSection()
-        val rangeLimited = rangeStart > 1 || rangeEnd > 0
         val now = Clock.System.now().toEpochMilliseconds()
         val out = mutableListOf<Notice>()
         resolution.courses.forEachIndexed { index, course ->
-            // 与 Android 一致：只提醒落在用户设定节次范围内的课
-            if (rangeLimited && !course.hasValidCustomTime()) {
-                if (course.startSection < rangeStart) return@forEachIndexed
-                if (rangeEnd > 0 && course.startSection > rangeEnd) return@forEachIndexed
+            // 与 Android 共用同一套判定：节次范围 → 时间窗，按课程上课时间过滤（含自定义时间）
+            if (!CourseTimeResolver.isInReminderSections(course, repo, rangeStart, rangeEnd)) {
+                return@forEachIndexed
             }
             val start = CourseTimeResolver.getStartTime(course, repo) ?: return@forEachIndexed
             val startTime = parseClock(start) ?: return@forEachIndexed

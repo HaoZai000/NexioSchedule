@@ -491,8 +491,12 @@ fun AddEditCourseBottomSheet(
                             )
                         },
                         onClick = {
-                            tempStartSection = if (startSection > 0) startSection else 1
-                            tempEndSection = if (endSection > 0) endSection else 1
+                            // 导入/改过节数的旧课可能带着超出当前总节数的起止节；
+                            // 不夹的话下面 `tempStartSection..totalSections` 会是空区间，NumberPicker 直接崩
+                            tempStartSection = (if (startSection > 0) startSection else 1)
+                                .coerceIn(1, totalSections)
+                            tempEndSection = (if (endSection > 0) endSection else 1)
+                                .coerceIn(tempStartSection, totalSections)
                             showSectionDialog = true
                         },
                         holdDownState = showSectionDialog
@@ -723,7 +727,7 @@ fun AddEditCourseBottomSheet(
                     NumberPicker(
                         value = tempEndSection,
                         onValueChange = { tempEndSection = it },
-                        range = tempStartSection..totalSections,
+                        range = tempStartSection.coerceIn(1, totalSections)..totalSections,
                         visibleItemCount = 3,
                         itemHeight = 50.dp
                     )

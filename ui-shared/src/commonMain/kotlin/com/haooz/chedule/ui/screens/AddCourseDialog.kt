@@ -543,7 +543,8 @@ fun AddCourseDialog(
                                     tempStartSection = it
                                     if (tempEndSection < it) tempEndSection = it
                                 },
-                                range = 1..totalSections,
+                                // 三段节数被调成 0 时总节数为 0，空区间会让 NumberPicker 直接崩
+                                range = 1..totalSections.coerceAtLeast(1),
                                 visibleItemCount = 3,
                                 itemHeight = 50.dp
                             )
@@ -563,7 +564,7 @@ fun AddCourseDialog(
                             NumberPicker(
                                 value = tempEndSection,
                                 onValueChange = { tempEndSection = it },
-                                range = 1..totalSections,
+                                range = 1..totalSections.coerceAtLeast(1),
                                 visibleItemCount = 3,
                                 itemHeight = 50.dp
                             )

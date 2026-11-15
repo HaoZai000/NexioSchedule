@@ -39,6 +39,59 @@ object CourseTimeResolver {
             range.substringBefore("-").trim().ifEmpty { null }
         }
     }
+
+    /**
+     * 「上课提醒节次范围」判定。
+     *
+     * 范围先换算成一个**时间窗**：`startSection` 的上课时间 ~ `endSection` 的下课时间
+     * （`endSection <= 0` 表示不设上限），再拿**课程自己的上课时间**落点判断。
+     * 这样自定义时间的课也能被范围屏蔽，不再有「按节次过滤跳过自定义时间课」的例外。
+     *
+     * 节次时间表缺失或异常（旧数据、未配置的节次）时退回按 [Course.startSection] 比较；
+     * 此时自定义时间的课定位不到节次，保持提醒 —— 宁可多提醒，不漏提醒。
+     */
+    fun isInReminderSections(
+        course: Course,
+        repository: PeriodTimeSource,
+        startSection: Int,
+        endSection: Int
+    ): Boolean {
+        if (startSection <= 1 && endSection <= 0) return true
+
+        val sectionTimes = repository.getSectionTimes()
+        val windowStart = sectionStartMinutes(sectionTimes, startSection)
+        val windowEnd = if (endSection <= 0) Int.MAX_VALUE
+        else sectionEndMinutes(sectionTimes, endSection)
+        val courseStart = getStartTime(course, repository)?.let(::parseMinutes)
+
+        if (windowStart != null && windowEnd != null &&
+            courseStart != null && windowStart <= windowEnd
+        ) {
+            return courseStart in windowStart..windowEnd
+        }
+
+        // 时间表缺失/非法：退回按节次比较
+        if (course.hasValidCustomTime()) return true
+        if (course.startSection < startSection) return false
+        if (endSection > 0 && course.startSection > endSection) return false
+        return true
+    }
+
+    private fun sectionStartMinutes(sectionTimes: Map<Int, String>, section: Int): Int? =
+        sectionTimes[section]?.substringBefore("-")?.trim()?.let(::parseMinutes)
+
+    private fun sectionEndMinutes(sectionTimes: Map<Int, String>, section: Int): Int? =
+        sectionTimes[section]?.substringAfter("-", "")?.trim()?.let(::parseMinutes)
+
+    /** "HH:mm" → 当日分钟数；非法返回 null */
+    private fun parseMinutes(value: String): Int? {
+        val parts = value.split(":")
+        if (parts.size != 2) return null
+        val hour = parts[0].toIntOrNull() ?: return null
+        val minute = parts[1].toIntOrNull() ?: return null
+        if (hour !in 0..23 || minute !in 0..59) return null
+        return hour * 60 + minute
+    }
 }
 
 /**

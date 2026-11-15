@@ -690,14 +690,17 @@ object CourseReminderHelper {
         // 提醒节次范围（用户可自定义某些节次不提醒，例如晚休之后的课）
         val reminderStartSection = repository.getPreClassReminderStartSection()
         val reminderEndSection = repository.getPreClassReminderEndSection()
-        val reminderCourses = if (reminderStartSection <= 1 && reminderEndSection <= 0) {
-            todayCourses
+        val rangeLimited = reminderStartSection > 1 || reminderEndSection > 0
+        val reminderIds = if (!rangeLimited) {
+            emptySet()
         } else {
-            todayCourses.filter {
-                isCourseInReminderSections(it, reminderStartSection, reminderEndSection)
-            }
+            todayCourses
+                .filter {
+                    isCourseInReminderSections(it, repository, reminderStartSection, reminderEndSection)
+                }
+                .mapTo(mutableSetOf()) { it.id }
         }
-        if (reminderCourses.isEmpty()) {
+        if (rangeLimited && reminderIds.isEmpty()) {
             logD(context, "schedulePre: noCourseInReminderSections")
             writeRcSet(context, KEY_PRE_CLASS_RCS, emptySet())
             return
@@ -708,7 +711,10 @@ object CourseReminderHelper {
 
         val useIsland = repository.getIslandNotification() && IslandNotificationHelper.isIslandSupported(context)
 
-        for ((index, course) in reminderCourses.withIndex()) {
+        for ((index, course) in todayCourses.withIndex()) {
+            // 范围外的课不发提醒，但仍要作为「上一节」参与连堂判断：
+            // 否则前一节被范围排除时，后一节的上课提醒会提前落进前一节课堂里
+            if (rangeLimited && course.id !in reminderIds) continue
             val startTime = getCourseStartTime(course, repository) ?: continue
             val startParts = startTime.split(":")
             if (startParts.size != 2) continue
@@ -717,7 +723,7 @@ object CourseReminderHelper {
             val startTotalMinutes = startHour * 60 + startMinute
 
             // 找紧邻前一节课：同一时段可能多门课，不能直接用 index-1
-            val prevCourse = reminderCourses.take(index).lastOrNull { prev ->
+            val prevCourse = todayCourses.take(index).lastOrNull { prev ->
                 isConsecutiveCourse(prev, course)
             }
 
@@ -969,20 +975,13 @@ object CourseReminderHelper {
         return prev.endSection + 1 == current.startSection
     }
 
-    /**
-     * 课程是否落在「上课提醒节次范围」内。
-     * 自定义时间的课没有节次概念，始终提醒；普通课按起始节判断，endSection=0 表示不限。
-     */
+    /** 课程是否落在「上课提醒节次范围」内；规则见 [CourseTimeResolver.isInReminderSections]。 */
     internal fun isCourseInReminderSections(
         course: Course,
+        repository: CourseRepository,
         startSection: Int,
         endSection: Int
-    ): Boolean {
-        if (course.hasValidCustomTime()) return true
-        if (course.startSection < startSection) return false
-        if (endSection > 0 && course.startSection > endSection) return false
-        return true
-    }
+    ): Boolean = CourseTimeResolver.isInReminderSections(course, repository, startSection, endSection)
 
     fun getTodayOfWeek(): Int {
         val calendar = Calendar.getInstance()
@@ -2108,14 +2107,17 @@ object CourseReminderHelper {
         // 与 schedulePreClassAlarms 一致：只处理落在用户设定节次范围内的课
         val reminderStartSection = repository.getPreClassReminderStartSection()
         val reminderEndSection = repository.getPreClassReminderEndSection()
-        val courses = if (reminderStartSection <= 1 && reminderEndSection <= 0) {
-            allCourses
+        val rangeLimited = reminderStartSection > 1 || reminderEndSection > 0
+        val reminderIds = if (!rangeLimited) {
+            emptySet()
         } else {
-            allCourses.filter {
-                isCourseInReminderSections(it, reminderStartSection, reminderEndSection)
-            }
+            allCourses
+                .filter {
+                    isCourseInReminderSections(it, repository, reminderStartSection, reminderEndSection)
+                }
+                .mapTo(mutableSetOf()) { it.id }
         }
-        if (courses.isEmpty()) {
+        if (rangeLimited && reminderIds.isEmpty()) {
             return
         }
 
@@ -2125,14 +2127,16 @@ object CourseReminderHelper {
         val now = Calendar.getInstance()
         val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
 
-        for ((index, course) in courses.withIndex()) {
+        for ((index, course) in allCourses.withIndex()) {
+            // 范围外的课不发提醒，但仍参与「上一节」判定（原因见 schedulePreClassAlarms）
+            if (rangeLimited && course.id !in reminderIds) continue
             val startTime = getCourseStartTime(course, repository) ?: continue
             val startTotal = startTime.toMinutes()
             if (startTotal == Int.MAX_VALUE) continue
 
             // 连堂课窗口起点后移到上一节下课，与 schedulePreClassAlarms 一致
             var windowStart = startTotal - minutesBefore
-            val prevCourse = courses.take(index).lastOrNull { isConsecutiveCourse(it, course) }
+            val prevCourse = allCourses.take(index).lastOrNull { isConsecutiveCourse(it, course) }
             if (prevCourse != null) {
                 val prevEnd = getCourseEndTime(prevCourse, repository)?.toMinutes()
                 if (prevEnd != null && prevEnd != Int.MAX_VALUE && startTotal - prevEnd < minutesBefore) {

@@ -23,7 +23,10 @@ object ReminderStr {
     val sectionEnd = L("结束节", "To")
     val sectionN = L("第%d节", "P%d")
     val sectionRangeHint =
-        L("只提醒落在该节次范围内的课程", "Only classes starting in this period range trigger reminders")
+        L(
+            "只提醒上课时间在「起始节上课 ~ 结束节下课」之间的课程（含自定义时间的课）",
+            "Reminds only classes starting between the first period's start and the last period's end (custom-time classes included)"
+        )
     val nextDayReminder = L("次日课程提醒", "Next-Day Class Reminder")
     val nextDayReminderSummary =
         L("提供明天课程、首节时间、地点等信息，和定闹钟等操作建议", "Shows tomorrow's classes, first period time and location, with suggestions like setting an alarm")

@@ -1285,7 +1285,8 @@ fun TimeConfigEditScreen(
                                         "long_evening" -> eveningSections
                                         else -> 4
                                     }
-                                    val sectionRange = 1 until sectionCount
+                                    // 该时段只有 0/1 节时 1 until n 是空区间
+                                    val sectionRange = 1..maxOf(1, sectionCount - 1)
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.Center,
