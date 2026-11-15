@@ -14,32 +14,13 @@ val changelogData = listOf(
         version = "v1.7.2-1116",
         date = "2026-11-16",
         changes = listOf(
-            L("新增全新应用启动引导，引导页接管隐私政策同意","Add a brand-new app onboarding flow that also takes over privacy consent",
-            ),
-            L(
-                "更新应用隐私政策至 v2.0",
-                "Update the privacy policy to v2.0",
-            ),
-            L(
-                "优化课表卡片的地点与教师按剩余高度自动换行",
-                "Improve the classroom and teacher lines on course cards so they wrap based on the remaining height",
-            ),
-            L(
-                "修复课前提醒的节次范围按上课时间窗判断",
-                "Fix the period range of class reminders to follow the class time window",
-            ),
-            L(
-                "修复节次空区间导致的闪退",
-                "Fix a crash caused by an empty period range",
-            ),
-            L(
-                "修复部分手表连接超时，支持更多设备推送",
-                "Fix connection timeouts on some watches and support more devices",
-            ),
-            L(
-                "修复 iOS 冷启动未应用已保存的深色模式",
-                "Fix iOS not applying the saved dark mode on cold launch",
-            ),
+            L("新增全新应用启动引导，引导页接管隐私政策同意","Add a brand-new app onboarding flow that also takes over privacy consent"),
+            L("更新应用隐私政策至 v2.0","Update the privacy policy to v2.0"),
+            L("优化课表卡片的地点与教师按剩余高度自动换行","Improve the classroom and teacher lines on course cards so they wrap based on the remaining height"),
+            L("修复课前提醒的节次范围按上课时间窗判断","Fix the period range of class reminders to follow the class time window"),
+            L("修复节次空区间导致的闪退","Fix a crash caused by an empty period range"),
+            L("修复部分手表连接超时，支持更多设备推送","Fix connection timeouts on some watches and support more devices"),
+            L("修复 iOS 冷启动未应用已保存的深色模式","Fix iOS not applying the saved dark mode on cold launch"),
         )
     ),
     ChangelogEntry(
