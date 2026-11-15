@@ -6,6 +6,7 @@ name: CI
 #   2. :core:check :miuix:check          默认态红线
 #   3. :core:jvmTest --rerun-tasks       单测（不许吃缓存）
 #   4. :androidApp:assembleDebug         Android 零回归
+#   5. :androidApp:minifyReleaseWithR8   release 混淆（缺类 / 缺 keep 规则只在这一步暴露）
 #
 # 不覆盖的：iOS 需要 macOS + Xcode（且项目默认关着 iOS target，-Pnexio.ios=true 才开）；
 # 鸿蒙需要 DevEco Studio 与 HarmonyOS SDK。这两个继续留在本地门禁。
@@ -73,6 +74,12 @@ jobs:
 
       - name: Android assemble (debug)
         run: ./gradlew :androidApp:assembleDebug
+
+      # debug 构建不跑 R8，所以「依赖引用了没被带上的库」「新依赖缺 keep 规则」
+      # 这类问题只在发版时炸（compottie 的 keight 引用 kotlinx-datetime 就是这么漏的）。
+      # 只跑 minify：不打包、不签名，CI 没有 keystore 也能过。
+      - name: R8 (release minify)
+        run: ./gradlew :androidApp:minifyReleaseWithR8
 
       - name: Upload reports on failure
         if: failure()
