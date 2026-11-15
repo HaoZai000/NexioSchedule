@@ -235,6 +235,16 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
                         TAG_OPTIONAL,
                     ),
                     listOf(
+                        L("BLUETOOTH_SCAN / BLUETOOTH_CONNECT（Android 11 及以下为 BLUETOOTH / BLUETOOTH_ADMIN）", "BLUETOOTH_SCAN / BLUETOOTH_CONNECT (BLUETOOTH / BLUETOOTH_ADMIN on Android 11 and below)"),
+                        L("将课表导出到你的蓝牙设备（如手表、手环）时扫描并连接该设备；扫描已声明不用于推断位置，不导出则不申请。", "Scans for and connects to your Bluetooth device (such as a watch or band) when exporting the timetable to it. The scan is declared not to be used for inferring location, and the permission is not requested unless you export."),
+                        TAG_OPTIONAL,
+                    ),
+                    listOf(
+                        L("READ_CALENDAR / WRITE_CALENDAR", "READ_CALENDAR / WRITE_CALENDAR"),
+                        L("将课程同步到系统日历、并避免重复写入；仅在你主动使用「同步到日历」时申请，可随时在系统设置中撤销。", "Syncs courses into the system calendar and avoids duplicate entries. Requested only when you actively use “Sync to calendar”, and can be revoked in the system settings at any time."),
+                        TAG_OPTIONAL,
+                    ),
+                    listOf(
                         L("FOREGROUND_SERVICE / FOREGROUND_SERVICE_SPECIAL_USE / WAKE_LOCK", "FOREGROUND_SERVICE / FOREGROUND_SERVICE_SPECIAL_USE / WAKE_LOCK"),
                         L("保障课程提醒触发与桌面小组件刷新在后台可靠运行。", "Keeps course reminder triggering and home-screen widget refreshes running reliably in the background."),
                         TAG_OPTIONAL,
@@ -291,14 +301,24 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
                         L("随机设备标识、设备型号、品牌/厂商、系统版本、应用版本、事件时间", "Random device identifier, device model, brand/manufacturer, system version, app version, and event timestamps"),
                     ),
                     listOf(
-                        L("天气服务（彩云天气，经 v1.apizero.cn 接口）", "Weather service (Caiyun Weather, via the v1.apizero.cn API)"),
+                        L("天气服务（小米天气，weatherapi.market.xiaomi.com）", "Weather service (Mi Weather, weatherapi.market.xiaomi.com)"),
                         L("展示所在地天气", "Displays the weather at your location"),
                         L("经纬度坐标", "Latitude and longitude coordinates"),
                     ),
                     listOf(
-                        L("天气服务（t.weather.itboy.net，中国天气网数据源）", "Weather service (t.weather.itboy.net, using data from China Weather Network)"),
+                        L("天气服务（中国天气网，d1.weather.com.cn）", "Weather service (China Weather Network, d1.weather.com.cn)"),
                         L("展示所在地天气（可切换数据源）", "Displays the weather at your location (data source switchable)"),
                         L("定位解析得到的城市编码", "The city code resolved from your location"),
+                    ),
+                    listOf(
+                        L("天气服务（Open-Meteo，api.open-meteo.com / air-quality-api.open-meteo.com）", "Weather service (Open-Meteo, api.open-meteo.com / air-quality-api.open-meteo.com)"),
+                        L("备用天气数据源与空气质量", "Fallback weather source and air quality"),
+                        L("经纬度坐标", "Latitude and longitude coordinates"),
+                    ),
+                    listOf(
+                        L("节假日数据接口（api.apihubs.cn）", "Holiday data API (api.apihubs.cn)"),
+                        L("获取法定节假日与调休安排", "Fetches public holidays and adjusted working days"),
+                        L("无个人标识，仅请求年份", "No personal identifiers; only the year is requested"),
                     ),
                     listOf(
                         L("GitHub / Gitee Releases 接口", "GitHub / Gitee Releases APIs"),
@@ -420,8 +440,29 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
         blocks = listOf(
             PolicyBlock.Para(
                 L(
-                    "我们可能会根据法律法规变化或业务调整适时更新本政策。更新后，我们会在本页面发布最新版本并更新「更新日期」，重大变更还将通过应用内公告等显著方式另行提示。若您在政策更新后继续使用本应用，即表示您同意接受更新后的政策；若您不同意，请停止使用并卸载本应用。",
-                    "We may update this policy from time to time in response to changes in laws and regulations or adjustments to our operations. After each update, we will publish the latest version on this page and refresh the “Last updated” date; material changes will also be highlighted separately through prominent means such as in-app announcements. If you continue to use the App after the policy is updated, you are deemed to have accepted the updated policy; if you do not agree, please stop using and uninstall the App."
+                    "我们可能会根据法律法规变化或业务调整适时更新本政策。更新后，我们会在本页面发布最新版本并更新「更新日期」。发生重大变更（收集范围、权限、第三方服务等实质变化）时，我们会在您下次启动时重新展示隐私政策同意页面，需您明确同意后方可继续使用；若您不同意，请停止使用并卸载本应用。",
+                    "We may update this policy from time to time in response to changes in laws and regulations or adjustments to our operations. After each update, we will publish the latest version on this page and refresh the “Last updated” date. In the event of material changes (substantive changes to what we collect, the permissions we request, or the third-party services we use), we will present the privacy consent screen again the next time you launch the App, and you must give explicit consent before continuing to use it; if you do not agree, please stop using and uninstall the App."
+                )
+            ),
+            PolicyBlock.Sub(L("本次更新（2026 年 11 月 15 日）", "Changes in this update (November 15, 2026)")),
+            PolicyBlock.Bullets(
+                listOf(
+                    L(
+                        "更新天气服务商清单：小米天气、中国天气网、Open-Meteo（含空气质量），并移除已下线的旧数据源；",
+                        "Updated the weather provider list: Mi Weather, China Weather Network, and Open-Meteo (including air quality), and removed the retired data sources;",
+                    ),
+                    L(
+                        "补充节假日与调休数据接口（api.apihubs.cn）的说明；",
+                        "Added a description of the holiday and adjusted-working-day data API (api.apihubs.cn);",
+                    ),
+                    L(
+                        "权限清单补充蓝牙（课表导出到手表/手环）与日历读写（同步到系统日历）两项；",
+                        "Added two entries to the permission list: Bluetooth (exporting the timetable to a watch or band) and calendar read/write (syncing to the system calendar);",
+                    ),
+                    L(
+                        "因上述变更属实质性变更，隐私政策版本号递增，所有用户需重新阅读并同意后方可继续使用。",
+                        "Because these changes are material, the policy version has been incremented, and all users must review and agree again before continuing to use the App.",
+                    ),
                 )
             ),
         )
@@ -499,7 +540,7 @@ fun PrivacyPolicyScreen(
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = L("生效日期：2026 年 10 月 2 日\n更新日期：2026 年 10 月 2 日", "Effective date: October 2, 2026\nLast updated: October 2, 2026")(),
+                            text = L("生效日期：2026 年 10 月 2 日\n更新日期：2026 年 11 月 15 日", "Effective date: October 2, 2026\nLast updated: November 15, 2026")(),
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                         )
@@ -517,7 +558,7 @@ fun PrivacyPolicyScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            text = L("本政策自 2026 年 10 月 2 日起生效 · Nexio 课程表", "This policy is effective as of October 2, 2026 · Nexio Schedule")(),
+                            text = L("本政策自 2026 年 10 月 2 日起生效，最近更新于 2026 年 11 月 15 日 · Nexio 课程表", "This policy is effective as of October 2, 2026 and was last updated on November 15, 2026 · Nexio Schedule")(),
                             fontSize = 12.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                         )

@@ -16,8 +16,15 @@ object PrivacyConsent {
     private const val PREFS_NAME = "app_preferences"
     private const val KEY_CONSENTED_VERSION = "privacy_consent_version"
 
-    /** 当前隐私政策版本号。政策内容有实质变更时递增，用户会重新收到同意弹窗 */
-    const val CURRENT_VERSION = 1
+    /**
+     * 当前隐私政策版本号。政策内容有实质变更时递增，用户会重新收到同意引导。
+     *
+     * 版本历史：
+     * - 1：2026-10-02 初版
+     * - 2：2026-11-15 补充天气服务商（小米天气 / 中国天气网 / Open-Meteo）、节假日数据接口，
+     *   以及手环导出与日历同步涉及的蓝牙、日历权限
+     */
+    const val CURRENT_VERSION = 2
 
     /** 隐私政策在线地址（华为/小米等应用商店登记用同一网址） */
     const val POLICY_URL = "https://nexioschedule.icu/privacy.html"
