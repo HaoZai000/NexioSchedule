@@ -5,7 +5,7 @@
  * 为什么是独立一页而不是对话浮层里的覆盖层：这一页不需要那台 WebView，
  * 单独成页才能用系统返回、也才能复用文档页的外壳。
  */
-package com.haooz.chedule.ui.activities
+package com.haooz.chedule.ui.activities.eduimport
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,6 +48,9 @@ import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.ui.activities.applyComboSchedule
+import com.haooz.chedule.ui.activities.applyImportedScheduleConfig
+import com.haooz.chedule.ui.activities.applyPresetTimeSlots
 import com.haooz.chedule.ui.ai.AiEduPreviewHolder
 import com.haooz.chedule.ui.ai.EduAgentDraft
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu

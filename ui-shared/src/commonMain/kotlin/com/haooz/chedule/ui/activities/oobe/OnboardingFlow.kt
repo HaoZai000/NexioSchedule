@@ -7,7 +7,7 @@
  *
  * 性能约定：所有动画进度只在绘制阶段读取（graphicsLayer / drawWithContent），不触发逐帧重组。
  */
-package com.haooz.chedule.ui.screens
+package com.haooz.chedule.ui.activities.oobe
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -340,7 +340,9 @@ private fun OnboardingFlowContent(
                             onBack = close,
                             onPick = { pref, rect ->
                                 if (flipLanguage == null) {
-                                    selectLanguage(pref)
+                                    selectLanguage(
+                                        pref
+                                    )
                                     flipCardRect = rect
                                     flipLanguage = pref
                                     flipSession++
@@ -349,7 +351,10 @@ private fun OnboardingFlowContent(
                                         page = OobePage.Setup
                                         flipProgress.animateTo(
                                             1f,
-                                            tween(OobeFlipMotionMs, easing = FastOutSlowInEasing),
+                                            tween(
+                                                OobeFlipMotionMs,
+                                                easing = FastOutSlowInEasing
+                                            ),
                                         )
                                     }
                                 }
@@ -392,7 +397,10 @@ private fun OnboardingFlowContent(
                                 scope.launch {
                                     flipProgress.animateTo(
                                         0f,
-                                        tween(OobeFlipMotionMs, easing = FastOutSlowInEasing),
+                                        tween(
+                                            OobeFlipMotionMs,
+                                            easing = FastOutSlowInEasing
+                                        ),
                                     )
                                     page = OobePage.Language
                                     flipLanguage = null

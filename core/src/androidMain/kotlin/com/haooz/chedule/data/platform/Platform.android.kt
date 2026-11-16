@@ -1,6 +1,9 @@
 package com.haooz.chedule.data.platform
 
+import android.content.Context
 import android.os.Build
+import android.provider.Settings
+import java.security.MessageDigest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
@@ -21,6 +24,47 @@ actual fun currentDeviceInfo(): DeviceInfo = DeviceInfo(
     osVersion = Build.VERSION.RELEASE,
     sdkLevel = Build.VERSION.SDK_INT,
 )
+
+private var deviceContext: Context? = null
+
+/** 必须在 `Application.onCreate` 里调用一次，[stableDeviceId] 才能读到 `ANDROID_ID`。 */
+fun initDeviceIdentity(context: Context) {
+    deviceContext = context.applicationContext
+}
+
+/**
+ * `ANDROID_ID` 派生。
+ *
+ * Android 8+ 上它按「设备 + 用户 + 应用签名」生成，卸载重装不变；
+ * 恢复出厂、更换签名后会变。加应用内盐值做 SHA-256，服务端拿不到原始 ID。
+ */
+actual fun stableDeviceId(): String {
+    val context = deviceContext
+    if (context == null) {
+        NexioLog.w(TAG, "initDeviceIdentity 未调用，无法获取 ANDROID_ID")
+        return ""
+    }
+    val androidId = runCatching {
+        Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+    }.getOrNull()
+    if (androidId.isNullOrBlank() || androidId == "9774d56d682e549c") {
+        NexioLog.w(TAG, "ANDROID_ID 不可用")
+        return ""
+    }
+    return sha256Hex("nexio-device-v1:$androidId")
+}
+
+private fun sha256Hex(value: String): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(value.encodeToByteArray())
+    return buildString(digest.size * 2) {
+        for (b in digest) {
+            val v = b.toInt() and 0xFF
+            append(HEX_DIGITS[v ushr 4]).append(HEX_DIGITS[v and 0x0F])
+        }
+    }
+}
+
+private const val HEX_DIGITS = "0123456789abcdef"
 
 /**
  * Toast 宿主。`:core` 不能反向依赖 `android.app.Application`，Context 由宿主注入

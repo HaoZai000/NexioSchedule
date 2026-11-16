@@ -101,8 +101,8 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
             PolicyBlock.Bullets(
                 listOf(
                     L(
-                        "随机设备标识：由本应用在本机随机生成的 UUID 并存储在本地，不含任何硬件唯一标识（我们不获取 IMEI、MAC 地址、Android ID、手机号等信息）；",
-                        "Random device identifier: a UUID generated randomly by the App on the device and stored locally; it contains no hardware-unique identifier (we do not obtain your IMEI, MAC address, Android ID, phone number, or similar information);"
+                        "稳定设备标识：为在卸载重装后保持统计与 AI 调用额度的连续性，我们会读取系统提供的设备标识（Android 为 ANDROID_ID，iOS 为保存在系统钥匙串中的随机 UUID），经不可逆哈希后作为设备标识；我们不会获取 IMEI、MAC 地址、手机号等信息。恢复出厂设置、更换应用签名或清除系统钥匙串后，该标识会发生变化；",
+                        "Stable device identifier: to keep statistics and AI usage quotas continuous across reinstallations, we read a system-provided device identifier (ANDROID_ID on Android; a random UUID stored in the system Keychain on iOS) and use its irreversible hash as the device identifier; we do not obtain your IMEI, MAC address, phone number, or similar information. The identifier changes after a factory reset, an app-signing key change, or clearing the system Keychain;"
                     ),
                     L("设备与系统信息：设备型号、品牌、厂商、Android 系统版本、系统 API 等级；", "Device and system information: device model, brand, manufacturer, Android version, and system API level;"),
                     L("应用信息：本应用版本号；", "App information: the version number of the App;"),
@@ -111,8 +111,8 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
             ),
             PolicyBlock.Para(
                 L(
-                    "上述信息仅用于匿名化统计与运营，不用于广告推送，也不会与您的课程数据关联。我们未接入任何第三方商业统计、广告或崩溃采集 SDK。",
-                    "The above information is used only for anonymized statistics and operations, not for advertising, and is never associated with your course data. The App integrates no third-party commercial analytics, advertising, or crash-collection SDK."
+                    "上述信息仅用于去标识化统计与运营，不用于广告推送，也不会与您的课程数据关联。我们未接入任何第三方商业统计、广告或崩溃采集 SDK。",
+                    "The above information is used only for de-identified statistics and operations, not for advertising, and is never associated with your course data. The App integrates no third-party commercial analytics, advertising, or crash-collection SDK."
                 )
             ),
             PolicyBlock.Sub(L("2. 位置信息（可选，用于天气）", "2. Location information (optional, for weather)")),
@@ -162,7 +162,7 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
                 listOf(
                     L("姓名、手机号、身份证号等身份信息；", "Identity information such as your name, phone number, and ID card number;"),
                     L("通讯录、短信、通话记录、相册照片与视频；", "Contacts, SMS messages, call logs, and photos or videos in your gallery;"),
-                    L("设备硬件唯一标识（IMEI、MAC 地址、Android ID 等）；", "Hardware-unique device identifiers (IMEI, MAC address, Android ID, etc.);"),
+                    L("原始硬件唯一标识（IMEI、MAC 地址、设备序列号等）；Android ID 仅在本地用于生成不可逆哈希，服务端不会收到原始值；", "Raw hardware-unique identifiers (IMEI, MAC address, device serial number, etc.); ANDROID_ID is used only locally to derive an irreversible hash, and the server never receives the raw value;"),
                     L("您在其他应用中的使用行为。", "Your usage behavior in other apps."),
                 )
             ),
@@ -186,7 +186,7 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
                 rows = listOf(
                     listOf(
                         L("INTERNET", "INTERNET"),
-                        L("访问网络。用于教务导入、天气查询、检查更新、WebDAV 云同步、课表分享及匿名统计上报。", "Network access. Used for academic system import, weather queries, checking for updates, WebDAV cloud sync, timetable sharing, and anonymous statistics reporting."),
+                        L("访问网络。用于教务导入、天气查询、检查更新、WebDAV 云同步、课表分享及统计上报。", "Network access. Used for academic system import, weather queries, checking for updates, WebDAV cloud sync, timetable sharing, and statistics reporting."),
                         TAG_REQUIRED,
                     ),
                     listOf(
@@ -297,8 +297,8 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
                 rows = listOf(
                     listOf(
                         L("Nexio 服务端（开发者自建，nexioschedule.icu）", "Nexio server (self-hosted by the developer, nexioschedule.icu)"),
-                        L("匿名安装/活跃统计、应用公告下发、课表分享口令中转、赞赏榜展示", "Anonymous install/activity statistics, in-app announcement delivery, timetable share-code relaying, and the supporters leaderboard"),
-                        L("随机设备标识、设备型号、品牌/厂商、系统版本、应用版本、事件时间", "Random device identifier, device model, brand/manufacturer, system version, app version, and event timestamps"),
+                        L("安装/活跃统计、应用公告下发、课表分享口令中转、赞赏榜展示", "Install/activity statistics, in-app announcement delivery, timetable share-code relaying, and the supporters leaderboard"),
+                        L("稳定设备标识（不可逆哈希）、设备型号、品牌/厂商、系统版本、应用版本、事件时间", "Stable device identifier (irreversible hash), device model, brand/manufacturer, system version, app version, and event timestamps"),
                     ),
                     listOf(
                         L("天气服务（小米天气，weatherapi.market.xiaomi.com）", "Weather service (Mi Weather, weatherapi.market.xiaomi.com)"),
@@ -366,12 +366,12 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
             PolicyBlock.Bullets(
                 listOf(
                     L(
-                        "存储地点：本应用收集的匿名统计信息存储于中华人民共和国境内的服务器（阿里云 ECS）中，不涉及个人信息出境。",
-                        "Storage location: the anonymized statistics collected by the App are stored on servers within the People's Republic of China (Alibaba Cloud ECS); no personal information is transferred out of the country."
+                        "存储地点：本应用收集的去标识化统计信息存储于中华人民共和国境内的服务器（阿里云 ECS）中，不涉及个人信息出境。",
+                        "Storage location: the de-identified statistics collected by the App are stored on servers within the People's Republic of China (Alibaba Cloud ECS); no personal information is transferred out of the country."
                     ),
                     L(
-                        "存储期限：课表等核心数据存储于您的设备本地，由您自行控制；匿名统计信息在实现统计目的所必需的期限内保存，超出期限后将予以删除或匿名化处理；分享口令数据在 30 分钟有效期届满后自动删除。",
-                        "Retention period: core data such as your timetable is stored locally on your device and remains under your control; anonymized statistics are kept only for the period necessary to fulfill the statistical purposes and are deleted or anonymized once that period expires; share-code data is deleted automatically when its 30-minute validity period ends."
+                        "存储期限：课表等核心数据存储于您的设备本地，由您自行控制；去标识化统计信息在实现统计目的所必需的期限内保存，超出期限后将予以删除或匿名化处理；分享口令数据在 30 分钟有效期届满后自动删除。",
+                        "Retention period: core data such as your timetable is stored locally on your device and remains under your control; de-identified statistics are kept only for the period necessary to fulfill the statistical purposes and are deleted or anonymized once that period expires; share-code data is deleted automatically when its 30-minute validity period ends."
                     ),
                     L(
                         "安全措施：我们采用访问控制、传输与存储加密（在支持的链路上）等合理可行的安全措施保护信息安全，并限制内部人员对数据的访问。但请您理解，任何技术手段都无法保证绝对安全，请妥善保管您的设备与账户信息。",
@@ -411,14 +411,14 @@ private val POLICY_SECTIONS: List<PolicySection> = listOf(
             PolicyBlock.Bullets(
                 listOf(
                     L("查阅与更正：您的课程表等数据均可在本应用内直接查看、编辑和修改。", "Access and correction: your timetable and other data can be viewed, edited, and modified directly within the App."),
-                    L("删除：您可在应用内删除课程、课表及本地备份数据；卸载本应用将删除设备本地存储的全部数据。", "Deletion: you can delete courses, timetables, and local backup data within the App; uninstalling the App deletes all data stored locally on the device."),
+                    L("删除：您可在应用内删除课程、课表及本地备份数据；卸载本应用将删除设备本地存储的全部数据，但 iOS 系统钥匙串中的设备标识可能保留。", "Deletion: you can delete courses, timetables, and local backup data within the App; uninstalling the App deletes all data stored locally on the device, but the device identifier in the iOS system Keychain may remain."),
                     L(
                         "撤回授权：您可随时在系统「设置 - 应用 - Nexio 课程表 - 权限」中关闭定位、通知等权限，或在应用内关闭天气、云同步等功能；也可在「关于」页点击「撤回同意」。",
                         "Withdrawal of consent: you can turn off permissions such as location and notifications at any time under the system's “Settings - Apps - Nexio Schedule - Permissions”, or disable features such as weather and cloud sync within the App; you can also tap “Withdraw consent” on the “About” page."
                     ),
                     L(
-                        "注销与删除服务器数据：本应用无账号体系，无需注销账户。若您希望删除与您设备随机标识关联的匿名统计数据，或对信息处理有任何诉求，请发送邮件至 439089703@qq.com。",
-                        "Account cancellation and server data deletion: the App has no account system, so there is no account to cancel. If you wish to delete the anonymized statistics associated with your device's random identifier, or have any other request regarding the processing of your information, please email 439089703@qq.com."
+                        "注销与删除服务器数据：本应用无账号体系，无需注销账户。若您希望删除与您设备标识关联的去标识化统计数据，或对信息处理有任何诉求，请发送邮件至 439089703@qq.com。",
+                        "Account cancellation and server data deletion: the App has no account system, so there is no account to cancel. If you wish to delete the de-identified statistics associated with your device identifier, or have any other request regarding the processing of your information, please email 439089703@qq.com."
                     ),
                 )
             ),
@@ -540,7 +540,7 @@ fun PrivacyPolicyScreen(
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = L("生效日期：2026 年 10 月 2 日\n更新日期：2026 年 11 月 15 日", "Effective date: October 2, 2026\nLast updated: November 15, 2026")(),
+                            text = L("生效日期：2026 年 10 月 2 日\n更新日期：2026 年 11 月 16 日", "Effective date: October 2, 2026\nLast updated: November 16, 2026")(),
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                         )

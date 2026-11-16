@@ -16,13 +16,12 @@ import kotlinx.coroutines.launch
  */
 object StatsReporter {
     private const val TAG = "StatsReporter"
-    // 上报走明文 HTTP：HTTPS(443) 在该运营商网络下 TLS 握手被干扰（Connection reset），改用 3000 直达后端
-    private const val API_URL = "http://182.92.193.223:3000/api/stats/report"
+    // 统一走域名 HTTPS，不再直连
+    private const val API_URL = ApiEndpoints.STATS_REPORT
     // 弱网下偶发连接失败，最多重试 3 次（带指数退避）
     private const val MAX_RETRY = 3
 
     private const val PREFS = "stats_prefs"
-    private const val KEY_DEVICE_ID = "device_id"
     private const val KEY_INSTALL_REPORTED = "install_reported"
 
     // 超时 connect 10s / read 10s / call 15s
@@ -51,26 +50,25 @@ object StatsReporter {
     }
 
     /**
-     * 仅供测试：清空内存缓存，模拟进程冷启动。`deviceId` 会跨测试用例残留，
-     * 而 [AppStorage] 在测试里会被重设为新的内存实现，不同步会让「已落盘」断言假失败。
+     * 仅供测试：清空内存缓存，模拟进程冷启动。
+     * 设备标识现在来自平台，不再落盘；清缓存后重新读取应得到同一个值。
      */
     internal fun resetForTest() {
         deviceId = null
     }
 
     /**
-     * 读取（或首次生成并落盘）设备标识。
+     * 读取平台稳定设备标识。
      *
-     * 与统计上报是同一个 ID —— 服务端按它算每台设备每天的 AI 用量，
-     * 两边各生成一份的话限额就形同虚设。
+     * 与统计上报是同一个 ID —— 服务端按它算每台设备每天的 AI 用量。
+     * 标识由平台提供（Android ANDROID_ID 派生 / iOS Keychain / 桌面机器码），
+     * 卸载重装后保持不变；取不到时返回空串，不再生成随机匿名 ID 兜底。
      */
     internal fun ensureDeviceId(): String {
         deviceId?.let { return it }
-        val prefs = AppStorage.store(PREFS)
-        val id = prefs.getString(KEY_DEVICE_ID, "").ifBlank {
-            randomUuidV4().also { generated ->
-                prefs.edit { putString(KEY_DEVICE_ID, generated) }
-            }
+        val id = stableDeviceId()
+        if (id.isBlank()) {
+            NexioLog.w(TAG, "无法获取稳定设备标识，AI、反馈与统计将不可用")
         }
         deviceId = id
         return id

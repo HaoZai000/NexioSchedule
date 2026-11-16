@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.utils
 
+import com.haooz.chedule.data.platform.ApiEndpoints
 import com.haooz.chedule.data.platform.HttpService
 import com.haooz.chedule.data.platform.createHttpService
 import com.haooz.chedule.data.util.optBoolean
@@ -38,7 +39,7 @@ object ShareCodeImport {
     var wakeUpRunner: (suspend (shareKey: String, script: String) -> ThirdPartySharePayload)? = null
 
     /** 本站口令服务；与 Android `ShareCodeApi.BASE_URL` / `IosScheduleShare` 逐字一致 */
-    private const val SHARE_BASE_URL = "http://182.92.193.223:3000/api/share"
+    private const val SHARE_BASE_URL = ApiEndpoints.SHARE
 
     /** 星链课表；与 Android `ThirdPartyShareImporter` 的 StarLink 分支逐字一致 */
     private const val STARLINK_BASE_URL = "https://api.starlinkkb.cn/share/curriculum/"

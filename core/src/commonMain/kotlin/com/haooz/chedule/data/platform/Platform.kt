@@ -58,3 +58,15 @@ data class DeviceInfo(
 )
 
 expect fun currentDeviceInfo(): DeviceInfo
+
+/**
+ * 平台提供的稳定设备标识（卸载重装后保持不变）。
+ *
+ * - Android：`Settings.Secure.ANDROID_ID` 经应用内盐值 SHA-256 派生
+ * - iOS：Keychain 中保存的随机 UUID
+ * - 桌面：系统机器码派生
+ * - 鸿蒙：平台可用的设备标识；取不到时退化为应用私有文件
+ *
+ * 返回空串表示当前平台拿不到稳定标识 —— 调用方不得再生成随机 ID 兜底。
+ */
+expect fun stableDeviceId(): String

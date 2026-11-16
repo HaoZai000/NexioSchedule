@@ -1,5 +1,8 @@
 package com.haooz.chedule.data.platform
 
+import java.io.File
+import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
@@ -21,6 +24,66 @@ actual fun currentDeviceInfo(): DeviceInfo = DeviceInfo(
     osVersion = System.getProperty("os.version") ?: "unknown",
     sdkLevel = 0,
 )
+
+/**
+ * 桌面端用系统机器码派生：macOS `IOPlatformUUID`、Linux `machine-id`、Windows `MachineGuid`。
+ * 取不到时返回空串，不再生成随机匿名 ID。
+ */
+actual fun stableDeviceId(): String {
+    val raw = machineId() ?: return ""
+    return sha256Hex("nexio-device-v1:$raw")
+}
+
+private fun machineId(): String? {
+    val os = System.getProperty("os.name").orEmpty().lowercase()
+    return when {
+        os.contains("mac") -> runCommand("ioreg", "-rd1", "-c", "IOPlatformExpertDevice")
+            ?.lineSequence()
+            ?.firstOrNull { it.contains("IOPlatformUUID") }
+            ?.substringAfterLast('=')
+            ?.trim()
+            ?.trim('"')
+            ?.takeIf { it.isNotBlank() }
+
+        os.contains("win") -> runCommand(
+            "reg", "query", "HKLM\\SOFTWARE\\Microsoft\\Cryptography", "/v", "MachineGuid",
+        )
+            ?.lineSequence()
+            ?.firstOrNull { it.contains("MachineGuid") }
+            ?.substringAfter("REG_SZ", "")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+
+        else -> sequenceOf("/etc/machine-id", "/var/lib/dbus/machine-id")
+            .mapNotNull { path ->
+                runCatching { File(path).takeIf { it.exists() }?.readText()?.trim() }.getOrNull()
+            }
+            .firstOrNull { it.isNotBlank() }
+    }
+}
+
+private fun runCommand(vararg cmd: String): String? = runCatching {
+    val process = ProcessBuilder(*cmd).redirectErrorStream(true).start()
+    val text = process.inputStream.bufferedReader().use { it.readText() }
+    if (!process.waitFor(2, TimeUnit.SECONDS)) {
+        process.destroyForcibly()
+        null
+    } else {
+        text
+    }
+}.getOrNull()
+
+private fun sha256Hex(value: String): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(value.encodeToByteArray())
+    return buildString(digest.size * 2) {
+        for (b in digest) {
+            val v = b.toInt() and 0xFF
+            append(HEX_DIGITS[v ushr 4]).append(HEX_DIGITS[v and 0x0F])
+        }
+    }
+}
+
+private const val HEX_DIGITS = "0123456789abcdef"
 
 /** 没有系统提示条，落到日志；将来要弹窗只改这一个函数，调用方不动。 */
 actual fun showToast(message: String, longDuration: Boolean) {

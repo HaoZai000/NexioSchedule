@@ -20,9 +20,9 @@ data class AppreciationsPage(
  * 云端捐赠列表拉取；网络异常或解析失败时返回空数据（App 端不再本地硬编码捐赠样本）。
  */
 object AppreciationFetcher {
-    // 与公告/上报同源走明文 HTTP：该运营商网络下 HTTPS 的 TLS 握手被干扰，故直达后端 3000。
-    private const val API_URL = "http://182.92.193.223:3000/api/appreciations"
-    private const val TOP_URL = "http://182.92.193.223:3000/api/appreciations/top"
+    // 统一走域名 HTTPS；
+    private const val API_URL = ApiEndpoints.APPRECIATIONS
+    private const val TOP_URL = ApiEndpoints.APPRECIATIONS_TOP
     const val PAGE_SIZE = 10
 
     // ⚠ 超时与迁移前一致：connect 5s / read 5s

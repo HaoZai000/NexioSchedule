@@ -7,6 +7,7 @@ import com.haooz.chedule.data.ai.AiEduScriptStore
 import com.haooz.chedule.data.ai.AiResult
 import com.haooz.chedule.data.platform.HttpTimeouts
 import com.haooz.chedule.data.platform.createHttpService
+import com.haooz.chedule.data.platform.randomUuidV4
 import com.haooz.chedule.ui.web.WebHost
 import kotlin.time.Clock
 import kotlinx.coroutines.Job
@@ -114,6 +115,14 @@ internal class EduAgentSession {
     /** 本次分析的页面地址，脚本历史按它区分学校。 */
     private var entryUrl: String = ""
 
+    /**
+     * 本次导入的会话 ID。
+     *
+     * 服务端按会话计免费额度：一次导入无论来回多少轮，只扣 1 次；
+     * 「补充信息后继续」沿用同一个 ID，重新开始分析才换新的。
+     */
+    private var sessionId: String = ""
+
     private val client by lazy {
         AiEduAgentClient(
             http = createHttpService(
@@ -144,6 +153,7 @@ internal class EduAgentSession {
         runJob?.cancel()
         runJob = null
         entryUrl = ""
+        sessionId = ""
         conversation.clear()
         _state.value = EduAgentUiState()
     }
@@ -175,6 +185,7 @@ internal class EduAgentSession {
     ) {
         val start = now()
         this.entryUrl = entryUrl
+        this.sessionId = randomUuidV4()
         val gen = beginRun()
         _state.value = EduAgentUiState(
             running = true,
@@ -258,7 +269,7 @@ internal class EduAgentSession {
             var streamError: String? = null
 
             val reply = when (
-                val r = client.turnStream(messages, EduAgentPrompts.tools()) { event ->
+                val r = client.turnStream(messages, EduAgentPrompts.tools(), sessionId) { event ->
                     // 已被「停止 / 重开」作废：这条连接可能还没断干净，delta 一律丢弃，
                     // 否则旧思考块会继续长字（用户看到的就是两段思考同时在跑）
                     if (gen != runId) return@turnStream

@@ -7,6 +7,7 @@
  */
 package com.haooz.chedule.data.platform
 
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
@@ -43,6 +44,36 @@ actual fun currentDeviceInfo(): DeviceInfo = DeviceInfo(
     osVersion = "6.0",
     sdkLevel = 0,
 )
+
+/**
+ * 鸿蒙端没有免权限的公开稳定设备标识，退回应用私有目录中的持久值。
+ *
+ * ⚠ 与 Android / iOS 不同，这个值会在卸载时被系统删除；这是平台限制。
+ * 同一次安装内保持稳定，足以支撑统计去重与每日额度。
+ */
+actual fun stableDeviceId(): String {
+    if (!AppFiles.isReady) return ""
+    val file = AppFiles.root.resolve("device_id")
+    val existing = runCatching { file.readText().trim() }.getOrNull()
+    if (!existing.isNullOrBlank()) return existing
+
+    val generated = randomHexId()
+    runCatching { file.writeBytes(generated.encodeToByteArray()) }
+    return generated
+}
+
+private fun randomHexId(): String {
+    val bytes = ByteArray(16)
+    Random.nextBytes(bytes)
+    return buildString(bytes.size * 2) {
+        for (b in bytes) {
+            val v = b.toInt() and 0xFF
+            append(HEX_DIGITS[v ushr 4]).append(HEX_DIGITS[v and 0x0F])
+        }
+    }
+}
+
+private const val HEX_DIGITS = "0123456789abcdef"
 
 /** 日志落 stdout（`hdc shell hilog` 能看到）。等级门槛由 core 的 `emit` 统一把关。 */
 actual fun platformLog(level: Int, tag: String, message: String, throwable: Throwable?) {

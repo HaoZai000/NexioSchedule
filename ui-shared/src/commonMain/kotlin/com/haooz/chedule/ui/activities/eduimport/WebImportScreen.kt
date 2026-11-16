@@ -1,9 +1,9 @@
 /**
  * 教务导入第二步：网页导入页（独立路由 `AppRoute.WebImport`，右侧推入，返回先回选择页），
- * 学校 / 适配器经 [com.haooz.chedule.ui.web.EduImportSelection] 带入。
+ * 学校 / 适配器经 [EduImportSelection] 带入。
  * iOS 原生文档页上本页整页交给系统：导航栏与底部悬浮条由 Swift 画，安全区由系统 inset 处理。
  */
-package com.haooz.chedule.ui.activities
+package com.haooz.chedule.ui.activities.eduimport
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -38,7 +38,11 @@ import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.ui.activities.applyComboSchedule
+import com.haooz.chedule.ui.activities.applyImportedScheduleConfig
+import com.haooz.chedule.ui.activities.applyPresetTimeSlots
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.components.PageBlurBaseHeight
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
 import com.haooz.chedule.ui.utils.NativeDocumentActionEffect
@@ -52,6 +56,7 @@ import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.scheduleViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
 import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
+import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
@@ -90,7 +95,7 @@ fun WebImportScreen(
     // iOS 原生文档页：顶栏整个交给系统（原生导航栏标题 + 材质 + 关闭/刷新按钮）
     NativeDocumentSystemHeaderEffect(nativeChrome != null)
 
-    val liquidGlassBackdrop: LayerBackdrop = com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop()
+    val liquidGlassBackdrop: LayerBackdrop = rememberLayerBackdrop()
     val hapticFeedback = LocalHapticFeedback.current
     val webViewScrollBehavior = rememberSharedScrollBehavior()
 
@@ -134,14 +139,14 @@ fun WebImportScreen(
         }
         val statusBarHeight = WindowInsets.statusBars
             .asPaddingValues().calculateTopPadding()
-        val blurHeight = com.haooz.chedule.ui.components.PageBlurBaseHeight +
+        val blurHeight = PageBlurBaseHeight +
             (statusBarHeight - nativeBarInset).coerceAtLeast(0.dp)
         val contentTopInset = paddingValues.calculateTopPadding() + nativeBarInset
         // 顶栏与底部胶囊共用：录的是 WebView Offscreen 层
-        val webContentBackdrop = com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop()
+        val webContentBackdrop = rememberLayerBackdrop()
 
         Box(modifier = Modifier.fillMaxSize()) {
-            com.haooz.chedule.ui.screens.WebViewScreen(
+            WebViewScreen(
                 schoolName = school.name,
                 resourceFolder = school.resourceFolder,
                 adapterId = adapter.adapterId,

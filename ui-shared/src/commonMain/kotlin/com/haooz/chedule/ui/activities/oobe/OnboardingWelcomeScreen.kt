@@ -1,10 +1,10 @@
 /**
- * 开机引导首页：应用图标、字标与箭头按钮。
+ * 引导首页：应用图标、字标与箭头按钮。
  *
  * 本屏只负责展示与回调，背景由 [OnboardingFlow] 统一提供，这样箭头 morph 到全屏时
  * 背景不会出现接缝。字标流光与入场缩放都只改绘制阶段，不产生逐帧重组。
  */
-package com.haooz.chedule.ui.screens
+package com.haooz.chedule.ui.activities.oobe
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Easing

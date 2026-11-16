@@ -27,9 +27,9 @@ import kotlin.test.assertTrue
  *
  * ## 测试隔离说明
  *
- * [com.haooz.chedule.data.platform.StatsReporter] 是 object，内部 `deviceId` 有内存缓存且不可清空。
- * 因此这里**整个测试类共用一个 [com.haooz.chedule.data.storage.InMemoryKeyValueStore] 实例**，
- * 保证「内存缓存」与「落盘数据」始终指向同一份，不会被 @BeforeTest 重置搞得不一致。
+ * [com.haooz.chedule.data.platform.StatsReporter] 是 object，内部 `deviceId` 有内存缓存。
+ * 整个测试类共用一个 [com.haooz.chedule.data.storage.InMemoryKeyValueStore] 实例，
+ * 避免 install 标记与其它用例互相干扰。
  */
 class StatsReporterPayloadTest {
 
@@ -101,15 +101,14 @@ class StatsReporterPayloadTest {
         assertTrue(ts < 4_102_444_800_000L, "timestamp 过大: $ts")
     }
 
-    /** device_id 必须是 UUID v4 格式（服务端可能按此校验）。 */
+    /** device_id 由平台稳定标识派生，格式必须符合服务端校验。 */
     @Test
-    fun `device_id 是 UUID v4 格式`() {
+    fun `device_id 是合法的稳定标识`() {
         val id = payload("install").optString("device_id")
         assertTrue(id.isNotBlank(), "device_id 不能为空")
         assertTrue(
-            Regex("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
-                .matches(id),
-            "device_id 应为 UUID v4: $id",
+            Regex("^[A-Za-z0-9_-]{8,64}$").matches(id),
+            "device_id 格式不合法: $id",
         )
     }
 
@@ -123,12 +122,21 @@ class StatsReporterPayloadTest {
         assertEquals(b, c)
     }
 
-    /** 必须落盘：否则每次冷启动都会换新 id，安装量会被无限放大。 */
+    /** 设备标识来自平台，不再落盘到共享偏好。 */
     @Test
-    fun `device_id 已写入 stats_prefs`() {
-        val id = payload("install").optString("device_id")
+    fun `device_id 不写入 stats_prefs`() {
+        payload("install")
         val stored = AppStorage.store("stats_prefs").getString("device_id", "")
-        assertEquals(id, stored, "device_id 必须落盘到 stats_prefs")
+        assertTrue(stored.isEmpty(), "不应再把设备标识落盘: $stored")
+    }
+
+    /** 清掉内存缓存（模拟冷启动）后，平台标识仍应保持一致。 */
+    @Test
+    fun `清除内存缓存后 device_id 不变`() {
+        val first = payload("install").optString("device_id")
+        StatsReporter.resetForTest()
+        val second = payload("active").optString("device_id")
+        assertEquals(first, second)
     }
 
     @Test

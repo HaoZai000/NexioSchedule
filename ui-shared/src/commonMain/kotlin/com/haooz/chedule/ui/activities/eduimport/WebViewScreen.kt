@@ -1,5 +1,5 @@
 /** WebView 页面 - 用于加载教务系统网页 */
-package com.haooz.chedule.ui.screens
+package com.haooz.chedule.ui.activities.eduimport
 
 // ⚠ 本文件不得出现 android.* / androidx.activity / androidx.core；
 // 需要新能力就往 WebHost 契约上加方法，而不是把平台类型带进来。
@@ -61,7 +61,6 @@ import androidx.compose.ui.window.DialogProperties
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.school.AdapterData
-import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.ScriptRepository
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
@@ -459,7 +458,7 @@ fun WebViewScreen(
                 .background(MiuixTheme.colorScheme.surface)
                 // 无材质档：底部胶囊玻璃全关，页面采样录屏层不挂
                 .then(
-                    if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) Modifier
+                    if (AppMaterialSettings.isNoneTier()) Modifier
                     else Modifier.layerBackdrop(webContentBackdrop)
                 )
         ) {

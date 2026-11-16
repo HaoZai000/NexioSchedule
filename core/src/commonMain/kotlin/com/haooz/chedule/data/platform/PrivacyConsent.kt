@@ -23,8 +23,10 @@ object PrivacyConsent {
      * - 1：2026-10-02 初版
      * - 2：2026-11-15 补充天气服务商（小米天气 / 中国天气网 / Open-Meteo）、节假日数据接口，
      *   以及手环导出与日历同步涉及的蓝牙、日历权限
+     * - 3：2026-11-16 设备标识改为平台稳定标识（Android ANDROID_ID 不可逆哈希 / iOS Keychain UUID），
+     *   卸载重装后保持，并补充跨重装统计与 AI 额度连续性的说明
      */
-    const val CURRENT_VERSION = 2
+    const val CURRENT_VERSION = 3
 
     /** 隐私政策在线地址（华为/小米等应用商店登记用同一网址） */
     const val POLICY_URL = "https://nexioschedule.icu/privacy.html"

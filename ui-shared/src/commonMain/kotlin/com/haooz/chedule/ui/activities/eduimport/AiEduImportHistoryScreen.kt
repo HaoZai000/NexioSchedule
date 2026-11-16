@@ -1,11 +1,10 @@
 /** AI 教务导入历史：按时间倒序列出 AI 写过的每一版脚本 */
-package com.haooz.chedule.ui.activities
+package com.haooz.chedule.ui.activities.eduimport
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,8 +35,9 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.ai.AiEduScriptRecord
 import com.haooz.chedule.data.ai.AiEduScriptStore
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.ui.activities.FeedbackPlaceholder
 import com.haooz.chedule.ui.components.pageTopExtra
-import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.datetime.Instant
@@ -61,7 +60,6 @@ fun AiEduImportHistoryScreen(
 ) {
     val isTablet = isTabletWidth()
     val horizontalPadding = if (isTablet) 20.dp else 16.dp
-    val hapticFeedback = LocalHapticFeedback.current
 
     // null = 还没读完（首帧不闪空态）；读完才知道是真没有记录
     var records by remember { mutableStateOf<List<AiEduScriptRecord>?>(null) }

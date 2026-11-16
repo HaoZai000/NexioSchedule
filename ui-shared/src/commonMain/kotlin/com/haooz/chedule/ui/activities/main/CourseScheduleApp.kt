@@ -56,7 +56,7 @@ import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.LanguageStore
-import com.haooz.chedule.ui.screens.OnboardingFlow
+import com.haooz.chedule.ui.activities.oobe.OnboardingFlow
 import com.haooz.chedule.ui.activities.today.TodayAssistantCardData
 import com.haooz.chedule.ui.components.SharedFileIntent
 import com.haooz.chedule.ui.components.TabletNavSamplingTracker

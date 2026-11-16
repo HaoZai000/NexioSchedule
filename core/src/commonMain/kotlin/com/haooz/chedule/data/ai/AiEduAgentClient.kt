@@ -69,13 +69,23 @@ class AiEduAgentClient(
      *
      * @param messages OpenAI Chat 格式的整段历史（含 tool 结果），由调用方维护
      * @param tools 工具 schema 数组；空数组表示这一轮不允许调工具
+     * @param sessionId 一次导入的会话 ID；同一会话内多轮只扣 1 次额度
      */
-    suspend fun turn(messages: List<JsonObject>, tools: JsonArray): AiResult<AiAgentReply> {
+    suspend fun turn(
+        messages: List<JsonObject>,
+        tools: JsonArray,
+        sessionId: String? = null,
+    ): AiResult<AiAgentReply> {
         if (messages.isEmpty()) return AiResult.Error("对话是空的")
 
+        // 用户自带服务商：直连，不经过我们的服务器
+        val byok = AiByokStore.load()
+        if (byok.isUsable) return AiDirectClient(http).turn(byok, messages, tools)
+
         val body = buildJsonObject {
-            // 服务端按 device_id 计每日步数（与统计上报同一个 ID）
+            // 服务端按 device_id 计每日额度（与统计上报同一个 ID）
             put("device_id", StatsReporter.ensureDeviceId())
+            if (!sessionId.isNullOrBlank()) put("session_id", sessionId)
             put("messages", JsonArray(compactForWire(messages)))
             put("tools", tools)
         }
@@ -109,9 +119,15 @@ class AiEduAgentClient(
     suspend fun turnStream(
         messages: List<JsonObject>,
         tools: JsonArray,
+        sessionId: String? = null,
         onEvent: suspend (AiAgentEvent) -> Unit,
     ): AiResult<AiAgentReply> {
         if (messages.isEmpty()) return AiResult.Error("对话是空的")
+
+        // 用户自带服务商：直连供应商的 SSE，不经过我们的服务器
+        val byok = AiByokStore.load()
+        if (byok.isUsable) return AiDirectClient(http).turnStream(byok, messages, tools, onEvent)
+
         if (!AiServerKey.isConfigured()) return AiResult.Error("这个版本还没内置服务端公钥")
 
         val envelope = try {
@@ -122,6 +138,7 @@ class AiEduAgentClient(
 
         val body = buildJsonObject {
             put("device_id", StatsReporter.ensureDeviceId())
+            if (!sessionId.isNullOrBlank()) put("session_id", sessionId)
             put("messages", JsonArray(compactForWire(messages)))
             put("tools", tools)
         }
@@ -217,7 +234,7 @@ class AiEduAgentClient(
          * 脚本原文留在 `tool_calls.arguments` 里，几轮 60KB 脚本就能顶穿上限；被省略的内容
          * 模型可以重新调工具获取。只压缩发出去的副本，会话本身保持完整。
          */
-        private fun compactForWire(messages: List<JsonObject>): List<JsonObject> {
+        internal fun compactForWire(messages: List<JsonObject>): List<JsonObject> {
             var total = messages.sumOf { it.toString().length }
             if (total <= MAX_WIRE_CHARS) return messages
 

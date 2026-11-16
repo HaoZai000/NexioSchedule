@@ -6,6 +6,7 @@
 	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
+		<!-- 用户自建 WebDAV 可能只有 http，需保留明文能力；App 自身接口已全部走 HTTPS -->
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>

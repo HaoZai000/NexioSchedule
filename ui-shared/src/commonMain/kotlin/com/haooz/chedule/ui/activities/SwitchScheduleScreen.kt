@@ -12,7 +12,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -39,6 +38,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -62,12 +62,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -76,10 +75,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.onClick as onSemanticsClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.state.ToggleableState
@@ -88,9 +86,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
-import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.storage.ScheduleFolder
 import com.haooz.chedule.i18n.CommonStr
@@ -100,8 +98,9 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.cardRevealLayer
 import com.haooz.chedule.ui.components.rememberCardRevealState
-import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.chedule.ui.navigation.NAV_BG_DIM
 import com.haooz.chedule.ui.navigation.NAV_ENTER_DURATION
 import com.haooz.chedule.ui.navigation.NAV_ENTER_EASING
@@ -109,12 +108,6 @@ import com.haooz.chedule.ui.navigation.NAV_EXIT_DURATION
 import com.haooz.chedule.ui.navigation.NAV_EXIT_EASING
 import com.haooz.chedule.ui.navigation.NAV_PARALLAX
 import com.haooz.chedule.ui.screens.SemesterSchedulePreviewScreen
-import com.haooz.softglass.backdrop.GlassBackdrop
-import com.haooz.softglass.glass.BarFill
-import com.haooz.softglass.glass.BrightLargeTone
-import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
-import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
@@ -129,16 +122,15 @@ import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.toShape
-import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.haooz.softglass.backdrop.drawBackdrop
 import com.haooz.softglass.backdrop.effects.blur
 import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
+import com.haooz.softglass.glass.BarFill
+import com.haooz.softglass.glass.BrightLargeTone
+import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
+import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.softglass.platform.isRenderEffectSupported
 import com.haooz.softglass.shape.ContinuousCapsule
-import kotlin.math.abs
-import kotlin.math.roundToInt
-import kotlin.math.sign
-import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -180,6 +172,13 @@ import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.math.sign
+import kotlin.time.Duration.Companion.milliseconds
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.semantics.onClick as onSemanticsClick
+import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 /** 切换课表页底部胶囊的柔光 shader 缓存键：尺寸与其他玻璃件不同，不能共用 uniform。 */
 private const val LIVE_SWITCH_BAR_GLASS_KEY = "NexioSoftGlassLiveSwitchBar"
@@ -755,10 +754,10 @@ fun SwitchScheduleScreen(
                     // 非莫奈保持原硬编码（亮 #FFFFFF/0.6、暗 #121212/0.54）；无材质档实色
                     val containerColor = if (MiuixTheme.isDynamicColor) {
                         MiuixTheme.colorScheme.surfaceContainer
-                            .copy(alpha = com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(if (isAppDarkTheme()) 0.54f else 0.6f))
+                            .copy(alpha = AppMaterialSettings.solidSurfaceAlpha(if (isAppDarkTheme()) 0.54f else 0.6f))
                     } else if (!isAppDarkTheme()) Color(0xFFFFFFFF)
-                        .copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.6f))
-                    else Color(0xFF121212).copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.54f))
+                        .copy(AppMaterialSettings.solidSurfaceAlpha(0.6f))
+                    else Color(0xFF121212).copy(AppMaterialSettings.solidSurfaceAlpha(0.54f))
 
                     // 柔光玻璃：材质、档位、调色全由材质层给出；模糊走档位值，无材质档整体关。
                     // effects / shape / onDrawSurface 按引用比较，lambda 每帧新建会每帧重录采样层。
@@ -1037,7 +1036,7 @@ fun SwitchScheduleScreen(
                     }
                     .then(
                         // 无材质档：玻璃全关，采样录屏层不挂
-                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) Modifier
+                        if (AppMaterialSettings.isNoneTier()) Modifier
                         else Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
                     )
             ) {

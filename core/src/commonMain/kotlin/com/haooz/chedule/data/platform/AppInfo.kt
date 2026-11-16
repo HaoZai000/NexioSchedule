@@ -19,8 +19,8 @@ object AppInfo {
 }
 
 /**
- * UUID v4（8-4-4-4-12）。只用于匿名统计的设备标识，不需要密码学强度；
- * 格式必须严格是 v4，后端按 UUID 校验/索引。
+ * UUID v4（8-4-4-4-12）。用于课程/课表等业务实体的本地 ID，不需要密码学强度。
+ * 设备标识已改为平台稳定标识，不再走这里。
  */
 fun randomUuidV4(): String {
     val bytes = ByteArray(16)

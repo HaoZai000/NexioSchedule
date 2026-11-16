@@ -160,7 +160,7 @@ class DataFetcherLogicTest {
         assertEquals(1, http.urls.size)
         assertTrue(http.urls[0].contains("limit=10"), "缺 limit: ${http.urls[0]}")
         assertTrue(http.urls[0].contains("offset=20"), "缺 offset: ${http.urls[0]}")
-        assertTrue(http.urls[0].startsWith("http://"), "URL 协议异常: ${http.urls[0]}")
+        assertTrue(http.urls[0].startsWith("https://"), "URL 协议异常: ${http.urls[0]}")
     }
 
     @Test

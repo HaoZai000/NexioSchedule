@@ -7,12 +7,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -99,9 +97,9 @@ import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.AboutScreen
-import com.haooz.chedule.ui.activities.AiEduImportScreen
-import com.haooz.chedule.ui.activities.AiEduImportHistoryScreen
-import com.haooz.chedule.ui.activities.AiEduPreviewScreen
+import com.haooz.chedule.ui.activities.eduimport.AiEduImportScreen
+import com.haooz.chedule.ui.activities.eduimport.AiEduImportHistoryScreen
+import com.haooz.chedule.ui.activities.eduimport.AiEduPreviewScreen
 import com.haooz.chedule.ui.activities.AiImportScreen
 import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
 import com.haooz.chedule.ui.activities.BackupAndMigrationScreen
@@ -132,7 +130,7 @@ import com.haooz.chedule.ui.activities.UpdatePreferencesScreen
 import com.haooz.chedule.ui.activities.UpdateSettingsScreen
 import com.haooz.chedule.ui.activities.WebDavBottomActionState
 import com.haooz.chedule.ui.activities.WebDavSettingsScreen
-import com.haooz.chedule.ui.activities.WebImportScreen
+import com.haooz.chedule.ui.activities.eduimport.WebImportScreen
 import com.haooz.chedule.ui.activities.WidgetCustomizeOverlay
 import com.haooz.chedule.ui.activities.WidgetCustomizeRequest
 import com.haooz.chedule.ui.activities.WidgetIntroScreen
@@ -157,6 +155,7 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.effects.motion.MORPH_BACKGROUND_SHRINK
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.chedule.ui.screens.AiFeaturesScreen
 import com.haooz.chedule.ui.screens.CourseEditScreen
 import com.haooz.chedule.ui.screens.ScheduleSettingsScreen
 import com.haooz.chedule.ui.screens.SettingsSearchHeader
@@ -1363,11 +1362,22 @@ fun WidgetIntroRoute(
 }
 
 /**
- * AI 功能路由（标准文档页，内容待实现）。
+ * AI 功能路由：免费额度、自带服务商设置与各功能入口。
  */
 @Composable
 fun AiFeaturesRoute(router: AppRouter) {
-    DocumentRoute(title = SettingsStr.aiFeatures(), router = router) { }
+    DocumentPageScaffold(
+        title = SettingsStr.aiFeatures(),
+        onBack = { router.popBack() },
+    ) { scrollBehavior, backdrop ->
+        AiFeaturesScreen(
+            scrollBehavior = scrollBehavior,
+            liquidGlassBackdrop = backdrop,
+            onOpenReminder = { router.navigate(AppRoute.CourseReminder) },
+            onOpenEduImport = { router.navigate(AppRoute.AiEduImport) },
+            onOpenTextImport = { router.navigate(AppRoute.AiImport) },
+        )
+    }
 }
 
 /**

@@ -5,6 +5,7 @@ package com.haooz.nexio.ohos
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import com.haooz.chedule.data.platform.ApiEndpoints
 import com.haooz.chedule.data.platform.AppFiles
 import com.haooz.chedule.data.platform.HttpService
 import com.haooz.chedule.data.platform.HttpTimeouts
@@ -43,7 +44,7 @@ import org.jetbrains.skia.Paint
  */
 object OhosScheduleShare {
 
-    private const val BASE_URL = "http://182.92.193.223:3000/api/share"
+    private const val BASE_URL = ApiEndpoints.SHARE
 
     private val http: HttpService by lazy {
         createHttpService(HttpTimeouts(connectSeconds = 12, readSeconds = 20, callSeconds = 30))

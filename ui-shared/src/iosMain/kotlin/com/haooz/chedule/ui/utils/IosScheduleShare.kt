@@ -5,6 +5,7 @@ package com.haooz.chedule.ui.utils
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import com.haooz.chedule.data.platform.ApiEndpoints
 import com.haooz.chedule.data.platform.createHttpService
 import com.haooz.chedule.data.util.optInt
 import com.haooz.chedule.data.util.optString
@@ -55,7 +56,7 @@ import platform.UIKit.popoverPresentationController
  */
 object IosScheduleShare {
 
-    private const val BASE_URL = "http://182.92.193.223:3000/api/share"
+    private const val BASE_URL = ApiEndpoints.SHARE
 
     // 与 Android ShareCodeApi 的连接池配置对齐
     private val http: HttpService by lazy {

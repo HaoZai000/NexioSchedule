@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!--
+        WebDAV 由用户自行填写地址，局域网 NAS 可能只提供 http，
+        因此不能全局关闭明文；App 自身的接口已全部走 HTTPS 域名。
+        这里不再信任用户安装的 CA，避免装个证书就能解密全部 HTTPS 流量。
+    -->
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
-            <certificates src="user" />
         </trust-anchors>
     </base-config>
 </network-security-config>

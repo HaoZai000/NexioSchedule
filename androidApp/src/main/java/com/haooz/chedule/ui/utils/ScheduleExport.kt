@@ -19,6 +19,7 @@ import android.text.TextPaint
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.google.gson.GsonBuilder
+import com.haooz.chedule.data.platform.ApiEndpoints
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.AndroidMiscStr
@@ -73,8 +74,8 @@ import org.json.JSONObject
  * [fetchShare]，不重复定义。
  */
 object ShareCodeApi {
-    // 与其他后端接口一致：HTTPS(443) 在部分运营商网络下 TLS 握手被干扰，改用 3000 直达
-    private const val BASE_URL = "http://182.92.193.223:3000/api/share"
+    // 统一走域名 HTTPS；明文 3000 只保留给老版本兼容
+    private const val BASE_URL = ApiEndpoints.SHARE
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)

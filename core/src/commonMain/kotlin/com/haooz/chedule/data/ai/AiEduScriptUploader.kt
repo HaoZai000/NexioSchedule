@@ -1,5 +1,6 @@
 package com.haooz.chedule.data.ai
 
+import com.haooz.chedule.data.platform.ApiEndpoints
 import com.haooz.chedule.data.platform.AppInfo
 import com.haooz.chedule.data.platform.HttpService
 import com.haooz.chedule.data.platform.HttpTimeouts
@@ -27,7 +28,7 @@ import kotlinx.coroutines.withContext
 object AiEduScriptUploader {
 
     private const val TAG = "AiEduScriptUploader"
-    private const val BASE_URL = "http://182.92.193.223:3000/api/ai/edu-scripts"
+    private const val BASE_URL = ApiEndpoints.AI_EDU_SCRIPTS
 
     /** 与服务端 `EDU_SCRIPT_MAX_SCHOOL_LEN` 保持一致 */
     const val MAX_SCHOOL_LENGTH = 64

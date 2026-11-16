@@ -8,6 +8,7 @@ import com.haooz.chedule.data.platform.AppInfo
 import com.haooz.chedule.data.platform.FileAppFile
 import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.platform.ScheduleEffects
+import com.haooz.chedule.data.platform.initDeviceIdentity
 import com.haooz.chedule.data.platform.initToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.storage.AppStorage
@@ -29,6 +30,8 @@ class NexioApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 稳定设备标识要先于任何统计 / AI / 反馈调用接线（ANDROID_ID 需要 ContentResolver）。
+        initDeviceIdentity(this)
         // 必须最先初始化。工厂按名转发命名空间，不在此汇总键名。
         // 没有第二套存储：库不可用时直接抛，不静默降级。
         AppStorage.init { name ->

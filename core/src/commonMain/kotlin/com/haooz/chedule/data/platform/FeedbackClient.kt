@@ -14,7 +14,7 @@ import kotlinx.serialization.json.JsonObject
 /**
  * 应用内反馈与开发进度的数据层。
  *
- * 与 [StatsReporter] 同包同风格：明文 HTTP + [HttpService]，**不要换 Ktor**
+ * 与 [StatsReporter] 同包同风格：HTTP 封装走 [HttpService]，**不要换 Ktor**
  * （会把 coroutines 顶到 1.10+，影响提醒/闹钟/小组件）。
  *
  * 身份只有匿名 `device_id`（与统计上报同一个 ID）+ 用户自填的邮箱：
@@ -25,7 +25,7 @@ import kotlinx.serialization.json.JsonObject
 object FeedbackClient {
 
     private const val TAG = "FeedbackClient"
-    private const val BASE_URL = "http://182.92.193.223:3000/api/feedback"
+    private const val BASE_URL = ApiEndpoints.FEEDBACK
 
     /** 与服务端 `FEEDBACK_MAX_*` 保持一致 */
     const val MAX_TITLE_LENGTH = 80

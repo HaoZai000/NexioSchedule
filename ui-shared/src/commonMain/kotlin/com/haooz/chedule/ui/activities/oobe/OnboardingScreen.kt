@@ -3,7 +3,7 @@
  *
  * 语言页与设置页各自持有状态，互不共享；欢迎页与整体时序见 OnboardingFlow.kt。
  */
-package com.haooz.chedule.ui.screens
+package com.haooz.chedule.ui.activities.oobe
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -375,7 +375,7 @@ internal fun OnboardingSetupScreen(
     // 完成页入场结束再通知宿主加载主界面，避免两套动画抢同一段帧
     LaunchedEffect(current.kind) {
         if (current.kind == OobeKind.Finish) {
-            delay(FINISH_ANNOUNCE_DELAY_MILLIS.toLong())
+            delay(FINISH_ANNOUNCE_DELAY_MILLIS.toLong().milliseconds)
             onReachedFinishPage()
         }
     }

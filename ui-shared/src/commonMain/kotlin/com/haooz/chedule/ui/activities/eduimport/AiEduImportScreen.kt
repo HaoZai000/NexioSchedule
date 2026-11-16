@@ -4,7 +4,7 @@
  * 对话必须留在本页内、以底部浮层形式出现：工具都在这台 WebView 上执行，
  * 页面一旦离开组合，WebView 就被销毁。
  */
-package com.haooz.chedule.ui.activities
+package com.haooz.chedule.ui.activities.eduimport
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -106,7 +106,6 @@ import com.haooz.chedule.ui.components.softGlassBackdrop
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.screens.WebViewScreen
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
@@ -121,6 +120,7 @@ import com.haooz.chedule.ui.web.WebHostConfig
 import com.haooz.chedule.ui.web.WebHostEvents
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
+import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
@@ -128,6 +128,7 @@ import com.haooz.softglass.glass.BarFill
 import com.haooz.softglass.glass.BrightLargeTone
 import com.haooz.softglass.glass.BrightTone
 import com.haooz.softglass.glass.CustomizeFill
+import com.haooz.softglass.glass.SoftGlassStyle
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
@@ -863,9 +864,9 @@ private fun Composer(
     running: Boolean,
     onSend: () -> Unit,
     /** 玻璃采样源（浮层内部内容） */
-    backdrop: com.haooz.softglass.backdrop.GlassBackdrop,
+    backdrop: GlassBackdrop,
     glassOn: Boolean,
-    glassStyle: com.haooz.softglass.glass.SoftGlassStyle,
+    glassStyle: SoftGlassStyle,
     modifier: Modifier = Modifier,
 ) {
     val capsule = remember { ContinuousCapsule() }
