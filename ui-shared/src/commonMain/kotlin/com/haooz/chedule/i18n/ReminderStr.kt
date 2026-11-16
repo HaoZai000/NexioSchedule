@@ -71,7 +71,6 @@ object ReminderStr {
     val dynamicIslandLeft = L("灵动岛左侧", "Dynamic Island Left")
     val superIslandRight = L("超级岛右侧", "Super Island Right")
     val dynamicIslandRight = L("灵动岛右侧", "Dynamic Island Right")
-    val inClassIslandRight = L("课中岛右侧", "In-Class Island Right")
     val inClassDynamicIslandRight = L("课中灵动岛右侧", "In-Class Dynamic Island Right")
     val islandAod = L("息屏显示", "Always-On Display")
     val islandAodSummary = L("全天候显示时无效", "No effect with the system Always-On Display")
@@ -91,8 +90,8 @@ object ReminderStr {
     val authorizeShizuku = L("授权 Shizuku", "Authorize Shizuku")
     val shizukuAuthFailed = L("Shizuku 授权失败", "Shizuku authorization failed")
 
-    // 缩略态精简
-    val thumbAbbreviation = L("缩略态精简", "Thumbnail Abbreviation")
+    // 通知精简（缩略态 + 展开态的地点，缩略态的课程名）
+    val thumbAbbreviation = L("通知精简", "Notification Abbreviation")
     val scopeOriginal = L("原始文本", "Original text")
     val scopeClassroom = L("精简地点", "Abbreviate classroom")
     val scopeCourse = L("精简课程", "Abbreviate course")

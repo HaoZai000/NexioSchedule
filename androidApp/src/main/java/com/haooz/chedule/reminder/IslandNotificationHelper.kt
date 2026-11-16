@@ -474,8 +474,8 @@ object IslandNotificationHelper {
                 }
                 put("timerInfo", timerInfo)
                 put("subContent", AndroidNotifStr.location())
-                // 展开态放得下完整地点，这里给原文 —— 精简只服务于缩略态
-                put("subTitle", classroom ?: "")
+                // 展开态「地点」行：地点精简开启时同样用精简结果（课程名仍保持原文）
+                put("subTitle", shortClassroom)
                 put("colorContent", "#666666")
                 put("colorContentDark", "#aaaaaa")
                 put("colorTitle", "#222222")
@@ -595,8 +595,6 @@ object IslandNotificationHelper {
         val prefs = AppStorage.store("course_reminder_prefs")
         val expandGlowEnabled = prefs.getBoolean(KEY_ISLAND_EXPAND_GLOW_ENABLED, DEFAULT_ISLAND_EXPAND_GLOW)
         val aodMode = prefs.getInt("island_aod_mode", 0)
-        // 课中岛缩略态 B 区：0=正在上课（静态文案），1=距下课倒计时
-        val inClassRightMode = prefs.getInt("island_in_class_right_mode", 0)
 
         val now = System.currentTimeMillis()
         val counting = courseEndMillis > now
@@ -697,52 +695,41 @@ object IslandNotificationHelper {
                 })
             })
 
-            // 缩略态：模板2，与课前同构；A区课程名，B区可在「正在上课」与距下课倒计时间自选
+            // 缩略态：模板2，与课前同构；A区固定「正在上课」，B区固定距下课倒计时
             put("param_island", JSONObject().apply {
                 put("islandProperty", 1)
                 put("islandTimeout", 3600)
                 put("bigIslandArea", JSONObject().apply {
                     put("templateNo", 2)
-                    // A区：课程名称
+                    // A区：固定「正在上课」
                     put("imageTextInfoLeft", JSONObject().apply {
                         put("type", 1)
                         put("textInfo", JSONObject().apply {
-                            put("title", courseName)
+                            put("title", AndroidNotifStr.inClassNow())
                             put("content", "")
                             put("showHighlightColor", false)
                             put("narrowFont", false)
                         })
                     })
-                    if (inClassRightMode == 1 && counting) {
-                        // B区：距下课倒计时。与课前「N分钟上课」同一套 sameWidthDigitInfo 机制，
-                        // 由系统 timer 自刷到下课，App 无需按分钟重推，也不会让岛反复弹出
-                        put("sameWidthDigitInfo", JSONObject().apply {
-                            put("content", AndroidNotifStr.endsIn())
-                            put("showHighlightColor", false)
-                            put("timerInfo", JSONObject().apply {
-                                put("timerType", -1)
-                                put("timerWhen", courseEndMillis)
-                                put("timerTotal", 0L)
-                                put("timerSystemCurrent", now)
-                            })
+                    // B区：固定距下课倒计时。与课前「N分钟上课」同一套 sameWidthDigitInfo 机制，
+                    // 由系统 timer 自刷到下课，App 无需按分钟重推，也不会让岛反复弹出
+                    put("sameWidthDigitInfo", JSONObject().apply {
+                        put("content", AndroidNotifStr.endsIn())
+                        put("showHighlightColor", false)
+                        put("timerInfo", JSONObject().apply {
+                            put("timerType", -1)
+                            put("timerWhen", courseEndMillis)
+                            put("timerTotal", 0L)
+                            put("timerSystemCurrent", now)
                         })
-                        put("textInfo", JSONObject().apply {
-                            put("frontTitle", "")
-                            put("title", "")
-                            put("content", "")
-                            put("showHighlightColor", false)
-                            put("narrowFont", false)
-                        })
-                    } else {
-                        // B区：静态文案
-                        put("textInfo", JSONObject().apply {
-                            put("frontTitle", "")
-                            put("title", if (counting) AndroidNotifStr.inClassNow() else AndroidNotifStr.classEnded())
-                            put("content", "")
-                            put("showHighlightColor", false)
-                            put("narrowFont", false)
-                        })
-                    }
+                    })
+                    put("textInfo", JSONObject().apply {
+                        put("frontTitle", "")
+                        put("title", "")
+                        put("content", "")
+                        put("showHighlightColor", false)
+                        put("narrowFont", false)
+                    })
                 })
                 put("smallIslandArea", JSONObject().apply {
                     put("picInfo", JSONObject().apply {

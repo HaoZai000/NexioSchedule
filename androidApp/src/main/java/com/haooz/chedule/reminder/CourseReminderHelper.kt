@@ -1330,7 +1330,9 @@ object CourseReminderHelper {
         } else {
             AndroidNotifStr.infoRemaining(remainMin)
         }
-        val expandedText = if (classroom.isBlank()) infoLine else "$infoLine\n$classroom"
+        // 展开态地点同样跟随「通知精简」；课程名仍保持原文
+        val shortClassroom = AppStorage.store("course_reminder_prefs").shortClassroom(classroom)
+        val expandedText = if (shortClassroom.isBlank()) infoLine else "$infoLine\n$shortClassroom"
         val shortCriticalText = AndroidNotifStr.minutesShort(remainMin)
 
         // 课中只保留进度卡片，不挂动作按钮（点整卡打开课表即可）
@@ -1570,7 +1572,8 @@ object CourseReminderHelper {
             minutesUntilStart = minutesUntilStart,
             startTime = startTime,
             endTime = formatClock(endMillis),
-            classroom = classroom
+            // 展开态地点跟随「通知精简」
+            classroom = reminderPrefs.shortClassroom(classroom)
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_LIVE_ID)
@@ -1794,7 +1797,8 @@ object CourseReminderHelper {
             minutesUntilStart = minutesUntilStart,
             startTime = startTime,
             endTime = formatClock(endMillis),
-            classroom = classroom
+            // 展开态地点跟随「通知精简」
+            classroom = collapsedPrefs.shortClassroom(classroom)
         )
 
         val contentIntent = PendingIntent.getActivity(
