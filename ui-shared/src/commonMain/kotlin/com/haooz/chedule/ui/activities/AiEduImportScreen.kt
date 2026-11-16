@@ -18,10 +18,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,27 +39,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsDraggedAsState
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -69,22 +67,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.getStringOrNull
@@ -103,12 +103,10 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.PageBlurBaseHeight
 import com.haooz.chedule.ui.components.softGlassBackdrop
-import com.haooz.chedule.ui.components.text.material.Text as Text
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.Text as PlainText
+import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
-import com.haooz.chedule.ui.screens.WebViewScreen
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.screens.WebViewScreen
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
@@ -134,7 +132,6 @@ import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
@@ -142,18 +139,45 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Recent
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
 import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
+import androidx.compose.material3.Text as PlainText
 
 private const val PREFS_AI_EDU = "ai_edu_import_prefs"
 private const val KEY_LAST_URL = "last_url"
+
+/** 右上角「历史」图标：1024×1024 的时钟 SVG，路径直接交给 [PathParser] 解析成 [ImageVector]。 */
+private val AiEduHistoryIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "AiEduHistory",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 1024f,
+        viewportHeight = 1024f,
+    ).addPath(
+        pathData = PathParser().parsePathString(AI_EDU_HISTORY_PATH).toNodes(),
+        fill = SolidColor(Color.Black),
+    ).build()
+}
+
+private const val AI_EDU_HISTORY_PATH =
+    "M512 938.666667c235.648 0 426.666667-191.018667 426.666667-426.666667" +
+        "S747.648 85.333333 512 85.333333 85.333333 276.352 85.333333 512" +
+        "s191.018667 426.666667 426.666667 426.666667z" +
+        "m0 85.333333C229.248 1024 0 794.752 0 512S229.248 0 512 0" +
+        "s512 229.248 512 512-229.248 512-512 512z" +
+        "m42.666667-486.869333V298.538667C554.666667 275.328 535.552 256 512 256" +
+        "c-23.722667 0-42.666667 19.029333-42.666667 42.538667v256.256" +
+        "a41.984 41.984 0 0 0 12.202667 29.866666l121.258667 121.258667" +
+        "a42.368 42.368 0 0 0 60.032-0.298667 42.666667 42.666667 0 0 0 0.298666-60.032" +
+        "L554.666667 537.130667z"
 
 /** 对话浮层占屏高比例：上面露出的一截网页就是「悬浮小窗」。 */
 private const val ChatSheetFraction = 0.64f
@@ -402,10 +426,10 @@ fun AiEduImportScreen(
                                         onOpenHistory()
                                     },
                                     backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Recent,
+                                    icon = AiEduHistoryIcon,
                                     contentDescription = ImportStr.aiEduHistory(),
                                     performHapticFeedback = false,
-                                    iconSize = 24.dp,
+                                    iconSize = 22.dp,
                                     backdropAlpha = backdropAlpha,
                                     shadowAlpha = shadowAlpha,
                                 )
@@ -453,13 +477,15 @@ private fun UrlEntryOverlay(
             text = ImportStr.aiEduUrlHint(),
             style = MiuixTheme.textStyles.body2,
             color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(12.dp))
         NativeMiuixTextField(
             value = urlInput,
             onValueChange = onUrlChange,
-            minLines = 1,
-            maxLines = 1,
+            minLines = 4,
+            maxLines = 4,
             label = ImportStr.aiEduUrlLabel(),
             useLabelAsPlaceholder = true,
         )
@@ -512,7 +538,7 @@ private fun ChatSheet(
         if (state.running) {
             while (true) {
                 tick = Clock.System.now().toEpochMilliseconds()
-                delay(250)
+                delay(250.milliseconds)
             }
         }
     }

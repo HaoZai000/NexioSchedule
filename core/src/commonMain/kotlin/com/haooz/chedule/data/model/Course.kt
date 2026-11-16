@@ -2,7 +2,7 @@ package com.haooz.chedule.data.model
 
 import com.haooz.chedule.data.platform.DisplayLang
 import com.haooz.chedule.data.util.CourseTimeSpan
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 data class Course(
     val id: String,

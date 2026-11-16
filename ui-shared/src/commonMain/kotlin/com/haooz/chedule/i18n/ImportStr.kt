@@ -215,21 +215,21 @@ Reply strictly in this format and do not add any other text."""
     val aiEduStart = L("开始分析", "Analyze")
     val aiEduStop = L("停止", "Stop")
     val aiEduFailed = L("这次没成", "Didn't work this time")
-    val aiEduPreviewSummary = L("共 %d 门课程，确认后写入当前课表", "%d courses; they will be written after you confirm")
-    val aiEduAppendMode = L("追加到现有课程（不覆盖）", "Append to existing courses")
     val aiEduParseFailed = L("课程数据解析失败", "Failed to parse course data")
     val aiEduReplyHint = L("补充缺失的信息", "Add the missing information")
     val aiEduSend = L("发送", "Send")
     val aiEduNeedUrl = L("先填一个教务系统地址", "Enter your academic system address first")
     val aiEduUrlHint = L(
-        "填学校的教务系统地址，在下方页面里登录，然后点开始分析。模型会自己读页面、打接口、写脚本。",
-        "Enter your school's academic system address, sign in on the page below, then analyze. The model reads the page, calls the same-origin APIs and writes an adapter script.",
+        "填写学校教务导入地址后打开教务系统，登录教务系统后进入课表页面再点击开始分析\n" +
+            "AI自动开始分析页面与接口，撰写脚本",
+        "Enter your school's academic system address and open it, sign in, go to the timetable page, " +
+            "then tap Analyze.\nAI then reads the page and APIs and writes the adapter script.",
     )
     val aiEduUrlLabel = L("教务系统地址", "Academic system address")
     val aiEduOpen = L("打开", "Open")
     val aiEduEntrySubtitle = L(
-        "模型自己读页面、打接口、写适配脚本",
-        "The model reads the page, calls APIs and writes the adapter itself",
+        "AI自动开始分析页面与接口，撰写脚本",
+        "AI reads the page and APIs and writes the adapter script",
     )
 
     // ── AI 教务导入：三个阶段（网页 / 对话 / 预览） ──
@@ -270,6 +270,11 @@ Reply strictly in this format and do not add any other text."""
     )(count)
     /** 追加导入时全部课程都已在课表里 */
     val aiEduAppendNothingNew = L("没有新增课程：这些课都已在课表里", "Nothing new: these courses already exist")
+    val aiEduImportDialogTitle = L("导入到选定的课表？", "Import into the selected schedule?")
+    val aiEduTargetSchedule = L("导入到课表", "Import into")
+    /** 确认弹窗摘要：目标课表原有门数 → 导入门数 */
+    fun aiEduImportTargetSummary(name: String, existing: Int, incoming: Int): String =
+        L("「%s」现有 %d 门 → 导入 %d 门", "\"%s\" has %d courses → import %d")(name, existing, incoming)
     val aiEduSchoolLabel = L("学校名称", "School name")
     val aiEduSchoolHint = L(
         "导入后会把这次生成的脚本上传到服务器，同类教务系统的同学可以直接复用",

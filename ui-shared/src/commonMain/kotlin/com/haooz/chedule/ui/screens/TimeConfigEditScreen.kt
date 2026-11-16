@@ -86,7 +86,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card

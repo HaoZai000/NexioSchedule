@@ -40,12 +40,17 @@ data class AdapterData(
     val importUrl: String? = null,
     val description: String = "",
     val maintainer: String = "",
+    /** 来源：拾光仓库 / edu-ai-dock。合并展示时用它区分徽标与卡片底色 */
+    val source: Int = SOURCE_SHUIGUANG,
 ) {
     companion object {
         const val CATEGORY_UNKNOWN = 0
         const val CATEGORY_GENERAL_TOOL = 1
         const val CATEGORY_BACHELOR = 2
         const val CATEGORY_POSTGRADUATE = 3
+
+        const val SOURCE_SHUIGUANG = 0
+        const val SOURCE_AI_DOCK = 1
     }
 }
 

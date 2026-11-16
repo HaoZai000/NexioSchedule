@@ -92,10 +92,10 @@ import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.sqrt
+import kotlin.time.Clock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
 import org.jetbrains.compose.resources.painterResource
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults

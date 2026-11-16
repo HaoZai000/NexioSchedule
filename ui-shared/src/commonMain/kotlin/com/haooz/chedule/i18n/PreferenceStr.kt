@@ -47,7 +47,6 @@ object PreferenceStr {
 
     // 数据源
     val dataSources = L("数据源", "Data Sources")
-    val forkSource = L("Fork源", "Fork Source")
     val eduRepoSource = L("教务数据仓库源", "Academic Data Repo Source")
     val eduRepoSourceSummary =
         L("更新教务系统数据源的仓库", "Repository for updating the academic system data source")

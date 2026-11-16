@@ -60,6 +60,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.platform.showToast
+import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.ScriptRepository
 import com.haooz.chedule.i18n.AppLanguage
@@ -143,6 +144,8 @@ fun WebViewScreen(
     adapterId: String,
     importUrl: String?,
     assetJsPath: String?,
+    /** 适配器来源：拾光 / AI 仓库，决定脚本从哪里下载 */
+    adapterSource: Int = AdapterData.SOURCE_SHUIGUANG,
     webContentBackdrop: LayerBackdrop,
     contentTopPadding: Dp = 0.dp,
     scheduleNames: List<String> = emptyList(),
@@ -193,10 +196,10 @@ fun WebViewScreen(
     val currentOnTopColorChanged by rememberUpdatedState(onTopColorChanged)
 
     // 进入页面时按需预下载适配脚本，失败不阻塞页面
-    LaunchedEffect(resourceFolder, assetJsPath) {
+    LaunchedEffect(resourceFolder, assetJsPath, adapterSource) {
         val path = assetJsPath ?: return@LaunchedEffect
         ScriptRepository(ScriptRepository.getRepoUrl())
-            .ensureScript(resourceFolder, path)
+            .ensureScript(resourceFolder, path, adapterSource)
     }
 
     var alertData by remember { mutableStateOf<AlertData?>(null) }
@@ -388,7 +391,7 @@ fun WebViewScreen(
         assetJsPath?.let { path ->
             scope.launch {
                 val scriptFile = ScriptRepository(ScriptRepository.getRepoUrl())
-                    .ensureScript(resourceFolder, path)
+                    .ensureScript(resourceFolder, path, adapterSource)
                 if (scriptFile != null) {
                     val jsCode = scriptFile.readText()
                     webHost.setImportTableId(tableId)

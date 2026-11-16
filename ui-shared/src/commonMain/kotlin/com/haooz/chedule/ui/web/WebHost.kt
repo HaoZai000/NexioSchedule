@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.model.Course
+import com.haooz.chedule.data.school.AdapterData
 
 // ════════════════════════════════════════════════════════════════════════
 //  网页内容宿主 —— 教务导入用的 WebView 的平台无关契约
@@ -44,6 +45,8 @@ class WebHostConfig(
     val scheduleNames: List<String> = emptyList(),
     /** 当前课表名（原生选择器的默认项）。 */
     val currentScheduleName: String = "",
+    /** 适配器来源：拾光 / AI 仓库，决定脚本从哪里下载（原生宿主执行导入时用）。 */
+    val adapterSource: Int = AdapterData.SOURCE_SHUIGUANG,
 )
 
 /**

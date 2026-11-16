@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,21 +39,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.ai.AiEduScriptUploader
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.platform.showToast
+import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.ui.ai.AiEduPreviewHolder
 import com.haooz.chedule.ui.ai.EduAgentDraft
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.screens.AddCourseDialog
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.web.EduImportBridgeCore
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
@@ -66,8 +69,11 @@ import com.haooz.softglass.shape.continuousBackground
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Checkbox
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -118,10 +124,27 @@ fun AiEduPreviewScreen(
         }
     }
     val totalWeeks by courseViewModel.totalWeeks.collectAsState()
-    val existingCourses by courseViewModel.courses.collectAsState()
+    val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
+    val currentScheduleName by scheduleViewModel.currentScheduleName.collectAsState()
+    // 读目标课表已有课程数：课程流只反映当前课表，别的课表得直接问仓库
+    val repository = remember { CourseRepository() }
+    // 液态玻璃下拉：容器透明，底色交给浮层玻璃自己画
+    val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
+        containerColor = Color.Transparent,
+        selectedContainerColor = Color.Transparent,
+    )
 
     var showConfirmDialog by remember { mutableStateOf(false) }
-    var appendMode by remember { mutableStateOf(false) }
+    // 目标课表：默认当前课表；用户没选过或选中的表被删掉时回落到当前 / 第一张
+    var pickedSchedule by remember { mutableStateOf<String?>(null) }
+    val targetSchedule = pickedSchedule?.takeIf { it in scheduleNames }
+        ?: currentScheduleName.takeIf { it in scheduleNames }
+        ?: scheduleNames.firstOrNull()
+    val targetExistingCount = remember(targetSchedule, currentScheduleName, showConfirmDialog) {
+        val name = targetSchedule ?: return@remember 0
+        if (name == currentScheduleName) courseViewModel.courses.value.size
+        else repository.getCoursesForSchedule(name).size
+    }
     // 学校名称：脚本上传到服务端后靠它归类，必填
     var schoolInput by remember { mutableStateOf("") }
     var editingCourseIndex by remember { mutableIntStateOf(-1) }
@@ -261,28 +284,9 @@ fun AiEduPreviewScreen(
     }
 
     OverlayDialog(
-        title = if (appendMode) ImportStr.appendDialogTitle() else ImportStr.overwriteDialogTitle(),
-        summary = buildString {
-            if (appendMode) {
-                if (existingCourses.isNotEmpty()) {
-                    append(
-                        ImportStr.appendSummaryCombined(
-                            existingCourses.size,
-                            courses.size,
-                            existingCourses.size + courses.size
-                        )
-                    )
-                    append(ImportStr.appendKeepExisting())
-                } else {
-                    append(ImportStr.totalCoursesN(courses.size))
-                }
-            } else {
-                if (existingCourses.isNotEmpty()) {
-                    append(ImportStr.replaceSummary(existingCourses.size, courses.size))
-                } else {
-                    append(ImportStr.totalCoursesN(courses.size))
-                }
-            }
+        title = ImportStr.aiEduImportDialogTitle(),
+        summary = targetSchedule?.let {
+            ImportStr.aiEduImportTargetSummary(it, targetExistingCount, courses.size)
         },
         show = showConfirmDialog,
         liquidGlassBackdrop = liquidGlassBackdrop,
@@ -304,31 +308,33 @@ fun AiEduPreviewScreen(
                 color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                 modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 8.dp)
             )
-            // 仅在已有课程时提供增量添加
-            if (existingCourses.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        state = if (appendMode) ToggleableState.On else ToggleableState.Off,
-                        onClick = { appendMode = !appendMode }
+            // 目标课表：整表替换，默认当前课表
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                insideMargin = PaddingValues(0.dp),
+                colors = CardDefaults.defaultColors(
+                    color = if (isAppDarkTheme()) Color.White.copy(0.1f) else Color.Black.copy(0.06f)
+                ),
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OverlayDropdownMenu(
+                        title = ImportStr.aiEduTargetSchedule(),
+                        entry = DropdownEntry(
+                            items = scheduleNames.map { name ->
+                                DropdownItem(
+                                    text = name,
+                                    selected = name == targetSchedule,
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        pickedSchedule = name
+                                    },
+                                )
+                            },
+                        ),
+                        collapseOnSelection = true,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        dropdownColors = liquidGlassDropdownColors,
                     )
-                    Spacer(modifier = Modifier.size(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = ImportStr.appendModeLabel(),
-                            style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (appendMode) ImportStr.appendModeOnDesc() else ImportStr.appendModeOffDesc(),
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
-                    }
                 }
             }
             Row(
@@ -346,16 +352,17 @@ fun AiEduPreviewScreen(
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(
-                    text = if (appendMode) ImportStr.confirmAppend() else ImportStr.confirmImport(),
-                    enabled = schoolInput.isNotBlank(),
+                    text = ImportStr.confirmImport(),
+                    enabled = schoolInput.isNotBlank() && targetSchedule != null,
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         val target = draft
-                        if (target != null && courses.isNotEmpty()) {
+                        val targetName = targetSchedule
+                        if (target != null && targetName != null && courses.isNotEmpty()) {
                             val written = applyAgentDraft(
                                 draft = target,
                                 courses = courses.toList(),
-                                append = appendMode,
+                                targetSchedule = targetName,
                                 settingsViewModel = settingsViewModel,
                                 scheduleViewModel = scheduleViewModel,
                                 courseViewModel = courseViewModel,
@@ -367,15 +374,7 @@ fun AiEduPreviewScreen(
                                 script = target.script,
                                 courseCount = written,
                             )
-                            showToast(
-                                when {
-                                    // 追加时全部撞上已有课程：说清楚，而不是「添加了 0 门」
-                                    appendMode && written == 0 -> ImportStr.aiEduAppendNothingNew()
-                                    appendMode -> ImportStr.addedCoursesN(written)
-                                    else -> ImportStr.importedCoursesN(written)
-                                },
-                                longDuration = true,
-                            )
+                            showToast(ImportStr.importedCoursesN(written), longDuration = true)
                             showConfirmDialog = false
                             onImported()
                         }
@@ -470,7 +469,7 @@ private fun CoursePreviewRow(
 private fun applyAgentDraft(
     draft: EduAgentDraft,
     courses: List<Course>,
-    append: Boolean,
+    targetSchedule: String,
     settingsViewModel: SettingsViewModel,
     scheduleViewModel: ScheduleViewModel,
     courseViewModel: CourseViewModel,
@@ -495,27 +494,13 @@ private fun applyAgentDraft(
         applyComboSchedule(settingsViewModel, courseViewModel, scheduleViewModel, null)
     }
 
-    // 追加模式：与本机已有课程同课（名称/教师/地点/星期/节次相同）的跳过，
-    // 重复点「追加」不该让课表里多出一倍同样的课
-    val written = if (append) {
-        val existing = courseViewModel.courses.value.mapTo(HashSet()) { it.aiDraftKey() }
-        courses.filterNot { it.aiDraftKey() in existing }
+    // 写入选定的课表：目标就是当前表时走 CourseViewModel（顺带更新缓存与 widget），
+    // 否则临时切表写入再切回，对外表现为不切换
+    if (targetSchedule == scheduleViewModel.currentScheduleName.value) {
+        courseViewModel.replaceCourses(courses)
     } else {
-        courses
+        scheduleViewModel.saveCoursesToSchedule(targetSchedule, courses)
     }
-    if (append) courseViewModel.appendCourses(written) else courseViewModel.replaceCourses(written)
     scheduleViewModel.refreshScheduleList()
-    return written.size
+    return courses.size
 }
-
-/** 同课判定键：名称/教师/地点/星期/节次/真实时间完全相同才算同一门课。 */
-private fun Course.aiDraftKey(): String = listOf(
-    name.trim(),
-    (teacher ?: "").trim(),
-    (classroom ?: "").trim(),
-    dayOfWeek,
-    startSection,
-    endSection,
-    customStartTime.orEmpty(),
-    customEndTime.orEmpty(),
-).joinToString("|")

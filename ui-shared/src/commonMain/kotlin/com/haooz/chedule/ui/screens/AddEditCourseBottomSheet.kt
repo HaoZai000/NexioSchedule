@@ -54,7 +54,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberImeDismiss
 import com.haooz.chedule.ui.utils.rememberOpenKey
 import com.haooz.softglass.backdrop.GlassBackdrop
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults

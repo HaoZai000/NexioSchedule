@@ -26,7 +26,7 @@ import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.data.util.formatSlashDate
 import com.haooz.chedule.data.util.todayLocalDate
 import kotlin.concurrent.Volatile
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 /**
  * 课表目录：有哪些课表、当前看哪张、文件夹怎么分组。

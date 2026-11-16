@@ -111,6 +111,7 @@ actual fun rememberOhosWebHost(config: WebHostConfig, events: WebHostEvents): We
     controller.events = currentEvents
     controller.resourceFolder = config.resourceFolder
     controller.assetJsPath = config.assetJsPath
+    controller.adapterSource = config.adapterSource
 
     LaunchedEffect(Unit) {
         activeController = controller
@@ -154,6 +155,8 @@ private class OhosWebHostController {
     var events: WebHostEvents = WebHostEvents()
     var resourceFolder: String = ""
     var assetJsPath: String? = null
+    /** 适配器来源：0 = 拾光，1 = AI 仓库 */
+    var adapterSource: Int = 0
 
     var canGoBack: Boolean = false
         private set
@@ -278,7 +281,7 @@ private class OhosWebHostController {
         core.setImportTableId(tableId)
         scope.launch {
             val scriptFile = ScriptRepository(ScriptRepository.getRepoUrl())
-                .ensureScript(resourceFolder, path)
+                .ensureScript(resourceFolder, path, adapterSource)
             if (scriptFile == null) {
                 showToast(com.haooz.chedule.i18n.SchedStr.scriptDownloadFailed(path), longDuration = true)
                 return@launch

@@ -33,6 +33,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -49,6 +50,7 @@ import com.haooz.chedule.data.school.SchoolRepository
 import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.ExtractedShareTools
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
@@ -274,7 +276,8 @@ fun SchoolSelectionScreen(
                                     school.adapters.any { it.category == AdapterData.CATEGORY_POSTGRADUATE }
                                 Box(
                                     modifier = Modifier.fillMaxWidth()
-                                        .then(if (isTablet) Modifier.clip(ContinuousRoundedRectangle(20.dp)) else Modifier)
+                                        // 统一按圆角裁切，点击涟漪才不会溢出成直角
+                                        .clip(ContinuousRoundedRectangle(20.dp))
                                         .clickable {
                                             hapticFeedback.performHapticFeedback(
                                                 HapticFeedbackType.VirtualKey
@@ -468,6 +471,11 @@ private const val AI_ENTRY_ITEM_COUNT = 1
 @Composable
 private fun AiEduImportEntryCard(onClick: () -> Unit) {
     val haptic = LocalHapticFeedback.current
+    val dark = isAppDarkTheme()
+    // 淡蓝色底 + 深蓝文字：与下面「按学校找适配」的行区分开，又不至于抢过页面的主色
+    val cardBg = if (dark) Color(0xFF172A42) else Color(0xFFE8F1FF)
+    val titleColor = if (dark) Color(0xFFD8E8FF) else Color(0xFF17427A)
+    val subColor = if (dark) Color(0xFF9CB9DE) else Color(0xFF4A74A8)
     Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp)) {
         Row(
             modifier = Modifier
@@ -477,7 +485,7 @@ private fun AiEduImportEntryCard(onClick: () -> Unit) {
                     haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
                     onClick()
                 }
-                .background(MiuixTheme.colorScheme.primary)
+                .background(cardBg)
                 .padding(horizontal = 18.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -486,12 +494,12 @@ private fun AiEduImportEntryCard(onClick: () -> Unit) {
                     text = ImportStr.aiEduImportTitle(),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onPrimary
+                    color = titleColor
                 )
                 Text(
                     text = ImportStr.aiEduEntrySubtitle(),
                     fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onPrimary.copy(alpha = 0.75f),
+                    color = subColor,
                     modifier = Modifier.padding(top = 3.dp)
                 )
             }
@@ -499,7 +507,7 @@ private fun AiEduImportEntryCard(onClick: () -> Unit) {
                 imageVector = MiuixIcons.Basic.ArrowRight,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
-                tint = MiuixTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
+                tint = subColor
             )
         }
     }

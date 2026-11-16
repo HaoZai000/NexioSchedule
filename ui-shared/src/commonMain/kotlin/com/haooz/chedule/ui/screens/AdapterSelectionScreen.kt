@@ -260,8 +260,17 @@ private fun AdapterRow(
     categoryName: String,
     onClick: () -> Unit
 ) {
+    val dark = isAppDarkTheme()
+    // AI 仓库生成的适配器叠一层很淡的蓝，和拾光的人工适配区分开
+    val fromAiDock = adapter.source == AdapterData.SOURCE_AI_DOCK
     Surface(
-        color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh else if (isAppDarkTheme()) Color(0xFF303030) else Color(0xFFFFFFFF),
+        color = when {
+            fromAiDock && dark -> Color(0xFF16283F)
+            fromAiDock -> Color(0xFFEAF2FF)
+            MiuixTheme.isDynamicColor -> MiuixTheme.colorScheme.surfaceContainerHigh
+            dark -> Color(0xFF303030)
+            else -> Color(0xFFFFFFFF)
+        },
         modifier = Modifier
             .fillMaxWidth()
             .clip(ContinuousRoundedRectangle(20.dp))

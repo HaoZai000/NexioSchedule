@@ -147,6 +147,7 @@ fun WebImportScreen(
                 adapterId = adapter.adapterId,
                 importUrl = adapter.importUrl,
                 assetJsPath = adapter.assetJsPath,
+                adapterSource = adapter.source,
                 webContentBackdrop = webContentBackdrop,
                 // 与选择页同构：Scaffold padding + 顶栏高度，内容贴在顶栏下
                 contentTopPadding = (contentTopInset + topBarHeightDp + 12.dp)

@@ -3,10 +3,10 @@ package com.haooz.chedule.data.platform
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.util.jsonObjectOf
 import kotlin.concurrent.Volatile
+import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
 
 /**
  * 匿名统计上报。

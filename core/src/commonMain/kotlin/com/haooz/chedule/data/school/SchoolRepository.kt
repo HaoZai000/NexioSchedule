@@ -22,17 +22,53 @@ class SchoolRepository {
     private val schoolsDir: AppFile
         get() = AppFiles.root.resolve("repo/schools/resources")
 
+    /** AI 仓库只读本地缓存（网络更新由 [AiDockRepository.updateIndex] 负责） */
+    private val aiDock: AiDockRepository get() = AiDockRepository.shared
+
     fun loadIndex(): SchoolIndexData? {
         // 首次使用：本地无索引时，从安装包内置 asset 引导一份，避免联网才能获取学校列表
         ensureBundledIndex()
-        if (!indexFile.exists()) return null
-        return try {
-            SchoolIndexParser.parse(indexFile.readBytes())
-        } catch (e: Exception) {
-            NexioLog.e(TAG, "索引解析失败: ${e.message}")
-            null
-        }
+        val bundled = if (indexFile.exists()) {
+            try {
+                SchoolIndexParser.parse(indexFile.readBytes())
+            } catch (e: Exception) {
+                NexioLog.e(TAG, "索引解析失败: ${e.message}")
+                null
+            }
+        } else null
+        return mergeIndexes(bundled, aiDock.loadIndex())
     }
+
+    /**
+     * 合并拾光与 AI 仓库的索引：同 id 或同校名的学校合成一条，适配器按「来源 + id」去重。
+     * 两边都有的学校会同时展示两套适配器，UI 用 [AdapterData.source] 区分来源。
+     */
+    private fun mergeIndexes(
+        primary: SchoolIndexData?,
+        secondary: SchoolIndexData?,
+    ): SchoolIndexData? {
+        if (primary == null && secondary == null) return null
+        val merged = mutableListOf<SchoolData>()
+        (primary?.schools.orEmpty() + secondary?.schools.orEmpty()).forEach { school ->
+            val index = merged.indexOfFirst { existing ->
+                (existing.id.isNotBlank() && existing.id == school.id) || existing.name == school.name
+            }
+            if (index >= 0) merged[index] = mergeSchool(merged[index], school) else merged.add(school)
+        }
+        return SchoolIndexData(
+            protocolVersion = maxOf(primary?.protocolVersion ?: 0, secondary?.protocolVersion ?: 0),
+            versionId = maxOf(primary?.versionId.orEmpty(), secondary?.versionId.orEmpty()),
+            schools = merged,
+        )
+    }
+
+    private fun mergeSchool(first: SchoolData, other: SchoolData): SchoolData = first.copy(
+        id = first.id.ifBlank { other.id },
+        name = first.name.ifBlank { other.name },
+        initial = first.initial.ifBlank { other.initial },
+        resourceFolder = first.resourceFolder.ifBlank { other.resourceFolder },
+        adapters = (first.adapters + other.adapters).distinctBy { it.source to it.adapterId },
+    )
 
     /** 内置索引引导：仅当本地索引不存在时，从 assets/eduloader 拷贝内置 school_index.pb 供首启用 */
     private fun ensureBundledIndex() {
@@ -70,6 +106,10 @@ class SchoolRepository {
     }
 
     fun getScriptFile(adapter: AdapterData, school: SchoolData): AppFile? {
+        if (adapter.source == AdapterData.SOURCE_AI_DOCK) {
+            val file = AiDockRepository.scriptFile(adapter.assetJsPath)
+            return if (file.exists()) file else null
+        }
         val scriptFile = schoolsDir.resolve("${school.resourceFolder}/${adapter.assetJsPath}")
         return if (scriptFile.exists()) scriptFile else null
     }

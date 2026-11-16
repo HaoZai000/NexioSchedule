@@ -42,7 +42,7 @@ import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme

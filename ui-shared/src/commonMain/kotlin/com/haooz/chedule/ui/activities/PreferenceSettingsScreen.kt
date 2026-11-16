@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.holiday.HolidayManager
+import com.haooz.chedule.data.school.ScriptRepository
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.i18n.CommonStr
@@ -95,9 +96,7 @@ fun PreferenceSettingsScreen(
 
     val eduPrefs = remember { AppStorage.store("edu_import_prefs") }
     var repoUrl by remember {
-        mutableStateOf(
-            eduPrefs.getString("repo_url", "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse")
-        )
+        mutableStateOf(ScriptRepository.getRepoUrl())
     }
 
     var holidaySource by remember { mutableStateOf(HolidayManager.holidaySource()) }
@@ -470,26 +469,18 @@ fun PreferenceSettingsScreen(
                             val repoEntry = DropdownEntry(
                                 items = listOf(
                                     DropdownItem(
-                                        text = PreferenceStr.forkSource(),
-                                        selected = repoUrl == "https://gitee.com/com_haooz_account/shiguang_warehouse",
+                                        text = "Gitee",
+                                        selected = repoUrl == ScriptRepository.GITEE_REPO_URL,
                                         onClick = {
-                                            repoUrl = "https://gitee.com/com_haooz_account/shiguang_warehouse"
+                                            repoUrl = ScriptRepository.GITEE_REPO_URL
                                             eduPrefs.edit { putString("repo_url", repoUrl) }
                                         }
                                     ),
                                     DropdownItem(
                                         text = "GitHub",
-                                        selected = repoUrl == "https://github.com/XingHeYuZhuan/shiguang_warehouse",
+                                        selected = repoUrl == ScriptRepository.GITHUB_REPO_URL,
                                         onClick = {
-                                            repoUrl = "https://github.com/XingHeYuZhuan/shiguang_warehouse"
-                                            eduPrefs.edit { putString("repo_url", repoUrl) }
-                                        }
-                                    ),
-                                    DropdownItem(
-                                        text = "Gitee",
-                                        selected = repoUrl == "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse",
-                                        onClick = {
-                                            repoUrl = "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse"
+                                            repoUrl = ScriptRepository.GITHUB_REPO_URL
                                             eduPrefs.edit { putString("repo_url", repoUrl) }
                                         }
                                     ),

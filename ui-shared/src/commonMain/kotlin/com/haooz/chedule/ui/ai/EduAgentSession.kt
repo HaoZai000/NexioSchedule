@@ -8,13 +8,13 @@ import com.haooz.chedule.data.ai.AiResult
 import com.haooz.chedule.data.platform.HttpTimeouts
 import com.haooz.chedule.data.platform.createHttpService
 import com.haooz.chedule.ui.web.WebHost
+import kotlin.time.Clock
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.datetime.Clock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull

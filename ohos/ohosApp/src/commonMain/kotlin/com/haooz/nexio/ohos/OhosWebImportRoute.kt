@@ -105,6 +105,7 @@ fun OhosWebImportRoute(router: AppRouter) {
             schoolName = school.name,
             scheduleNames = scheduleNames,
             currentScheduleName = currentScheduleName,
+            adapterSource = adapter.source,
         ),
         events,
     )

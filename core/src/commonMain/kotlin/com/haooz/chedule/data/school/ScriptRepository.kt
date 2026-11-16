@@ -38,8 +38,14 @@ class ScriptRepository(
 ) {
 
     companion object {
+        /** 拾光教务仓库（Gitee 源） */
+        const val GITEE_REPO_URL = "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse"
+
+        /** 拾光教务仓库（GitHub 源） */
+        const val GITHUB_REPO_URL = "https://github.com/XingHeYuZhuan/shiguang_warehouse"
+
         // 默认使用上游 Gitee 拾光仓库
-        private const val DEFAULT_REPO_URL = "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse"
+        private const val DEFAULT_REPO_URL = GITEE_REPO_URL
         private const val RESOURCES_BRANCH = "main"
         private const val INDEX_BRANCH = "index-pb-release"
         private const val INDEX_FILE_NAME = "school_index.pb"
@@ -56,8 +62,15 @@ class ScriptRepository(
 
         private const val TIMEOUT_SECONDS = 30L
 
-        fun getRepoUrl(): String =
-            AppStorage.store(PREFS_NAME).getString(KEY_REPO_URL, DEFAULT_REPO_URL)
+        fun getRepoUrl(): String {
+            val stored = AppStorage.store(PREFS_NAME).getString(KEY_REPO_URL, DEFAULT_REPO_URL)
+            // 旧的 Fork 源已下线：存量设置统一回落到 Gitee 上游
+            return if (stored.contains("com_haooz_account/shiguang_warehouse")) GITEE_REPO_URL else stored
+        }
+
+        /** 当前选的是 GitHub 源；AI 脚本仓库（edu-ai-dock）跟着走同一平台 */
+        fun isGithubSource(): Boolean =
+            getRepoUrl().contains("github.com", ignoreCase = true)
 
         fun setRepoUrl(url: String) {
             AppStorage.store(PREFS_NAME).edit { putString(KEY_REPO_URL, url) }
@@ -78,32 +91,6 @@ class ScriptRepository(
 
     private val resourcesDir: AppFile
         get() = baseDir.resolve("schools/resources")
-
-    /**
-     * gitee raw 防盗链检测：直链请求返回 HTML 签名页（含 raw.giteeusercontent.com 链接）
-     * 而非文件内容，需解析并跟随签名链接获取真实数据
-     */
-    private fun isGiteeAntiHotlinkPage(bytes: ByteArray): Boolean {
-        if (bytes.size > 1024 || bytes.isEmpty()) return false
-        val head = bytes.decodeToString().trimStart()
-        return head.startsWith("<") && head.contains("raw.giteeusercontent.com")
-    }
-
-    private fun extractGiteeSignedUrl(bytes: ByteArray): String? {
-        val html = bytes.decodeToString()
-        val match = Regex("href=\"([^\"]+)\"").find(html) ?: return null
-        return match.groupValues[1].replace("&amp;", "&")
-    }
-
-    /** 缓存文件是否为 gitee 防盗链 HTML（旧版本下载失败时可能残留），视为无效缓存 */
-    private fun looksLikeAntiHotlinkHtml(file: AppFile): Boolean {
-        return try {
-            val bytes = file.readBytes()
-            bytes.isNotEmpty() && isGiteeAntiHotlinkPage(bytes)
-        } catch (_: Exception) {
-            false
-        }
-    }
 
     /**
      * 比较版本ID（TIME_YYYYMMDDHHMMSS_XXX 格式）
@@ -205,8 +192,17 @@ class ScriptRepository(
      * 按需获取适配脚本：每次进入都从云端全量重新下载，保证始终是远端最新内容。
      * 只在网络失败时回退本地缓存（且缓存未被防盗链 HTML 污染），不阻塞导入。
      * 返回 null 表示既无缓存、下载也失败。
+     *
+     * AI 仓库（[AdapterData.SOURCE_AI_DOCK]）结构不同，转交 [AiDockRepository] 处理。
      */
-    suspend fun ensureScript(resourceFolder: String, assetJsPath: String): AppFile? {
+    suspend fun ensureScript(
+        resourceFolder: String,
+        assetJsPath: String,
+        source: Int = AdapterData.SOURCE_SHUIGUANG,
+    ): AppFile? {
+        if (source == AdapterData.SOURCE_AI_DOCK) {
+            return AiDockRepository.shared.ensureScript(assetJsPath)
+        }
         val target = resourcesDir.resolve("$resourceFolder/$assetJsPath")
         return withContext(ioDispatcher) {
             val url = "$remoteBase/raw/$RESOURCES_BRANCH/resources/$resourceFolder/$assetJsPath"
@@ -254,5 +250,34 @@ class ScriptRepository(
             return bytes
         }
         return null
+    }
+}
+
+/**
+ * gitee raw 防盗链检测：直链请求返回 HTML 签名页（含 raw.giteeusercontent.com 链接）
+ * 而非文件内容，需解析并跟随签名链接获取真实数据。
+ *
+ * 拾光仓库与 AI 仓库（[AiDockRepository]）共用。
+ */
+internal fun isGiteeAntiHotlinkPage(bytes: ByteArray): Boolean {
+    if (bytes.size > 1024 || bytes.isEmpty()) return false
+    val head = bytes.decodeToString().trimStart()
+    return head.startsWith("<") && head.contains("raw.giteeusercontent.com")
+}
+
+/** 从 gitee 防盗链签名页里取出真实下载地址；取不到返回 null。 */
+internal fun extractGiteeSignedUrl(bytes: ByteArray): String? {
+    val html = bytes.decodeToString()
+    val match = Regex("href=\"([^\"]+)\"").find(html) ?: return null
+    return match.groupValues[1].replace("&amp;", "&")
+}
+
+/** 缓存文件是否为 gitee 防盗链 HTML（旧版本下载失败时可能残留），视为无效缓存。 */
+internal fun looksLikeAntiHotlinkHtml(file: AppFile): Boolean {
+    return try {
+        val bytes = file.readBytes()
+        bytes.isNotEmpty() && isGiteeAntiHotlinkPage(bytes)
+    } catch (_: Exception) {
+        false
     }
 }

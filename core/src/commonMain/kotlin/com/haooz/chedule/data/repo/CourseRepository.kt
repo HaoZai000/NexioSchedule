@@ -33,7 +33,7 @@ import com.haooz.chedule.data.util.CourseTimeSpan
 import com.haooz.chedule.data.util.formatSlashDate
 import com.haooz.chedule.data.util.todayLocalDate
 import kotlin.concurrent.Volatile
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
 
