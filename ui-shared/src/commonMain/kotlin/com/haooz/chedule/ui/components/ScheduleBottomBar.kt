@@ -19,7 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.text.material.Text
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.NativeBottomBarHost
 import com.haooz.chedule.ui.utils.NativeBottomBarState
 import com.haooz.chedule.ui.utils.argbValue
@@ -81,6 +83,8 @@ fun ScheduleBottomBar(
             gap = BOTTOM_BAR_GAP,
         )
     }
+    // 液态玻璃档整条换成参考库的底栏（原库没有右侧圆钮，设置按钮单独用一颗玻璃圆按钮）
+    val liquidTier = AppMaterialSettings.isLiquidTier()
 
     BoxWithConstraints(
         modifier = Modifier
@@ -94,46 +98,103 @@ fun ScheduleBottomBar(
         val nodeWidth = visibleWidth
         val nodeLeft = (maxWidth - visibleWidth) / 2
 
-        LiquidBottomTabs(
-            selectedTabIndex = { selectedTab },
-            onTabSelected = onTabSelected,
-            backdrop = liquidGlassBackdrop,
-            tabsCount = tabCount,
-            containerHeight = BOTTOM_BAR_CIRCLE,
-            trailing = trailing,
-            modifier = Modifier
-                .offset(x = nodeLeft)
-                .width(nodeWidth)
-                .height(BOTTOM_BAR_CIRCLE),
-        ) {
-            if (isShiftMode) {
-                LiquidBottomTab() {
-                    Image(
-                        modifier = Modifier.size(24.dp),
-                        imageVector = MiuixIcons.Months,
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(iconTint)
-                    )
-                    Text(ChromeStr.shiftSchedule(), fontSize = 11.sp, color = iconTint)
+        if (liquidTier) {
+            LiquidGlassBottomBar(
+                selectedTabIndex = { selectedTab },
+                onTabSelected = onTabSelected,
+                backdrop = liquidGlassBackdrop,
+                tabsCount = tabCount,
+                barHeight = BOTTOM_BAR_CIRCLE,
+                sliderHeight = BOTTOM_BAR_CIRCLE - 8.dp,
+                modifier = Modifier
+                    .offset(x = nodeLeft)
+                    .width(pillWidth)
+                    .height(BOTTOM_BAR_CIRCLE),
+            ) {
+                if (isShiftMode) {
+                    LiquidGlassBottomTab(onClick = { onTabSelected(0) }) {
+                        Image(
+                            modifier = Modifier.size(24.dp),
+                            imageVector = MiuixIcons.Months,
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(iconTint)
+                        )
+                        Text(ChromeStr.shiftSchedule(), fontSize = 11.sp, color = iconTint)
+                    }
+                } else {
+                    LiquidGlassBottomTab(onClick = { onTabSelected(0) }) {
+                        Image(
+                            modifier = Modifier.size(24.dp),
+                            imageVector = MiuixIcons.Album,
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(iconTint)
+                        )
+                        Text(CommonStr.today(), fontSize = 11.sp, color = iconTint)
+                    }
+                    LiquidGlassBottomTab(onClick = { onTabSelected(1) }) {
+                        Image(
+                            modifier = Modifier.size(24.dp),
+                            imageVector = MiuixIcons.Months,
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(iconTint)
+                        )
+                        Text(ChromeStr.schedule(), fontSize = 11.sp, color = iconTint)
+                    }
                 }
-            } else {
-                LiquidBottomTab() {
-                    Image(
-                        modifier = Modifier.size(24.dp),
-                        imageVector = MiuixIcons.Album,
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(iconTint)
-                    )
-                    Text(CommonStr.today(), fontSize = 11.sp, color = iconTint)
-                }
-                LiquidBottomTab() {
-                    Image(
-                        modifier = Modifier.size(24.dp),
-                        imageVector = MiuixIcons.Months,
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(iconTint)
-                    )
-                    Text(ChromeStr.schedule(), fontSize = 11.sp, color = iconTint)
+            }
+            LiquidTopBarButton(
+                onClick = openSettings,
+                backdrop = liquidGlassBackdrop,
+                icon = MiuixIcons.Settings,
+                contentDescription = CommonStr.settings(),
+                modifier = Modifier
+                    .offset(x = nodeLeft + pillWidth + BOTTOM_BAR_GAP)
+                    .size(BOTTOM_BAR_CIRCLE),
+                buttonHeight = BOTTOM_BAR_CIRCLE,
+                iconTint = iconTint,
+            )
+        } else {
+            LiquidBottomTabs(
+                selectedTabIndex = { selectedTab },
+                onTabSelected = onTabSelected,
+                backdrop = liquidGlassBackdrop,
+                tabsCount = tabCount,
+                containerHeight = BOTTOM_BAR_CIRCLE,
+                trailing = trailing,
+                modifier = Modifier
+                    .offset(x = nodeLeft)
+                    .width(nodeWidth)
+                    .height(BOTTOM_BAR_CIRCLE),
+            ) {
+                if (isShiftMode) {
+                    LiquidBottomTab() {
+                        Image(
+                            modifier = Modifier.size(24.dp),
+                            imageVector = MiuixIcons.Months,
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(iconTint)
+                        )
+                        Text(ChromeStr.shiftSchedule(), fontSize = 11.sp, color = iconTint)
+                    }
+                } else {
+                    LiquidBottomTab() {
+                        Image(
+                            modifier = Modifier.size(24.dp),
+                            imageVector = MiuixIcons.Album,
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(iconTint)
+                        )
+                        Text(CommonStr.today(), fontSize = 11.sp, color = iconTint)
+                    }
+                    LiquidBottomTab() {
+                        Image(
+                            modifier = Modifier.size(24.dp),
+                            imageVector = MiuixIcons.Months,
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(iconTint)
+                        )
+                        Text(ChromeStr.schedule(), fontSize = 11.sp, color = iconTint)
+                    }
                 }
             }
         }
