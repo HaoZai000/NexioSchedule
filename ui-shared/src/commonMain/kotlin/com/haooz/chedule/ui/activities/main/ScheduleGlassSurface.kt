@@ -10,11 +10,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.appearance.AppearanceConfig
 import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.rememberSoftGlassSurface
+import com.haooz.softglass.glass.LiquidLens
 import com.haooz.softglass.glass.SoftGlassStyle
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.softglass.glass.untransformGlassOrigin
 import com.haooz.chedule.ui.navigation.LocalMainLayerTranslation
 
@@ -26,6 +29,14 @@ private const val CARD_LIGHT_INTENSITY = 0.8f
 private const val CARD_LIGHT_OPPOSITE = 0.45f
 private const val CARD_LIGHT_ANGLE_RANGE = 1.78f
 private const val CARD_LIGHT_FALLOFF = 0.86f
+
+/**
+ * 液态玻璃档下卡片的 lens 口径：5 / 25（默认折射倍率下）。
+ *
+ * 全局口径是 10 / 42，但那套是给悬浮控件和大面板的；课程卡片尺寸小、倒角窄，
+ * 用全局值会把整张卡糊成一团。位移仍按外观里的折射倍率缩放。
+ */
+private val CardLiquidLens = LiquidLens(refractionHeight = 5.dp, refractionAmount = 25.dp)
 
 /**
  * 课表卡片的柔光样式：外观里的折射 / 模糊 / 边缘厚度 / 高光描边折算成一份 [SoftGlassStyle]。
@@ -40,9 +51,15 @@ internal fun rememberScheduleGlassStyle(displayAppearance: AppearanceConfig): So
     val glassBlurPx = displayAppearance.cardBlurRadius
     val glassEdgePx = ScheduleSoftGlassStyle.edgeWidth * displayAppearance.cardEdgeThickness.scale
     val glassEdgeHighlight = displayAppearance.cardRim
-    return remember(glassRefractionScale, glassBlurPx, glassEdgePx, glassEdgeHighlight) {
+    // 液态玻璃档只换折射的绘制方式（shader 里换成液态位移场），其余口径与柔光玻璃逐项一致
+    val liquidRefraction = AppMaterialSettings.isLiquidTier()
+    return remember(
+        glassRefractionScale, glassBlurPx, glassEdgePx, glassEdgeHighlight, liquidRefraction,
+    ) {
         ScheduleSoftGlassStyle.copy(
             refractionScale = glassRefractionScale,
+            liquidRefraction = liquidRefraction,
+            liquidLens = CardLiquidLens,
             smallBlurRadius = glassBlurPx,
             edgeWidth = glassEdgePx,
             edgeHighlight = glassEdgeHighlight,

@@ -16,8 +16,11 @@ import com.haooz.softglass.tuning
 import com.haooz.softglass.platform.isRenderEffectSupported
 
 /**
- * 应用材质质量档（柔光玻璃 / 清透磨砂 / 无材质），玻璃模糊、折射、边光都读它；默认柔光玻璃。
+ * 应用材质质量档（柔光玻璃 / 液态玻璃 / 清透磨砂 / 无材质），玻璃模糊、折射、边光都读它；默认柔光玻璃。
  * 顶栏「真·渐进模糊」是独立开关 [trueProgressiveBlur]，不占用档位。
+ *
+ * 液态玻璃与柔光共用底色 / 边光 / 调色，只把折射换成液态位移场；模糊压低一档
+ * （小控件 4dp、面板与对话框 8dp），见 [GlassMaterialLevel.LIQUID]。
  *
  * 统一限制：RenderEffect 不可用（Android API < 31）的设备锁死无材质档（见 [normalize]），
  * 模糊相关的按能力降级分支不在这里出现——能力不足时档位本身就是无材质。
@@ -30,19 +33,22 @@ object AppMaterialSettings {
     private const val PREFS_NAME = "app_preferences"
 
     const val BEST = "best"
+    const val LIQUID = "liquid"
     const val BALANCED = "balanced"
     const val NONE = "none"
 
     private fun materialLevel(): GlassMaterialLevel = when (level) {
         BEST -> GlassMaterialLevel.SOFT
+        LIQUID -> GlassMaterialLevel.LIQUID
         NONE -> GlassMaterialLevel.NONE
         else -> GlassMaterialLevel.FROSTED
     }
 
-    // Pair.first 是持久化数据键（BEST/BALANCED/...），Pair.second 是展示名；按当前语言取值，不缓存
+    // Pair.first 是持久化数据键（BEST/LIQUID/BALANCED/...），Pair.second 是展示名；按当前语言取值，不缓存
     val entries: List<Pair<String, String>>
         get() = listOf(
             BEST to MiscStr.materialBest(),
+            LIQUID to MiscStr.materialLiquid(),
             BALANCED to MiscStr.materialBalanced(),
             NONE to MiscStr.materialNone(),
         )
@@ -74,15 +80,19 @@ object AppMaterialSettings {
     fun labelOf(level: String): String =
         entries.firstOrNull { it.first == level }?.second ?: MiscStr.materialBest()
 
-    /** 按钮 / 低栏背景板折射：仅柔光玻璃档保留，其余档关闭。 */
-    fun chromeLensEnabled(): Boolean = level == BEST
+    /** 按钮 / 低栏背景板折射：柔光玻璃与液态玻璃档保留，其余档关闭。 */
+    fun chromeLensEnabled(): Boolean = level == BEST || level == LIQUID
 
     /** 是否柔光玻璃档（折射 + 低模糊那一档）。 */
     fun isBestTier(): Boolean = level == BEST
 
+    /** 是否液态玻璃档：只换折射的绘制方式，模糊比柔光档低一档。 */
+    fun isLiquidTier(): Boolean = level == LIQUID
+
     /**
      * 悬浮控件（顶栏按钮、胶囊这类）的玻璃样式：基准样式套上基调与填充，再按材质档位
-     * 决定折射与高光 —— 磨砂档没有折射，方向光也关掉（纯磨砂面）；柔光玻璃档两者都留。
+     * 决定折射与高光 —— 磨砂档没有折射，方向光也关掉（纯磨砂面）；柔光玻璃 / 液态玻璃档
+     * 两者都留，液态玻璃只额外把折射切成液态位移场。
      *
      * 控件的材质就这一处定义，调用方只传「用哪个基调 / 哪个填充」。
      */
@@ -93,10 +103,11 @@ object AppMaterialSettings {
         tone: GlassTone = BrightTone,
     ): SoftGlassStyle {
         val resolved = base.copy(fill = fill, tone = tone).filled(isDark)
-        return if (isBestTier()) {
-            resolved
+        val glass = resolved.copy(liquidRefraction = isLiquidTier())
+        return if (isBestTier() || isLiquidTier()) {
+            glass
         } else {
-            resolved.copy(refractionScale = 0f, edgeHighlight = false)
+            glass.copy(refractionScale = 0f, edgeHighlight = false)
         }
     }
 
@@ -159,7 +170,7 @@ object AppMaterialSettings {
     private fun normalize(level: String): String {
         lockedLevel?.let { return it }
         val resolved = when (level) {
-            BEST, BALANCED, NONE -> level
+            BEST, LIQUID, BALANCED, NONE -> level
             else -> BEST
         }
         return if (resolved != NONE && !isRenderEffectSupported()) NONE else resolved

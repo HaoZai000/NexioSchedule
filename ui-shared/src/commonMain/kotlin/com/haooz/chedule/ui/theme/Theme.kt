@@ -184,10 +184,11 @@ fun CourseScheduleTheme(
     val glassVariants = remember(AppMaterialSettings.level) {
         buildSoftGlassLayerVariants()
     }
-    // GlassEnvironment.isDark 降级为「少数 draw 期观感（按压高光 / 阴影）的只读镜像」：
+    // GlassEnvironment 是 draw 期的只读镜像：
+    // isDark 供按压高光 / 阴影这类少量观感读取，density 供液态 lens 的 dp→px 换算；
     // 全应用唯一写入点，不再由上百个 isAppDarkTheme() 调用点用 SideEffect 竞争写。
     val effectiveGlassDark = appDark ?: isSystemInDarkTheme()
-    SideEffect { GlassEnvironment.update(isDark = effectiveGlassDark) }
+    SideEffect { GlassEnvironment.update(isDark = effectiveGlassDark, density = density.density) }
     MiuixTheme(
         controller = controller,
         content = {

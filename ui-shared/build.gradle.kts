@@ -69,7 +69,7 @@ kotlin {
             // 开机引导播放小米原版 Lottie 素材
             implementation(libs.compottie)
             // 柔光玻璃档位与材质口径
-            api("com.github.HaoZai000.softglass:softglass:0.1.1")
+            api("com.github.HaoZai000.softglass:softglass:0.1.2")
             // 数据层与跨平台抽象
             api(project(":core"))
             // 页面骨架与组件

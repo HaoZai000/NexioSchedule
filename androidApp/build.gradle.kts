@@ -103,7 +103,7 @@ dependencies {
 
     implementation(project(":ui-shared"))
 
-    implementation("com.github.HaoZai000.softglass:softglass:0.1.1")
+    implementation("com.github.HaoZai000.softglass:softglass:0.1.2")
 
     implementation(project(":miuix"))
 
