@@ -46,8 +46,9 @@ server/
 .cxx
 temp_*/
 
-# --- 教务索引（release 构建由 downloadEduIndex 从 gitee 拉取，勿提交） ---
+# --- 教务索引（release 构建由 downloadEduIndex 拉取，勿提交） ---
 androidApp/src/main/assets/eduloader/school_index.pb
+androidApp/src/main/assets/eduloader/school_index_ai.json
 
 # --- 工作助手本地目录 ---
 .workbuddy/

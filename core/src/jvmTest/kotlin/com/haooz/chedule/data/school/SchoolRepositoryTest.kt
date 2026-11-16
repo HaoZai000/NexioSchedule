@@ -23,6 +23,12 @@ class SchoolRepositoryTest {
 
     private val indexAssetPath = "eduloader/school_index.pb"
 
+    private val aiIndexAssetPath = AiDockRepository.BUNDLED_INDEX_ASSET
+
+    /** 最小的合法 AI 索引：只验证内置引导链路，内容无关紧要 */
+    private fun aiIndexBytes(): ByteArray =
+        """{"protocol_version":1,"version_id":"","schools":[]}""".toByteArray()
+
     private fun fixtureBytes(): ByteArray {
         val stream = javaClass.getResourceAsStream("/school_index.pb")
         assertNotNull(stream, "找不到测试夹具 /school_index.pb")
@@ -36,8 +42,11 @@ class SchoolRepositoryTest {
         val bytes = fixtureBytes()
         val root = InMemoryAppFile.root()
         AppFiles.init(root, readAsset = { path ->
-            assertEquals(indexAssetPath, path, "内置资源路径必须与迁移前一致")
-            bytes
+            when (path) {
+                indexAssetPath -> bytes
+                aiIndexAssetPath -> aiIndexBytes()
+                else -> error("未知内置资源: $path")
+            }
         })
 
         val repo = SchoolRepository()
@@ -53,12 +62,14 @@ class SchoolRepositoryTest {
     fun `引导写入的路径与迁移前一致`() {
         val bytes = fixtureBytes()
         val root = InMemoryAppFile.root()
-        AppFiles.init(root, readAsset = { bytes })
+        AppFiles.init(root, readAsset = { path ->
+            if (path == aiIndexAssetPath) aiIndexBytes() else bytes
+        })
 
         SchoolRepository().loadIndex()
 
         assertEquals(
-            setOf("repo/index/school_index.pb"),
+            setOf("repo/index/school_index.pb", "repo/aidock/school_index.json"),
             root.filePaths(),
             "落盘路径发生变化",
         )
@@ -74,13 +85,16 @@ class SchoolRepositoryTest {
         val bytes = fixtureBytes()
         val root = InMemoryAppFile.root()
         var assetReads = 0
-        AppFiles.init(root, readAsset = { assetReads++; bytes })
+        AppFiles.init(root, readAsset = { path ->
+            assetReads++
+            if (path == aiIndexAssetPath) aiIndexBytes() else bytes
+        })
 
         SchoolRepository().loadIndex()
-        assertEquals(1, assetReads, "首次应读一次内置资源")
+        assertEquals(2, assetReads, "首次应各读一次内置资源（拾光 pb + AI json）")
 
         SchoolRepository().loadIndex()
-        assertEquals(1, assetReads, "本地已有索引，不应再读内置资源")
+        assertEquals(2, assetReads, "本地已有索引，不应再读内置资源")
     }
 
     /** 内置资源缺失（如本地开发未执行 downloadEduIndex）时应打日志跳过，而不是崩。 */

@@ -53,6 +53,9 @@ class AiDockRepository(
         /** 索引缓存路径：与拾光索引分开存，避免互相覆盖 */
         fun indexFile(): AppFile = AppFiles.root.resolve("repo/aidock/school_index.json")
 
+        /** Release 打包进 assets 的索引副本；首次启动本地无缓存时用它引导 */
+        const val BUNDLED_INDEX_ASSET = "eduloader/school_index_ai.json"
+
         /** 脚本缓存路径：索引里的 `resources/...` 相对路径原样落盘 */
         fun scriptFile(assetJsPath: String): AppFile =
             AppFiles.root.resolve("repo/aidock/scripts/$assetJsPath")

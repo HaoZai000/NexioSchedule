@@ -153,39 +153,58 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
 
-// Release 构建时拉最新 school_index.pb 进 assets（不缓存）
+// Release 构建时拉最新内置索引进 assets（不缓存）：拾光 pb + edu-ai-dock json
 tasks.register<DefaultTask>("downloadEduIndex") {
     group = "eduimport"
-    description = "每次 Release 构建拉取最新 school_index.pb 到 assets/eduloader"
-    val targetLocation = project.layout.projectDirectory.dir("src/main/assets/eduloader/school_index.pb").asFile
+    description = "每次 Release 构建拉取最新 school_index.pb 与 school_index_ai.json 到 assets/eduloader"
+    val assetsDir = project.layout.projectDirectory.dir("src/main/assets/eduloader").asFile
     outputs.upToDateWhen { false } // 每次都重新拉，不缓存
     doLast {
-        targetLocation.parentFile?.mkdirs()
-        val url = "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse/raw/index-pb-release/school_index.pb"
-        try {
-            val connection = (
-                    URL(url).openConnection() as HttpURLConnection).apply {
-                instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "okhttp/4.12.0")
-                setRequestProperty("Accept", "*/*")
-                connectTimeout = 15_000
-                readTimeout = 30_000
-            }
-            val contentType = connection.contentType?.lowercase() ?: ""
-            if (contentType.contains("text/html")) {
-                // 被反爬拦截时 gitee 返回 HTML 挑战页，不能进 assets
-                throw RuntimeException("gitee 返回了 HTML 页面（可能被反爬拦截）")
-            }
-            connection.inputStream.use { inbound ->
-                targetLocation.outputStream().use { outbound ->
-                    inbound.copyTo(outbound)
+        assetsDir.mkdirs()
+
+        // 按顺序尝试多个源；失败不阻断构建，保留现有内置索引
+        fun fetch(fileName: String, urls: List<String>) {
+            val target = assetsDir.resolve(fileName)
+            for (url in urls) {
+                try {
+                    val connection = (
+                            URL(url).openConnection() as HttpURLConnection).apply {
+                        instanceFollowRedirects = true
+                        setRequestProperty("User-Agent", "okhttp/4.12.0")
+                        setRequestProperty("Accept", "*/*")
+                        connectTimeout = 15_000
+                        readTimeout = 30_000
+                    }
+                    val contentType = connection.contentType?.lowercase() ?: ""
+                    if (contentType.contains("text/html")) {
+                        // 被反爬拦截时 gitee 返回 HTML 挑战页，不能进 assets
+                        throw RuntimeException("返回了 HTML 页面（可能被反爬拦截）")
+                    }
+                    connection.inputStream.use { inbound ->
+                        target.outputStream().use { outbound ->
+                            inbound.copyTo(outbound)
+                        }
+                    }
+                    println("[EduIndex] 已拉取 $fileName -> ${target.absolutePath}")
+                    return
+                } catch (e: Exception) {
+                    println("[EduIndex] $fileName 拉取失败（$url）: ${e.message}")
                 }
             }
-            println("[EduIndex] 已拉取最新索引 -> ${targetLocation.absolutePath}")
-        } catch (e: Exception) {
-            // 失败不阻断构建，保留现有索引
-            println("[EduIndex] 索引拉取失败（保留现有内置索引）: ${e.message}")
+            println("[EduIndex] $fileName 全部源失败（保留现有内置索引）")
         }
+
+        fetch(
+            "school_index.pb",
+            listOf("https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse/raw/index-pb-release/school_index.pb"),
+        )
+        fetch(
+            "school_index_ai.json",
+            listOf(
+                "https://gitee.com/com_haooz_account/edu-ai-dock/raw/main/index/school_index.json",
+                "https://raw.githubusercontent.com/HaoZai000/edu-ai-dock/main/index/school_index.json",
+            ),
+        )
     }
 }
 

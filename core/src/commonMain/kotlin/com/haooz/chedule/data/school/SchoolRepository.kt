@@ -28,6 +28,7 @@ class SchoolRepository {
     fun loadIndex(): SchoolIndexData? {
         // 首次使用：本地无索引时，从安装包内置 asset 引导一份，避免联网才能获取学校列表
         ensureBundledIndex()
+        ensureBundledAiIndex()
         val bundled = if (indexFile.exists()) {
             try {
                 SchoolIndexParser.parse(indexFile.readBytes())
@@ -78,6 +79,17 @@ class SchoolRepository {
             indexFile.writeBytes(AppFiles.readAsset("eduloader/school_index.pb"))
         } catch (e: Exception) {
             NexioLog.e(TAG, "读取内置索引失败: ${e.message}")
+        }
+    }
+
+    /** AI 仓库索引同理：Release 打包时已拉入 assets，首启直接用，不必等一次联网更新 */
+    private fun ensureBundledAiIndex() {
+        val aiIndexFile = AiDockRepository.indexFile()
+        if (aiIndexFile.exists()) return
+        try {
+            aiIndexFile.writeBytes(AppFiles.readAsset(AiDockRepository.BUNDLED_INDEX_ASSET))
+        } catch (e: Exception) {
+            NexioLog.e(TAG, "读取内置 AI 索引失败: ${e.message}")
         }
     }
 
