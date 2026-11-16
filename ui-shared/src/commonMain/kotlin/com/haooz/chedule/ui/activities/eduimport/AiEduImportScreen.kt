@@ -115,11 +115,10 @@ import com.haooz.chedule.ui.utils.NativeDocumentSystemHeaderEffect
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.ui.web.EduCourseJson
+import com.haooz.chedule.ui.web.EduNetLogStore
 import com.haooz.chedule.ui.web.WebHost
 import com.haooz.chedule.ui.web.WebHostConfig
 import com.haooz.chedule.ui.web.WebHostEvents
-import com.haooz.chedule.viewmodel.SettingsViewModel
-import com.haooz.chedule.viewmodel.settingsViewModel
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
@@ -205,7 +204,6 @@ fun AiEduImportScreen(
     onOpenHistory: () -> Unit,
     onOpenPreview: () -> Unit,
 ) {
-    val settingsViewModel = settingsViewModel()
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
@@ -225,6 +223,9 @@ fun AiEduImportScreen(
 
     val session = remember { EduAgentSession() }
     val state by session.state.collectAsState()
+    // 拉着同一段对话：用户收起浮层去网页里登录 / 翻课表后，底栏给他回来的入口，
+    // 而不是把「开始分析」再点一次（那会 reset 掉上下文与网络记录）
+    val hasConversation = state.items.isNotEmpty()
     // WebViewScreen 内部 remember 出来的宿主，通过 onHostReady 交过来 —— agent 的工具都在它上面跑
     var host by remember { mutableStateOf<WebHost?>(null) }
 
@@ -259,6 +260,9 @@ fun AiEduImportScreen(
 
     LaunchedEffect(openedUrl) {
         val url = openedUrl ?: return@LaunchedEffect
+        // 换了一个教务系统：旧学校的请求记录与对话都不能留给下一次分析
+        EduNetLogStore.clear()
+        session.reset()
         AppStorage.store(PREFS_AI_EDU).edit { putString(KEY_LAST_URL, url) }
     }
 
@@ -275,7 +279,9 @@ fun AiEduImportScreen(
                 session.analyze(
                     host = target,
                     entryUrl = url,
-                    scheduleInfo = scheduleHint(settingsViewModel),
+                    runtimeHint = agentRuntimeHint(
+                        netCount = EduNetLogStore.snapshot().count { it.kind != "document" },
+                    ),
                 )
             }
         }
@@ -306,6 +312,8 @@ fun AiEduImportScreen(
                 adapterId = "",
                 importUrl = openedUrl,
                 assetJsPath = null,
+                // AI 分析要先看页面自己打过哪些接口：记录器从首个文档的 document-start 就挂上
+                netRecorderEnabled = true,
                 webContentBackdrop = webContentBackdrop,
                 contentTopPadding = (contentTopInset + topBarHeightDp + 12.dp).coerceAtLeast(0.dp),
                 onBack = onBack,
@@ -316,10 +324,17 @@ fun AiEduImportScreen(
                 onHostReady = { host = it },
                 webHostFactory = webHostFactory,
                 dockTitle = ImportStr.aiEduImportTitle(),
-                dockSubtitle = ImportStr.aiEduDockHint(),
-                primaryActionText = ImportStr.aiEduStart(),
-                primaryActionEnabled = openedUrl != null && !state.running,
-                onPrimaryAction = startAnalyze,
+                dockSubtitle = if (hasConversation) ImportStr.aiEduResumeHint() else ImportStr.aiEduDockHint(),
+                // 已经聊过就变成「继续对话」：用户登完录 / 翻到课表页后能回到同一段上下文
+                primaryActionText = if (hasConversation) ImportStr.aiEduResumeChat() else ImportStr.aiEduStart(),
+                primaryActionEnabled = openedUrl != null,
+                onPrimaryAction = {
+                    if (hasConversation) {
+                        stage = Stage.Chat
+                    } else {
+                        startAnalyze()
+                    }
+                },
             )
 
             // ── 对话：底部浮层，上方露出网页 ──
@@ -1184,15 +1199,15 @@ private fun PulsingDot(size: Dp = 5.dp) {
 //  工具函数
 // ════════════════════════════════════════════════════════════════════════
 
-/** 交给模型的「本机作息」描述：节次号要跟用户课表对齐，模型不知道就会错位。 */
-private fun scheduleHint(settingsViewModel: SettingsViewModel): String {
-    val morning = settingsViewModel.morningSections.value
-    val afternoon = settingsViewModel.afternoonSections.value
-    val evening = settingsViewModel.eveningSections.value
-    return buildString {
-        append("用户课表当前作息：上午 $morning 节、下午 $afternoon 节、晚上 $evening 节，")
-        append("共 ${morning + afternoon + evening} 节。第 1 节是上午第一节；")
-        append("如果学校的节次序号与这个划分不同（例如下午从第 5 节开始），按学校的实际序号写 startSection/endSection。")
+/** 交给模型的运行环境：只给真正用得上的节次换算规则与页面请求数。 */
+private fun agentRuntimeHint(netCount: Int): String = buildString {
+    append("节次说明：startSection/endSection 用学校课表里的实际连续节次序号（从 1 开始）；")
+    append("学校按「上午/下午第 N 节」标注时，按该校一天内的顺序换算。")
+    append("\n页面网络记录：")
+    if (netCount > 0) {
+        append("已有 $netCount 条请求。先 NET_LOG list 看接口，不要问用户要接口地址。")
+    } else {
+        append("当前为空。先 READ_PAGE；仍为空再 RELOAD_PAGE 或请用户点一次「课表查询」。")
     }
 }
 

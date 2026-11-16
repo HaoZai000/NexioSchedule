@@ -1,12 +1,16 @@
 package com.haooz.chedule.ui.ai
 
+import com.haooz.chedule.data.ai.AiEduAgentClient
 import com.haooz.chedule.data.util.optBoolean
 import com.haooz.chedule.data.util.optInt
 import com.haooz.chedule.data.util.optJsonArray
 import com.haooz.chedule.data.util.optString
 import com.haooz.chedule.data.util.parseJsonObject
+import com.haooz.chedule.ui.web.EduNetEntry
+import com.haooz.chedule.ui.web.EduNetLogStore
 import com.haooz.chedule.ui.web.WebHost
 import com.haooz.chedule.ui.web.evaluateJavascriptAwait
+import kotlin.time.Clock
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -26,6 +30,12 @@ internal data class EduScriptRun(
     val timeSlotsJson: String?,
     val comboJson: String?,
     val firstNames: List<String>,
+)
+
+/** 刷新页面的结果：`ok=false` 表示等不到新文档（可能超时或被重定向到登录页）。 */
+internal data class EduReloadResult(
+    val ok: Boolean,
+    val text: String,
 )
 
 /** 一次分析里抓到的草稿：课程 + 脚本顺手交回的配置 / 作息。 */
@@ -111,6 +121,125 @@ internal class EduAgentTools(private val host: WebHost) {
         }
         return failed("脚本超过 90 秒没有结束，可能卡在某个请求上")
     }
+
+    /**
+     * 读取页面自身的网络记录。
+     *
+     * @param action list / read / clear
+     * @param id [action]=read 时的记录 id（形如 `n12`）
+     * @param maxChars read 时单段正文的上限，默认 12000
+     */
+    fun netLog(action: String, id: String, maxChars: Int): String = when (action.lowercase()) {
+        "list" -> listNetLog()
+        "read" -> readNetLog(id, maxChars.coerceIn(1000, 32_000))
+        "clear" -> {
+            EduNetLogStore.clear()
+            "已清空页面网络记录。"
+        }
+        else -> "action 只能是 list / read / clear。"
+    }
+
+    /**
+     * 刷新页面并等新文档起来，给模型一个「重新暴露首屏请求」的手段。
+     *
+     * 只轮询本地记录里的顶层 document 标记，不依赖平台的 page-finished 回调：
+     * 两端宿主都只保证 reload() 是异步的，没有统一的加载完成事件。
+     */
+    suspend fun reloadAndWait(waitMs: Long): EduReloadResult {
+        val before = EduNetLogStore.latestTopDocumentTs()
+        val startedAt = now()
+        host.reload()
+
+        val deadline = startedAt + waitMs
+        var sawDocument = false
+        var lastCount = EduNetLogStore.snapshot().size
+        var quietSince = startedAt
+        while (now() < deadline) {
+            delay(300)
+            if (!sawDocument && EduNetLogStore.latestTopDocumentTs() > before) {
+                sawDocument = true
+                quietSince = now()
+            }
+            if (sawDocument) {
+                val count = EduNetLogStore.snapshot().size
+                if (count != lastCount) {
+                    lastCount = count
+                    quietSince = now()
+                } else if (now() - quietSince >= 1200) {
+                    break
+                }
+            }
+        }
+
+        val newCount = EduNetLogStore.snapshot().count { it.ts >= startedAt && it.kind != "document" }
+        return if (!sawDocument) {
+            EduReloadResult(
+                ok = false,
+                text = "刷新后 ${waitMs / 1000} 秒内没有检测到新文档：页面可能跳到了登录页，" +
+                    "或这个站点不允许直接 reload。可以让用户手动点一次「课表查询」，再调 net_log list。",
+            )
+        } else {
+            EduReloadResult(
+                ok = true,
+                text = "页面已刷新，本次新捕获 $newCount 条请求。用 net_log list 查看，再挑候选读响应。",
+            )
+        }
+    }
+
+    private fun listNetLog(): String {
+        val all = EduNetLogStore.snapshot().filter { it.kind != "document" }
+        if (all.isEmpty()) {
+            return "还没有记录到任何页面请求。可以让用户手动点一次「课表查询 / 我的课表」，" +
+                "或调用 RELOAD_PAGE 刷新一次后再看。"
+        }
+        val recent = all.takeLast(40)
+        return buildString {
+            append("共 ").append(all.size).append(" 条请求，显示最近 ").append(recent.size).append(" 条。")
+            append("用 net_log read + id 读取单条响应。\n")
+            recent.forEach { entry -> append(formatSummary(entry)).append('\n') }
+        }
+    }
+
+    private fun formatSummary(entry: EduNetEntry): String = buildString {
+        append('#').append(entry.id).append(' ')
+        append(entry.method).append(' ').append(entry.url.take(240))
+        append(" → ").append(if (entry.status > 0) entry.status else "未完成")
+        if (entry.contentType.isNotBlank()) append(' ').append(entry.contentType.take(60))
+        if (entry.size > 0) append(' ').append(entry.size).append('字')
+        if (entry.json) append(" json")
+        if (entry.keys.isNotEmpty()) append(" keys=").append(entry.keys.joinToString(","))
+        if (entry.reqBody.isNotBlank()) {
+            append(" req=").append(entry.reqBody.replace('\n', ' ').take(80))
+        }
+        if (entry.error.isNotBlank()) append(" error=").append(entry.error.take(80))
+    }
+
+    private fun readNetLog(id: String, maxChars: Int): String {
+        val clean = id.trim().removePrefix("#")
+        val entry = EduNetLogStore.snapshot().lastOrNull { it.id == clean }
+            ?: return "没有编号为 #$clean 的记录。先调 net_log list 看现有请求。"
+        return buildString {
+            append("id: ").append(entry.id).append('\n')
+            append("kind: ").append(entry.kind).append('\n')
+            append("method: ").append(entry.method).append('\n')
+            append("url: ").append(entry.url).append('\n')
+            append("status: ").append(entry.status).append('\n')
+            append("contentType: ").append(entry.contentType).append('\n')
+            append("size: ").append(entry.size).append('\n')
+            if (entry.keys.isNotEmpty()) append("keys: ").append(entry.keys.joinToString(",")).append('\n')
+            if (entry.error.isNotBlank()) append("error: ").append(entry.error).append('\n')
+            if (entry.reqBody.isNotBlank()) {
+                append("--- 请求体 ---\n").append(AiEduAgentClient.clip(entry.reqBody, maxChars)).append('\n')
+            }
+            if (entry.respBody.isNotBlank()) {
+                append("--- 响应 ---\n").append(AiEduAgentClient.clip(entry.respBody, maxChars))
+            } else {
+                append("--- 响应 ---\n（没有可读正文：可能是二进制、跨域 opaque 响应或请求未完成）")
+            }
+        }
+    }
+
+    private fun now(): Long = Clock.System.now().toEpochMilliseconds()
 
     private fun kotlinx.serialization.json.JsonObject.toRun(): EduScriptRun {
         val error = optString("error")
@@ -207,7 +336,11 @@ internal class EduAgentTools(private val host: WebHost) {
                 init.headers = { 'Content-Type': body.trim().startsWith('{') || body.trim().startsWith('[')
                   ? 'application/json' : 'application/x-www-form-urlencoded' };
               }
-              fetch(target, init).then(async (r) => {
+              // 标记这是工具自己的请求，网络记录器跳过它（模型已经拿到这份响应）
+              window.__nexioNetSkip = true;
+              var pendingFetch;
+              try { pendingFetch = fetch(target, init); } finally { window.__nexioNetSkip = false; }
+              pendingFetch.then(async (r) => {
                 if (new URL(r.url).origin !== location.origin) {
                   window[key] = { error: '接口跳转到了其他登录地址，请重新登录后再试' };
                   return;
@@ -242,16 +375,28 @@ internal class EduAgentTools(private val host: WebHost) {
                 }
                 if (kind === 'saveImportedCourses') {
                   const list = Array.isArray(parsed) ? parsed : [];
+                  if (list.length === 0) {
+                    run.calls.push({ kind: kind, ok: false });
+                    throw new Error('saveImportedCourses 不能为空：至少提交一门课');
+                  }
                   run.courseCount = list.length;
                   run.coursesJson = json;
                   run.firstNames = list.slice(0, 5).map((c) => safe(c && c.name));
                   run.calls.push({ kind: kind, ok: true });
                   return list.length;
                 }
-                if (kind === 'saveCourseConfig') run.configJson = json;
+                if (kind === 'saveCourseConfig') {
+                  // 空对象会把用户已有的开学日 / 总周数清掉：拿不到就整段不要调用
+                  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
+                      Object.keys(parsed).length === 0) {
+                    run.calls.push({ kind: kind, ok: false });
+                    throw new Error('saveCourseConfig 不能为空：拿不到配置就整段不要调用');
+                  }
+                  run.configJson = json;
+                }
                 if (kind === 'savePresetTimeSlots') {
-                  if (!Array.isArray(parsed)) { run.calls.push({ kind: kind, ok: false });
-                    throw new Error('savePresetTimeSlots 需要一个数组'); }
+                  if (!Array.isArray(parsed) || parsed.length === 0) { run.calls.push({ kind: kind, ok: false });
+                    throw new Error('savePresetTimeSlots 不能为空数组：拿不到作息就整段不要调用'); }
                   // 同一节次出现两套作息时不能直接收：先按「课多的一套做标准、其余走自定义时间」拆开，
                   // 否则标准作息会把另一套的课整体挪到错误时间上，而界面上完全看不出来
                   const seen = new Map();

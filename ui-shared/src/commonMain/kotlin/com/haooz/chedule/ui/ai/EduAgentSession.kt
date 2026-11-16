@@ -176,12 +176,12 @@ internal class EduAgentSession {
      *
      * @param host 当前教务网页宿主 —— 工具都通过它执行
      * @param entryUrl 当前页面地址（进提示词，让模型知道自己在哪个系统上）
-     * @param scheduleInfo 本机作息与周数的描述（让模型把节次号对齐）
+     * @param runtimeHint 节次换算规则与页面网络记录等运行环境说明
      */
     suspend fun analyze(
         host: WebHost,
         entryUrl: String,
-        scheduleInfo: String,
+        runtimeHint: String,
     ) {
         val start = now()
         this.entryUrl = entryUrl
@@ -195,7 +195,7 @@ internal class EduAgentSession {
 
         // 对话留在会话里：模型中途要信息时，用户补充的内容必须接在同一段上下文后面
         conversation.clear()
-        conversation += AiEduAgentClient.systemMessage(EduAgentPrompts.systemPrompt(entryUrl, scheduleInfo))
+        conversation += AiEduAgentClient.systemMessage(EduAgentPrompts.systemPrompt(entryUrl, runtimeHint))
         conversation += AiEduAgentClient.userMessage(EduAgentPrompts.firstUserMessage())
         launchLoop(host, gen)
     }
@@ -467,10 +467,44 @@ internal class EduAgentSession {
                 payload to draft
             }
 
+            EduAgentPrompts.TOOL_NET_LOG -> {
+                val action = AiEduAgentClient.argString(args, "action").ifBlank { "list" }.lowercase()
+                val id = AiEduAgentClient.argString(args, "id")
+                val maxChars = AiEduAgentClient.argString(args, "maxChars").toIntOrNull() ?: 12_000
+                val index = beginStep(
+                    when (action) {
+                        "read" -> "读取接口 ${id.ifBlank { "?" }}"
+                        "clear" -> "清空网络记录"
+                        else -> "查看网络请求"
+                    }
+                )
+                val text = tools.netLog(action, id, maxChars)
+                val missing = text.startsWith("没有编号")
+                endStep(
+                    index = index,
+                    detail = summarizeNetLog(action, text),
+                    failed = missing,
+                )
+                text to null
+            }
+
+            EduAgentPrompts.TOOL_RELOAD_PAGE -> {
+                val waitSeconds = AiEduAgentClient.argString(args, "waitSeconds")
+                    .toLongOrNull()?.coerceIn(10L, 60L) ?: 25L
+                val index = beginStep("刷新页面并等待加载")
+                val result = tools.reloadAndWait(waitSeconds * 1000)
+                endStep(
+                    index = index,
+                    detail = result.text.take(80),
+                    failed = !result.ok,
+                )
+                result.text to null
+            }
+
             else -> {
                 val index = beginStep("未知工具 ${call.name}")
                 endStep(index, "不在允许的工具表里", failed = true)
-                "未知工具：${call.name}。可用工具只有 READ_PAGE / REQUEST / RUN_SCRIPT。" to null
+                "未知工具：${call.name}。可用工具只有 NET_LOG / RELOAD_PAGE / READ_PAGE / REQUEST / RUN_SCRIPT。" to null
             }
         }
     }
@@ -652,6 +686,16 @@ internal class EduAgentSession {
         val links = (obj.get("links") as? JsonArray)?.size ?: 0
         val resources = (obj.get("resources") as? JsonArray)?.size ?: 0
         return "$title · $links 个链接 · $resources 个同源资源"
+    }
+
+    private fun summarizeNetLog(action: String, text: String): String = when (action) {
+        "list" -> text.lineSequence().firstOrNull()?.take(60) ?: "无记录"
+        "clear" -> "已清空"
+        else -> {
+            val status = Regex("""(?m)^status: (\d+)""").find(text)?.groupValues?.get(1)
+            val size = Regex("""(?m)^size: (\d+)""").find(text)?.groupValues?.get(1)
+            if (status == null) "读取完成" else "HTTP $status · ${size ?: "?"} 字"
+        }
     }
 
     private fun summarizeRequest(text: String): String {

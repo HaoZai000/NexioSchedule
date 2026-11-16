@@ -47,6 +47,11 @@ class WebHostConfig(
     val currentScheduleName: String = "",
     /** 适配器来源：拾光 / AI 仓库，决定脚本从哪里下载（原生宿主执行导入时用）。 */
     val adapterSource: Int = AdapterData.SOURCE_SHUIGUANG,
+    /**
+     * 是否在 document-start 注入网络记录器。
+     * 只给 AI 教务导入开：它需要看页面自己打了哪些接口；
+     */
+    val netRecorderEnabled: Boolean = false,
 )
 
 /**

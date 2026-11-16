@@ -36,6 +36,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.AndroidMiscStr
@@ -312,6 +314,21 @@ fun rememberAndroidWebHost(
     LaunchedEffect(Unit) {
         webView.addJavascriptInterface(androidBridge, "AndroidBridge")
         webView.addJavascriptInterface(WebPostBridge(), "WebPostService")
+    }
+    // AI 教务导入：document-start 挂网络记录器。注册必须早于首次 loadUrl，
+    // 否则页面首屏那几个课表接口已经在钩子安装前发完。
+    DisposableEffect(webView, config.netRecorderEnabled) {
+        if (!config.netRecorderEnabled) return@DisposableEffect onDispose {}
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            NexioLog.w("EduNet", "当前 WebView 不支持 document-start，无法记录页面首屏请求")
+            return@DisposableEffect onDispose {}
+        }
+        val handler = WebViewCompat.addDocumentStartJavaScript(
+            webView,
+            EDU_NET_RECORDER_JS,
+            setOf("*"),
+        )
+        onDispose { handler.remove() }
     }
     // 本轮是否已试过切到转发通道；每轮模式切换重置，避免反复重载打转。
     val forwardSwitched = remember { AtomicBoolean(false) }

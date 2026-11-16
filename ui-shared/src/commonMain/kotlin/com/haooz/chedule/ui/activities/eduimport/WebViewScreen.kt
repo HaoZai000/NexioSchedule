@@ -145,6 +145,8 @@ fun WebViewScreen(
     assetJsPath: String?,
     /** 适配器来源：拾光 / AI 仓库，决定脚本从哪里下载 */
     adapterSource: Int = AdapterData.SOURCE_SHUIGUANG,
+    /** 是否注入页面网络记录器（只有 AI 教务导入需要） */
+    netRecorderEnabled: Boolean = false,
     webContentBackdrop: LayerBackdrop,
     contentTopPadding: Dp = 0.dp,
     scheduleNames: List<String> = emptyList(),
@@ -316,6 +318,7 @@ fun WebViewScreen(
             schoolName = schoolName,
             scheduleNames = scheduleNames,
             currentScheduleName = currentScheduleName,
+            netRecorderEnabled = netRecorderEnabled,
         ),
         webHostEvents,
     )

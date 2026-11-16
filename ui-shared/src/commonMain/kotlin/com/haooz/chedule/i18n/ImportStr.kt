@@ -213,6 +213,9 @@ Reply strictly in this format and do not add any other text."""
     // ── AI 教务导入：模型自己读页面 / 打接口 / 写脚本 ──
     val aiEduImportTitle = L("AI 教务导入", "AI academic import")
     val aiEduStart = L("开始分析", "Analyze")
+    /** 收起对话去网页里操作后，从底栏回到同一段对话（不是重新开始） */
+    val aiEduResumeChat = L("继续对话", "Resume chat")
+    val aiEduResumeHint = L("已收起对话，点这里继续", "Chat hidden, tap to resume")
     val aiEduStop = L("停止", "Stop")
     val aiEduFailed = L("这次没成", "Didn't work this time")
     val aiEduParseFailed = L("课程数据解析失败", "Failed to parse course data")

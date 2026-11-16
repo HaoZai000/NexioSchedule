@@ -47,6 +47,17 @@ class AndroidBridge(
     @JavascriptInterface
     fun isPostForwardEnabled(): Boolean = postForwardEnabled
 
+    /**
+     * AI 教务导入的网络记录器入口。
+     *
+     * 记录器在 document-start 就挂上，此时 UI 可能还没就绪；这里只做无锁入队，
+     * 解析与截断都在 [EduNetLogStore] 里完成，异常一律吞掉（不能影响页面本身）。
+     */
+    @JavascriptInterface
+    fun netLog(json: String) {
+        runCatching { recordEduNetLog(json) }
+    }
+
     /** App 侧按需开启（个别必须转发的学校/适配器） */
     fun setPostForwardEnabled(enabled: Boolean) {
         postForwardEnabled = enabled
