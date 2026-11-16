@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -52,6 +53,9 @@ import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.layout.TopBarMaterialThreshold
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -69,7 +73,9 @@ fun SchoolSelectionScreen(
     selectedTab: Int = 0,
     topContentPadding: Dp = 0.dp,
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
-    onAdapterSelected: (SchoolData, AdapterData) -> Unit
+    onAdapterSelected: (SchoolData, AdapterData) -> Unit,
+    /** 顶部「AI 教务导入」入口：模型现场读页面 / 写脚本，不走仓库里的适配 */
+    onOpenAiImport: () -> Unit = {},
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val schoolRepository = remember { SchoolRepository() }
@@ -171,7 +177,8 @@ fun SchoolSelectionScreen(
 
                 val letterIndexMap = remember(groupedSchools) {
                     val map = mutableMapOf<String, Int>()
-                    var itemIndex = 0
+                    // 从 1 起：列表第 0 项是「AI 教务导入」入口，字母条跳转要跳过它
+                    var itemIndex = AI_ENTRY_ITEM_COUNT
                     groupedSchools.entries.forEachIndexed { index, (letter, schools) ->
                         if (index > 0) itemIndex++
                         map[letter] = itemIndex
@@ -189,7 +196,7 @@ fun SchoolSelectionScreen(
                         }
                         if (matchIndex >= 0) {
                             isProgrammaticScroll = true
-                            listState.animateScrollToItem(matchIndex)
+                            listState.animateScrollToItem(matchIndex + AI_ENTRY_ITEM_COUNT)
                             isProgrammaticScroll = false
                         }
                     }
@@ -197,7 +204,8 @@ fun SchoolSelectionScreen(
 
                 val indexToLetterMap = remember(groupedSchools) {
                     val map = mutableMapOf<Int, String>()
-                    var itemIndex = 0
+                    // 同上：索引整体后移一项
+                    var itemIndex = AI_ENTRY_ITEM_COUNT
                     groupedSchools.entries.forEachIndexed { index, (letter, schools) ->
                         if (index > 0) itemIndex++
                         map[itemIndex] = letter
@@ -230,6 +238,11 @@ fun SchoolSelectionScreen(
                         )
                     ) {
                         val groupedEntries = groupedSchools.entries.toList()
+                        item(key = "ai_edu_entry") {
+                            if (selectedTab == 0) {
+                                AiEduImportEntryCard(onClick = onOpenAiImport)
+                            }
+                        }
                         groupedEntries.forEachIndexed { index, (letter, schools) ->
                             if (index > 0) {
                                 item(key = "divider_$letter") {
@@ -441,4 +454,53 @@ fun SchoolSelectionScreen(
             onAdapterSelected(school, adapter)
         }
     )
+}
+
+/** 列表顶部「AI 教务导入」入口占掉的自选项数（字母条与搜索跳转的索引都要跳过它）。 */
+private const val AI_ENTRY_ITEM_COUNT = 1
+
+/**
+ * 滚动区最上方的 AI 教务导入入口。
+ *
+ * 刻意做成整块可点的大卡而不是列表里的一行：它带来的是「换一种导入方式」，跟下面
+ * 「按学校找适配」不是同一类操作，混进字母分组里会被当成又一个学校。
+ */
+@Composable
+private fun AiEduImportEntryCard(onClick: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ContinuousRoundedRectangle(20.dp))
+                .clickable {
+                    haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                    onClick()
+                }
+                .background(MiuixTheme.colorScheme.primary)
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = ImportStr.aiEduImportTitle(),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onPrimary
+                )
+                Text(
+                    text = ImportStr.aiEduEntrySubtitle(),
+                    fontSize = 13.sp,
+                    color = MiuixTheme.colorScheme.onPrimary.copy(alpha = 0.75f),
+                    modifier = Modifier.padding(top = 3.dp)
+                )
+            }
+            Icon(
+                imageVector = MiuixIcons.Basic.ArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MiuixTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
+            )
+        }
+    }
 }

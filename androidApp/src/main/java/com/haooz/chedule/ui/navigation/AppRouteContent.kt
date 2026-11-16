@@ -88,6 +88,7 @@ fun AppRouteContent(
         AppRoute.Feedback -> FeedbackRoute(router)
         AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
         AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
+        AppRoute.AiFeatures -> AiFeaturesRoute(router)
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
 
         // 文档壳路由，Android 注入平台能力。
@@ -267,6 +268,10 @@ fun AppRouteContent(
         )
         AppRoute.EducationalImport -> AndroidEducationalImportRoute(router)
         AppRoute.WebImport -> AndroidWebImportRoute(router)
+        // AI 教务导入：同一个网页宿主，只是脚本由模型现场写（沙箱接住，课程走本地预览）
+        AppRoute.AiEduImport -> AndroidAiEduImportRoute(router)
+        AppRoute.AiEduImportHistory -> AiEduImportHistoryRoute(router)
+        AppRoute.AiEduPreview -> AiEduPreviewRoute(router)
     }
 }
 
@@ -419,6 +424,15 @@ private fun AndroidEducationalImportRoute(router: AppRouter) {
 @Composable
 private fun AndroidWebImportRoute(router: AppRouter) {
     com.haooz.chedule.ui.navigation.WebImportRoute(
+        router = router,
+        webHostFactory = { config, events -> rememberAndroidWebHost(config, events) },
+    )
+}
+
+/** AI 教务导入：与网页导入同一个宿主实现，区别只在脚本来源。 */
+@Composable
+private fun AndroidAiEduImportRoute(router: AppRouter) {
+    AiEduImportRoute(
         router = router,
         webHostFactory = { config, events -> rememberAndroidWebHost(config, events) },
     )

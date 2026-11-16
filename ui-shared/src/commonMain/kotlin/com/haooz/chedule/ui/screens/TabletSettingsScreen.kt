@@ -46,6 +46,9 @@ import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.components.tabletNavChromeTitleSlot
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.navigation.AboutRoute
+import com.haooz.chedule.ui.navigation.AiEduImportHistoryRoute
+import com.haooz.chedule.ui.navigation.AiEduPreviewRoute
+import com.haooz.chedule.ui.navigation.AiFeaturesRoute
 import com.haooz.chedule.ui.navigation.AiImportRoute
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouter
@@ -132,6 +135,7 @@ private fun DefaultTabletSettingsPaneRouteContent(router: AppRouter, route: AppR
         AppRoute.CourseTimeSettings -> CourseTimeSettingsRoute(router)
         AppRoute.CourseManage -> CourseManageRoute(router)
         AppRoute.WidgetIntro -> WidgetIntroRoute(router)
+        AppRoute.AiFeatures -> AiFeaturesRoute(router)
         AppRoute.WebDavSettings -> WebDavSettingsRoute(router)
         AppRoute.AiImport -> AiImportRoute(router)
         AppRoute.EducationalImport -> EducationalImportRoute(router)
@@ -144,10 +148,13 @@ private fun DefaultTabletSettingsPaneRouteContent(router: AppRouter, route: AppR
             ),
         )
         AppRoute.ScheduleBackup -> BackupCenterRoute(router = router)
-        // Settings 会套娃；Weather / WebImport 无兜底实现
+        AppRoute.AiEduImportHistory -> AiEduImportHistoryRoute(router)
+        AppRoute.AiEduPreview -> AiEduPreviewRoute(router)
+        // Settings 会套娃；Weather / WebImport / AiEduImport 无兜底实现
         AppRoute.Settings,
         AppRoute.Weather,
         AppRoute.WebImport,
+        AppRoute.AiEduImport,
         -> Box(Modifier.fillMaxSize())
     }
 }

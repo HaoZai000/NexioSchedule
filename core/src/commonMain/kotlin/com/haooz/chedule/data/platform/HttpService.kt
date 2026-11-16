@@ -3,16 +3,11 @@ package com.haooz.chedule.data.platform
 /**
  * 跨平台 HTTP 门面。
  *
- * ⚠ **别顺手换成 Ktor**：任何现代 Ktor 都会把 kotlinx-coroutines 从 1.9.0 顶到 1.10+
- *（3.6.0 → 1.11.0，3.1.3 → 1.10.2），而全 app 的协程 1.9.0 是从 Compose 传递来的 ——
- * 提醒、闹钟、同步、小组件全压在协程上。把「升级核心异步库」捆进「KMP 迁移」会让
- * 时序/取消类异常无法归因，也无法单独回退其中一个。
+ * 这里只定义接口，各平台给实现（Android → OkHttp，JVM → HttpURLConnection，iOS → NSURLSession）。
+ * 注意：引入 Ktor 会把 kotlinx-coroutines 从 1.9.0 顶到 1.10+，影响提醒、同步与小组件，
+ * 不要顺手替换。
  *
- * 所以这里只定义接口，Android 实现继续用 OkHttp（引擎、超时、重试语义与迁移前逐字一致）。
- * 将来想换 Ktor，只需换一个实现 —— 这也是把接口单独抽出来的意义。
- *
- * 语义对应：网络异常**照常抛出**（不吞，迁移前的调用点普遍自带 try/catch）；
- * 响应体**一次性读入内存**（迁移前的调用点也都是一次性读取）。
+ * 语义：网络异常照常抛出（调用方普遍自带 try/catch）；响应体一次性读入内存。
  */
 interface HttpService {
 
@@ -49,6 +44,31 @@ interface HttpService {
         contentType: String? = null,
         headers: Map<String, String> = emptyMap(),
     ): HttpResult
+
+    /**
+     * 流式 POST：响应体**边到边回调**，每收到完整一行就交给 [onLine]。
+     *
+     * 只给 AI 的 SSE 用（`/api/ai/agent/stream`）：思考内容只有在流里才有中间态，
+     * 一次性读完再切行等于又退回「想完才显示」。
+     *
+     * @param onLine 在 IO 线程上调用；回调里更新 StateFlow 是安全的，但不要做耗时操作，
+     *   会拖住读取（服务的 keep-alive 会因此超时）。
+     *
+     * 默认实现退化为「一次性读完再按行切」：iOS 侧 NSURLSession 目前只有一次性回调，
+     * 拿不到真流式（表现为思考整段跳出来），但协议与调用方完全一致。
+     */
+    suspend fun streamPost(
+        url: String,
+        body: String,
+        contentType: String = "application/json",
+        headers: Map<String, String> = emptyMap(),
+        onLine: suspend (String) -> Unit,
+    ) {
+        val result = post(url, body, contentType, headers)
+        result.text.lineSequence().forEach { line ->
+            if (line.isNotBlank()) onLine(line)
+        }
+    }
 }
 
 /**

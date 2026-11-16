@@ -104,60 +104,10 @@ class AiClient(
     }
 
     /**
-     * 发一次加密请求并解开响应。
-     *
-     * 响应体既可能是 `{iv, ct}`（正常），也可能是服务端的明文错误体（信封都解不开时）。
-     * 后者一律当失败 —— 拿不到会话密钥就没有可读内容。
+     * 发一次加密请求并解开响应 —— 具体实现在 [aiRoundTrip]（教务 agent 共用同一份）。
      */
-    private suspend fun roundTrip(path: String, body: JsonObject): AiResult<String> {
-        if (!AiServerKey.isConfigured()) {
-            return AiResult.Error("这个版本还没内置服务端公钥")
-        }
-
-        // 会话密钥一次性：加密请求与解密响应必须是同一个 session
-        val session = try {
-            AiCryptoSession(AiServerKey.PUBLIC_KEY_PEM)
-        } catch (e: Exception) {
-            return AiResult.Error("加密会话创建失败：${e.describe()}")
-        }
-        val envelope = try {
-            session.encrypt(body.toString())
-        } catch (e: Exception) {
-            return AiResult.Error("请求加密失败：${e.describe()}")
-        }
-
-        val payload = buildJsonObject {
-            put("ek", envelope.ek)
-            put("iv", envelope.iv)
-            put("ct", envelope.ct)
-        }.toString()
-
-        val result = try {
-            http.post(path, payload)
-        } catch (e: Exception) {
-            return AiResult.Error("网络请求失败：${e.describe()}")
-        }
-        if (!result.isSuccessful) {
-            return AiResult.Error("服务端返回 ${result.code}")
-        }
-
-        val response = runCatching { parseJsonObject(result.text) }.getOrNull()
-            ?: return AiResult.Error("响应不是 JSON")
-        val iv = response.optString("iv")
-        val ct = response.optString("ct")
-        if (iv.isEmpty() || ct.isEmpty()) {
-            // 走到这里说明服务端是明文回的错误体，把它带出来
-            val serverError = response.optString("error")
-            return AiResult.Error(serverError.ifEmpty { "响应里没有密文" })
-        }
-        return try {
-            AiResult.Ok(session.decrypt(iv, ct))
-        } catch (e: Exception) {
-            AiResult.Error("响应解密失败：${e.describe()}")
-        }
-    }
-
-    private fun Exception.describe(): String = message ?: this::class.simpleName ?: "未知错误"
+    private suspend fun roundTrip(path: String, body: JsonObject): AiResult<String> =
+        aiRoundTrip(http, path, body)
 
     companion object {
         /** 与 `NoticeFetcher` / `StatsReporter` 等服务地址同源。 */

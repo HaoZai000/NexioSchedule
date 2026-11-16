@@ -123,6 +123,8 @@ fun EducationalImportScreen(
      * ⚠ 由路由层注入而非页内读 `LocalAppRouter`：iOS 原生文档页容器不 provide 它，默认值会抛 error。
      */
     onOpenWebImport: () -> Unit,
+    /** 打开 AI 教务导入（模型现场写适配脚本）。同样由路由层注入。 */
+    onOpenAiImport: () -> Unit = {},
 ) {
     val courseViewModel = courseViewModel()
     val scheduleViewModel = scheduleViewModel()
@@ -266,7 +268,8 @@ fun EducationalImportScreen(
                             // 选中项经 EduImportSelection 带给独立路由（右侧推入），返回先回本页
                             EduImportSelection.set(school, adapter)
                             onOpenWebImport()
-                        }
+                        },
+                        onOpenAiImport = onOpenAiImport,
                     )
                 }
             }

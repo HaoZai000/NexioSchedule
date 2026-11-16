@@ -46,6 +46,7 @@ object SettingsStr {
     val courseReminderSummary = L("课前提醒、次日课程提醒", "Before-class and next-day reminders")
     val holidayAndWorkswap = L("节假日与调休", "Holidays & Adjusted Workdays")
     val homeScreenWidget = L("桌面小部件", "Widgets")
+    val aiFeatures = L("AI 功能", "AI Features")
     val shiftMode = L("排班模式", "Shift Mode")
     val shiftModeSummary = L("同时对比多个课表的排班情况", "Compare shifts across multiple schedules at once")
     val enterShiftMode = L("进入排班模式", "Enter Shift Mode")

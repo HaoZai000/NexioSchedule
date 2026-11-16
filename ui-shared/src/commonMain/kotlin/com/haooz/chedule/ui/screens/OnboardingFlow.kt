@@ -12,6 +12,7 @@ package com.haooz.chedule.ui.screens
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -68,10 +69,12 @@ import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.toShape
 import com.haooz.softglass.platform.isRenderEffectSupported
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.min
+import kotlin.math.sqrt
 
 /**
  * 引导页专用流光配色：同一套流光算法，换成淡蓝色调。
@@ -414,7 +417,20 @@ private fun OnboardingFlowContent(
 /** 淡入在形变 40% 处结束。 */
 private const val FADE_IN_END = 0.4f
 
-private fun fadeInAlpha(progress: Float): Float = (progress / FADE_IN_END).coerceIn(0f, 1f)
+/**
+ * 内容层与快照箭头共用一条曲线：
+ */
+private fun fadeInAlpha(progress: Float): Float =
+    ((progress - 0) / (FADE_IN_END - 0)).coerceIn(0f, 1f)
+
+/**
+ * 箭头落定时的过冲：沿**实际运动方向**冲过终点、再拉回原位。
+ */
+private const val ARROW_LAND_TRIGGER = 0.12f
+private const val ARROW_LAND_OVERSHOOT_DP = 6f
+private const val ARROW_LAND_OUT_MILLIS = 140
+private const val ARROW_LAND_DAMPING = 0.72f
+private const val ARROW_LAND_STIFFNESS = 200f
 
 /**
  * 与形变自身的裁剪区域一致（顶端展开到 `clipBottom`，绘制阶段每帧重算），只改圆角：
@@ -477,6 +493,15 @@ private fun PageMorphLayer(
     val buttonPx = WelcomeLayout.buttonSize.value * density
     val center = WelcomeLayout.buttonCenter(screenWidth, screenHeight, density)
     val cardTop = center.y - buttonPx / 2f
+    val scope = rememberCoroutineScope()
+    val overshootPx = ARROW_LAND_OVERSHOOT_DP * density
+    // 过冲幅度 0→1→0 用固定时长播，不跟 progress 的 easing 走；方向是普通字段，不进快照状态
+    val land = remember { Animatable(0f) }
+    val landDir = remember { floatArrayOf(0f, 1f) }
+    val landStarted = remember { booleanArrayOf(false) }
+    val landJob = remember { arrayOfNulls<Job>(1) }
+    // 绘制期把当前位移写进来，触发时直接拿来求运动方向，免得再抄一遍几何公式
+    val arrowOffset = remember { floatArrayOf(0f, 0f) }
 
     // 源卡片 = 箭头按钮（圆形），起点圆角取半径
     val morph = rememberMorphTransition(
@@ -490,13 +515,45 @@ private fun PageMorphLayer(
         // 起点必须是正圆：半径取按钮可见直径的一半
         startCornerRadiusDp = WelcomeLayout.buttonSize.value / 2f,
         onBackStart = {},
-        onBack = onClosed,
+        onBack = {
+            // 等过冲拉回原位再交回常驻层：收起一结束就卸载的话，回弹会被硬截断
+            scope.launch {
+                landJob[0]?.join()
+                onClosed()
+            }
+        },
         autoStart = true,
     )
 
-    // 进度推给背景层（snapshotFlow 订阅，不引起重组）
+    // 进度推给背景层；同时在收起末段触发一次过冲（snapshotFlow 订阅，不引起重组）
     LaunchedEffect(morph) {
-        snapshotFlow { morph.state.value.progress }.collect { bgProgress.floatValue = it }
+        var lastProgress = morph.state.value.progress
+        snapshotFlow { morph.state.value.progress }.collect { p ->
+            bgProgress.floatValue = p
+            val closing = p < lastProgress - 0.0001f
+            lastProgress = p
+            if (!closing || landStarted[0] || p > ARROW_LAND_TRIGGER) return@collect
+            landStarted[0] = true
+            // 位移向量正缩回原点，沿运动方向冲过终点 = 取反并归一化
+            val dx = arrowOffset[0]
+            val dy = arrowOffset[1]
+            val len = sqrt(dx * dx + dy * dy)
+            if (len > 1f) {
+                landDir[0] = -dx / len
+                landDir[1] = -dy / len
+            }
+            landJob[0] = scope.launch {
+                land.snapTo(0f)
+                land.animateTo(1f, tween(ARROW_LAND_OUT_MILLIS))
+                land.animateTo(
+                    0f,
+                    spring(
+                        dampingRatio = ARROW_LAND_DAMPING,
+                        stiffness = ARROW_LAND_STIFFNESS,
+                    ),
+                )
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -553,8 +610,15 @@ private fun PageMorphLayer(
                     // 按钮跟着这个中心走（贴左边缘会一路往左偏）
                     val pageCenterX =
                         s.translationX + (s.anchorX + (0.5f - s.anchorX) * s.scale) * screenWidth
-                    translationX = pageCenterX - center.x
-                    translationY = pageTop - cardTop
+                    val dx = pageCenterX - center.x
+                    val dy = pageTop - cardTop
+                    // 绘制期留一份当前位移，供过冲触发时求实际运动方向
+                    arrowOffset[0] = dx
+                    arrowOffset[1] = dy
+                    // 过冲沿 landDir 冲过终点、再拉回；两个轴都跟着方向走，不是固定 +Y
+                    val push = land.value * overshootPx
+                    translationX = dx + push * landDir[0]
+                    translationY = dy + push * landDir[1]
                     // 以按钮自身的顶边中点为锚点放大，顶在页面展开处
                     transformOrigin = TransformOrigin(
                         center.x / screenWidth,

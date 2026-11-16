@@ -111,6 +111,20 @@ interface WebHost {
     /** 在页面里执行 JS（导入脚本靠它注入） */
     fun evaluateJavascript(js: String)
 
+    /**
+     * 执行 JS 并把结果回传 —— AI 教务导入读页面 / 打接口要用它。
+     *
+     * 约定：JS 必须自己 `return` 一个字符串（调用方会包一层 `JSON.stringify` 或直接给文本），
+     * 回传的也是那个字符串原文。平台侧「执行了但拿不到值」时回 null ——
+     * 调用方要把它当成「这平台读不了页面」，而不是「页面是空的」。
+     *
+     * 默认实现只执行不回传：桌面 / 鸿蒙暂不支持 AI 教务，走 [NoopWebHost] 也无从回传。
+     */
+    fun evaluateJavascriptWithResult(js: String, onResult: (String?) -> Unit) {
+        evaluateJavascript(js)
+        onResult(null)
+    }
+
     /** 告知导入桥「往哪个课表导」（对应 `window.currentTableId`） */
     fun setImportTableId(tableId: String)
 }

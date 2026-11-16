@@ -171,7 +171,7 @@ private fun wheelOf(kind: WeatherFlowKind): List<Color> = when (kind) {
 
 /** 时段只改色相倾向，不改形态：夜里一律压成深蓝，晨暮往暖色偏。 */
 private fun phaseColor(color: Color, phase: SkyPhase): Color = when (phase) {
-    SkyPhase.Day -> color
+    SkyPhase.Day -> lerp(color, Color(0xFF7FA8E8), 0.24f)
     SkyPhase.Dawn -> lerp(color, Color(0xFFF5A06E), 0.42f)
     SkyPhase.Dusk -> lerp(color, Color(0xFFD96E5E), 0.40f)
     // 夜间压成深蓝：保留约两成原色相，既让晴/雨/雪之间有差别，又不会在暗底上泛出脏橘

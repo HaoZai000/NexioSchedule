@@ -1,0 +1,521 @@
+/**
+ * AI 教务导入预览页面 —— 与「AI 文本导入」的预览区同一套外观与交互：
+ * 标题 + 一张卡片（课程数 / 可点开编辑的行 / 卡片内「确定导入」）+ 顶部确认弹窗。
+ *
+ * 为什么是独立一页而不是对话浮层里的覆盖层：这一页不需要那台 WebView，
+ * 单独成页才能用系统返回、也才能复用文档页的外壳。
+ */
+package com.haooz.chedule.ui.activities
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.haooz.chedule.data.ai.AiEduScriptUploader
+import com.haooz.chedule.data.model.Course
+import com.haooz.chedule.data.platform.showToast
+import com.haooz.chedule.i18n.AppLanguage
+import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.ui.ai.AiEduPreviewHolder
+import com.haooz.chedule.ui.ai.EduAgentDraft
+import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.chedule.ui.components.pageTopExtra
+import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.screens.AddCourseDialog
+import com.haooz.chedule.ui.web.EduImportBridgeCore
+import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.ScheduleViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
+import com.haooz.chedule.viewmodel.courseViewModel
+import com.haooz.chedule.viewmodel.scheduleViewModel
+import com.haooz.chedule.viewmodel.settingsViewModel
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.shape.ContinuousCapsule
+import com.haooz.softglass.shape.continuousBackground
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.delay
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Checkbox
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
+import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.collapsibleTopInset
+import top.yukonga.miuix.kmp.layout.isTabletWidth
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+
+@Composable
+fun AiEduPreviewScreen(
+    /** 已写入课表：宿主负责把预览页和 AI 导入页一起收掉 */
+    onImported: () -> Unit,
+    scrollBehavior: SharedScrollBehavior? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
+) {
+    val courseViewModel = courseViewModel()
+    val settingsViewModel = settingsViewModel()
+    val scheduleViewModel = scheduleViewModel()
+    val hapticFeedback = LocalHapticFeedback.current
+
+    // 路由之间没有参数通道，草稿与课程由 AiEduPreviewHolder 带进来
+    val draft = remember { AiEduPreviewHolder.draft }
+    // 离开本页就清空，下一次进来不会拿到上一轮的草稿
+    DisposableEffect(Unit) {
+        onDispose { AiEduPreviewHolder.clear() }
+    }
+    val courses = remember {
+        mutableStateListOf<Course>().apply { addAll(AiEduPreviewHolder.courses) }
+    }
+    // 解析期做过的取舍：合并掉多少重复、跳过多少门缺信息的课 —— 必须让用户看得见
+    val mergedDuplicates = remember { AiEduPreviewHolder.mergedDuplicates }
+    val skippedNames = remember { AiEduPreviewHolder.skippedNames }
+
+    val morningSections by settingsViewModel.morningSections.collectAsState()
+    val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
+    val eveningSections by settingsViewModel.eveningSections.collectAsState()
+    val maxSection by remember(morningSections, afternoonSections, eveningSections) {
+        derivedStateOf {
+            (morningSections + afternoonSections + eveningSections).coerceAtLeast(12)
+        }
+    }
+    val totalWeeks by courseViewModel.totalWeeks.collectAsState()
+    val existingCourses by courseViewModel.courses.collectAsState()
+
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var appendMode by remember { mutableStateOf(false) }
+    // 学校名称：脚本上传到服务端后靠它归类，必填
+    var schoolInput by remember { mutableStateOf("") }
+    var editingCourseIndex by remember { mutableIntStateOf(-1) }
+    // 编辑中课程快照：退出动画期间弹窗仍在屏上，不能依赖列表实时对象
+    var editingCourseSnapshot by remember { mutableStateOf<Course?>(null) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    // 真正删除延迟到退出动画结束后，避免列表缩短导致组件被提前移除
+    var pendingDelete by remember { mutableStateOf(false) }
+
+    // 等底部弹窗退出动画（320ms）播完后再执行删除并卸载弹窗
+    LaunchedEffect(showEditDialog) {
+        if (!showEditDialog && editingCourseSnapshot != null) {
+            delay(340.milliseconds)
+            if (pendingDelete && editingCourseIndex in courses.indices) {
+                courses.removeAt(editingCourseIndex)
+            }
+            pendingDelete = false
+            editingCourseIndex = -1
+            editingCourseSnapshot = null
+        }
+    }
+
+    val isTablet = isTabletWidth()
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
+
+    Scaffold(topBar = {}) { paddingValues ->
+        Column(
+            modifier = Modifier.fillMaxSize()
+                .overScrollVertical()
+                .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
+                .collapsibleTopInset(scrollBehavior)
+                .then(
+                    scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
+                )
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = tabletHorizontalPadding,
+                    end = tabletHorizontalPadding,
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
+                        pageTopExtra(isTablet, hasSmallTitle = true),
+                    bottom = 120.dp
+                )
+        ) {
+            SmallTitle(
+                text = ImportStr.parsePreview(),
+            )
+            if (draft == null || courses.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .continuousBackground(CardDefaults.defaultColors().color, CardDefaults.CornerRadius)
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = ImportStr.aiEduPreviewEmpty(),
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .continuousBackground(CardDefaults.defaultColors().color, CardDefaults.CornerRadius)
+                ) {
+                    Text(
+                        text = ImportStr.identifiedCoursesN(courses.size),
+                        style = MiuixTheme.textStyles.title2,
+                        color = MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 12.dp)
+                    )
+                    if (mergedDuplicates > 0) {
+                        Text(
+                            text = ImportStr.aiEduPreviewMergedN(mergedDuplicates),
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp).padding(bottom = 8.dp)
+                        )
+                    }
+                    if (skippedNames.isNotEmpty()) {
+                        Text(
+                            text = ImportStr.aiEduPreviewSkippedN(skippedNames.size),
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.error,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp).padding(bottom = 8.dp)
+                        )
+                    }
+                    courses.forEachIndexed { index, course ->
+                        CoursePreviewRow(
+                            course = course,
+                            onClick = {
+                                editingCourseIndex = index
+                                editingCourseSnapshot = course
+                                showEditDialog = true
+                            }
+                        )
+                        if (index < courses.lastIndex) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                    }
+                    CardExpand(visible = courses.isNotEmpty()) {
+                        TextButton(
+                            text = ImportStr.confirmImportCard(),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showConfirmDialog = true
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // 组件常驻到退出动画结束（show=false 后仍保留在树中），否则会瞬间消失
+    editingCourseSnapshot?.let { snapshot ->
+        AddCourseDialog(
+            show = showEditDialog,
+            course = snapshot,
+            selectedDay = snapshot.dayOfWeek,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            totalWeeks = totalWeeks,
+            totalSections = maxSection,
+            defaultStartSection = snapshot.startSection,
+            defaultEndSection = snapshot.endSection,
+            getOccupiedWeeks = { _, _, _, _, _, _ -> emptySet() },
+            onDismiss = { showEditDialog = false },
+            onConfirm = { updated ->
+                if (editingCourseIndex in courses.indices) {
+                    courses[editingCourseIndex] = updated
+                }
+            },
+            onDelete = { _ -> pendingDelete = true }
+        )
+    }
+
+    OverlayDialog(
+        title = if (appendMode) ImportStr.appendDialogTitle() else ImportStr.overwriteDialogTitle(),
+        summary = buildString {
+            if (appendMode) {
+                if (existingCourses.isNotEmpty()) {
+                    append(
+                        ImportStr.appendSummaryCombined(
+                            existingCourses.size,
+                            courses.size,
+                            existingCourses.size + courses.size
+                        )
+                    )
+                    append(ImportStr.appendKeepExisting())
+                } else {
+                    append(ImportStr.totalCoursesN(courses.size))
+                }
+            } else {
+                if (existingCourses.isNotEmpty()) {
+                    append(ImportStr.replaceSummary(existingCourses.size, courses.size))
+                } else {
+                    append(ImportStr.totalCoursesN(courses.size))
+                }
+            }
+        },
+        show = showConfirmDialog,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = { showConfirmDialog = false }
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 学校名称：脚本按它归类上传，留空则不允许导入
+            NativeMiuixTextField(
+                value = schoolInput,
+                onValueChange = { if (it.length <= AiEduScriptUploader.MAX_SCHOOL_LENGTH) schoolInput = it },
+                minLines = 1,
+                maxLines = 1,
+                label = ImportStr.aiEduSchoolLabel(),
+                useLabelAsPlaceholder = true,
+            )
+            Text(
+                text = ImportStr.aiEduSchoolHint(),
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 8.dp)
+            )
+            // 仅在已有课程时提供增量添加
+            if (existingCourses.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        state = if (appendMode) ToggleableState.On else ToggleableState.Off,
+                        onClick = { appendMode = !appendMode }
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = ImportStr.appendModeLabel(),
+                            style = MiuixTheme.textStyles.body1,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (appendMode) ImportStr.appendModeOnDesc() else ImportStr.appendModeOffDesc(),
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = CommonStr.cancel(),
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showConfirmDialog = false
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = if (appendMode) ImportStr.confirmAppend() else ImportStr.confirmImport(),
+                    enabled = schoolInput.isNotBlank(),
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        val target = draft
+                        if (target != null && courses.isNotEmpty()) {
+                            val written = applyAgentDraft(
+                                draft = target,
+                                courses = courses.toList(),
+                                append = appendMode,
+                                settingsViewModel = settingsViewModel,
+                                scheduleViewModel = scheduleViewModel,
+                                courseViewModel = courseViewModel,
+                            )
+                            // 脚本上传走后台：页面马上出栈，不能被自己的 scope 取消
+                            AiEduScriptUploader.uploadInBackground(
+                                school = schoolInput,
+                                pageUrl = target.pageUrl,
+                                script = target.script,
+                                courseCount = written,
+                            )
+                            showToast(
+                                when {
+                                    // 追加时全部撞上已有课程：说清楚，而不是「添加了 0 门」
+                                    appendMode && written == 0 -> ImportStr.aiEduAppendNothingNew()
+                                    appendMode -> ImportStr.addedCoursesN(written)
+                                    else -> ImportStr.importedCoursesN(written)
+                                },
+                                longDuration = true,
+                            )
+                            showConfirmDialog = false
+                            onImported()
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+/** 课程预览行：显示课程概要，点击进入编辑弹窗 */
+@Composable
+private fun CoursePreviewRow(
+    course: Course,
+    onClick: () -> Unit
+) {
+    val hapticFeedback = LocalHapticFeedback.current
+    val dayText = remember(course.dayOfWeek, AppLanguage.resolved) {
+        when (course.dayOfWeek) {
+            1 -> CommonStr.weekdayMon(); 2 -> CommonStr.weekdayTue(); 3 -> CommonStr.weekdayWed(); 4 -> CommonStr.weekdayThu()
+            5 -> CommonStr.weekdayFri(); 6 -> CommonStr.weekdaySat(); 7 -> CommonStr.weekdaySun(); else -> "?"
+        }
+    }
+    // 连续周次存为空列表（用 startWeek/endWeek 表示），getWeekText() 综合判断
+    val weekText = remember(course.selectedWeeks, course.startWeek, course.endWeek, course.weekType, AppLanguage.resolved) {
+        course.weekTextLocalized()
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                onClick()
+            }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 13.dp, top = 17.dp, bottom = 17.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(Color(course.colorRes), ContinuousCapsule())
+            )
+            Spacer(modifier = Modifier.size(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = course.name,
+                    style = MiuixTheme.textStyles.body1,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                val summaryLine1 = buildString {
+                    append(dayText)
+                    append(ImportStr.sectionRangeSuffix(course.startSection, course.endSection))
+                    if (course.classroom.isNotBlank()) {
+                        append(ImportStr.classroomSuffix(course.classroom))
+                    }
+                }
+                Text(
+                    text = summaryLine1,
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                )
+                Text(
+                    text = weekText,
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                )
+            }
+            Icon(
+                imageVector = MiuixIcons.Basic.ArrowRight,
+                contentDescription = CommonStr.edit(),
+                modifier = Modifier.size(16.dp),
+                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+            )
+        }
+    }
+}
+
+/**
+ * 把草稿落地。
+ *
+ * 配置 / 作息 / 组合方案一律写进 `edu_import_prefs` 再交给既有的 `apply*` 消费端 ——
+ * 那三条链路（节次时间、开学日与总周数、组合作息）已经在教务网页导入里跑了几百次，
+ * 这里再写一遍必然漂移。
+ */
+private fun applyAgentDraft(
+    draft: EduAgentDraft,
+    courses: List<Course>,
+    append: Boolean,
+    settingsViewModel: SettingsViewModel,
+    scheduleViewModel: ScheduleViewModel,
+    courseViewModel: CourseViewModel,
+): Int {
+    val bridge = EduImportBridgeCore(onCoursesImported = {}, onTaskCompleted = {})
+    bridge.setImportTableId(null)
+    draft.configJson?.let { json ->
+        runCatching { bridge.handle("saveCourseConfig", listOf(json)) }
+    }
+    draft.timeSlotsJson?.let { json ->
+        runCatching { bridge.handle("savePresetTimeSlots", listOf(json)) }
+    }
+    draft.comboJson?.let { json ->
+        runCatching { bridge.handle("saveComboSchedule", listOf(json)) }
+    }
+
+    if (draft.timeSlotsJson != null) {
+        applyPresetTimeSlots(settingsViewModel, scheduleViewModel, null)
+    }
+    applyImportedScheduleConfig(courseViewModel, scheduleViewModel)
+    if (draft.comboJson != null) {
+        applyComboSchedule(settingsViewModel, courseViewModel, scheduleViewModel, null)
+    }
+
+    // 追加模式：与本机已有课程同课（名称/教师/地点/星期/节次相同）的跳过，
+    // 重复点「追加」不该让课表里多出一倍同样的课
+    val written = if (append) {
+        val existing = courseViewModel.courses.value.mapTo(HashSet()) { it.aiDraftKey() }
+        courses.filterNot { it.aiDraftKey() in existing }
+    } else {
+        courses
+    }
+    if (append) courseViewModel.appendCourses(written) else courseViewModel.replaceCourses(written)
+    scheduleViewModel.refreshScheduleList()
+    return written.size
+}
+
+/** 同课判定键：名称/教师/地点/星期/节次/真实时间完全相同才算同一门课。 */
+private fun Course.aiDraftKey(): String = listOf(
+    name.trim(),
+    (teacher ?: "").trim(),
+    (classroom ?: "").trim(),
+    dayOfWeek,
+    startSection,
+    endSection,
+    customStartTime.orEmpty(),
+    customEndTime.orEmpty(),
+).joinToString("|")

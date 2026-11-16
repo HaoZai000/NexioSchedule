@@ -2,6 +2,7 @@ package com.haooz.chedule.data.platform
 
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -11,13 +12,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 /**
  * Android 实现：OkHttp。
  *
- * ⚠ 与迁移前逐字对齐，勿改：重试保持默认 true；不设 callTimeout（仅显式传
- * [HttpTimeouts.callSeconds] 时才设，否则会给原本无整体超时的请求加上超时，属行为变更）；
- * 响应体一次读空。
- *
- * 唯一差异：OkHttpClient 由本对象创建并缓存，不再每个调用点各建一个（原等于 10 套连接池）。
- *
- * 缓存键含超时值：超时不同的请求不能共用同一个 Client。
+ * 重试保持默认 true；只有显式传 [HttpTimeouts.callSeconds] 时才设 callTimeout，
+ * 避免给原本无总时长的请求加上超时。OkHttpClient 按超时配置缓存复用。
  */
 private val clientCache = HashMap<HttpTimeouts, OkHttpClient>()
 
@@ -62,6 +58,47 @@ private class OkHttpHttpService(private val timeouts: HttpTimeouts) : HttpServic
         contentType: String?,
         headers: Map<String, String>,
     ): HttpResult = execute(method, url, body, contentType, headers)
+
+    /**
+     * 真流式：逐行把 SSE 交出去。
+     *
+     * ⚠ 必须在 IO 线程上跑，且**不能**用 `response.body.string()` —— 那会等连接关闭，
+     * 回到「想完才显示」。这里用 `source.readUtf8Line()` 阻塞读，一行到一行回调。
+     */
+    override suspend fun streamPost(
+        url: String,
+        body: String,
+        contentType: String,
+        headers: Map<String, String>,
+        onLine: suspend (String) -> Unit,
+    ) = withContext(Dispatchers.IO) {
+        val builder = Request.Builder()
+            .url(url)
+            .post(body.toRequestBody(contentType.toMediaType()))
+            .header("Accept", "text/event-stream")
+        headers.forEach { (k, v) -> builder.header(k, v) }
+
+        val call = clientFor(timeouts).newCall(builder.build())
+        // ⚠ 协程取消必须能断开连接：这是阻塞读，不挂这个钩子的话「停止」之后
+        // 这一轮 SSE 还会一直读到模型自己想完，delta 继续回灌给上层。
+        val cancelHook = coroutineContext[Job]?.invokeOnCompletion { call.cancel() }
+        val response = try {
+            call.execute()
+        } catch (e: Throwable) {
+            cancelHook?.dispose()
+            throw e
+        }
+        try {
+            val source = response.body?.source() ?: return@withContext
+            while (true) {
+                val line = source.readUtf8Line() ?: break
+                if (line.isNotBlank()) onLine(line)
+            }
+        } finally {
+            cancelHook?.dispose()
+            response.close()
+        }
+    }
 
     private suspend fun execute(
         method: String,

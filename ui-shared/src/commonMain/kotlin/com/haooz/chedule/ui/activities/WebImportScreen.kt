@@ -142,7 +142,8 @@ fun WebImportScreen(
 
         Box(modifier = Modifier.fillMaxSize()) {
             com.haooz.chedule.ui.screens.WebViewScreen(
-                school = school,
+                schoolName = school.name,
+                resourceFolder = school.resourceFolder,
                 adapterId = adapter.adapterId,
                 importUrl = adapter.importUrl,
                 assetJsPath = adapter.assetJsPath,

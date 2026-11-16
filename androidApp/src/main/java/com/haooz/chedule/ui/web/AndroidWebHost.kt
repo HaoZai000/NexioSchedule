@@ -516,6 +516,15 @@ fun rememberAndroidWebHost(
                 webView.evaluateJavascript(js, null)
             }
 
+            override fun evaluateJavascriptWithResult(js: String, onResult: (String?) -> Unit) {
+                // evaluateJavascript 只能在主线程调；AI 工具是从 io 协程里发起的
+                webView.post {
+                    runCatching {
+                        webView.evaluateJavascript(js) { value -> onResult(value) }
+                    }.onFailure { onResult(null) }
+                }
+            }
+
             override fun setImportTableId(tableId: String) {
                 androidBridge.setImportTableId(tableId)
             }

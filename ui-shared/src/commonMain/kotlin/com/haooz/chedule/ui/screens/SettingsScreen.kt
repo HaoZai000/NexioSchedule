@@ -8,9 +8,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -42,10 +44,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -281,6 +286,61 @@ internal fun CourseReminderIcon() {
 internal fun HomeScreenWidgetIcon() {
     VectorEntryIcon(MiuixIcons.All, SettingsAccents.Green)
 }
+
+/** AI 功能图标：白底 + 灰色描边 + 彩色渐变图形。 */
+@Composable
+internal fun AiFeaturesIcon() {
+    val shape = remember { ContinuousRoundedRectangle(8.dp) }
+    val outline = if (isAppDarkTheme()) {
+        Color.White.copy(alpha = 0.16f)
+    } else {
+        MiuixTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+    }
+    // 渐变坐标按 1024 视口路径空间给出（对齐圆形轮廓 bounds）：Canvas 做了 scale，
+    // 若用默认 size 取终点，渐变只覆盖左上角极小区域，整枚图标会渲染成最后一种颜色
+    val gradient = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFFFF6A00),
+            Color(0xFFFFAA40),
+            Color(0xFF7FB6DE),
+            Color(0xFF008CFF)
+        ),
+        start = Offset(97f, 97f),
+        end = Offset(926f, 926f),
+    )
+    // 渐变着色不支持直接套在 painter 上，按原始 1024 视口路径手绘
+    val iconPath = remember { PathParser().parsePathString(AiIconPathData).toPath() }
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .background(Color.White, shape)
+            .border(0.5.dp, outline, shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(24.dp)) {
+            val factor = size.width / 1024f
+            scale(scaleX = factor, scaleY = factor, pivot = Offset.Zero) {
+                drawPath(iconPath, brush = gradient)
+            }
+        }
+    }
+}
+
+/** AI 功能图标路径（1024×1024 视口，圆形内嵌四角星镂空）。 */
+private const val AiIconPathData =
+    "M512 97.52381c228.912762 0 414.47619 185.563429 414.47619 414.47619s-185.563429 " +
+        "414.47619-414.47619 414.47619S97.52381 740.912762 97.52381 512 283.087238 " +
+        "97.52381 512 97.52381z m-12.190476 170.666666c-19.309714 0-36.035048 " +
+        "34.669714-45.031619 51.395048l-23.942095 57.197714a146.285714 146.285714 0 0 " +
+        "1-78.433524 78.433524l-57.197715 23.942095C278.479238 488.17981 243.809524 " +
+        "504.880762 243.809524 524.190476s34.669714 36.035048 51.395047 45.031619l57.197715 " +
+        "23.942095a146.285714 146.285714 0 0 1 78.433524 78.433524l23.942095 " +
+        "57.197715c9.020952 16.725333 25.721905 51.395048 45.031619 51.395047s36.035048-34.669714 " +
+        "45.031619-51.395047l23.942095-57.197715a146.285714 146.285714 0 0 1 " +
+        "78.433524-78.433524l57.197714-23.942095C721.13981 560.201143 755.809524 " +
+        "543.50019 755.809524 524.190476s-34.669714-36.035048-51.395048-45.031619l-57.197714-23.942095a146.285714 " +
+        "146.285714 0 0 1-78.433524-78.433524l-23.942095-57.197714C535.82019 302.86019 " +
+        "519.119238 268.190476 499.809524 268.190476z"
 
 /** 导入导出图标。 */
 @Composable
@@ -542,6 +602,12 @@ fun SettingsScreen(
                                     }
                                 )
                             }
+                            SettingsEntryRow(
+                                title = SettingsStr.aiFeatures(),
+                                icon = { AiFeaturesIcon() },
+                                selected = selectedRoute == AppRoute.AiFeatures,
+                                onClick = { openRoute(AppRoute.AiFeatures) }
+                            )
                         }
                     }
                 }

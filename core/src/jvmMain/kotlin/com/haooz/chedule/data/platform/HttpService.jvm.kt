@@ -3,12 +3,12 @@ package com.haooz.chedule.data.platform
 import java.net.HttpURLConnection
 import java.net.URI
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 
 /**
- * JVM / 桌面实现：基于 `java.net.HttpURLConnection`（纯 JDK，零依赖）。
- * jvm target 仅用于验证 commonMain 可编译，不承载线上流量，故不引入 OkHttp。
- * ⚠ 与 Android 差异（仅影响桌面调试）：`HttpURLConnection` 对 `PROPFIND`/`MKCOL` 等方法可能抛 `ProtocolException`；4xx/5xx 须改用 `errorStream` 读取，已对齐 Android 语义。
+ * JVM / 桌面实现：`HttpURLConnection`（纯 JDK）。仅用于验证 commonMain 可编译。
+ * 与 Android 的差异：`PROPFIND`/`MKCOL` 等方法可能抛 `ProtocolException`，4xx/5xx 走 `errorStream`。
  */
 actual fun createHttpService(timeouts: HttpTimeouts): HttpService = UrlConnectionHttpService(timeouts)
 
@@ -34,6 +34,39 @@ private class UrlConnectionHttpService(private val timeouts: HttpTimeouts) : Htt
         contentType: String?,
         headers: Map<String, String>,
     ): HttpResult = execute(method, url, body, contentType, headers)
+
+    /** 真流式（桌面调试用）：`HttpURLConnection` 直接给 InputStream，逐行读即可。 */
+    override suspend fun streamPost(
+        url: String,
+        body: String,
+        contentType: String,
+        headers: Map<String, String>,
+        onLine: suspend (String) -> Unit,
+    ) = withContext(Dispatchers.IO) {
+        val conn = (URI(url).toURL().openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = (timeouts.connectSeconds * 1000).toInt()
+            readTimeout = (timeouts.readSeconds * 1000).toInt()
+            doOutput = true
+            headers.forEach { (k, v) -> setRequestProperty(k, v) }
+            setRequestProperty("Content-Type", contentType)
+            setRequestProperty("Accept", "text/event-stream")
+        }
+        // 协程取消要能断开连接，否则阻塞读会一直读到流结束（同 Android 实现）
+        val cancelHook = coroutineContext[Job]?.invokeOnCompletion { conn.disconnect() }
+        try {
+            conn.outputStream.use { it.write(body.toByteArray()) }
+            conn.inputStream.bufferedReader().use { reader ->
+                while (true) {
+                    val line = reader.readLine() ?: break
+                    if (line.isNotBlank()) onLine(line)
+                }
+            }
+        } finally {
+            cancelHook?.dispose()
+            conn.disconnect()
+        }
+    }
 
     private suspend fun execute(
         method: String,

@@ -697,6 +697,7 @@ internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     AppRoute.UpdatePreferences -> ChromeStr.updatePreferencesTitle()
     AppRoute.AiImport -> ChromeStr.aiImport()
     AppRoute.WidgetIntro -> ChromeStr.widgetsTitle()
+    AppRoute.AiFeatures -> SettingsStr.aiFeatures()
     AppRoute.CourseReminder -> ChromeStr.courseReminders()
     AppRoute.HolidaySettings -> ChromeStr.holidaysTitle()
     AppRoute.WebDavSettings -> ChromeStr.webdavBackup()
@@ -706,6 +707,10 @@ internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     AppRoute.CourseTimeSettings -> ChromeStr.classTimeSettings()
     // 网页导入页与选择页同级：必须是原生文档（走 Compose 栈会被原生文档挡住）
     AppRoute.WebImport -> ChromeStr.webImport()
+    // AI 教务导入同样是原生文档页（内含 WKWebView）
+    AppRoute.AiEduImport -> ChromeStr.aiEduImport()
+    AppRoute.AiEduImportHistory -> ImportStr.aiEduHistoryTitle()
+    AppRoute.AiEduPreview -> ImportStr.aiEduPreviewTitle()
     // ⚠ 必须是原生文档：从「课表导出/导入/备份」这些原生文档页跳进来，
     // 走 Compose 栈会被上面压着的原生文档挡住（表现为「点了没反应」）
     AppRoute.EducationalImport -> ChromeStr.educationalImport()

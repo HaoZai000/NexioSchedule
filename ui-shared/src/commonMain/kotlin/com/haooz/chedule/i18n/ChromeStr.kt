@@ -107,6 +107,9 @@ object ChromeStr {
     val educationalImport = L("教务系统导入", "Academic System Import")
     val webImport = L("网页导入", "Web Import")
 
+    /** AI 教务导入（模型现场读页面、写适配脚本）的原生文档页标题。 */
+    val aiEduImport = L("AI 教务导入", "AI Academic Import")
+
     val updating = L("更新中", "Updating")
     val holidaysTitle = L("节假日与调休", "Holidays & Adjusted Workdays")
 

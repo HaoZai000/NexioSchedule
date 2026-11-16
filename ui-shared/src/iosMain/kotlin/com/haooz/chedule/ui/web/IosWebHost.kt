@@ -173,6 +173,9 @@ fun rememberIosWebHost(config: WebHostConfig, events: WebHostEvents): WebHost {
 
             override fun evaluateJavascript(js: String) = controller.eval(js)
 
+            override fun evaluateJavascriptWithResult(js: String, onResult: (String?) -> Unit) =
+                controller.evalWithResult(js, onResult)
+
             override fun setImportTableId(tableId: String) = controller.core.setImportTableId(tableId)
         }
     }
@@ -321,6 +324,19 @@ private class IosWebHostController {
 
     fun eval(js: String) {
         webView.evaluateJavaScript(js, null)
+    }
+
+    /**
+     * 执行 JS 并回传结果（AI 教务导入读页面 / 打接口用）。
+     *
+     * WKWebView 的 completion 回到主线程，但结果可能是 NSString / NSNumber / NSArray，
+     * 这里统一 `toString()` —— 调用方拿到的应该是脚本自己 `return` 的字符串，
+     * 真给了对象时至少还能看到内容，不至于静默变 null。
+     */
+    fun evalWithResult(js: String, onResult: (String?) -> Unit) {
+        webView.evaluateJavaScript(js) { result: Any?, _: NSError? ->
+            onResult(result?.toString())
+        }
     }
 
     fun dispose() {

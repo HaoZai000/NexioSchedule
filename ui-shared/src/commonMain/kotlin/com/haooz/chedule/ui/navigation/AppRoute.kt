@@ -90,9 +90,34 @@ sealed interface AppRoute {
         override val id: String get() = "ai_import"
     }
 
+    /**
+     * AI 教务导入（模型自己读页面、打接口、写适配脚本）。
+     *
+     * 与 [AiImport] 不是一回事：那个是「你把 AI 的输出粘进来，本地解析」，
+     * 这个是「模型在教务网页里现场做适配」。
+     */
+    data object AiEduImport : AppRoute {
+        override val id: String get() = "ai_edu_import"
+    }
+
+    /** AI 教务导入历史：AI 写过的每一版脚本。 */
+    data object AiEduImportHistory : AppRoute {
+        override val id: String get() = "ai_edu_import_history"
+    }
+
+    /** AI 教务导入的课程预览：确认后写入课表（草稿经 `AiEduPreviewHolder` 传入）。 */
+    data object AiEduPreview : AppRoute {
+        override val id: String get() = "ai_edu_preview"
+    }
+
     /** 桌面小部件引导（「桌面小部件」）。 */
     data object WidgetIntro : AppRoute {
         override val id: String get() = "widget_intro"
+    }
+
+    /** AI 功能（「AI 功能」）。 */
+    data object AiFeatures : AppRoute {
+        override val id: String get() = "ai_features"
     }
 
     /** 课程提醒（「课程提醒」）。 */
@@ -168,7 +193,11 @@ sealed interface AppRoute {
             ScheduleBackup.id -> ScheduleBackup
             ImportExport.id -> ImportExport
             AiImport.id -> AiImport
+            AiEduImport.id -> AiEduImport
+            AiEduImportHistory.id -> AiEduImportHistory
+            AiEduPreview.id -> AiEduPreview
             WidgetIntro.id -> WidgetIntro
+            AiFeatures.id -> AiFeatures
             CourseReminder.id -> CourseReminder
             HolidaySettings.id -> HolidaySettings
             WebDavSettings.id -> WebDavSettings

@@ -58,6 +58,7 @@ import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
+import top.yukonga.miuix.kmp.utils.SinkFeedback
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.time.Duration.Companion.milliseconds
@@ -337,6 +338,9 @@ internal fun WelcomeArrow(
     alpha: Float = 1f,
     onClick: (() -> Unit)? = null,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    // 与 miuix Card 的 PressFeedbackType.Sink 同一份实现：缩到 0.94、spring(0.8, 600) 复原
+    val sinkFeedback = remember { SinkFeedback() }
     BoxWithConstraints(modifier = modifier) {
         Image(
             painter = painterResource(Res.drawable.bt_startup),
@@ -347,11 +351,11 @@ internal fun WelcomeArrow(
                 .size(width = 276.dp, height = 236.dp)
                 .graphicsLayer { this.alpha = alpha }
                 .then(
-                    // 按压反馈置空：按钮靠自身动画反馈，不要水波纹
+                    // 按压反馈交给 Card 同款 SinkFeedback，不要水波纹
                     if (onClick != null) {
                         Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
+                            interactionSource = interactionSource,
+                            indication = sinkFeedback,
                             onClick = onClick,
                         )
                     } else {
