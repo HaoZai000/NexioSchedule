@@ -167,6 +167,17 @@ class AiClient(
     }
 
     /**
+     * 测试本机配置的服务商能否接通（只发一条最小请求）。
+     *
+     * @return 耗时（毫秒）
+     */
+    suspend fun testByokConnection(): AiResult<Long> {
+        val cfg = AiByokStore.load()
+        if (!cfg.isUsable) return AiResult.Error("服务商配置不完整")
+        return AiDirectClient(http).ping(cfg)
+    }
+
+    /**
      * 发一次加密请求并解开响应 —— 具体实现在 [aiRoundTrip]（教务 agent 共用同一份）。
      */
     private suspend fun roundTrip(path: String, body: JsonObject): AiResult<String> =

@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +49,8 @@ import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.shape.ContinuousCapsule
+import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
@@ -121,6 +124,8 @@ fun AiFeaturesScreen(
         )
     }
     var apiKey by remember { mutableStateOf(stored.apiKey) }
+    val scope = rememberCoroutineScope()
+    var testState by remember { mutableStateOf<AiTestState>(AiTestState.Idle) }
 
     val dropdownColors = if (liquidGlassBackdrop != null) {
         DropdownDefaults.dropdownColors(
@@ -147,6 +152,38 @@ fun AiFeaturesScreen(
                 apiKey = key,
             )
         )
+    }
+
+    /**
+     * 测试当前选择是否可用。
+     *
+     * 免费额度走 `/capabilities`（只读、不扣次数）；自有服务商发一条最小请求。
+     * 失败原因完整留在页面上，不只弹一个 Toast。
+     */
+    fun runConnectionTest() {
+        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+        testState = AiTestState.Running
+        scope.launch {
+            testState = if (isFreeProvider) {
+                val outcome = runCatching { AiClient(http).capabilities() }
+                    .getOrElse { AiResult.Error(it.message ?: it::class.simpleName ?: "未知错误") }
+                when (outcome) {
+                    is AiResult.Ok -> if (outcome.value.enabled) {
+                        AiTestState.Ok(elapsedMs = null)
+                    } else {
+                        AiTestState.Failed(AiStr.serverDisabled())
+                    }
+                    is AiResult.Error -> AiTestState.Failed(outcome.message)
+                }
+            } else {
+                val outcome = runCatching { AiClient(http).testByokConnection() }
+                    .getOrElse { AiResult.Error(it.message ?: it::class.simpleName ?: "未知错误") }
+                when (outcome) {
+                    is AiResult.Ok -> AiTestState.Ok(elapsedMs = outcome.value)
+                    is AiResult.Error -> AiTestState.Failed(outcome.message)
+                }
+            }
+        }
     }
 
     Scaffold(topBar = {}) { paddingValues ->
@@ -260,6 +297,7 @@ fun AiFeaturesScreen(
                                             model = preset.defaultModel
                                         }
                                         persistByok()
+                                        testState = AiTestState.Idle
                                     },
                                 )
                             }
@@ -268,6 +306,12 @@ fun AiFeaturesScreen(
                         maxHeight = 420.dp,
                         liquidGlassBackdrop = liquidGlassBackdrop,
                         dropdownColors = dropdownColors,
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+                        thickness = 0.5.dp,
+                        color = theme.onSurfaceVariantActions.copy(alpha = 0.1f),
                     )
 
                     // 免费额度与自填配置互斥：切换服务商时高度做展开/收起动画
@@ -372,14 +416,56 @@ fun AiFeaturesScreen(
                 }
             }
 
+            // 连接测试单独一张卡：左侧状态/完整报错，右侧蓝色胶囊按钮
+            Spacer(modifier = Modifier.height(SECTION_GAP))
+            Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 14.dp, horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val status = testState
+                    Text(
+                        text = when (status) {
+                            AiTestState.Idle -> AiStr.testIdle()
+                            AiTestState.Running -> AiStr.testingConnection()
+                            is AiTestState.Ok -> status.elapsedMs?.let { AiStr.testConnectionOk(it) }
+                                ?: AiStr.testServerOk()
+                            is AiTestState.Failed -> AiStr.testConnectionFailed(status.message)
+                        },
+                        fontSize = if (status is AiTestState.Failed) 13.sp else 14.sp,
+                        color = when (status) {
+                            is AiTestState.Ok -> theme.primary
+                            is AiTestState.Failed -> theme.error
+                            else -> theme.onSurfaceVariantSummary
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp),
+                    )
+                    TextButton(
+                        text = AiStr.testConnection(),
+                        enabled = testState != AiTestState.Running,
+                        onClick = { runConnectionTest() },
+                        colors = ButtonDefaults.textButtonColorsPrimary(
+                            color = Color(0xFF0A84FF),
+                            textColor = Color.White,
+                        ),
+                        cornerRadius = 100.dp,
+                        minWidth = 76.dp,
+                        minHeight = 36.dp,
+                        insideMargin = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(SECTION_GAP))
             SmallTitle(text = AiStr.features())
             Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     FeatureRow(AiStr.entryShrink(), AiStr.entryShrinkSummary(), onOpenReminder)
-                    FeatureDivider()
                     FeatureRow(AiStr.entryEduImport(), AiStr.entryEduImportSummary(), onOpenEduImport)
-                    FeatureDivider()
                     FeatureRow(AiStr.entryTextImport(), AiStr.entryTextImportSummary(), onOpenTextImport)
                 }
             }
@@ -389,6 +475,16 @@ fun AiFeaturesScreen(
 
 /** 卡片之间的间距 */
 private val SECTION_GAP = 12.dp
+
+/** 连接测试的状态：结果文字与按钮共用，切换服务商时回到 Idle。 */
+private sealed interface AiTestState {
+    data object Idle : AiTestState
+    data object Running : AiTestState
+
+    /** [elapsedMs] 为 null 表示免费额度（没有直连供应商） */
+    data class Ok(val elapsedMs: Long?) : AiTestState
+    data class Failed(val message: String) : AiTestState
+}
 
 /**
  * 行内输入：左边标签、右边无边框输入区（与「添加课程」弹窗同一种写法）。
@@ -474,15 +570,6 @@ private fun QuotaLine(label: String, used: Int, limit: Int) {
             modifier = Modifier.padding(top = 6.dp),
         )
     }
-}
-
-@Composable
-private fun FeatureDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp),
-        thickness = 0.5.dp,
-        color = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.1f),
-    )
 }
 
 @Composable

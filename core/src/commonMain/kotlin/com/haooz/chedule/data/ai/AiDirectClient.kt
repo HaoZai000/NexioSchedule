@@ -13,6 +13,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlin.time.TimeSource
 
 /**
  * 用户自带服务商（BYOK）时的直连客户端。
@@ -243,6 +244,42 @@ internal class AiDirectClient(private val http: HttpService) {
         )
     }
 
+    // ── 连通性 ──────────────────────────────────────────────────
+
+    /**
+     * 发一条最小请求，只验证地址、key、模型能不能接通。
+     *
+     * 不跑业务任务：通不通和精简得好不好是两回事，混在一起时用户分不清
+     * 「没接通」还是「模型没按格式回」。
+     *
+     * @return 耗时（毫秒）
+     */
+    suspend fun ping(cfg: AiByokConfig): AiResult<Long> {
+        if (!cfg.isUsable) return AiResult.Error("服务商配置不完整")
+        val started = TimeSource.Monotonic.markNow()
+        val body = buildJsonObject {
+            put("model", cfg.model)
+            put("messages", buildJsonArray {
+                add(buildJsonObject {
+                    put("role", "user")
+                    put("content", "ping")
+                })
+            })
+            when {
+                isMimoEndpoint(cfg.baseUrl) -> put("max_completion_tokens", 16)
+                cfg.provider == OPENAI_PROVIDER -> {
+                    put("max_completion_tokens", 16)
+                    put("reasoning_effort", "none")
+                }
+                else -> put("max_tokens", 16)
+            }
+        }
+        return when (val result = post(cfg, body)) {
+            is AiResult.Error -> result
+            is AiResult.Ok -> AiResult.Ok(started.elapsedNow().inWholeMilliseconds)
+        }
+    }
+
     // ── 通用请求 ────────────────────────────────────────────────
 
     private suspend fun complete(
@@ -285,19 +322,27 @@ internal class AiDirectClient(private val http: HttpService) {
         }
         if (!result.isSuccessful) return AiResult.Error(apiError(result))
         val json = runCatching { parseJsonObject(result.text) }.getOrNull()
-            ?: return AiResult.Error("供应商响应不是 JSON")
+            ?: return AiResult.Error("供应商响应不是 JSON：${result.text}")
         return AiResult.Ok(json)
     }
 
+    /**
+     * 把供应商的错误完整带出来。
+     *
+     * 优先取 `error.message` / `message` / `msg`；都没有时直接回**原始响应体**，
+     * 不要只留一个状态码 —— 用户排查 401/404/模型名写错时全靠这段文字。
+     */
     private fun apiError(result: HttpResult): String {
+        val body = result.text.trim()
         val detail = runCatching {
-            val obj = parseJsonObject(result.text)
-            // 供应商常见两种形态：`{error:{message}}` 与 `{message}` / `{error:"..."}`
+            val obj = parseJsonObject(body)
             obj.optJsonObject("error")?.optString("message").orEmpty()
                 .ifBlank { obj.optString("message") }
+                .ifBlank { obj.optString("msg") }
                 .ifBlank { obj.optString("error") }
         }.getOrDefault("")
-        return "AI 返回 ${result.code}" + if (detail.isNotBlank()) "：$detail" else ""
+        val text = detail.ifBlank { body }
+        return "AI 返回 ${result.code}" + if (text.isNotBlank()) "：$text" else ""
     }
 
     private fun authHeaders(apiKey: String): Map<String, String> =

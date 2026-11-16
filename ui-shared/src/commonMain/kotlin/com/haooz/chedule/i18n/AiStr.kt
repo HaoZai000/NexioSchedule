@@ -36,6 +36,12 @@ object AiStr {
         "API key 只保存在本机，不会上传到服务器",
         "Your API key stays on this device and is never uploaded.",
     )
+    val testConnection = L("测试", "Test")
+    val testIdle = L("尚未测试", "Not tested yet")
+    val testingConnection = L("测试中…", "Testing…")
+    val testConnectionOk = L("连接正常，耗时 %d ms", "Connected in %d ms")
+    val testServerOk = L("Nexio 免费 AI 可用", "Nexio free AI is available")
+    val testConnectionFailed = L("连接失败：%s", "Connection failed: %s")
 
     val features = L("功能入口", "Features")
     val entryShrink = L("通知精简缩略语", "Shorten notification labels")
