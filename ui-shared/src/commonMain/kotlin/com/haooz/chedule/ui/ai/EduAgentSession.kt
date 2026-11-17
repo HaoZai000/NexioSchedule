@@ -137,6 +137,9 @@ internal class EduAgentSession {
     /** 模型是否已经在对话里问过作息：没问过时不允许以「作息未知」直接执行脚本。 */
     private var askedTimeSlots = false
 
+    /** 本次 RUN_SCRIPT 是否被作息 gate 拦下（拦下不计入脚本预算）。 */
+    private var timeSlotGateBlocked = false
+
     private val client by lazy {
         AiEduAgentClient(
             http = createHttpService(
@@ -170,6 +173,7 @@ internal class EduAgentSession {
         sessionId = ""
         userTurns = 0
         askedTimeSlots = false
+        timeSlotGateBlocked = false
         conversation.clear()
         _state.value = EduAgentUiState()
     }
@@ -204,6 +208,7 @@ internal class EduAgentSession {
         this.sessionId = randomUuidV4()
         this.userTurns = 0
         this.askedTimeSlots = false
+        this.timeSlotGateBlocked = false
         val gen = beginRun()
         _state.value = EduAgentUiState(
             running = true,
@@ -368,8 +373,15 @@ internal class EduAgentSession {
 
             for (call in reply.toolCalls) {
                 if (gen != runId) return
-                if (call.name == EduAgentPrompts.TOOL_RUN_SCRIPT) scriptRuns++
-                val (resultText, patch) = execute(tools, call, scriptRuns)
+                val isScriptCall = call.name == EduAgentPrompts.TOOL_RUN_SCRIPT
+                if (isScriptCall) timeSlotGateBlocked = false
+                val (resultText, patch) = execute(
+                    tools,
+                    call,
+                    if (isScriptCall) scriptRuns + 1 else scriptRuns,
+                )
+                // 被作息 gate 拦下的调用没有真的执行，不占脚本预算
+                if (isScriptCall && !timeSlotGateBlocked) scriptRuns++
                 if (patch != null) {
                     _state.update { it.copy(draft = patch) }
                 }
@@ -388,8 +400,7 @@ internal class EduAgentSession {
                 return
             }
             if (scriptRuns >= EduAgentPrompts.MAX_SCRIPT_RUNS) {
-                // 脚本次数用完了还没课程：把话交给模型收尾一次
-                _state.update { it.copy(running = false, elapsedMs = now() - it.startedAtMs) }
+                fail("脚本已经跑了 $scriptRuns 次还没拿到可用课程，先停在这里。你可以补充信息后再试。")
                 return
             }
         }
@@ -448,6 +459,7 @@ internal class EduAgentSession {
                 val blocked = timeSlots.isBlank() ||
                     (timeSlots == "unknown" && (!askedTimeSlots || userTurns == 0))
                 if (blocked) {
+                    timeSlotGateBlocked = true
                     val index = beginStep("执行适配脚本（先确认作息）")
                     endStep(index, "还没确认作息，先问用户", failed = true)
                     return "脚本没有执行：先确认作息。timeSlots 必填（api/user/custom/unknown）；" +
@@ -467,18 +479,37 @@ internal class EduAgentSession {
                     )
                 )
                 val detail = when {
-                    run.courseCount > 0 -> "拿到 ${run.courseCount} 门课"
+                    run.usableCount > 0 -> buildString {
+                        append("拿到 ").append(run.usableCount).append(" 门课")
+                        if (run.courseCount > run.usableCount) {
+                            append("（").append(run.courseCount - run.usableCount).append(" 条缺字段已跳过）")
+                        }
+                    }
                     !run.error.isNullOrBlank() -> run.error.orEmpty()
+                    run.courseCount > 0 -> "解析到 ${run.courseCount} 条，但没有一门有效"
                     run.toasts.isNotEmpty() -> run.toasts.last()
                     run.calls.isEmpty() -> "脚本没有调用桥（提前结束）"
                     else -> "没有拿到课程"
                 }
-                endStep(index, detail, failed = !run.ok || run.courseCount == 0)
+                endStep(index, detail, failed = !run.ok || run.usableCount == 0)
                 val payload = buildJsonObject {
                     put("ok", run.ok)
                     put("error", run.error)
                     put("calls", buildJsonArray { run.calls.forEach { add(JsonPrimitive(it)) } })
                     put("courseCount", run.courseCount)
+                    put("usableCount", run.usableCount)
+                    if (run.invalidNames.isNotEmpty()) {
+                        put(
+                            "invalidNames",
+                            buildJsonArray { run.invalidNames.forEach { add(JsonPrimitive(it)) } },
+                        )
+                    }
+                    if (run.invalidReasons.isNotEmpty()) {
+                        put(
+                            "invalidReasons",
+                            buildJsonArray { run.invalidReasons.forEach { add(JsonPrimitive(it)) } },
+                        )
+                    }
                     put(
                         "firstCourseNames",
                         buildJsonArray { run.firstNames.forEach { add(JsonPrimitive(it)) } },
@@ -501,11 +532,17 @@ internal class EduAgentSession {
                         append("\n（脚本执行完了但一次桥调用都没有：多半是中途 return 或异步报错。")
                         append("看 toasts、logs 与 env 定位原因。）")
                     }
-                    if (run.courseCount == 0) {
+                    if (run.courseCount > 0 && run.usableCount == 0) {
+                        append("\n（提交了 ${run.courseCount} 条课程，但没有一条通过 day/weeks/节次校验；")
+                        append("按 invalidReasons 修脚本后重跑。）")
+                    } else if (run.usableCount > 0 && run.usableCount < run.courseCount) {
+                        append("\n（有 ${run.courseCount - run.usableCount} 条课程缺 day/weeks/节次，")
+                        append("预览会跳过它们。）")
+                    } else if (run.courseCount == 0) {
                         append("\n（courseCount 为 0 表示这次没拿到课程：检查接口地址、字段名、周次展开）")
                     }
                 }
-                val draft = if (run.courseCount > 0 && run.coursesJson != null) {
+                val draft = if (run.usableCount > 0 && run.coursesJson != null) {
                     EduAgentDraft(
                         coursesJson = run.coursesJson,
                         configJson = run.configJson,

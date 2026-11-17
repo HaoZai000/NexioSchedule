@@ -325,17 +325,17 @@ fun LiquidGlassBottomBar(
                 onDrawSurface = {
                     val progress = dampedDragAnimation.pressProgress
                     drawRect(
-                        if (isLightTheme) Color.Black.copy(alpha = 0.1f)
+                        if (isLightTheme) Color.Black.copy(alpha = 0.06f)
                         else Color.White.copy(alpha = 0.1f),
                         alpha = 1f - progress,
                     )
                     drawRect(Color.Black.copy(alpha = 0.03f * progress))
                 },
             )
-            // 滑块描边：淡灰，只在长按 / 拖动（pressProgress > 0）时出现
+            // 滑块描边：浅色模式用白色描边，只在长按 / 拖动（pressProgress > 0）时出现
             .sliderBorder(
                 width = 1.2.dp,
-                color = Color.Gray,
+                color = if (isLightTheme) Color.White else Color.Gray,
                 progress = { dampedDragAnimation.pressProgress },
                 shape = ContinuousCapsule(),
             )

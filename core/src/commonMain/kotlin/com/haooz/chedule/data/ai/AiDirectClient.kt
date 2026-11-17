@@ -214,7 +214,12 @@ internal class AiDirectClient(private val http: HttpService) {
             else -> {
                 put("temperature", 1.0)
                 put("top_p", 0.95)
-                put("max_tokens", 16384)
+                // DeepSeek 官方接受 32K；思考与输出共用预算，16K 容易被思考吃光。
+                // 只对官方域名放宽，其它兼容服务仍用 16K，避免超出它们的上限。
+                put(
+                    "max_tokens",
+                    if (cfg.baseUrl.contains("api.deepseek.com", ignoreCase = true)) 32768 else 16384,
+                )
             }
         }
         if (tools.isNotEmpty()) {

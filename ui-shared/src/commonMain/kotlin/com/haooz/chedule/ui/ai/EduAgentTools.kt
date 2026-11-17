@@ -27,6 +27,12 @@ internal data class EduScriptRun(
     val error: String?,
     val calls: List<String>,
     val courseCount: Int,
+    /** 通过 day / weeks / 节次校验的课程数；0 表示预览一门都用不了 */
+    val usableCount: Int = 0,
+    /** 校验不通过的前几门课程名，回给模型用于修脚本 */
+    val invalidNames: List<String> = emptyList(),
+    /** 校验不通过的具体原因（字段名 + 实际值），用于让模型一次定位 */
+    val invalidReasons: List<String> = emptyList(),
     val coursesJson: String?,
     val configJson: String?,
     val timeSlotsJson: String?,
@@ -271,6 +277,13 @@ internal class EduAgentTools(private val host: WebHost) {
                 if (kind.isEmpty()) null else if (item.optBoolean("ok")) "$kind ✓" else "$kind ✗"
             }.orEmpty(),
             courseCount = optInt("courseCount", 0),
+            usableCount = optInt("usableCount", 0),
+            invalidNames = optJsonArray("invalidNames")?.mapNotNull {
+                (it as? JsonPrimitive)?.contentOrNull
+            }.orEmpty(),
+            invalidReasons = optJsonArray("invalidReasons")?.mapNotNull {
+                (it as? JsonPrimitive)?.contentOrNull
+            }.orEmpty(),
             coursesJson = optString("coursesJson").takeIf { it.isNotBlank() },
             configJson = optString("configJson").takeIf { it.isNotBlank() },
             timeSlotsJson = optString("timeSlotsJson").takeIf { it.isNotBlank() },
@@ -395,10 +408,41 @@ internal class EduAgentTools(private val host: WebHost) {
             (() => {
               const script = __SCRIPT__;
               const run = { done: false, ok: false, error: '', calls: [], toasts: [], logs: [],
-                courseCount: 0, coursesJson: '', configJson: '', timeSlotsJson: '', comboJson: '',
+                courseCount: 0, usableCount: 0, invalidNames: [], invalidReasons: [],
+                coursesJson: '', configJson: '', timeSlotsJson: '', comboJson: '',
                 firstNames: [], env: null };
               window.__nexioAgentRun = run;
               const safe = (v) => { try { return String(v).slice(0, 600); } catch (e) { return ''; } };
+              const clockOk = (v) => {
+                const m = String(v == null ? '' : v).trim().match(/^(\d{1,2}):(\d{2})$/);
+                if (!m) return false;
+                const h = Number(m[1]), mi = Number(m[2]);
+                return h >= 0 && h <= 23 && mi >= 0 && mi <= 59;
+              };
+              const weeksOk = (weeks) => Array.isArray(weeks) && weeks.some((w) => {
+                const n = Number(w);
+                return Number.isInteger(n) && n >= 1 && n <= 30;
+              });
+              // 与预览页 parseDraft 的有效性规则保持一致，并给出字段级原因，避免模型瞎猜
+              const courseIssue = (c) => {
+                if (!c || typeof c !== 'object' || Array.isArray(c)) return '不是对象';
+                if (!String(c.name == null ? '' : c.name).trim()) return '缺 name';
+                const day = Number(c.day);
+                if (!(day >= 1 && day <= 7)) return 'day 不是 1-7（收到 ' + safe(c.day) + '）';
+                if (!Array.isArray(c.weeks)) {
+                  return 'weeks 不是数组（收到 ' + (c.weeks == null ? 'null' : typeof c.weeks) + '）';
+                }
+                if (!weeksOk(c.weeks)) {
+                  return 'weeks 里没有 1-30 的整数（收到 ' + safe(JSON.stringify(c.weeks)) + '）';
+                }
+                const custom = !!c.isCustomTime && clockOk(c.customStartTime) && clockOk(c.customEndTime);
+                const ss = Number(c.startSection), es = Number(c.endSection);
+                if (!custom && !(ss >= 1 && es >= ss)) {
+                  return '缺节次或时间（startSection=' + safe(c.startSection) +
+                    ', endSection=' + safe(c.endSection) + '）';
+                }
+                return '';
+              };
               const record = (kind) => async (json) => {
                 let parsed = null;
                 try { parsed = JSON.parse(json); }
@@ -412,11 +456,28 @@ internal class EduAgentTools(private val host: WebHost) {
                     run.calls.push({ kind: kind, ok: false });
                     throw new Error('saveImportedCourses 不能为空：至少提交一门课');
                   }
+                  const issues = list.map((c) => courseIssue(c));
+                  const usable = list.filter((c, i) => !issues[i]);
                   run.courseCount = list.length;
+                  run.usableCount = usable.length;
+                  run.invalidNames = list.filter((c, i) => !!issues[i])
+                    .slice(0, 5).map((c) => safe(c && c.name));
+                  run.invalidReasons = list.map((c, i) => {
+                    if (!issues[i]) return '';
+                    const keys = (c && typeof c === 'object' && !Array.isArray(c))
+                      ? Object.keys(c).slice(0, 10).join(',') : '无';
+                    return safe((c && c.name ? c.name : '(未命名)') + '：' + issues[i] + '；keys: ' + keys);
+                  }).filter(Boolean).slice(0, 3);
+                  if (usable.length === 0) {
+                    run.calls.push({ kind: kind, ok: false });
+                    throw new Error('saveImportedCourses 里没有一门有效课程：' +
+                      (run.invalidReasons[0] || '每门都需要 day(1-7)、weeks 非空，以及节次或真实起止时间'));
+                  }
                   run.coursesJson = json;
-                  run.firstNames = list.slice(0, 5).map((c) => safe(c && c.name));
+                  run.firstNames = usable.slice(0, 5).map((c) => safe(c && c.name));
                   run.calls.push({ kind: kind, ok: true });
-                  return list.length;
+                  // 真实桥成功时 resolve 的是 true，不是课程数
+                  return true;
                 }
                 if (kind === 'saveCourseConfig') {
                   // 空对象会把用户已有的开学日 / 总周数清掉：拿不到就整段不要调用
@@ -484,8 +545,15 @@ internal class EduAgentTools(private val host: WebHost) {
                   return index;
                 }
               };
-              const origPromise = window.shiguangBridgePromise;
-              const origBridge = window.shiguangBridge;
+              // 缓存真正的桥：超时后沙箱会留在 window 上，下一轮必须恢复到真桥而不是上一轮沙箱
+              if (!window.__nexioRealBridgePromise) {
+                window.__nexioRealBridgePromise = window.shiguangBridgePromise;
+              }
+              if (!window.__nexioRealBridge) {
+                window.__nexioRealBridge = window.shiguangBridge;
+              }
+              const origPromise = window.__nexioRealBridgePromise;
+              const origBridge = window.__nexioRealBridge;
               const origConsole = { log: console.log, warn: console.warn, error: console.error };
               const origFetch = window.fetch;
               const origXhrSend = window.XMLHttpRequest && window.XMLHttpRequest.prototype.send;
@@ -538,15 +606,21 @@ internal class EduAgentTools(private val host: WebHost) {
                 fetch: typeof fetch,
                 origin: (typeof location !== 'undefined' ? String(location.origin) : '')
               };
-              const restore = () => {
-                window.shiguangBridgePromise = origPromise;
-                window.shiguangBridge = origBridge;
+              const restoreHooks = () => {
                 console.log = origConsole.log;
                 console.warn = origConsole.warn;
                 console.error = origConsole.error;
                 if (fetchHooked) window.fetch = origFetch;
                 if (xhrHooked) window.XMLHttpRequest.prototype.send = origXhrSend;
                 window.removeEventListener('unhandledrejection', onRejection);
+              };
+              const restoreBridge = () => {
+                window.shiguangBridgePromise = origPromise;
+                window.shiguangBridge = origBridge;
+              };
+              const restore = () => {
+                restoreHooks();
+                restoreBridge();
               };
               // 脚本通常是「定义完直接 runImportFlow();」的 fire-and-forget：外层函数会立刻返回，
               // 此时桥和网络请求其实还在跑。必须等它真正停下来，再恢复沙箱并标记完成。
@@ -560,8 +634,15 @@ internal class EduAgentTools(private val host: WebHost) {
                     lastCalls = run.calls.length;
                     quietSince = now;
                   }
-                  if ((pending === 0 && now - quietSince >= 800) || now - startedAt > 60000) {
+                  if (pending === 0 && now - quietSince >= 800) {
                     restore();
+                    run.done = true;
+                    return;
+                  }
+                  if (now - startedAt > 60000) {
+                    // 脚本可能还挂在某个请求上：只还原 hooks，桥继续保持沙箱，
+                    // 避免它稍后恢复执行时绕过预览直接写真实课程表。
+                    restoreHooks();
                     run.done = true;
                     return;
                   }
