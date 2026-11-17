@@ -987,9 +987,17 @@ internal fun CourseScheduleAppMainContent(
                                                                     val week = draggedWeek
                                                                     setPendingDropTarget(null)
                                                                     // 翻周动画还在跑时落点仍属于上一页：此时写库会写进错的周，
-                                                                    // 宁可吸回原位让用户重拖
+                                                                    // 宁可吸回原位让用户重拖。
+                                                                    // 判据不能用 weekPageState.isAnimating —— 拖拽期间它可能一直为真，
+                                                                    // 会把所有落点都误拦成「翻周中」。几何页与浏览周一致才说明
+                                                                    // gridGeometry 已属于当前页，dataPositionForColumn 不会拿旧列
+                                                                    // 坐标写到新的周次上。
+                                                                    val geometryWeek = gridGeometry?.pageWeek
+                                                                    val geometryIsCurrent =
+                                                                        geometryWeek == null ||
+                                                                            geometryWeek == currentViewingWeek
                                                                     if (source != null && target != null &&
-                                                                        !weekPageState.isAnimating
+                                                                        geometryIsCurrent
                                                                     ) {
                                                                         // 列 → 数据坐标：调课日列显示的是 followWeekday/followWeek 的课，
                                                                         // 冲突检测与写库都必须落在数据坐标上，几何/动画仍用列

@@ -81,7 +81,9 @@ fun AdapterSelectionBottomSheet(
     school: SchoolData?,
     liquidGlassBackdrop: GlassBackdrop? = null,
     onDismissRequest: () -> Unit,
-    onAdapterSelected: (SchoolData, AdapterData) -> Unit
+    onAdapterSelected: (SchoolData, AdapterData) -> Unit,
+    /** 弹窗底部固定操作区；null = 保持原有纯列表形态 */
+    footerContent: (@Composable () -> Unit)? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val schoolRepository = remember { SchoolRepository() }
@@ -180,6 +182,8 @@ fun AdapterSelectionBottomSheet(
                             )
                         }
                     }
+                    // 继续 AI 入口跟随列表滚动，放在所有适配器之后
+                    footerContent?.invoke()
                 }
             }
         }

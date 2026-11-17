@@ -8,9 +8,36 @@ import com.haooz.chedule.weather.WeatherSnapshot
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlin.math.abs
 
-/** 一天四个时段：日出前/后各留 30 分钟过渡，晨、暮各 90 分钟。 */
+/**
+ * 一天四个时段。
+ *
+ * 晨、暮不再铺开成两小时，而是只保留真实日出/日落前后各 15 分钟（合计 30 分钟）的
+ * 「霞」窗口；窗口内用 [SkyLight.glow] 连续升降，窗口外直接归到昼/夜。
+ */
 internal enum class SkyPhase { Dawn, Day, Dusk, Night }
+
+/** 早晚霞窗口：真实日出/日落前后各 15 分钟，共 30 分钟。 */
+private const val GLOW_HALF_MINUTES = 15
+private const val GLOW_WINDOW_MINUTES = GLOW_HALF_MINUTES * 2
+
+/** 没有日出日落数据时的兜底钟点，只在首帧 / 拉取失败时用到。 */
+private const val FALLBACK_RISE_MINUTES = 7 * 60
+private const val FALLBACK_SET_MINUTES = 18 * 60
+
+/**
+ * 当前天光。
+ *
+ * - [dayness]：0 = 夜底色，1 = 日底色。在 30 分钟霞窗口内线性过渡，
+ *   保证跨过窗口边界时底色不突变。
+ * - [glow]：霞的强度 0..1，峰值正好落在真实日出/日落那一分钟，向两侧各 15 分钟衰减到 0。
+ */
+internal data class SkyLight(
+    val phase: SkyPhase,
+    val dayness: Float,
+    val glow: Float,
+)
 
 internal enum class WeatherFlowKind { Clear, Cloudy, Rain, Snow, Frost, Thunder, Fog, Dust }
 
@@ -35,16 +62,55 @@ internal fun weatherFlowKind(text: String): WeatherFlowKind = when {
 /**
  * 取当前时段；没有数据时按本地时钟兜底（进页首帧 / 拉取失败也要有对的底色）。
  */
-internal fun skyPhaseOrNow(snapshot: WeatherSnapshot?): SkyPhase {
-    if (snapshot != null) return skyPhase(snapshot)
-    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-    val minute = now.hour * 60 + now.minute
-    return when {
-        minute < 6 * 60 || minute >= 19 * 60 -> SkyPhase.Night
-        minute < 8 * 60 -> SkyPhase.Dawn
-        minute >= 17 * 60 -> SkyPhase.Dusk
-        else -> SkyPhase.Day
+internal fun skyPhaseOrNow(snapshot: WeatherSnapshot?): SkyPhase = skyLightOrNow(snapshot).phase
+
+/** 用真实日出/日落算天光；缺数据时退回固定钟点。 */
+internal fun skyLight(snapshot: WeatherSnapshot): SkyLight {
+    val today = snapshot.daily.firstOrNull()
+    val rise = today?.sunrise?.let(::minuteOfClock)
+    val set = today?.sunset?.let(::minuteOfClock)
+    if (rise == null || set == null || set <= rise) {
+        // 缺日出日落才退回源的 isDay（再缺就当白天，宁可亮不要一片黑）
+        if (snapshot.now.isDay == false) return SkyLight(SkyPhase.Night, 0f, 0f)
+        return lightAt(nowMinutes(snapshot), FALLBACK_RISE_MINUTES, FALLBACK_SET_MINUTES)
     }
+    return lightAt(nowMinutes(snapshot), rise, set)
+}
+
+internal fun skyLightOrNow(snapshot: WeatherSnapshot?): SkyLight {
+    if (snapshot != null) return skyLight(snapshot)
+    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+    return lightAt(now.hour * 60 + now.minute, FALLBACK_RISE_MINUTES, FALLBACK_SET_MINUTES)
+}
+
+/**
+ * 按真实日出/日落把一天切成夜 → 晨 → 昼 → 暮 → 夜。
+ *
+ * 晨、暮各占 30 分钟；[glowAt] 在窗口中心（真实日出/日落）达到 1，两侧线性衰减，
+ * [dayness] 则在整个窗口上从 0 平滑走到 1（或反向），因此窗口边界不会出现颜色跳变。
+ */
+private fun lightAt(now: Int, rise: Int, set: Int): SkyLight {
+    val dawnGlow = glowAt(now, rise)
+    val duskGlow = glowAt(now, set)
+    val phase = when {
+        now < rise - GLOW_HALF_MINUTES || now >= set + GLOW_HALF_MINUTES -> SkyPhase.Night
+        now < rise + GLOW_HALF_MINUTES -> SkyPhase.Dawn
+        now < set - GLOW_HALF_MINUTES -> SkyPhase.Day
+        else -> SkyPhase.Dusk
+    }
+    val dayness = when (phase) {
+        SkyPhase.Dawn -> (now - (rise - GLOW_HALF_MINUTES)).toFloat() / GLOW_WINDOW_MINUTES
+        SkyPhase.Dusk -> 1f - (now - (set - GLOW_HALF_MINUTES)).toFloat() / GLOW_WINDOW_MINUTES
+        SkyPhase.Night -> 0f
+        SkyPhase.Day -> 1f
+    }.coerceIn(0f, 1f)
+    return SkyLight(phase, dayness, maxOf(dawnGlow, duskGlow))
+}
+
+/** 距日出/日落 d 分钟的霞强度：中心为 1，15 分钟处为 0，二次曲线让窗口大部分时间都够橙。 */
+private fun glowAt(now: Int, center: Int): Float {
+    val ratio = abs(now - center).toFloat() / GLOW_HALF_MINUTES
+    return if (ratio >= 1f) 0f else 1f - ratio * ratio
 }
 
 /**
@@ -55,15 +121,23 @@ internal fun skyPhaseOrNow(snapshot: WeatherSnapshot?): SkyPhase {
  */
 internal class WeatherFlowSpec(
     val kind: WeatherFlowKind,
-    val phase: SkyPhase,
+    light: SkyLight,
 ) {
+    val phase: SkyPhase = light.phase
+
+    /** 早晚霞强度 0..1，柔光层按它同步增亮。 */
+    val glow: Float = light.glow
+
+    /** 昼夜底色占比 0..1，柔光层按它连续移动太阳位置。 */
+    val dayness: Float = light.dayness
+
     private val motion = motionOf(kind)
 
     val timeScale: Float = motion.timeScale * phaseTimeScale(phase)
 
     val config: BgEffectConfig.Config = run {
-        val wheel = wheelOf(kind).map { phaseColor(it, phase) }
-        val alpha = phaseAlpha(phase)
+        val wheel = wheelOf(kind).map { phaseColor(it, light) }
+        val alpha = phaseAlpha(light)
         BgEffectConfig.Config(
             points = motion.points,
             colors1 = cycle(wheel, start = 0, alpha = alpha),
@@ -169,20 +243,25 @@ private fun wheelOf(kind: WeatherFlowKind): List<Color> = when (kind) {
     )
 }
 
-/** 时段只改色相倾向，不改形态：夜里一律压成深蓝，晨暮往暖色偏。 */
-private fun phaseColor(color: Color, phase: SkyPhase): Color = when (phase) {
-    SkyPhase.Day -> lerp(color, Color(0xFF7FA8E8), 0.24f)
-    SkyPhase.Dawn -> lerp(color, Color(0xFFF5A06E), 0.42f)
-    SkyPhase.Dusk -> lerp(color, Color(0xFFD96E5E), 0.40f)
+/** 时段只改色相倾向，不改形态：夜里一律压成深蓝，晨暮往橙偏。 */
+private fun phaseColor(color: Color, light: SkyLight): Color {
     // 夜间压成深蓝：保留约两成原色相，既让晴/雨/雪之间有差别，又不会在暗底上泛出脏橘
-    SkyPhase.Night -> lerp(lerp(color, Color(0xFF22305A), 0.78f), Color(0xFF46579A), 0.15f)
+    val night = lerp(lerp(color, Color(0xFF22305A), 0.78f), Color(0xFF46579A), 0.15f)
+    val day = lerp(color, Color(0xFF7FA8E8), 0.24f)
+    // 底色按 dayness 连续过渡，霞窗口边界不会突然从夜蓝跳到白昼
+    val base = lerp(night, day, light.dayness)
+    if (light.glow <= 0f) return base
+    val warm = if (light.phase == SkyPhase.Dawn) Color(0xFFFF8A2E) else Color(0xFFFF5E24)
+    return lerp(base, warm, light.glow * GLOW_COLOR_MIX)
 }
 
-private fun phaseAlpha(phase: SkyPhase): Float = when (phase) {
-    SkyPhase.Dawn -> 0.60f
-    SkyPhase.Day -> 0.54f
-    SkyPhase.Dusk -> 0.60f
-    SkyPhase.Night -> 0.74f
+/** 霞的染色峰值；比原来的固定 0.4 更重，避免只在窗口中心一闪而过。 */
+private const val GLOW_COLOR_MIX = 0.74f
+
+private fun phaseAlpha(light: SkyLight): Float {
+    // 夜 0.74 → 昼 0.54 随 dayness 连续变化，霞峰值再抬一点，让橙更实
+    val base = 0.74f + (0.54f - 0.74f) * light.dayness
+    return (base + 0.10f * light.glow).coerceIn(0.54f, 0.80f)
 }
 
 /** 夜间整体再慢一点，避免暗底上快速移动的亮斑显得躁。 */

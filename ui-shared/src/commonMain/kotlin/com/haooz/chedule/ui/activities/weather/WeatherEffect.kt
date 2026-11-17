@@ -30,6 +30,8 @@ import kotlin.math.sin
 @Composable
 internal fun WeatherEffectLayer(
     phase: SkyPhase,
+    glow: Float,
+    dayness: Float,
     modifier: Modifier = Modifier,
 ) {
     val clock = remember { mutableFloatStateOf(0f) }
@@ -44,33 +46,50 @@ internal fun WeatherEffectLayer(
     Spacer(
         modifier = modifier
             .fillMaxSize()
-            .drawBehind { drawSunGlow(phase, clock.floatValue) },
+            .drawBehind { drawSunGlow(phase, glow, dayness, clock.floatValue) },
     )
 }
 
 /**
  * 柔光：对应原版 `sun_light.webp`——一个没有明显边界的圆形光团。
- * 位置随时段移动（黎明左下、正午右上、黄昏右下、夜里右上当月亮），亮度极缓慢地呼吸。
+ * 位置随时段移动（黎明左下、正午右上、黄昏右下、夜里右上当月亮）；
+ * 晨暮窗口内太阳随 dayness 连续平移，亮度由 glow 抬升，避免时段切换时跳变。
  */
-private fun DrawScope.drawSunGlow(phase: SkyPhase, t: Float) {
+private fun DrawScope.drawSunGlow(phase: SkyPhase, glow: Float, dayness: Float, t: Float) {
     val w = size.width
     val h = size.height
     val low = phase == SkyPhase.Dawn || phase == SkyPhase.Dusk
-    val cx = if (phase == SkyPhase.Dawn) w * 0.18f else w * 0.84f
-    val cy = if (low) h * 0.80f else h * 0.14f
+    val cx: Float
+    val cy: Float
+    when (phase) {
+        SkyPhase.Dawn -> {
+            cx = w * (0.18f + 0.66f * dayness)
+            cy = h * (0.80f - 0.66f * dayness)
+        }
+        SkyPhase.Dusk -> {
+            cx = w * 0.84f
+            cy = h * (0.14f + 0.66f * (1f - dayness))
+        }
+        else -> {
+            cx = w * 0.84f
+            cy = h * 0.14f
+        }
+    }
     val (color, peak) = when (phase) {
-        SkyPhase.Dawn -> Color(0xFFFFC98A) to 0.34f
-        SkyPhase.Dusk -> Color(0xFFFFA06B) to 0.32f
+        SkyPhase.Dawn -> Color(0xFFFF8F3C) to 0.46f
+        SkyPhase.Dusk -> Color(0xFFFF6224) to 0.44f
         SkyPhase.Night -> Color(0xFFCBD8F5) to 0.18f
         else -> Color(0xFFFFF1D2) to 0.36f
     }
+    // 霞窗口两端 glow 归零时光团回落到接近昼间亮度，保证切到 Day 时不闪
+    val strength = if (low) peak * (0.78f + 0.22f * glow) else peak
     val breath = 1f + 0.06f * sin(t * 0.18f)
     val radius = w * 0.42f * breath
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                color.copy(alpha = peak),
-                color.copy(alpha = peak * 0.42f),
+                color.copy(alpha = strength),
+                color.copy(alpha = strength * 0.42f),
                 color.copy(alpha = 0f),
             ),
             center = Offset(cx, cy),

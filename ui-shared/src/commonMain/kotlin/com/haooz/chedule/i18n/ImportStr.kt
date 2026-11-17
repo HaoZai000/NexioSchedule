@@ -215,6 +215,8 @@ Reply strictly in this format and do not add any other text."""
     val aiEduStart = L("开始分析", "Analyze")
     /** 收起对话去网页里操作后，从底栏回到同一段对话（不是重新开始） */
     val aiEduResumeChat = L("继续对话", "Resume chat")
+    /** 输入地址命中本地适配时，底部弹窗里继续走 AI 的入口 */
+    val aiEduContinue = L("继续AI教务导入", "Continue with AI import")
     val aiEduResumeHint = L("已收起对话，点这里继续", "Chat hidden, tap to resume")
     val aiEduStop = L("停止", "Stop")
     val aiEduFailed = L("这次没成", "Didn't work this time")

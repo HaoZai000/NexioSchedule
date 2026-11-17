@@ -354,6 +354,8 @@ fun AiEduImportRoute(
         onBack = { router.popBack() },
         onOpenHistory = { router.navigate(AppRoute.AiEduImportHistory) },
         onOpenPreview = { router.navigate(AppRoute.AiEduPreview) },
+        // 选中项已由 AI 页写入 EduImportSelection，这里只负责推入现有适配器导入页
+        onOpenAdapterImport = { router.navigate(AppRoute.WebImport) },
     )
 }
 

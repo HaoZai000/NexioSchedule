@@ -86,6 +86,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.platform.showToast
+import com.haooz.chedule.data.school.SchoolData
+import com.haooz.chedule.data.school.SchoolRepository
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.i18n.AppLanguage
@@ -106,15 +108,18 @@ import com.haooz.chedule.ui.components.softGlassBackdrop
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
+import com.haooz.chedule.ui.screens.AdapterSelectionBottomSheet
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
 import com.haooz.chedule.ui.utils.NativeDocumentActionEffect
 import com.haooz.chedule.ui.utils.NativeDocumentLeadingActionEffect
+import com.haooz.chedule.ui.utils.ExtractedShareTools
 import com.haooz.chedule.ui.utils.NativeDocumentSystemHeaderEffect
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.ui.web.EduCourseJson
+import com.haooz.chedule.ui.web.EduImportSelection
 import com.haooz.chedule.ui.web.EduNetLogStore
 import com.haooz.chedule.ui.web.WebHost
 import com.haooz.chedule.ui.web.WebHostConfig
@@ -203,6 +208,8 @@ fun AiEduImportScreen(
     onBack: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenPreview: () -> Unit,
+    /** 地址命中本地适配后，用户选择走现成适配器导入 */
+    onOpenAdapterImport: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -218,6 +225,10 @@ fun AiEduImportScreen(
         mutableStateOf(AppStorage.store(PREFS_AI_EDU).getStringOrNull(KEY_LAST_URL).orEmpty())
     }
     var openedUrl by remember { mutableStateOf<String?>(null) }
+    // 本地已有匹配适配时，先让用户选「用现成适配」还是「继续 AI」；两个状态一起出现
+    val localSchools = remember { SchoolRepository().getSchools() }
+    var matchedSchool by remember { mutableStateOf<SchoolData?>(null) }
+    var pendingUrl by remember { mutableStateOf<String?>(null) }
     // 顶栏跟着网页标题走（同 WebImportScreen）：进去以后这条顶栏就是「你在看哪一页」
     var webPageTitle by remember(AppLanguage.resolved) { mutableStateOf(CommonStr.loading()) }
 
@@ -396,11 +407,49 @@ fun AiEduImportScreen(
                             showToast(ImportStr.aiEduNeedUrl())
                         } else {
                             haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            openedUrl = normalized
+                            // 本地已有这个站点的适配时先弹出来：能走现成脚本就不必让模型重写
+                            val matched = findLocalSchoolForUrl(normalized, localSchools)
+                            if (matched == null) {
+                                openedUrl = normalized
+                            } else {
+                                pendingUrl = normalized
+                                matchedSchool = matched
+                            }
                         }
                     },
                 )
             }
+
+            AdapterSelectionBottomSheet(
+                show = matchedSchool != null,
+                school = matchedSchool,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = {
+                    matchedSchool = null
+                    pendingUrl = null
+                },
+                onAdapterSelected = { school, adapter ->
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    matchedSchool = null
+                    pendingUrl = null
+                    EduImportSelection.set(school, adapter)
+                    onOpenAdapterImport()
+                },
+                footerContent = {
+                    TextButton(
+                        text = ImportStr.aiEduContinue(),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                            val url = pendingUrl
+                            matchedSchool = null
+                            pendingUrl = null
+                            if (url != null) openedUrl = url
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                },
+            )
 
             // iOS 顶栏归系统，Compose 渐变模糊顶栏整条不画（同 WebImportScreen）
             if (nativeChrome == null) ProgressiveBlurTopBar(
@@ -1217,6 +1266,38 @@ private fun normalizeEduUrl(raw: String): String? {
     if (text.isEmpty()) return null
     val withScheme = if (text.startsWith("http://") || text.startsWith("https://")) text else "https://$text"
     return withScheme.takeIf { it.contains('.') }
+}
+
+/**
+ * 本地适配匹配。
+ *
+ * 先按「host + path」精确匹配，再退到同 host：同一所学校常有本科 / 研究生两套入口，
+ * 精确命中能区分它们；用户只填到域名时也能用同 host 的适配兜住。
+ */
+private fun findLocalSchoolForUrl(rawUrl: String, schools: List<SchoolData>): SchoolData? {
+    val site = normalizedSite(rawUrl) ?: return null
+    val host = site.substringBefore('/')
+
+    fun SchoolData.hasAdapter(predicate: (String?) -> Boolean): Boolean =
+        adapters.any { it.adapterId !in ExtractedShareTools.ADAPTER_IDS && predicate(it.importUrl) }
+
+    return schools.firstOrNull { school -> school.hasAdapter { normalizedSite(it) == site } }
+        ?: schools.firstOrNull { school ->
+            school.hasAdapter { normalizedSite(it)?.substringBefore('/') == host }
+        }
+}
+
+/** host/path 归一：忽略协议、www.、端口、查询参数与末尾斜杠。 */
+private fun normalizedSite(raw: String?): String? {
+    val text = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val withScheme = if (text.startsWith("http://") || text.startsWith("https://")) text else "https://$text"
+    val rest = withScheme.substringAfter("://", "")
+    if (rest.isEmpty()) return null
+    val hostPath = rest.substringBefore('#').substringBefore('?')
+    val host = hostPath.substringBefore('/').substringBefore(':').lowercase().removePrefix("www.")
+    if (!host.contains('.')) return null
+    val path = hostPath.substringAfter('/', "").trim('/')
+    return if (path.isEmpty()) host else "$host/$path"
 }
 
 /**

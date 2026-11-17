@@ -149,7 +149,7 @@ fun WeatherScreen(
     val flowSpec = remember(snapshot, minuteTick) {
         WeatherFlowSpec(
             kind = weatherFlowKind(snapshot?.now?.text.orEmpty()),
-            phase = skyPhaseOrNow(snapshot),
+            light = skyLightOrNow(snapshot),
         )
     }
 
@@ -182,6 +182,8 @@ fun WeatherScreen(
                         if (flowSpec.kind == WeatherFlowKind.Clear) {
                             WeatherEffectLayer(
                                 phase = flowSpec.phase,
+                                glow = flowSpec.glow,
+                                dayness = flowSpec.dayness,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -579,23 +581,6 @@ private fun HeroCard(
 
 // ── 头部天光：天气 × 时段 ────────────────────────────────────────────
 
-internal fun skyPhase(snapshot: WeatherSnapshot): SkyPhase {
-    val today = snapshot.daily.firstOrNull()
-    val rise = today?.sunrise?.let(::minuteOfClock)
-    val set = today?.sunset?.let(::minuteOfClock)
-    if (rise == null || set == null || set <= rise) {
-        // 缺日出日落才退回源的 isDay（再缺就当白天，宁可亮不要一片黑）
-        return if (snapshot.now.isDay == false) SkyPhase.Night else SkyPhase.Day
-    }
-    val m = nowMinutes(snapshot)
-    return when {
-        m < rise - 30 || m >= set + 30 -> SkyPhase.Night
-        m < rise + 90 -> SkyPhase.Dawn
-        m >= set - 90 -> SkyPhase.Dusk
-        else -> SkyPhase.Day
-    }
-}
-
 /**
  * 现象 → 天空色（上, 下）。
  *
@@ -623,12 +608,18 @@ private fun weatherSky(text: String): Pair<Color, Color> = when {
  */
 private fun heroSky(snapshot: WeatherSnapshot, dark: Boolean): Pair<Color, Color> {
     val (top, bottom) = weatherSky(snapshot.now.text)
-    val (t, b) = when (skyPhase(snapshot)) {
-        // 夜里不看现象：一切压成深蓝，否则"晴天"的暖黄会在午夜变成一块脏橘
-        SkyPhase.Night -> Color(0xFF2B3963) to Color(0xFF48527F)
-        SkyPhase.Dawn -> lerp(top, Color(0xFFF09A6C), 0.55f) to lerp(bottom, Color(0xFFEFC79E), 0.35f)
-        SkyPhase.Dusk -> lerp(top, Color(0xFFE97A55), 0.60f) to lerp(bottom, Color(0xFF9C6FA8), 0.35f)
-        SkyPhase.Day -> top to bottom
+    val light = skyLight(snapshot)
+    // 夜里不看现象：一切压成深蓝，否则"晴天"的暖黄会在午夜变成一块脏橘
+    var t = lerp(Color(0xFF2B3963), top, light.dayness)
+    var b = lerp(Color(0xFF48527F), bottom, light.dayness)
+    if (light.glow > 0f) {
+        val (warmTop, warmBottom) = if (light.phase == SkyPhase.Dawn) {
+            Color(0xFFFF8A2E) to Color(0xFFFFB86B)
+        } else {
+            Color(0xFFFF6326) to Color(0xFFFF8F4A)
+        }
+        t = lerp(t, warmTop, light.glow * 0.80f)
+        b = lerp(b, warmBottom, light.glow * 0.62f)
     }
     return if (dark) {
         t to b
