@@ -181,8 +181,9 @@ class EduImportBridgeCore(
 /**
  * AI 草稿的解析结果。
  *
- * [merged] 是合并掉的重复条数（同课同节次，周次取并集）；[skipped] 是因缺少上课星期/节次/周次、
- * 且没有可用真实时间而跳过的课程名 —— 两者都要在预览里让用户看得见，不能悄悄消失。
+ * [merged] 是合并掉的条数（同课同周次的连续节次合成一段、同课同节次的周次取并集）；
+ * [skipped] 是因缺少上课星期/节次/周次、且没有可用真实时间而跳过的课程名
+ * —— 两者都要在预览里让用户看得见，不能悄悄消失。
  */
 internal data class EduDraftCourses(
     val courses: List<Course>,
@@ -219,6 +220,7 @@ internal class EduCourseJson {
      * 与 [parse] 的差别（[parse] 服务网页脚本桥，历史行为不能动）：
      * - `day` 不在 1..7、或 `weeks` 为空 → 这门课跳过，而不是默认成「周一第 1 节 1-20 周」；
      * - 没有节次、但给了合法真实起止时间（`isCustomTime`）→ 收下，按时间轴定位；
+     * - 同课同周次且节次连续（1-2 + 3-4）合成一段；
      * - 同课（名称/教师/地点/星期/节次相同）合并成一条，`weeks` 取并集 —— 脚本按「一周一行」
      *   输出时不该变成一堆重复卡片。
      *
@@ -230,7 +232,7 @@ internal class EduCourseJson {
         } catch (e: Exception) {
             throw EduBridgeReject(ImportStr.bridgeParseCoursesFailed(e.message))
         }
-        val merged = LinkedHashMap<String, Course>()
+        val valid = mutableListOf<Course>()
         val skipped = mutableListOf<String>()
         var mergedCount = 0
         for (o in elements) {
@@ -258,7 +260,7 @@ internal class EduCourseJson {
                 continue
             }
             val sectionStart = startSection.coerceAtLeast(1)
-            val course = Course(
+            valid += Course(
                 id = randomId(),
                 name = name,
                 classroom = position,
@@ -277,21 +279,57 @@ internal class EduCourseJson {
                 customEndTime = customEnd.takeIf { custom },
                 scheduleId = importTableId ?: "",
             )
+        }
+
+        // 第一层：同课同周次且节次连续（1-2 + 3-4）先合成一段 —— 标准适配器就是这么输出的，
+        // 不合并的话同一门课会在课表与今日页里拆成两张卡。
+        val continuous = mutableListOf<Course>()
+        valid.groupBy {
+            listOf(
+                it.name, it.teacher, it.classroom, it.dayOfWeek,
+                it.selectedWeeks.joinToString(","),
+                it.isCustomTime, it.customStartTime, it.customEndTime,
+            ).joinToString("|")
+        }.values.forEach { group ->
+            val sorted = group.sortedBy { it.startSection }
+            var current = sorted.first()
+            for (i in 1 until sorted.size) {
+                val next = sorted[i]
+                val mergeable = !current.isCustomTime && !next.isCustomTime &&
+                    next.startSection <= current.endSection + 1
+                if (!mergeable) {
+                    continuous += current
+                    current = next
+                    continue
+                }
+                if (next.endSection > current.endSection) {
+                    current = current.copy(endSection = next.endSection)
+                }
+                mergedCount++
+            }
+            continuous += current
+        }
+
+        // 第二层：同课同节次，周次取并集（脚本按「一段一行」输出时不该变成一堆重复卡片）
+        val merged = LinkedHashMap<String, Course>()
+        for (course in continuous) {
             val key = listOf(
-                name, teacher, position, day, sectionStart, endSection, custom, customStart, customEnd,
+                course.name, course.teacher, course.classroom, course.dayOfWeek,
+                course.startSection, course.endSection, course.isCustomTime,
+                course.customStartTime, course.customEndTime,
             ).joinToString("|")
             val previous = merged[key]
             if (previous == null) {
                 merged[key] = course
-            } else {
-                mergedCount++
-                val union = (previous.selectedWeeks + weeks).distinct().sorted()
-                merged[key] = previous.copy(
-                    startWeek = union.first(),
-                    endWeek = union.last(),
-                    selectedWeeks = union,
-                )
+                continue
             }
+            mergedCount++
+            val union = (previous.selectedWeeks + course.selectedWeeks).distinct().sorted()
+            merged[key] = previous.copy(
+                startWeek = union.first(),
+                endWeek = union.last(),
+                selectedWeeks = union,
+            )
         }
         return EduDraftCourses(merged.values.toList(), mergedCount, skipped)
     }

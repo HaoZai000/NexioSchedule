@@ -71,6 +71,8 @@ private const val TOP_MIRROR_COLOR_CLOSE_DELTA = 20
 
 
 private fun pickDominantColor(src: Bitmap, prevColor: Int): Int {
+    // 页面销毁时 onDispose 会回收采样位图，而 PixelCopy 回调可能晚一步才到
+    if (src.isRecycled) return if (prevColor != -1) prevColor else 0xFF808080.toInt()
     val width = src.width
     val height = src.height
     if (width <= 0 || height <= 0) {
@@ -251,7 +253,12 @@ fun rememberAndroidWebHost(
                         window,
                         src,
                         raw,
-                        { result ->
+                        listener@{ result ->
+                            // 位图已被 onDispose 回收：回调还在路上，直接丢弃这一帧
+                            if (raw.isRecycled) {
+                                pixelCopyInFlight.set(false)
+                                return@listener
+                            }
                             if (result == PixelCopy.SUCCESS) {
                                 val target = pickDominantColor(raw, lastTopMirrorColor[0])
                                 lastTopMirrorColor[0] = target

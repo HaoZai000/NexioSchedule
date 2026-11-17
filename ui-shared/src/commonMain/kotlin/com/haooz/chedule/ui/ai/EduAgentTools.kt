@@ -4,6 +4,7 @@ import com.haooz.chedule.data.ai.AiEduAgentClient
 import com.haooz.chedule.data.util.optBoolean
 import com.haooz.chedule.data.util.optInt
 import com.haooz.chedule.data.util.optJsonArray
+import com.haooz.chedule.data.util.optJsonObject
 import com.haooz.chedule.data.util.optString
 import com.haooz.chedule.data.util.parseJsonObject
 import com.haooz.chedule.ui.web.EduNetEntry
@@ -13,6 +14,7 @@ import com.haooz.chedule.ui.web.evaluateJavascriptAwait
 import kotlin.time.Clock
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.buildJsonArray
@@ -30,6 +32,12 @@ internal data class EduScriptRun(
     val timeSlotsJson: String?,
     val comboJson: String?,
     val firstNames: List<String>,
+    /** 脚本自己 showToast 的内容：提前 return 时这是唯一的线索 */
+    val toasts: List<String> = emptyList(),
+    /** 脚本 console 输出，用来定位「一次桥都没调就结束」 */
+    val logs: List<String> = emptyList(),
+    /** 运行环境快照（document / DOMParser / fetch / origin） */
+    val env: JsonObject? = null,
 )
 
 /** 刷新页面的结果：`ok=false` 表示等不到新文档（可能超时或被重定向到登录页）。 */
@@ -76,7 +84,7 @@ internal class EduAgentTools(private val host: WebHost) {
         val first = host.evaluateJavascriptAwait(js, timeoutMs = 30_000L)?.let(::unwrapJsString)
             ?: return "请求失败：当前平台不支持从网页上下文发起请求"
         // 同源校验在 JS 里做，拒绝时直接返回一段 JSON 错误体
-        if (first.startsWith("{")) return first
+        if (first.startsWith("{")) return first.redactHiddenFields()
         val key = first.removePrefix("__poll__")
         if (!first.startsWith("__poll__")) return "请求没有发起：$first"
 
@@ -91,7 +99,7 @@ internal class EduAgentTools(private val host: WebHost) {
             if (raw == "null" || raw.isBlank()) continue
             val obj = runCatching { parseJsonObject(raw) }.getOrNull() ?: continue
             if (obj.optBoolean("pending")) continue
-            return raw
+            return raw.redactHiddenFields()
         }
         return "请求超时：30 秒没有响应，可能卡在登录态或校园网络"
     }
@@ -229,14 +237,25 @@ internal class EduAgentTools(private val host: WebHost) {
             if (entry.keys.isNotEmpty()) append("keys: ").append(entry.keys.joinToString(",")).append('\n')
             if (entry.error.isNotBlank()) append("error: ").append(entry.error).append('\n')
             if (entry.reqBody.isNotBlank()) {
-                append("--- 请求体 ---\n").append(AiEduAgentClient.clip(entry.reqBody, maxChars)).append('\n')
+                append("--- 请求体 ---\n")
+                    .append(AiEduAgentClient.clip(entry.reqBody.redactHiddenFields(), maxChars)).append('\n')
             }
             if (entry.respBody.isNotBlank()) {
-                append("--- 响应 ---\n").append(AiEduAgentClient.clip(entry.respBody, maxChars))
+                append("--- 响应 ---\n")
+                    .append(AiEduAgentClient.clip(entry.respBody.redactHiddenFields(), maxChars))
             } else {
                 append("--- 响应 ---\n（没有可读正文：可能是二进制、跨域 opaque 响应或请求未完成）")
             }
         }
+    }
+
+    /**
+     * ASP.NET 的 __VIEWSTATE 等隐藏域动辄几十 KB。
+     * 原样回给模型会被整段贴进思考、直接撞到输出上限；这里换成占位，脚本运行时再从 DOM 读。
+     */
+    private fun String.redactHiddenFields(): String = HIDDEN_FIELD.replace(this) { m ->
+        val size = m.groupValues[3].length
+        "${m.groupValues[1]}${m.groupValues[2]}[已省略 $size 字，脚本里用 document.querySelector 读取]"
     }
 
     private fun now(): Long = Clock.System.now().toEpochMilliseconds()
@@ -259,6 +278,13 @@ internal class EduAgentTools(private val host: WebHost) {
             firstNames = optJsonArray("firstNames")?.mapNotNull {
                 (it as? JsonPrimitive)?.contentOrNull
             }.orEmpty(),
+            toasts = optJsonArray("toasts")?.mapNotNull {
+                (it as? JsonPrimitive)?.contentOrNull
+            }.orEmpty(),
+            logs = optJsonArray("logs")?.mapNotNull {
+                (it as? JsonPrimitive)?.contentOrNull
+            }.orEmpty(),
+            env = optJsonObject("env"),
         )
     }
 
@@ -270,6 +296,12 @@ internal class EduAgentTools(private val host: WebHost) {
 
     companion object {
         const val MAX_SCRIPT_CHARS = 60_000
+
+        /** ASP.NET 隐藏域：值通常几十 KB，原样回给模型会被贴进思考并撞到输出上限。 */
+        private val HIDDEN_FIELD = Regex(
+            """(__VIEWSTATEGENERATOR|__VIEWSTATE|__EVENTVALIDATION|__RequestVerificationToken)""" +
+                """(?![A-Za-z0-9])([\s\S]{0,120}?)([A-Za-z0-9+/%_\-][A-Za-z0-9+/=%_\-]{299,})"""
+        )
 
         /**
          * 平台差异归一：Android 的 `evaluateJavascript` 回调给的是 JSON 字面量
@@ -362,8 +394,9 @@ internal class EduAgentTools(private val host: WebHost) {
         private val RUN_SCRIPT_JS = """
             (() => {
               const script = __SCRIPT__;
-              const run = { done: false, ok: false, error: '', calls: [], courseCount: 0,
-                coursesJson: '', configJson: '', timeSlotsJson: '', comboJson: '', firstNames: [] };
+              const run = { done: false, ok: false, error: '', calls: [], toasts: [], logs: [],
+                courseCount: 0, coursesJson: '', configJson: '', timeSlotsJson: '', comboJson: '',
+                firstNames: [], env: null };
               window.__nexioAgentRun = run;
               const safe = (v) => { try { return String(v).slice(0, 600); } catch (e) { return ''; } };
               const record = (kind) => async (json) => {
@@ -426,26 +459,124 @@ internal class EduAgentTools(private val host: WebHost) {
                 savePresetTimeSlots: record('savePresetTimeSlots'),
                 saveImportedCourses: record('saveImportedCourses'),
                 saveComboSchedule: record('saveComboSchedule'),
-                showAlert: async (t, c) => { run.calls.push({ kind: 'showAlert', ok: true }); return true; },
-                showPrompt: async () => { throw new Error('AI 导入里脚本不能用 showPrompt，请直接用已知信息'); },
-                showSingleSelection: async () => { throw new Error('AI 导入里脚本不能用 showSingleSelection'); }
+                showAlert: async (title, content, confirmText) => {
+                  if (typeof title !== 'string' || typeof content !== 'string' || typeof confirmText !== 'string') {
+                    run.calls.push({ kind: 'showAlert', ok: false });
+                    throw new Error('showAlert 参数不对：应为 showAlert(标题, 内容, 确认按钮文字)');
+                  }
+                  run.calls.push({ kind: 'showAlert', ok: true });
+                  return true;
+                },
+                showPrompt: async () => { throw new Error('AI 试跑里不能用 showPrompt，请用 showSingleSelection 或直接使用已知信息'); },
+                // 标准适配器会让最终用户选学年/学期；试跑时没人在界面上点，
+                // 这里直接取默认项（通常就是页面当前学期）。脚本里的选择器原样保留，上传后照常交互。
+                showSingleSelection: async (title, optionsJson, defaultIndex) => {
+                  let list = null;
+                  try { list = JSON.parse(optionsJson); } catch (e) {}
+                  if (!Array.isArray(list)) {
+                    run.calls.push({ kind: 'showSingleSelection', ok: false });
+                    throw new Error('showSingleSelection 参数不对：应为 showSingleSelection(标题, JSON.stringify(选项数组), 默认下标)');
+                  }
+                  let index = Number(defaultIndex);
+                  if (!Number.isFinite(index) || index < 0) index = 0;
+                  index = list.length > 0 ? Math.min(Math.floor(index), list.length - 1) : -1;
+                  run.calls.push({ kind: 'showSingleSelection', ok: true });
+                  return index;
+                }
               };
               const origPromise = window.shiguangBridgePromise;
               const origBridge = window.shiguangBridge;
+              const origConsole = { log: console.log, warn: console.warn, error: console.error };
+              const origFetch = window.fetch;
+              const origXhrSend = window.XMLHttpRequest && window.XMLHttpRequest.prototype.send;
+              let pending = 0;
+              let fetchHooked = false;
+              let xhrHooked = false;
+              const capture = (level) => function () {
+                if (run.logs.length < 40) {
+                  run.logs.push(level + ': ' + Array.prototype.slice.call(arguments).map(safe).join(' '));
+                }
+              };
               window.shiguangBridgePromise = sandbox;
-              window.shiguangBridge = { showToast: () => {}, notifyTaskCompletion: () => {} };
+              window.shiguangBridge = {
+                showToast: (t) => { if (run.toasts.length < 20) run.toasts.push(safe(t)); },
+                notifyTaskCompletion: () => {}
+              };
+              console.log = capture('log');
+              console.warn = capture('warn');
+              console.error = capture('error');
+              try {
+                if (typeof origFetch === 'function') {
+                  window.fetch = function () {
+                    pending++;
+                    return origFetch.apply(this, arguments).finally(() => { pending = Math.max(0, pending - 1); });
+                  };
+                  fetchHooked = true;
+                }
+              } catch (e) {}
+              try {
+                if (origXhrSend) {
+                  window.XMLHttpRequest.prototype.send = function () {
+                    pending++;
+                    this.addEventListener('loadend', () => { pending = Math.max(0, pending - 1); });
+                    return origXhrSend.apply(this, arguments);
+                  };
+                  xhrHooked = true;
+                }
+              } catch (e) {}
+              const onRejection = (e) => {
+                const reason = e && e.reason;
+                const msg = safe(reason && reason.message ? reason.message : reason);
+                // 一次成功都没发生过才当成脚本错误；已经拿到结果后的页面噪音只记日志
+                if (!run.error && !run.calls.some((c) => c.ok)) run.error = msg;
+                else if (run.logs.length < 40) run.logs.push('unhandled: ' + msg);
+              };
+              window.addEventListener('unhandledrejection', onRejection);
+              run.env = {
+                document: typeof document,
+                domParser: typeof DOMParser,
+                fetch: typeof fetch,
+                origin: (typeof location !== 'undefined' ? String(location.origin) : '')
+              };
               const restore = () => {
                 window.shiguangBridgePromise = origPromise;
                 window.shiguangBridge = origBridge;
+                console.log = origConsole.log;
+                console.warn = origConsole.warn;
+                console.error = origConsole.error;
+                if (fetchHooked) window.fetch = origFetch;
+                if (xhrHooked) window.XMLHttpRequest.prototype.send = origXhrSend;
+                window.removeEventListener('unhandledrejection', onRejection);
+              };
+              // 脚本通常是「定义完直接 runImportFlow();」的 fire-and-forget：外层函数会立刻返回，
+              // 此时桥和网络请求其实还在跑。必须等它真正停下来，再恢复沙箱并标记完成。
+              const finishWhenIdle = () => {
+                const startedAt = Date.now();
+                let lastCalls = run.calls.length;
+                let quietSince = startedAt;
+                const tick = () => {
+                  const now = Date.now();
+                  if (run.calls.length !== lastCalls) {
+                    lastCalls = run.calls.length;
+                    quietSince = now;
+                  }
+                  if ((pending === 0 && now - quietSince >= 800) || now - startedAt > 60000) {
+                    restore();
+                    run.done = true;
+                    return;
+                  }
+                  setTimeout(tick, 200);
+                };
+                setTimeout(tick, 200);
               };
               (async () => {
                 try {
                   const factory = new Function('return (async () => {\n' + script + '\n})()');
                   await factory();
                   run.ok = true;
+                  finishWhenIdle();
                 } catch (e) {
                   run.error = safe(e && e.message ? e.message : e);
-                } finally {
                   restore();
                   run.done = true;
                 }

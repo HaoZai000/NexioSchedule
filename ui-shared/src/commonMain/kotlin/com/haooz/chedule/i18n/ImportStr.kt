@@ -260,9 +260,9 @@ Reply strictly in this format and do not add any other text."""
     val aiEduPreviewActionN = L("查看预览（%d 门课）", "Preview %d courses")
     val aiEduPreviewTitle = L("导入预览", "Import preview")
     val aiEduPreviewEmpty = L("没有可预览的课程", "No courses to preview")
-    /** 预览页提示：重复课已按「同课同节次」合并 */
+    /** 预览页提示：同课的连续节次与重复记录已在解析期合并 */
     fun aiEduPreviewMergedN(count: Int): String =
-        L("已合并 %d 条重复课程", "Merged %d duplicate courses")(count)
+        L("已合并 %d 条课程记录（重复或连续节次）", "Merged %d course entries (duplicates or consecutive periods)")(count)
     /** 预览页提示：缺少上课星期/节次/周次的课被跳过（不猜默认值） */
     fun aiEduPreviewSkippedN(count: Int): String = L(
         "已跳过 %d 门课程：缺少上课星期、节次或周次",

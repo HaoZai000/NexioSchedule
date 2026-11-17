@@ -18,9 +18,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 /**
  * 聊天流里的一条记录。
@@ -123,6 +127,16 @@ internal class EduAgentSession {
      */
     private var sessionId: String = ""
 
+    /**
+     * 用户在本次分析里发过几条消息。
+     *
+     * 用来挡住「还没问作息就直接跑脚本」：没有用户回答时，`timeSlots=unknown` 不被接受。
+     */
+    private var userTurns = 0
+
+    /** 模型是否已经在对话里问过作息：没问过时不允许以「作息未知」直接执行脚本。 */
+    private var askedTimeSlots = false
+
     private val client by lazy {
         AiEduAgentClient(
             http = createHttpService(
@@ -154,6 +168,8 @@ internal class EduAgentSession {
         runJob = null
         entryUrl = ""
         sessionId = ""
+        userTurns = 0
+        askedTimeSlots = false
         conversation.clear()
         _state.value = EduAgentUiState()
     }
@@ -186,6 +202,8 @@ internal class EduAgentSession {
         val start = now()
         this.entryUrl = entryUrl
         this.sessionId = randomUuidV4()
+        this.userTurns = 0
+        this.askedTimeSlots = false
         val gen = beginRun()
         _state.value = EduAgentUiState(
             running = true,
@@ -216,6 +234,7 @@ internal class EduAgentSession {
             )
         }
         conversation += AiEduAgentClient.userMessage(clean)
+        userTurns++
         launchLoop(host, gen)
     }
 
@@ -328,6 +347,7 @@ internal class EduAgentSession {
             if (reply.toolCalls.isEmpty()) {
                 // 模型说完了：有草稿就是收工，没草稿就是它在要信息（或干脆拒绝）
                 if (said.isNotBlank()) {
+                    if (!askedTimeSlots && said.asksTimeSlots()) askedTimeSlots = true
                     // ⚠ 这句必须留在历史里 —— 用户点「发送」补充信息时是一段连续对话，
                     // 少了这条 assistant，模型会忘掉自己刚刚问了什么。
                     conversation += AiEduAgentClient.assistantMessage(
@@ -385,6 +405,7 @@ internal class EduAgentSession {
         queued.forEach { text ->
             conversation += AiEduAgentClient.userMessage(text)
         }
+        userTurns += queued.size
         _state.update { it.copy(queued = emptyList(), items = it.items + queued.map { EduChatItem.User(it, at) }) }
     }
 
@@ -421,7 +442,17 @@ internal class EduAgentSession {
             }
 
             EduAgentPrompts.TOOL_RUN_SCRIPT -> {
+                val timeSlots = AiEduAgentClient.argString(args, "timeSlots").lowercase()
                 val script = AiEduAgentClient.stripFences(AiEduAgentClient.argString(args, "script"))
+                // 没问过用户就不允许以「作息未知」直接开跑
+                val blocked = timeSlots.isBlank() ||
+                    (timeSlots == "unknown" && (!askedTimeSlots || userTurns == 0))
+                if (blocked) {
+                    val index = beginStep("执行适配脚本（先确认作息）")
+                    endStep(index, "还没确认作息，先问用户", failed = true)
+                    return "脚本没有执行：先确认作息。timeSlots 必填（api/user/custom/unknown）；" +
+                        "要用 unknown，必须先在对话里问过用户作息并拿到回答。" to null
+                }
                 val index = beginStep("执行适配脚本（第 $runIndex 次）")
                 val run = tools.runScript(script)
                 // 每写一版都留档：失败的那几版同样是「这个教务系统长什么样」的证据
@@ -435,20 +466,41 @@ internal class EduAgentSession {
                         error = run.error,
                     )
                 )
-                endStep(
-                    index,
-                    if (run.ok) "拿到 ${run.courseCount} 门课" else (run.error ?: "执行失败"),
-                    failed = !run.ok || run.courseCount == 0,
-                )
-                val payload = buildString {
-                    append("{\"ok\":").append(run.ok)
-                    append(",\"error\":").append(run.error?.let { "\"$it\"" } ?: "null")
-                    append(",\"calls\":[")
-                    append(run.calls.joinToString(",") { "\"$it\"" })
-                    append("],\"courseCount\":").append(run.courseCount)
-                    append(",\"firstCourseNames\":[")
-                    append(run.firstNames.joinToString(",") { "\"$it\"" })
-                    append("]}")
+                val detail = when {
+                    run.courseCount > 0 -> "拿到 ${run.courseCount} 门课"
+                    !run.error.isNullOrBlank() -> run.error.orEmpty()
+                    run.toasts.isNotEmpty() -> run.toasts.last()
+                    run.calls.isEmpty() -> "脚本没有调用桥（提前结束）"
+                    else -> "没有拿到课程"
+                }
+                endStep(index, detail, failed = !run.ok || run.courseCount == 0)
+                val payload = buildJsonObject {
+                    put("ok", run.ok)
+                    put("error", run.error)
+                    put("calls", buildJsonArray { run.calls.forEach { add(JsonPrimitive(it)) } })
+                    put("courseCount", run.courseCount)
+                    put(
+                        "firstCourseNames",
+                        buildJsonArray { run.firstNames.forEach { add(JsonPrimitive(it)) } },
+                    )
+                    if (run.toasts.isNotEmpty()) {
+                        put(
+                            "toasts",
+                            buildJsonArray { run.toasts.forEach { add(JsonPrimitive(it)) } },
+                        )
+                    }
+                    if (run.logs.isNotEmpty()) {
+                        put(
+                            "logs",
+                            buildJsonArray { run.logs.forEach { add(JsonPrimitive(it)) } },
+                        )
+                    }
+                    if (run.calls.isEmpty()) run.env?.let { put("env", it) }
+                }.toString() + buildString {
+                    if (run.calls.isEmpty()) {
+                        append("\n（脚本执行完了但一次桥调用都没有：多半是中途 return 或异步报错。")
+                        append("看 toasts、logs 与 env 定位原因。）")
+                    }
                     if (run.courseCount == 0) {
                         append("\n（courseCount 为 0 表示这次没拿到课程：检查接口地址、字段名、周次展开）")
                     }
@@ -706,6 +758,11 @@ internal class EduAgentSession {
         return "HTTP $status · ${body.length} 字"
     }
 }
+
+/** 模型这句反问里是否提到了作息（用来判断它有没有真的问过用户）。 */
+private fun String.asksTimeSlots(): Boolean =
+    contains("作息") || contains("第1节") || contains("第 1 节") ||
+        contains("几点") || contains("上课时间") || contains("下课时间")
 
 internal fun String.toJsonObjectOrEmpty(): JsonObject =
     runCatching { kotlinx.serialization.json.Json.parseToJsonElement(this).jsonObject }
