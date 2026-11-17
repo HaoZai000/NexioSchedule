@@ -89,6 +89,18 @@ fun AppRouteContent(
         AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
         AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
         AppRoute.AiFeatures -> AiFeaturesRoute(router)
+
+        AppRoute.McpService -> {
+            val context = LocalContext.current
+            McpServiceRoute(
+                router = router,
+                onCopyToClipboard = { text ->
+                    val clipboard =
+                        context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("MCP 服务", text))
+                },
+            )
+        }
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
 
         // 文档壳路由，Android 注入平台能力。

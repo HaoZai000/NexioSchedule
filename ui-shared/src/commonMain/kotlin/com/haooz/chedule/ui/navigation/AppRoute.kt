@@ -120,6 +120,11 @@ sealed interface AppRoute {
         override val id: String get() = "ai_features"
     }
 
+    /** MCP 服务（「AI 功能」页顶部的入口）：把课表以只读工具暴露给手机上的 AI 助手。 */
+    data object McpService : AppRoute {
+        override val id: String get() = "mcp_service"
+    }
+
     /** 课程提醒（「课程提醒」）。 */
     data object CourseReminder : AppRoute {
         override val id: String get() = "course_reminder"
@@ -198,6 +203,7 @@ sealed interface AppRoute {
             AiEduPreview.id -> AiEduPreview
             WidgetIntro.id -> WidgetIntro
             AiFeatures.id -> AiFeatures
+            McpService.id -> McpService
             CourseReminder.id -> CourseReminder
             HolidaySettings.id -> HolidaySettings
             WebDavSettings.id -> WebDavSettings

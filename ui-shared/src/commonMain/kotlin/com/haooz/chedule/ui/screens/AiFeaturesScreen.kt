@@ -43,6 +43,7 @@ import com.haooz.chedule.data.ai.AiResult
 import com.haooz.chedule.data.platform.HttpTimeouts
 import com.haooz.chedule.data.platform.createHttpService
 import com.haooz.chedule.i18n.AiStr
+import com.haooz.chedule.i18n.McpStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
@@ -83,6 +84,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 fun AiFeaturesScreen(
     scrollBehavior: SharedScrollBehavior? = null,
     liquidGlassBackdrop: GlassBackdrop? = null,
+    onOpenMcp: () -> Unit = {},
     onOpenReminder: () -> Unit = {},
     onOpenEduImport: () -> Unit = {},
     onOpenTextImport: () -> Unit = {},
@@ -202,10 +204,15 @@ fun AiFeaturesScreen(
                     end = horizontalPadding,
                     top = paddingValues.calculateTopPadding() +
                         CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        pageTopExtra(isTablet, hasSmallTitle = true),
+                        pageTopExtra(isTablet, hasSmallTitle = false),
                     bottom = 120.dp,
                 ),
         ) {
+            Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                FeatureRow(McpStr.entry(), McpStr.entrySummary(), onOpenMcp)
+            }
+
+            Spacer(modifier = Modifier.height(SECTION_GAP))
             SmallTitle(text = AiStr.freeQuota())
             Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
@@ -214,6 +221,7 @@ fun AiFeaturesScreen(
                         loading -> Text(
                             text = AiStr.quotaLoading(),
                             style = MiuixTheme.textStyles.body2,
+                            fontSize = 14.sp,
                             color = theme.onSurfaceVariantSummary,
                         )
 
@@ -239,12 +247,14 @@ fun AiFeaturesScreen(
                             Text(
                                 text = if (quotaError != null) AiStr.quotaUnavailable() else AiStr.serverDisabled(),
                                 style = MiuixTheme.textStyles.body1,
+                                fontSize = 14.sp,
                                 color = theme.onSurface,
                             )
                             quotaError?.let { message ->
                                 Text(
                                     text = message,
                                     style = MiuixTheme.textStyles.footnote2,
+                                    fontSize = 14.sp,
                                     color = theme.onSurfaceVariantSummary,
                                     modifier = Modifier.padding(top = 4.dp),
                                 )
@@ -318,7 +328,7 @@ fun AiFeaturesScreen(
                     CardExpand(visible = isFreeProvider) {
                         Text(
                             text = AiStr.providerFreeNote(),
-                            fontSize = 13.sp,
+                            fontSize = 14.sp,
                             color = theme.onSurfaceVariantSummary,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
                         )
@@ -434,7 +444,7 @@ fun AiFeaturesScreen(
                                 ?: AiStr.testServerOk()
                             is AiTestState.Failed -> AiStr.testConnectionFailed(status.message)
                         },
-                        fontSize = if (status is AiTestState.Failed) 13.sp else 14.sp,
+                        fontSize = 17.sp,
                         color = when (status) {
                             is AiTestState.Ok -> theme.primary
                             is AiTestState.Failed -> theme.error
@@ -535,14 +545,14 @@ private fun QuotaLine(label: String, used: Int, limit: Int) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = label,
-                fontSize = 16.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
                 color = theme.onSurface,
             )
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = AiStr.quotaRemaining((limit - used).coerceAtLeast(0)),
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 color = theme.primary,
             )
@@ -551,14 +561,14 @@ private fun QuotaLine(label: String, used: Int, limit: Int) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp)
-                .height(4.dp)
+                .height(6.dp)
                 .background(theme.onSurfaceVariantActions.copy(alpha = 0.12f), ContinuousCapsule()),
         ) {
             if (fraction > 0f) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(fraction)
-                        .height(4.dp)
+                        .height(6.dp)
                         .background(theme.primary, ContinuousCapsule()),
                 )
             }
@@ -566,6 +576,7 @@ private fun QuotaLine(label: String, used: Int, limit: Int) {
         Text(
             text = AiStr.quotaUsed(used, limit),
             style = MiuixTheme.textStyles.footnote2,
+            fontSize = 14.sp,
             color = theme.onSurfaceVariantSummary,
             modifier = Modifier.padding(top = 6.dp),
         )
@@ -591,7 +602,7 @@ private fun FeatureRow(title: String, summary: String, onClick: () -> Unit) {
             )
             Text(
                 text = summary,
-                fontSize = 13.sp,
+                fontSize = 14.sp,
                 color = theme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(top = 2.dp),
             )

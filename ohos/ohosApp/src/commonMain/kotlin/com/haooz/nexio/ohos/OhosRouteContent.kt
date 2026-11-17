@@ -31,6 +31,7 @@ import com.haooz.chedule.ui.navigation.AppreciateAuthorRoute
 import com.haooz.chedule.ui.navigation.BackupAndMigrationRoute
 import com.haooz.chedule.ui.navigation.BackupCenterRoute
 import com.haooz.chedule.ui.navigation.ChangelogRoute
+import com.haooz.chedule.ui.navigation.McpServiceRoute
 import com.haooz.chedule.ui.navigation.CommunicationRoute
 import com.haooz.chedule.ui.navigation.CourseManageRoute
 import com.haooz.chedule.ui.navigation.CourseReminderRoute
@@ -115,6 +116,13 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
         AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
         AppRoute.AiFeatures -> AiFeaturesRoute(router)
+        AppRoute.McpService -> {
+            val clipboard = LocalClipboardManager.current
+            McpServiceRoute(
+                router = router,
+                onCopyToClipboard = { text -> clipboard.setText(AnnotatedString(text)) },
+            )
+        }
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
         AppRoute.AiImport -> {
             val clipboard = LocalClipboardManager.current

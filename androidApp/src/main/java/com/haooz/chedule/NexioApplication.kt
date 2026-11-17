@@ -99,6 +99,17 @@ class NexioApplication : Application() {
         warmUpStorage()
         cleanupTransientFiles()
         initWearableSync()
+        // 本地 MCP 服务：仅监听 127.0.0.1，供手机上的 AI 助手读取课表
+        com.haooz.chedule.data.mcp.McpServiceBridge.supported = true
+        com.haooz.chedule.data.mcp.McpServiceBridge.start = {
+            com.haooz.chedule.mcp.McpForegroundService.start(this)
+        }
+        com.haooz.chedule.data.mcp.McpServiceBridge.stop = {
+            com.haooz.chedule.mcp.McpForegroundService.stop(this)
+        }
+        if (com.haooz.chedule.data.mcp.McpServicePrefs.isEnabled()) {
+            com.haooz.chedule.mcp.McpForegroundService.start(this)
+        }
         enableWebViewRemoteDebugging()
         // 调休映射迁移：旧版存「周次+星期」相对课表会错位，换算成绝对日期后按当前课表实时折算。后台线程执行避免拖慢冷启动。
         Thread {

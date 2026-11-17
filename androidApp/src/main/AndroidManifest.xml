@@ -58,6 +58,16 @@
         android:theme="@style/Theme.课程表"
         tools:ignore="UnusedAttribute">
 
+        <!-- 本地 MCP 服务保活（联调验证）：仅监听 127.0.0.1，见 McpForegroundService -->
+        <service
+            android:name=".mcp.McpForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="mcp" />
+        </service>
+
         <!-- HyperOS 无极窗口 2.0：支持窗口在一定尺寸范围内任意缩放 -->
         <property
             android:name="miui.window.CVW_ENABLED"

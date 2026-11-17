@@ -13,6 +13,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -109,7 +110,9 @@ fun ScheduleBottomBar(
                 modifier = Modifier
                     .offset(x = nodeLeft)
                     .width(pillWidth)
-                    .height(BOTTOM_BAR_CIRCLE),
+                    .height(BOTTOM_BAR_CIRCLE)
+                    // 左侧胶囊压在设置圆钮之上：两块玻璃靠近时，胶囊的边缘与阴影不被圆钮盖住
+                    .zIndex(1f),
             ) {
                 if (isShiftMode) {
                     LiquidGlassBottomTab(onClick = { onTabSelected(0) }) {

@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -325,6 +326,8 @@ fun LiquidBottomTabs(
                 .align(Alignment.CenterStart)
                 .width(pillWidthDp)
                 .height(containerHeight)
+                 // 胶囊层级高于右侧圆钮：两块玻璃靠近或按压放大时，胶囊边缘不被圆钮覆盖
+                .zIndex(1f)
                 // 整块胶囊（玻璃 + 滑块 + 图标）一起按压放大 / 沿拖动方向拉伸。
                 // 用 draw 期读同一份 InteractiveHighlight 状态，不进组合期 animation state。
                 .graphicsLayer {

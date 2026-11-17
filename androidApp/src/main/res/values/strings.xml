@@ -7,4 +7,7 @@
     <string name="widget_course_reminder_pad">课程提醒（Pad）</string>
     <string name="widget_today_course_pad">今日课程（Pad）</string>
     <string name="widget_no_classes_today">今日无课</string>
+    <string name="mcp_notification_channel">MCP 服务</string>
+    <string name="mcp_notification_title">MCP 服务运行中</string>
+    <string name="mcp_notification_text">供 AI 助手读取课表</string>
 </resources>

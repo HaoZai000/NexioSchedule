@@ -613,13 +613,14 @@ private fun heroSky(snapshot: WeatherSnapshot, dark: Boolean): Pair<Color, Color
     var t = lerp(Color(0xFF2B3963), top, light.dayness)
     var b = lerp(Color(0xFF48527F), bottom, light.dayness)
     if (light.glow > 0f) {
+        // 霞色走珊瑚调而不是纯橙：黄昏偏粉橘，黎明偏浅杏
         val (warmTop, warmBottom) = if (light.phase == SkyPhase.Dawn) {
-            Color(0xFFFF8A2E) to Color(0xFFFFB86B)
+            Color(0xFFFFA25E) to Color(0xFFFFD2A0)
         } else {
-            Color(0xFFFF6326) to Color(0xFFFF8F4A)
+            Color(0xFFF57A5C) to Color(0xFFFFA882)
         }
-        t = lerp(t, warmTop, light.glow * 0.80f)
-        b = lerp(b, warmBottom, light.glow * 0.62f)
+        t = lerp(t, warmTop, light.glow * 0.58f)
+        b = lerp(b, warmBottom, light.glow * 0.46f)
     }
     return if (dark) {
         t to b
