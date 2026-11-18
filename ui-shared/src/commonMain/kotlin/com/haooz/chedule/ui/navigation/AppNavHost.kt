@@ -19,17 +19,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.node.DrawModifierNode
-import androidx.compose.ui.node.ModifierNodeElement
-import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.platform.LocalDensity
 import com.haooz.nexioui.motion.OobeQuartOutSoftStartEasing
 import com.haooz.nexioui.motion.SecondaryPageExitEasing
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.clipDuringTransition
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
+import com.haooz.chedule.ui.utils.skipDrawWhen
 import com.haooz.nexioui.window.toShape
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -388,33 +385,6 @@ private fun PageLayer(
             }
             .clipDuringTransition(clipShape, inFlight),
     ) { content() }
-}
-
-/**
- * 暂停绘制：`paused` 在 draw 阶段读取，恢复时由快照观察自动失效重画。
- *
- * [SkipDrawElement.update] 里必须显式 `invalidateDraw()`：pop 刚结束时某层从更深层升为栈顶，
- * paused lambda 换了引用但没有任何进度帧在跑，不显式失效就没人重画。
- */
-private fun Modifier.skipDrawWhen(paused: () -> Boolean): Modifier =
-    this then SkipDrawElement(paused)
-
-private data class SkipDrawElement(
-    private val paused: () -> Boolean,
-) : ModifierNodeElement<SkipDrawNode>() {
-    override fun create() = SkipDrawNode(paused)
-    override fun update(node: SkipDrawNode) {
-        node.paused = paused
-        node.invalidateDraw()
-    }
-}
-
-private class SkipDrawNode(
-    var paused: () -> Boolean,
-) : Modifier.Node(), DrawModifierNode {
-    override fun ContentDrawScope.draw() {
-        if (!paused()) drawContent()
-    }
 }
 
 /**
