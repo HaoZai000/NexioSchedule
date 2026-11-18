@@ -17,7 +17,7 @@ import com.haooz.chedule.weather.WeatherAlert
 import com.haooz.chedule.weather.alertKind
 import com.haooz.chedule.weather.alertLevelWord
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 气象预警徽标：等级色底 + 预警类型（「大风」「台风」）。
@@ -36,7 +36,7 @@ fun WeatherAlertBadge(alert: WeatherAlert, modifier: Modifier = Modifier) {
     ) {
         Text(
             text = alertKind(alert),
-            style = MiuixTheme.textStyles.footnote2,
+            style = NexioTheme.textStyles.footnote2,
             fontWeight = FontWeight.Medium,
             color = foreground,
             maxLines = 1,

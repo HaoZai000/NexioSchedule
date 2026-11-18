@@ -63,23 +63,25 @@ import com.haooz.chedule.ui.basic.ShortcutMenuShadowPadding
 import com.haooz.chedule.ui.components.CrossWeekDropHint
 import com.haooz.chedule.ui.components.EdgeAutoPageIndicator
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
-import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
-import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
-import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.nexioui.interaction.InteractiveHighlight
+import com.haooz.softglass.GlassEnvironment
+import com.haooz.nexioui.motion.CustomizePageEasing
+import com.haooz.nexioui.motion.OobeCubicOutEasing
+import com.haooz.nexioui.motion.OobeQuartOutEasing
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.glass.SoftGlassStyle
 import com.haooz.chedule.ui.screens.CombinationThumbnail
 import com.haooz.chedule.ui.screens.CourseDetailScreen
 import com.haooz.chedule.ui.screens.CustomizeScheduleScreen
-import com.haooz.chedule.ui.theme.rememberAppThemeController
+import com.haooz.chedule.ui.theme.AppNexioTheme
+import com.haooz.chedule.ui.theme.rememberAppThemeColors
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.HostedOverlay
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalHostOverlays
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.MirroredSnapshotBackdrop
-import com.haooz.chedule.ui.utils.addScreenCornerRect
+import com.haooz.nexioui.window.addScreenCornerRect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.ui.utils.courseCardSolidBacking
@@ -89,13 +91,14 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Copy
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Edit
-import top.yukonga.miuix.kmp.icon.extended.Paste
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Add
+import com.haooz.nexioui.icon.extended.Copy
+import com.haooz.nexioui.icon.extended.Delete
+import com.haooz.nexioui.icon.extended.Edit
+import com.haooz.nexioui.icon.extended.Paste
+
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 课表主界面「浮层组」：浮动卡片 / 交换飞行、快捷菜单、课表外观页、详情页、切换课表、排班 loading。
@@ -123,7 +126,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
             val overlayEffectiveForcedDark =
                 if (captureThemeActive) captureThemeIsDark else forcedDark
             val overlayEffectiveDark = overlayEffectiveForcedDark ?: appSettingDark
-            val overlayPageController = rememberAppThemeController(isDark = overlayEffectiveDark)
+            val overlayPageColors = rememberAppThemeColors(isDark = overlayEffectiveDark)
             // 无壁纸时浮层垫课程表页底色（与网格课程卡同一份，取值见 courseCardSolidBacking）
             val floatSolidBacking = courseCardSolidBacking(
                 isDark = overlayEffectiveDark,
@@ -158,8 +161,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                     radiusBaseDp = 250.dp,
                     // 按压进度由 glowAlpha 驱动（150ms 淡变），不走组件自带手势
                     pressProgressOverride = { glowAlpha },
-                    // 只要圆形光晕，不要整幅提亮
-                    drawFlatOverlay = false,
+                    isDark = { GlassEnvironment.isDark },
                 )
             }
             // 浮层靠 graphicsLayer 平移，子树不会重绘；draw 期订阅这些位置量，
@@ -175,7 +177,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                     swapFlightScale.value
                 }
             }
-            MiuixTheme(controller = overlayPageController) {
+            AppNexioTheme(colors = overlayPageColors) {
                 CompositionLocalProvider(
                     LocalForcedDarkTheme provides overlayEffectiveForcedDark,
                     LocalGlassRedrawSignal provides floatingGlassRedraw,
@@ -381,7 +383,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                     buildList {
                         add(
                             ShortcutMenuItem(
-                                icon = MiuixIcons.Edit,
+                                icon = NexioIcons.Edit,
                                 label = CommonStr.edit(),
                                 onClick = {
                                     FeatureLog.course("edit_shortcut")
@@ -395,7 +397,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         if (shortcutMenuAllowCopy && !activeShortcutCourse.hasValidCustomTime()) {
                             add(
                                 ShortcutMenuItem(
-                                    icon = MiuixIcons.Copy,
+                                    icon = NexioIcons.Copy,
                                     label = CommonStr.copy(),
                                     onClick = {
                                         FeatureLog.course("copy_shortcut")
@@ -408,7 +410,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         }
                         add(
                             ShortcutMenuItem(
-                                icon = MiuixIcons.Delete,
+                                icon = NexioIcons.Delete,
                                 label = CommonStr.delete(),
                                 onClick = {
                                     FeatureLog.course("delete_shortcut")
@@ -428,7 +430,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         if (copiedCourseForPaste != null && activeEmptyTarget != null) {
                             add(
                                 ShortcutMenuItem(
-                                    icon = MiuixIcons.Paste,
+                                    icon = NexioIcons.Paste,
                                     label = ChromeStr.paste(),
                                     onClick = {
                                         pasteRangeTarget = PasteTarget(
@@ -446,7 +448,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         if (activeEmptyTarget != null) {
                             add(
                                 ShortcutMenuItem(
-                                    icon = MiuixIcons.Add,
+                                    icon = NexioIcons.Add,
                                     label = CommonStr.add(),
                                     iconSize = 24.dp,
                                     onClick = {
@@ -465,7 +467,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         }
                     }
                 }
-                MiuixTheme(controller = overlayPageController) {
+                AppNexioTheme(colors = overlayPageColors) {
                     CompositionLocalProvider(
                         LocalForcedDarkTheme provides overlayEffectiveForcedDark,
                     ) {
@@ -874,7 +876,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                     snapshot = background,
                     shrink = { detailBackgroundScale.value },
                     modifier = Modifier.fillMaxSize(),
-                    backgroundColor = MiuixTheme.colorScheme.surface,
+                    backgroundColor = NexioTheme.colorScheme.surface,
                     blurRadiusPx = { managePageBlurRadius.value * densityProvider.density },
                 )
             }

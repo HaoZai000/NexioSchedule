@@ -4,8 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import top.yukonga.miuix.kmp.theme.LocalMonetColorEnabled
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.chedule.ui.theme.LocalMonetColorEnabled
+import com.haooz.nexioui.theme.NexioTheme
 
 /** 设置入口图标底色：固定常量，不随深浅模式变化。 */
 object SettingsAccents {
@@ -32,7 +32,7 @@ class SettingsAccentResolver(
 @Composable
 fun rememberSettingsAccentResolver(): SettingsAccentResolver {
     val monet = LocalMonetColorEnabled.current
-    val scheme = MiuixTheme.colorScheme
+    val scheme = NexioTheme.colorScheme
     return remember(monet, scheme.primary, scheme.onPrimary) {
         SettingsAccentResolver(
             monet = monet,

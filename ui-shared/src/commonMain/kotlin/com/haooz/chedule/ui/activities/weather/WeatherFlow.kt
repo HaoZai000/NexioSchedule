@@ -3,7 +3,7 @@ package com.haooz.chedule.ui.activities.weather
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import com.haooz.chedule.ui.effects.background.BgEffectConfig
+import com.haooz.nexioui.background.BgEffectConfig
 import com.haooz.chedule.weather.WeatherSnapshot
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone

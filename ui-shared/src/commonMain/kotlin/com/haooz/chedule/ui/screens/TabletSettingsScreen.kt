@@ -91,11 +91,11 @@ import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.overlay.LocalOverlayDialogBackdrop
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.overlaydialog.LocalOverlayDialogBackdrop
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
 import kotlin.math.roundToInt
 
 /** 右栏页面壳：二级页无返回按钮，标题锁折叠态。 */
@@ -166,7 +166,7 @@ private fun DefaultTabletSettingsPaneRouteContent(router: AppRouter, route: AppR
 fun TabletSettingsChromeOverlay() {
     val statusBar = mainWindowTopInset()
     val collapsedH = CollapsibleTopAppBarDefaults.CollapsedHeight
-    val titleColor = MiuixTheme.colorScheme.onSurface
+    val titleColor = NexioTheme.colorScheme.onSurface
     val density = LocalDensity.current
     val widthDp = screenWidthDp()
     val statusBarPx = with(density) { statusBar.roundToPx() }
@@ -384,7 +384,7 @@ fun TabletSettingsScreen(
         paneRouter.navigate(route)
     }
 
-    val paneSurface = MiuixTheme.colorScheme.surface
+    val paneSurface = NexioTheme.colorScheme.surface
     val chromeTop = mainWindowTopInset() +
         CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp
     // 浮层采样层：页级 backdrop 只录一栏，浮层压在两栏上会一半采样到空层
@@ -412,7 +412,7 @@ fun TabletSettingsScreen(
         } else {
             Color.Black.copy(alpha = 0.06f)
         }
-        val surfaceColor = MiuixTheme.colorScheme.surface
+        val surfaceColor = NexioTheme.colorScheme.surface
         val leftPaneBackdrop = rememberLayerBackdrop {
             drawRect(surfaceColor)
             drawContent()

@@ -118,7 +118,8 @@ import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TabletCourseManagePane
 import com.haooz.chedule.ui.screens.TabletSwitchSchedulePane
-import com.haooz.chedule.ui.theme.rememberAppThemeController
+import com.haooz.chedule.ui.theme.AppNexioTheme
+import com.haooz.chedule.ui.theme.rememberAppThemeColors
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
@@ -132,7 +133,7 @@ import com.haooz.chedule.ui.utils.NativeTopBarState
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.TodayViewMode
-import com.haooz.chedule.ui.utils.addScreenCornerRect
+import com.haooz.nexioui.window.addScreenCornerRect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
@@ -148,15 +149,16 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.LocalOverScrollState
-import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.MiuixPopupHost
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults.CollapsedHeight
+import com.haooz.nexioui.numberpicker.NumberPicker
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.overlaydialog.NexioPopupHost
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.LocalOverScrollState
 
 /** 其余弹窗：退场动画（最长约 320ms）播完再摘采样层，那时屏幕上已经没有它的玻璃了 */
 private const val OVERLAY_GLASS_RELEASE_DELAY_MS = 420L
@@ -198,6 +200,10 @@ internal fun CourseScheduleAppMainContent(
             {
                 // 主 tab pager 整体平移
                 mainTabPosition.offsetFraction
+                // 落定页变化：翻页结束时补一帧重采样
+                mainTabPosition.currentPage
+                todayPageState.settledPage
+                weekPageState.settledPage
                 // pad 侧栏展开 / 收起：页内留白在 layout 期插值，卡片跟着横移
                 TabletNavSideState.expanded
                 TabletNavSideState.expandProgress.floatValue
@@ -419,6 +425,9 @@ internal fun CourseScheduleAppMainContent(
             val showAddDialog by viewModel.showAddDialog.collectAsState()
             var notice by remember { mutableStateOf<Notice?>(null) }
             var updateDialogShowing by remember { mutableStateOf(false) }
+            // 今日页的「跳转日期」弹窗状态在页内：必须上报到这一层，
+            // 底栏采样层才会为它挂上，弹窗才采得到底栏。
+            var todayDatePickerShowing by remember { mutableStateOf(false) }
             val otherGlassWanted = showJumpWeekDialog ||
                 showAddDialog ||
                 notice != null ||
@@ -426,7 +435,8 @@ internal fun CourseScheduleAppMainContent(
                 showDeleteConfirmDialog ||
                 showPasteRangeDialog ||
                 showRescheduleConflictDialog ||
-                updateDialogShowing
+                updateDialogShowing ||
+                todayDatePickerShowing
             // 其余弹窗一路：退场动画播完屏幕上已经没有它的玻璃了，
             // 什么时候摘都看不见，按固定延时摘即可
             var otherGlassActive by remember { mutableStateOf(otherGlassWanted) }
@@ -487,10 +497,8 @@ internal fun CourseScheduleAppMainContent(
                         }
                     },
                     // 「更多」按钮/下拉菜单已在各页面内组合，随页面一起平移；
-                    // 这里只剩弹窗宿主，保持弹窗始终盖在页面顶栏之上。
-                    popupHost = {
-                        MiuixPopupHost()
-                    }
+                    // 这里只剩弹窗宿主，保持弹窗始终盖在页面顶栏 / 底栏之上。
+                    popupHost = { NexioPopupHost() }
                 ) {
                     // 详情 morph 期间底下的真实源卡片必须继续画
                     // 不门控 combinations.isEmpty()：网格只依赖 viewModel，与壁纸加载解耦
@@ -538,7 +546,7 @@ internal fun CourseScheduleAppMainContent(
                         if (showSharedWallpaperLayer && sharedWallpaperBitmap != null) {
                             // 全屏垫背景色 + 裁切：页滑走露出的空隙由背景色/壁纸垫住（侧栏下始终有内容，不出漏）
                             val wallpaperPadColor =
-                                MiuixTheme.colorScheme.surface
+                                NexioTheme.colorScheme.surface
                             // 壁纸层只跟壁纸自身状态走；页面平移/切页不该让它重录
                             val wallpaperLayerRecordKey = remember(
                                 sharedWallpaperBitmap,
@@ -702,9 +710,9 @@ internal fun CourseScheduleAppMainContent(
                                                 val todayForced =
                                                     if (captureThemeActive) captureThemeIsDark else todayPageForcedDark
                                                 val todayDark = todayForced ?: appSettingDark
-                                                val todayThemeController =
-                                                    rememberAppThemeController(isDark = todayDark)
-                                                MiuixTheme(controller = todayThemeController) {
+                                                val todayThemeColors =
+                                                    rememberAppThemeColors(isDark = todayDark)
+                                                AppNexioTheme(colors = todayThemeColors) {
                                                     CompositionLocalProvider(LocalForcedDarkTheme provides todayForced) {
                                                         val todayPageRouter = LocalAppRouter.current
                                                         TodayScreen(
@@ -741,11 +749,16 @@ internal fun CourseScheduleAppMainContent(
                                                             onJumpToDateProcessed = {
                                                                 todayJumpToDateTrigger = 0
                                                             },
+                                                            onDatePickerShowChanged = {
+                                                                todayDatePickerShowing = it
+                                                            },
                                                             useSharedWallpaper = !isShiftMode && wallpaperBitmap != null,
                                                             softGlassSurface = softGlassSurface,
                                                             tabRedraw = tabGlassRedraw,
                                                             cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
-                                                            liquidGlassBackdrop = chromeBackdrop,
+                                                            // 这个参数只给「跳转日期」弹窗用：弹窗要采到底栏，
+                                                            // 必须用含底栏的组合层，而不是本页内容层。
+                                                            liquidGlassBackdrop = overlayGlassBackdrop,
                                                             showClassroom = displayAppearance.showClassroom,
                                                             showTeacher = displayAppearance.showTeacher,
                                                             onListScrollInProgress = {
@@ -795,9 +808,9 @@ internal fun CourseScheduleAppMainContent(
                                                 val scheduleForced =
                                                     if (captureThemeActive) captureThemeIsDark else wallpaperForcedDark
                                                 val scheduleDark = scheduleForced ?: appSettingDark
-                                                val scheduleThemeController =
-                                                    rememberAppThemeController(isDark = scheduleDark)
-                                                MiuixTheme(controller = scheduleThemeController) {
+                                                val scheduleThemeColors =
+                                                    rememberAppThemeColors(isDark = scheduleDark)
+                                                AppNexioTheme(colors = scheduleThemeColors) {
                                                     CompositionLocalProvider(LocalForcedDarkTheme provides scheduleForced) {
                                                         CompositionLocalProvider(
                                                             LocalLandRipple provides LandRippleSpec(
@@ -1310,8 +1323,8 @@ internal fun CourseScheduleAppMainContent(
                                         2 -> {
                                             // 设置页始终跟应用主题，不被壁纸锁深色
                                             val settingsDark = appSettingDark
-                                            val settingsThemeController =
-                                                rememberAppThemeController(isDark = settingsDark)
+                                            val settingsThemeColors =
+                                                rememberAppThemeColors(isDark = settingsDark)
                                             // 与今日/课表同一套壳：整页不再自己铺 surface，
                                             // 背景交给壳层（共享壁纸），右侧栏才采得到与页面一致的底色。
                                             Box(
@@ -1320,7 +1333,7 @@ internal fun CourseScheduleAppMainContent(
                                                     .then(settingsPageClipModifier)
                                                     .then(pageContentLayer(settingsContentBackdrop))
                                             ) {
-                                                MiuixTheme(controller = settingsThemeController) {
+                                                AppNexioTheme(colors = settingsThemeColors) {
                                                     // 设置页始终跟应用主题，不受壁纸强制主题影响
                                                     CompositionLocalProvider(LocalForcedDarkTheme provides null) {
                                                         Box(
@@ -1429,7 +1442,7 @@ internal fun CourseScheduleAppMainContent(
                                                 modifier = Modifier
                                                     .fillMaxSize()
                                                     // ⚠ background 在 padding 之前：卡片面铺到屏幕边缘
-                                                    .background(MiuixTheme.colorScheme.surface)
+                                                    .background(NexioTheme.colorScheme.surface)
                                                     .then(pageInsetModifier)
                                             ) {
                                                 RenderSettingsPane(
@@ -1655,7 +1668,7 @@ internal fun CourseScheduleAppMainContent(
                                 range = 1..totalWeeks,
                                 visibleItemCount = 3,
                                 itemHeight = 60.dp,
-                                textStyle = MiuixTheme.textStyles.title2,
+                                textStyle = NexioTheme.textStyles.title2,
                                 label = { CommonStr.weekN(it) },
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1665,7 +1678,7 @@ internal fun CourseScheduleAppMainContent(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                TextButton(
+                                FlatTextButton(
                                     text = CommonStr.cancel(),
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1673,7 +1686,7 @@ internal fun CourseScheduleAppMainContent(
                                     },
                                     modifier = Modifier.weight(1f)
                                 )
-                                TextButton(
+                                FlatTextButton(
                                     text = CommonStr.ok(),
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1700,8 +1713,8 @@ internal fun CourseScheduleAppMainContent(
 
                     // 始终跟随应用主题，不受壁纸强制主题影响
                     val appDialogDark = rememberAppSettingDark()
-                    val appDialogController = rememberAppThemeController(isDark = appDialogDark)
-                    MiuixTheme(controller = appDialogController) {
+                    val appDialogColors = rememberAppThemeColors(isDark = appDialogDark)
+                    AppNexioTheme(colors = appDialogColors) {
                         CompositionLocalProvider(LocalForcedDarkTheme provides null) {
                             val addDialogDefaultWeeks by viewModel.addDialogDefaultWeeks.collectAsState()
                             val addDialogCustomTime by viewModel.addDialogCustomTime.collectAsState()
@@ -1965,7 +1978,7 @@ internal fun CourseScheduleAppMainContent(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             notice?.let { n ->
-                                TextButton(
+                                FlatTextButton(
                                     text = CommonStr.done(),
                                     modifier = Modifier.weight(1f),
                                     onClick = {
@@ -2026,11 +2039,11 @@ internal fun CourseScheduleAppMainContent(
                     )
                 }
             }
-            // 始终用 MiuixTheme 包裹保持结构恒定；ThemeController 原地切 mode，重建实例会卡一帧
+            // 始终用主题包裹保持结构恒定；深浅在原地切换即可，重建实例会卡一帧
             val effectiveForcedDark = if (captureThemeActive) captureThemeIsDark else forcedDark
             val effectiveDark = effectiveForcedDark ?: appSettingDark
-            val pageController = rememberAppThemeController(isDark = effectiveDark)
-            MiuixTheme(controller = pageController) {
+            val pageColors = rememberAppThemeColors(isDark = effectiveDark)
+            AppNexioTheme(colors = pageColors) {
                 CompositionLocalProvider(
                     LocalForcedDarkTheme provides effectiveForcedDark,
                     LocalChromeStartInset provides startInsetDp,
@@ -2151,7 +2164,7 @@ private fun PublishNativeTopBarButtons(
             offsetXDp = if (vertical) 0f else scheduleDelta * screenWidthDp,
             offsetYDp = if (vertical) scheduleDelta * screenHeightDp else 0f,
         ),
-        onSurfaceArgb = MiuixTheme.colorScheme.onSurface.toArgb().toLong() and 0xFFFFFFFFL,
+        onSurfaceArgb = NexioTheme.colorScheme.onSurface.toArgb().toLong() and 0xFFFFFFFFL,
         topDp = top.value,
         sizeDp = buttonSize.value,
         spacingDp = 8f,

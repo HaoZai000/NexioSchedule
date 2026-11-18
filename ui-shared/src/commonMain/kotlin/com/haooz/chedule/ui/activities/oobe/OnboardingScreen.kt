@@ -92,14 +92,14 @@ import com.haooz.chedule.i18n.OnboardingStr
 import com.haooz.chedule.i18n.PreferenceStr
 import com.haooz.chedule.ui.activities.PrivacyPolicyScreen
 import com.haooz.chedule.ui.activities.main.TabletTabTransitionSpec
-import com.haooz.chedule.ui.basic.LiquidGlassTextButton
+import com.haooz.nexioui.textbutton.TextButton
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.components.text.miuix.Text
-import com.haooz.chedule.ui.effects.motion.ArcBendShape
-import com.haooz.chedule.ui.effects.motion.MORPH_BACKGROUND_DIM
-import com.haooz.chedule.ui.effects.motion.arcBend
-import com.haooz.chedule.ui.effects.motion.arcBendSupported
+import com.haooz.nexioui.motion.ArcBendShape
+import com.haooz.nexioui.motion.MORPH_BACKGROUND_DIM
+import com.haooz.nexioui.motion.arcBend
+import com.haooz.nexioui.motion.arcBendSupported
 import com.haooz.chedule.ui.navigation.NAV_BG_DIM
 import com.haooz.chedule.ui.navigation.NAV_ENTER_DURATION
 import com.haooz.chedule.ui.navigation.NAV_ENTER_EASING
@@ -114,7 +114,7 @@ import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.clipDuringTransition
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
-import com.haooz.chedule.ui.utils.toShape
+import com.haooz.nexioui.window.toShape
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
@@ -129,20 +129,20 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.roundToInt
 import kotlin.math.sin
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.CheckboxDefaults
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.Switch
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
-import top.yukonga.miuix.kmp.icon.extended.ChevronForward
-import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.checkbox.Checkbox
+import com.haooz.nexioui.checkbox.CheckboxDefaults
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.switch.Switch
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.ChevronBackward
+import com.haooz.nexioui.icon.extended.ChevronForward
+import com.haooz.nexioui.switchpreference.SwitchPreference
+import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
 import kotlin.time.Duration.Companion.milliseconds
 
 /** 与设置页共用的偏好文件名。 */
@@ -1236,7 +1236,7 @@ private fun OobeActionBar(
         ) {
             if (showBack) {
                 Icon(
-                    imageVector = MiuixIcons.ChevronBackward,
+                    imageVector = NexioIcons.ChevronBackward,
                     contentDescription = OnboardingStr.back(),
                     tint = TitleColor,
                     modifier = Modifier.size(24.dp),
@@ -1255,7 +1255,7 @@ private fun OobePrimaryButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    LiquidGlassTextButton(
+    TextButton(
         text = text,
         enabled = enabled,
         backdrop = backdrop,
@@ -1458,7 +1458,7 @@ private fun TermsCard(onOpenPrivacyPolicy: () -> Unit) {
             onClick = onOpenPrivacyPolicy,
             trailing = {
                 Icon(
-                    imageVector = MiuixIcons.ChevronForward,
+                    imageVector = NexioIcons.ChevronForward,
                     contentDescription = null,
                     tint = Color(0x33000000),
                     modifier = Modifier.size(20.dp),
@@ -1485,7 +1485,7 @@ private fun TermsAgreeRow(
         Checkbox(
             state = if (agreed) ToggleableState.On else ToggleableState.Off,
             onClick = { onAgreedChange(!agreed) },
-            colors = CheckboxDefaults.checkboxColors(
+            colors = CheckboxDefaults.colors(
                 uncheckedBackgroundColor = Color(0xFFF2F2F2),
                 uncheckedForegroundColor = SummaryColor,
             ),

@@ -91,7 +91,7 @@ composeCompiler {
     stabilityConfigurationFiles.set(listOf(project.layout.projectDirectory.file("compose-stability.conf")))
 }
 
-// miuix-ui 已 fork 到 :miuix，排除传递依赖里的那份避免 R8 重复定义
+// miuix 控件已由 NexioUI 替代；排除传递依赖里的 miuix-ui，避免 R8 重复定义
 configurations.all {
     exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui-android")
     // 圆角已统一到 :softglass，squircle 只被 navigation3 传递进来
@@ -103,9 +103,7 @@ dependencies {
 
     implementation(project(":ui-shared"))
 
-    implementation("com.github.HaoZai000.softglass:softglass:0.1.2")
-
-    implementation(project(":miuix"))
+    implementation("com.github.HaoZai000.SoftGlass:softglass:0.1.3")
 
     // 小米穿戴（手表 interconnect）
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
@@ -123,18 +121,7 @@ dependencies {
     // 桌面版视口必须在页面脚本前注入
     implementation(libs.androidx.webkit)
 
-    // 每个子库都要 exclude 官方 miuix-ui：与本 fork 同包同名，Android 会 NoSuchMethodError，Native 链接期报错
-    val excludeOfficialMiuixUi: ModuleDependency.() -> Unit = {
-        exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui")
-    }
-    implementation(libs.miuix.icons) { excludeOfficialMiuixUi() }
-    implementation(libs.miuix.blur) { excludeOfficialMiuixUi() }
-    implementation(libs.miuix.navigation3) {
-        excludeOfficialMiuixUi()
-        exclude(group = "top.yukonga.miuix.kmp", module = "miuix-squircle")
-    }
-
-    // :miuix 的 androidMain 需要（返回键处理）
+    // 返回键事件（NexioUI 的 NavigationBack 依赖）
     implementation(libs.navigationevent.compose)
 
     // AGSL 运行时注解 / Monet 取色

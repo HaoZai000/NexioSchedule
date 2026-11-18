@@ -54,7 +54,7 @@ import com.haooz.chedule.data.util.parseHourMinute
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.AssistantStr
 import com.haooz.chedule.i18n.CommonStr
-import com.haooz.chedule.ui.components.CouiConicProgressRow
+import com.haooz.nexioui.progressbar.ProgressBar
 import com.haooz.chedule.ui.components.WeatherAlertBadge
 import com.haooz.chedule.weather.WeatherAlert
 import com.haooz.chedule.ui.components.text.material.Text as Text
@@ -89,10 +89,10 @@ import kotlinx.coroutines.delay
 import kotlinx.datetime.LocalTime
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ChevronForward
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.ChevronForward
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 中文现象文本 → 图标。
@@ -146,7 +146,7 @@ private fun WeatherIcon(
 /** 状态徽标：胶囊底 + 主题色文字。 */
 @Composable
 private fun StatusBadge(text: String) {
-    val accent = MiuixTheme.colorScheme.primary
+    val accent = NexioTheme.colorScheme.primary
     Box(
         modifier = Modifier
             .background(accent.copy(alpha = 0.14f), ContinuousCapsule())
@@ -154,7 +154,7 @@ private fun StatusBadge(text: String) {
     ) {
         Text(
             text = text,
-            style = MiuixTheme.textStyles.footnote1.copy(fontSize = 12.sp),
+            style = NexioTheme.textStyles.footnote1.copy(fontSize = 12.sp),
             fontWeight = FontWeight.Medium,
             color = accent,
             maxLines = 1
@@ -171,10 +171,10 @@ private val RULE_GAP = 10.dp
  */
 @Composable
 private fun CourseRuleBar(percent: Int?) {
-    CouiConicProgressRow(
+    ProgressBar(
         progress = percent?.let { it.coerceIn(0, 100) / 100f },
-        accent = MiuixTheme.colorScheme.primary,
-        foreground = MiuixTheme.colorScheme.onSurfaceVariantActions,
+        color = NexioTheme.colorScheme.primary,
+        foreground = NexioTheme.colorScheme.onSurfaceVariantActions,
         darkSurface = isAppDarkTheme(),
     )
 }
@@ -632,9 +632,9 @@ fun TodayAssistantCard(
     // 「显示天气」关闭时天气行不渲染，卡片底部留白要跟顶部对齐
     val showWeather = rememberWeatherVisible()
     // 徽标、倒计时、进度条、柔光共用同一支强调色，避免多色打架
-    val accent = MiuixTheme.colorScheme.primary
+    val accent = NexioTheme.colorScheme.primary
     // TextStyle.copy 会新建对象，按主题记一次，别每次重组都重建
-    val textStyles = MiuixTheme.textStyles
+    val textStyles = NexioTheme.textStyles
     val nameStyle = remember(textStyles) { textStyles.body1.copy(fontSize = 18.sp) }
     val metaStyle = remember(textStyles) { textStyles.body2.copy(fontSize = 13.sp) }
     val countdownStyle = remember(textStyles) { textStyles.footnote1.copy(fontSize = 13.sp) }
@@ -784,7 +784,7 @@ fun TodayAssistantCard(
                     text = name,
                     style = nameStyle,
                     fontWeight = FontWeight.SemiBold,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -812,7 +812,7 @@ fun TodayAssistantCard(
                         Text(
                             text = shownMeta,
                             style = metaStyle,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -844,7 +844,7 @@ fun TodayAssistantCard(
                             Text(
                                 text = tip,
                                 style = textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurface
+                                color = NexioTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -876,7 +876,7 @@ fun TodayAssistantCard(
                                     if (weather.notice.isNotBlank()) append(" · ${weather.notice}")
                                 },
                                 style = textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                 // weight 只吃剩余空间、不撑满，箭头才会紧跟在文字尾部
                                 modifier = Modifier.weight(1f, fill = false),
                                 maxLines = 1,
@@ -889,10 +889,10 @@ fun TodayAssistantCard(
                             if (onOpenWeather != null) {
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Icon(
-                                    imageVector = MiuixIcons.ChevronForward,
+                                    imageVector = NexioIcons.ChevronForward,
                                     contentDescription = null,
                                     modifier = Modifier.size(14.dp),
-                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                    tint = NexioTheme.colorScheme.onSurfaceVariantSummary
                                 )
                             }
                         } else if (weather.needsLocation) {
@@ -911,7 +911,7 @@ fun TodayAssistantCard(
                                             AssistantStr.locationPermissionNeeded()
                                         },
                                         style = textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                         modifier = Modifier.clickable { onRequestLocation() }
                                     )
                                 }
@@ -928,7 +928,7 @@ fun TodayAssistantCard(
                                     Text(
                                         text = AssistantStr.weatherServiceTapRetry(),
                                         style = textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                         modifier = Modifier.clickable { onRequestLocation() }
                                     )
                                 }
@@ -942,7 +942,7 @@ fun TodayAssistantCard(
                             Text(
                                 text = CommonStr.loading(),
                                 style = textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions
                             )
                         }
                     }

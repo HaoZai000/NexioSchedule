@@ -54,12 +54,12 @@ import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Edit
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Delete
+import com.haooz.nexioui.icon.extended.Edit
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.theme.NexioTheme
 
 /** 平板课程管理：左右分栏，两侧内容均复用原有页面 */
 @Composable
@@ -97,7 +97,7 @@ fun TabletCourseManagePane(
     var pendingDeleteCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
 
     // 页面底色铺到屏幕边缘（含侧栏下），内容整体避让 —— background 在 padding 之前。
-    val paneSurface = MiuixTheme.colorScheme.surface
+    val paneSurface = NexioTheme.colorScheme.surface
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -114,7 +114,7 @@ fun TabletCourseManagePane(
         // 内容自「状态栏 + 折叠标题」下方开始，与设置页 chromeTop 一致
         val chromeTop = topInset + collapsedH + 24.dp
         val maskHeight = topInset + 80.dp
-        val surfaceColor = MiuixTheme.colorScheme.surface
+        val surfaceColor = NexioTheme.colorScheme.surface
         val dividerColor =
             if (isAppDarkTheme()) Color.White.copy(alpha = 0.1f)
             else Color.Black.copy(alpha = 0.06f)
@@ -192,7 +192,7 @@ fun TabletCourseManagePane(
                         text = SwitchStr.courseManage(),
                         fontSize = 19.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface,
+                        color = NexioTheme.colorScheme.onSurface,
                     )
                 }
             }
@@ -212,7 +212,7 @@ fun TabletCourseManagePane(
                         Text(
                             text = if (names.isEmpty()) SwitchStr.noCourses() else SwitchStr.selectCourseHint(),
                             fontSize = 15.sp,
-                            color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            color = NexioTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                             textAlign = TextAlign.Center,
                         )
                     }
@@ -286,7 +286,7 @@ fun TabletCourseManagePane(
             show = menuVisible,
             items = listOf(
                 ShortcutMenuItem(
-                    icon = MiuixIcons.Edit,
+                    icon = NexioIcons.Edit,
                     label = CommonStr.edit(),
                     onClick = {
                         menuVisible = false
@@ -294,7 +294,7 @@ fun TabletCourseManagePane(
                     },
                 ),
                 ShortcutMenuItem(
-                    icon = MiuixIcons.Delete,
+                    icon = NexioIcons.Delete,
                     label = CommonStr.delete(),
                     onClick = {
                         menuVisible = false

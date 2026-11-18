@@ -46,11 +46,10 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * 玻璃控件的拖动手感常量。值统一定义在 miuix（玻璃档位），这里只做本模块别名；
- * 按钮 / 菜单 / 底栏都从 `com.haooz.chedule.ui.components` 引用，不能删。
+ * 玻璃控件的拖动手感常量。按钮 / 菜单 / 底栏都从 `com.haooz.chedule.ui.components` 引用，不能删。
  */
-internal const val GlassDragStretchRatio = top.yukonga.miuix.kmp.interactive.GlassDragStretchRatio
-internal const val GlassDragTranslationDamping = top.yukonga.miuix.kmp.interactive.GlassDragTranslationDamping
+internal const val GlassDragStretchRatio = 0.012f
+internal const val GlassDragTranslationDamping = 0.032f
 
 /**
  * 柔光玻璃的绘制能力，供 `commonMain` 的卡片调用。

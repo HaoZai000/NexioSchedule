@@ -77,28 +77,28 @@ import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.ColorPalette
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Contacts
-import top.yukonga.miuix.kmp.icon.extended.Location
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.colorpalette.ColorPalette
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Add
+import com.haooz.nexioui.icon.extended.Contacts
+import com.haooz.nexioui.icon.extended.Location
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
 import com.haooz.softglass.shape.continuousBorder
 import com.haooz.softglass.shape.continuousClip
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 @Composable
 fun CourseManageScreen(
@@ -257,13 +257,13 @@ fun CourseManageScreen(
                             text = SwitchStr.noCourses(),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            color = NexioTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = SwitchStr.noCoursesHint(),
                             fontSize = 14.sp,
-                            color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                            color = NexioTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                         )
                     }
                 } else {
@@ -404,7 +404,7 @@ fun CourseManageScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // 课程名称输入
-            NativeMiuixTextField(
+            TextField(
                 value = newCourseName,
                 onValueChange = { newCourseName = it },
                 label = SwitchStr.courseNameLabel(),
@@ -425,7 +425,7 @@ fun CourseManageScreen(
                     text = SwitchStr.courseColor(),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
                 )
                 for (row in 0 until colorRows) {
@@ -438,7 +438,7 @@ fun CourseManageScreen(
                             if (colorIndex < allColors.size) {
                                 val color = allColors[colorIndex]
                                 val isSelected = color == newCourseColor
-                                val primaryColor = MiuixTheme.colorScheme.primary
+                                val primaryColor = NexioTheme.colorScheme.primary
                                 val borderAlpha by animateFloatAsState(
                                     targetValue = if (isSelected) 1f else 0f,
                                     animationSpec = tween(durationMillis = 200),
@@ -470,8 +470,8 @@ fun CourseManageScreen(
                             } else if (colorIndex == allColors.size) {
                                 // 自定义颜色按钮
                                 val isCustomColor = newCourseColor !in allColors
-                                val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                val primaryColor = MiuixTheme.colorScheme.primary
+                                val hintColor = NexioTheme.colorScheme.onSurfaceVariantSummary
+                                val primaryColor = NexioTheme.colorScheme.primary
                                 val customBorderAlpha by animateFloatAsState(
                                     targetValue = if (isCustomColor) 1f else 0f,
                                     animationSpec = tween(durationMillis = 200),
@@ -508,7 +508,7 @@ fun CourseManageScreen(
                                     ) {
                                         if (!isCustomColor) {
                                             Icon(
-                                                imageVector = MiuixIcons.Add,
+                                                imageVector = NexioIcons.Add,
                                                 contentDescription = SwitchStr.customColor(),
                                                 modifier = Modifier.size(18.dp),
                                                 tint = hintColor
@@ -531,7 +531,7 @@ fun CourseManageScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -543,7 +543,7 @@ fun CourseManageScreen(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.ok(),
                     enabled = newCourseName.isNotBlank(),
                     onClick = {
@@ -615,7 +615,7 @@ fun CourseManageScreen(
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -623,7 +623,7 @@ fun CourseManageScreen(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.ok(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -661,7 +661,7 @@ fun CourseManageScreen(
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -669,7 +669,7 @@ fun CourseManageScreen(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.delete(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -730,7 +730,7 @@ private fun CourseMetaRow(
             lineHeight = MANAGE_CARD_BODY_LINE,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            color = MiuixTheme.colorScheme.onBackground.copy(alpha = 0.72f)
+            color = NexioTheme.colorScheme.onBackground.copy(alpha = 0.72f)
         )
     }
 }
@@ -754,7 +754,7 @@ private fun SectionChip(
             lineHeight = MANAGE_CARD_CHIP_LINE,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = MiuixTheme.colorScheme.onBackground.copy(alpha = 0.85f)
+            color = NexioTheme.colorScheme.onBackground.copy(alpha = 0.85f)
         )
     }
 }
@@ -781,7 +781,7 @@ private fun CourseManageCard(
     var cardWidth by remember { mutableFloatStateOf(0f) }
     var cardHeight by remember { mutableFloatStateOf(0f) }
     val interactionSource = remember { MutableInteractionSource() }
-    val cardBackground = MiuixTheme.colorScheme.surface
+    val cardBackground = NexioTheme.colorScheme.surface
 
     Box(
         modifier = Modifier
@@ -841,7 +841,7 @@ private fun CourseManageCard(
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    color = MiuixTheme.colorScheme.onBackground,
+                    color = NexioTheme.colorScheme.onBackground,
                     modifier = Modifier.weight(1f, fill = false)
                 )
                 if (sectionCount > 1) {
@@ -858,7 +858,7 @@ private fun CourseManageCard(
                             fontSize = 11.sp,
                             lineHeight = 14.sp,
                             maxLines = 1,
-                            color = MiuixTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                            color = NexioTheme.colorScheme.onBackground.copy(alpha = 0.75f)
                         )
                     }
                 }
@@ -868,9 +868,9 @@ private fun CourseManageCard(
             if (hasMeta) Spacer(modifier = Modifier.height(10.dp))
             if (teacher.isNotBlank()) {
                 CourseMetaRow(
-                    icon = MiuixIcons.Contacts,
+                    icon = NexioIcons.Contacts,
                     text = teacher,
-                    iconTint = MiuixTheme.colorScheme.onBackground.copy(alpha = 0.45f)
+                    iconTint = NexioTheme.colorScheme.onBackground.copy(alpha = 0.45f)
                 )
             }
             if (teacher.isNotBlank() && classroom.isNotBlank()) {
@@ -878,9 +878,9 @@ private fun CourseManageCard(
             }
             if (classroom.isNotBlank()) {
                 CourseMetaRow(
-                    icon = MiuixIcons.Location,
+                    icon = NexioIcons.Location,
                     text = classroom,
-                    iconTint = MiuixTheme.colorScheme.onBackground.copy(alpha = 0.45f)
+                    iconTint = NexioTheme.colorScheme.onBackground.copy(alpha = 0.45f)
                 )
             }
             if (hasMeta) Spacer(modifier = Modifier.height(8.dp))
@@ -902,7 +902,7 @@ private fun CourseManageCard(
                     text = SwitchStr.tapToSetTime(),
                     fontSize = MANAGE_CARD_BODY_SIZE,
                     lineHeight = MANAGE_CARD_BODY_LINE,
-                    color = MiuixTheme.colorScheme.primary
+                    color = NexioTheme.colorScheme.primary
                 )
             }
         }
@@ -929,7 +929,7 @@ private fun NewCourseCard(
         colors = CardDefaults.defaultColors(
             // 新建卡底色：莫奈取色下跟随 surfaceContainer（与课表页待放格、教务导入胶囊同一套）；
             // 非莫奈保持原硬编码（亮 #EEEEEE / 暗 #121212）
-            color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainer
+            color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainer
             else if (isAppDarkTheme()) ComposeColor(0xFF121212) else ComposeColor(0xFFEEEEEE)
         ),
         modifier = Modifier.fillMaxWidth().height(132.dp),
@@ -941,17 +941,17 @@ private fun NewCourseCard(
             verticalArrangement = Arrangement.Center
         ) {
             Icon(
-                MiuixIcons.Add,
+                NexioIcons.Add,
                 contentDescription = SwitchStr.newCourse(),
                 modifier = Modifier.size(28.dp),
-                tint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                tint = NexioTheme.colorScheme.onSurface.copy(alpha = 0.4f)
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = SwitchStr.newCourse(),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                color = NexioTheme.colorScheme.onSurface.copy(alpha = 0.4f)
             )
         }
     }

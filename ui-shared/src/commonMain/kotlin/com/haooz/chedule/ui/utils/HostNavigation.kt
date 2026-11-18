@@ -17,7 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+import com.haooz.nexioui.theme.NexioTheme
 
 /** Navigation chrome owned by a native host, scoped to one app instance. */
 class HostNavigationState {
@@ -158,15 +159,22 @@ fun BoxScope.HostedOverlay(
         content(this)
         return
     }
-    val colors = MiuixTheme.colorScheme
-    val textStyles = MiuixTheme.textStyles
+    val colors = NexioTheme.colorScheme
+    val textStyles = NexioTheme.textStyles
+    val isDark = NexioTheme.isDark
+    val isDynamicColor = NexioTheme.isDynamicColor
     val forcedDark = LocalForcedDarkTheme.current
     val entry = remember(host) { HostOverlayEntry() }
     SideEffect {
         entry.active = active
         entry.abovePopups = abovePopups
         entry.content = {
-            MiuixTheme(colors = colors, textStyles = textStyles) {
+            NexioTheme(
+                isDark = isDark,
+                colorScheme = colors,
+                textStyles = textStyles,
+                isDynamicColor = isDynamicColor,
+            ) {
                 CompositionLocalProvider(LocalForcedDarkTheme provides forcedDark) {
                     Box(Modifier.fillMaxSize(), content = content)
                 }

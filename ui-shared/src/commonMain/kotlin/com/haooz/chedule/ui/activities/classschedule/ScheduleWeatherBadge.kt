@@ -25,7 +25,7 @@ import com.haooz.chedule.ui.utils.rememberWeatherVisible
 import com.haooz.chedule.weather.WeatherStore
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 课表页顶栏左侧的天气条：图标 + 当前温度 + 最高级别预警徽标，点击进天气详情。
@@ -60,10 +60,10 @@ internal fun ScheduleWeatherBadge(modifier: Modifier = Modifier) {
         )
         Text(
             text = "${weather.temperature.toInt()}°",
-            style = MiuixTheme.textStyles.body2,
+            style = NexioTheme.textStyles.body2,
             fontSize = 17.sp,
             fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             maxLines = 1,
         )
         weather.alert?.let { alert ->

@@ -71,26 +71,26 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.todayIn
-import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownColors
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.basiccomponent.BasicComponent
+import com.haooz.nexioui.basiccomponent.BasicComponentDefaults
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.dropdown.DropdownColors
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.arrowpreference.ArrowPreference
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /** 页面度量：与设置页同一套节奏，行内边距交给组件默认值。 */
 private object Metrics {
@@ -810,7 +810,7 @@ fun BackupCenterScreen(
                                     BackupStr.noBackupRecords()
                                 },
                                 titleColor = BasicComponentDefaults.titleColor(
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                                 ),
                             )
                         } else {
@@ -934,10 +934,10 @@ private fun RecordRow(
 /** 状态标签；颜色只从主题派生，告警档用统一危险色。 */
 @Composable
 private fun StatusPill(text: String, warn: Boolean) {
-    val color = if (warn) DangerRed else MiuixTheme.colorScheme.primary
+    val color = if (warn) DangerRed else NexioTheme.colorScheme.primary
     Text(
         text = text,
-        style = MiuixTheme.textStyles.footnote1,
+        style = NexioTheme.textStyles.footnote1,
         color = color,
         maxLines = 1,
         modifier = Modifier
@@ -965,7 +965,7 @@ internal fun BackupDialog(
         onDismissRequest = onDismiss,
     ) {
         if (onDismiss == null) {
-            TextButton(
+            FlatTextButton(
                 text = confirmLabel,
                 onClick = onConfirm,
                 colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -980,12 +980,12 @@ internal fun BackupDialog(
                     .padding(top = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = onDismiss,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(
+                FlatTextButton(
                     text = confirmLabel,
                     onClick = onConfirm,
                     textColor = confirmColor,

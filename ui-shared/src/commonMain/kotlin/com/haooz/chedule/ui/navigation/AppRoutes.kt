@@ -144,18 +144,18 @@ import com.haooz.chedule.ui.activities.weather.skyPhaseOrNow
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownShadowPadding
-import com.haooz.chedule.ui.basic.LiquidGlassTextButton
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.textbutton.TextButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.basic.ShortcutMenu
 import com.haooz.chedule.ui.basic.ShortcutMenuItem
-import com.haooz.chedule.ui.components.CapsuleSegmentedControl
+import com.haooz.nexioui.segmentedcontrol.SegmentedControl
 import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.components.HorizontalPageSwitch
 import com.haooz.chedule.ui.components.rememberPageSwitchState
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.effects.motion.MORPH_BACKGROUND_SHRINK
-import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
-import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.nexioui.motion.MORPH_BACKGROUND_SHRINK
+import com.haooz.nexioui.motion.OobeCubicOutEasing
+import com.haooz.nexioui.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.AiFeaturesScreen
 import com.haooz.chedule.ui.screens.CourseEditScreen
 import com.haooz.chedule.ui.screens.McpServiceScreen
@@ -163,7 +163,8 @@ import com.haooz.chedule.ui.screens.ScheduleSettingsScreen
 import com.haooz.chedule.ui.screens.SettingsSearchHeader
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
 import com.haooz.chedule.ui.screens.rememberSettingsSearchState
-import com.haooz.chedule.ui.theme.rememberAppThemeController
+import com.haooz.chedule.ui.theme.AppNexioTheme
+import com.haooz.chedule.ui.theme.rememberAppThemeColors
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.MirroredSnapshotBackdrop
@@ -199,21 +200,23 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Edit
-import top.yukonga.miuix.kmp.icon.extended.More
-import top.yukonga.miuix.kmp.icon.extended.Ok
-import top.yukonga.miuix.kmp.icon.extended.Play
-import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Update
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
+import com.haooz.nexioui.progressindicator.CircularProgressIndicator
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Delete
+import com.haooz.nexioui.icon.extended.Edit
+import com.haooz.nexioui.icon.extended.More
+import com.haooz.nexioui.icon.extended.Ok
+import com.haooz.nexioui.icon.extended.Play
+import com.haooz.nexioui.icon.extended.Refresh
+import com.haooz.nexioui.icon.extended.Update
+import com.haooz.nexioui.topbarmaterial.LocalTopBarMaterial
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
 
 /**
  * 路由宿主的跨平台部分：路由跳转、状态接线、Updater 订阅，平台能力一律参数注入。
@@ -256,7 +259,7 @@ private fun BoxScope.BottomActionButton(
     onClick: () -> Unit,
 ) {
     val horizontalPadding = if (isTabletWidth()) 20.dp else 16.dp
-    LiquidGlassTextButton(
+    TextButton(
         text = text,
         enabled = enabled,
         backdrop = backdrop,
@@ -301,7 +304,7 @@ private fun RefreshTopBarAction(
             )
         }
     } else {
-        LiquidTopBarButton(
+        IconButton(
             onClick = onClick,
             backdrop = backdrop,
             icon = icon,
@@ -484,12 +487,12 @@ fun FeedbackRoute(router: AppRouter) {
         // 类型选择挂在标题下方：顶栏下方的兄弟层，随大标题高度变化上移
         headerOverlay = { backdrop, scrollBehavior ->
             if (state.submittedId == null) {
-                CapsuleSegmentedControl(
+                SegmentedControl(
                     options = listOf(FeedbackStr.typeBug(), FeedbackStr.typeFeature()),
                     selectedIndex = state.kind.ordinal,
                     onSelect = { i -> state.kind = if (i == 0) FeedbackKind.Bug else FeedbackKind.Feature },
                     backdrop = backdrop,
-                    scrollBehavior = scrollBehavior,
+                    surfaceAlpha = LocalTopBarMaterial.current?.alpha?.invoke() ?: 1f,
                     modifier = segmentControlModifier(),
                 )
             }
@@ -551,7 +554,7 @@ fun FeedbackRoadmapRoute(router: AppRouter) {
         title = FeedbackStr.roadmapTitle(),
         onBack = { router.popBack() },
         headerOverlay = { backdrop, scrollBehavior ->
-            CapsuleSegmentedControl(
+            SegmentedControl(
                 // 0 = 全部，1 = 新功能，2 = Bug 修复
                 options = listOf(
                     FeedbackStr.filterAll(),
@@ -571,7 +574,7 @@ fun FeedbackRoadmapRoute(router: AppRouter) {
                     }
                 },
                 backdrop = backdrop,
-                scrollBehavior = scrollBehavior,
+                surfaceAlpha = LocalTopBarMaterial.current?.alpha?.invoke() ?: 1f,
                 modifier = segmentControlModifier(),
             )
         },
@@ -619,7 +622,7 @@ fun WeatherRoute(router: AppRouter) {
     }
     val night = remember(snapshot, minuteTick) { skyPhaseOrNow(snapshot) == SkyPhase.Night }
     val recordKey = remember(snapshot, loading, night) { listOf(snapshot, loading, night) }
-    val weatherThemeController = rememberAppThemeController(isDark = night)
+    val weatherThemeColors = rememberAppThemeColors(isDark = night)
 
     // iOS 原生文档页的顶栏由 Swift 画，Compose 顶栏看不到，因此把同一动作发布给原生 chrome。
     NativeDocumentActionEffect(
@@ -634,7 +637,7 @@ fun WeatherRoute(router: AppRouter) {
 
     // 主题必须包住整个脚手架：顶栏、返回按钮、页面底色都在里面取色，
     // 只包内容层会出现「深色页配浅色顶栏」的割裂。
-    MiuixTheme(controller = weatherThemeController) {
+    AppNexioTheme(colors = weatherThemeColors) {
         CompositionLocalProvider(LocalForcedDarkTheme provides night) {
             DocumentPageScaffold(
                 title = WeatherStr.title(),
@@ -643,7 +646,7 @@ fun WeatherRoute(router: AppRouter) {
                 endAction = { backdropAlpha, shadowAlpha, backdrop ->
                     RefreshTopBarAction(
                         loading = loading,
-                        icon = MiuixIcons.Normal.Refresh,
+                        icon = NexioIcons.Normal.Refresh,
                         contentDescription = CommonStr.update(),
                         onClick = refresh,
                         backdrop = backdrop,
@@ -679,11 +682,11 @@ fun SettingsRoute(
     val isShiftMode by shiftViewModel.isShiftMode.collectAsState()
     // 设置页始终跟应用主题、不被壁纸锁深色。主题必须包住整个 DocumentPageScaffold：
     // 顶栏材质、玻璃返回按钮、页面底色都在脚手架里取色，包在内容层里会继续用外层主题。
-    val settingsThemeController =
-        rememberAppThemeController(isDark = isAppDarkTheme())
+    val settingsThemeColors =
+        rememberAppThemeColors(isDark = isAppDarkTheme())
     // 搜索框挂在 headerOverlay（页面采样层之外），否则它自己会被录进采样层，玻璃折射到自己。
     val searchState = rememberSettingsSearchState()
-    MiuixTheme(controller = settingsThemeController) {
+    AppNexioTheme(colors = settingsThemeColors) {
         CompositionLocalProvider(LocalForcedDarkTheme provides null) {
             DocumentPageScaffold(
                 title = CommonStr.settings(),
@@ -904,7 +907,7 @@ fun UpdateSettingsRoute(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MiuixTheme.colorScheme.surface)
+                .background(NexioTheme.colorScheme.surface)
                 .drawWithContent {
                     if (changelogLastRecorded[0] != changelogRecordRequest) {
                         changelogPageLayer.record { this@drawWithContent.drawContent() }
@@ -982,7 +985,7 @@ fun UpdateSettingsRoute(
                                     // 顶栏拦截盖不到：这里直接转成「退出卡片」，与点遮罩同义
                                     if (heroChrome.blocked) heroChrome.dismiss() else moreOpen = true
                                 },
-                                triggerIcon = MiuixIcons.More,
+                                triggerIcon = NexioIcons.More,
                                 triggerContentDescription = CommonStr.more(),
                                 materialAlpha = moreMaterialAlpha.floatValue,
                             ) {
@@ -1031,7 +1034,7 @@ fun UpdateSettingsRoute(
             MirroredSnapshotBackdrop(
                 snapshot = snapshot,
                 shrink = { changelogBackdropScale.value },
-                backgroundColor = MiuixTheme.colorScheme.surface,
+                backgroundColor = NexioTheme.colorScheme.surface,
                 blurRadiusPx = { changelogBackdropBlur.value * routeDensity.density },
             )
         }
@@ -1185,7 +1188,7 @@ fun HolidaySettingsRoute(
         title = ChromeStr.holidaysTitle(),
         onBack = { router.popBack() },
         headerOverlay = { backdrop, scrollBehavior ->
-            CapsuleSegmentedControl(
+            SegmentedControl(
                 options = listOf(
                     HolidayStr.tabAnnual(),
                     HolidayStr.tabOther(),
@@ -1196,14 +1199,14 @@ fun HolidaySettingsRoute(
                 freezeKey = pillFreezeKey,
                 alignKey = pillAlignKey,
                 backdrop = backdrop,
-                scrollBehavior = scrollBehavior,
+                surfaceAlpha = LocalTopBarMaterial.current?.alpha?.invoke() ?: 1f,
                 modifier = segmentControlModifier(),
             )
         },
         endAction = { backdropAlpha, shadowAlpha, backdrop ->
             RefreshTopBarAction(
                 loading = loading,
-                icon = MiuixIcons.Normal.Update,
+                icon = NexioIcons.Normal.Update,
                 contentDescription = CommonStr.update(),
                 onClick = { requestYear(year) },
                 backdrop = backdrop,
@@ -1308,10 +1311,10 @@ fun WidgetIntroRoute(
                             },
                             fontSize = 14.sp,
                             lineHeight = 24.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                         Spacer(modifier = Modifier.height(20.dp))
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.done(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1468,10 +1471,10 @@ fun WebDavSettingsRoute(
         title = ChromeStr.webdavBackup(),
         onBack = { router.popBack() },
         endAction = { backdropAlpha, shadowAlpha, backdrop ->
-            LiquidTopBarButton(
+            IconButton(
                 onClick = { onTestConnection() },
                 backdrop = backdrop,
-                icon = if (connected) MiuixIcons.Ok else MiuixIcons.Play,
+                icon = if (connected) NexioIcons.Ok else NexioIcons.Play,
                 contentDescription = if (connected) ChromeStr.connected() else ChromeStr.testConnection(),
                 backdropAlpha = backdropAlpha,
                 shadowAlpha = shadowAlpha,
@@ -1553,7 +1556,7 @@ fun BackupAndMigrationRoute(
         onBack = { router.popBack() },
         headerOverlay = if (switchable) {
             { backdrop, scrollBehavior ->
-                CapsuleSegmentedControl(
+                SegmentedControl(
                     options = switchableModes.map { modeTabLabel(it) },
                     selectedIndex = selectedTab.coerceIn(0, switchableModes.lastIndex),
                     onSelect = goToPage,
@@ -1561,7 +1564,7 @@ fun BackupAndMigrationRoute(
                     freezeKey = pillFreezeKey,
                     alignKey = pillAlignKey,
                     backdrop = backdrop,
-                    scrollBehavior = scrollBehavior,
+                    surfaceAlpha = LocalTopBarMaterial.current?.alpha?.invoke() ?: 1f,
                     modifier = segmentControlModifier(),
                 )
             }
@@ -1699,7 +1702,7 @@ fun CourseTimeSettingsRoute(
                         BlurEffect(null, blurRadiusPx, blurRadiusPx, TileMode.Clamp)
                     } else null
                 }
-                .background(MiuixTheme.colorScheme.surface)
+                .background(NexioTheme.colorScheme.surface)
                 .drawWithContent {
                     // 只在被请求时录一帧整页（形变背景用）；快照覆盖期间实时页面整块不画
                     if (pageLastRecorded[0] != pageRecordRequest) {
@@ -1765,7 +1768,7 @@ fun CourseTimeSettingsRoute(
                 snapshot = background,
                 shrink = { editBackgroundScale.value },
                 modifier = Modifier.fillMaxSize(),
-                backgroundColor = MiuixTheme.colorScheme.surface,
+                backgroundColor = NexioTheme.colorScheme.surface,
                 blurRadiusPx = { managePageBlurRadius.value * density.density },
             )
         }
@@ -1980,7 +1983,7 @@ fun CourseManageRoute(
                     scaleX = shortcutMenuPageScale.value
                     scaleY = shortcutMenuPageScale.value
                 }
-                .background(MiuixTheme.colorScheme.surface)
+                .background(NexioTheme.colorScheme.surface)
                 .drawWithContent {
                     // 只在被请求时录一帧整页（形变背景用）；快照覆盖期间实时页面整块不画
                     if (pageLastRecorded[0] != pageRecordRequest) {
@@ -2084,7 +2087,7 @@ fun CourseManageRoute(
                 snapshot = background,
                 shrink = { editBackgroundScale.value },
                 modifier = Modifier.fillMaxSize(),
-                backgroundColor = MiuixTheme.colorScheme.surface,
+                backgroundColor = NexioTheme.colorScheme.surface,
                 blurRadiusPx = { managePageBlurRadius.value * density.density },
             )
         }
@@ -2230,7 +2233,7 @@ fun CourseManageRoute(
             show = showShortcutMenu,
             items = listOf(
                 ShortcutMenuItem(
-                    icon = MiuixIcons.Edit,
+                    icon = NexioIcons.Edit,
                     label = CommonStr.edit(),
                     onClick = {
                         if (shortcutMenuCourses.isNotEmpty()) {
@@ -2244,7 +2247,7 @@ fun CourseManageRoute(
                     }
                 ),
                 ShortcutMenuItem(
-                    icon = MiuixIcons.Delete,
+                    icon = NexioIcons.Delete,
                     label = CommonStr.delete(),
                     onClick = {
                         pendingDeleteCourses = shortcutMenuCourses.toList()

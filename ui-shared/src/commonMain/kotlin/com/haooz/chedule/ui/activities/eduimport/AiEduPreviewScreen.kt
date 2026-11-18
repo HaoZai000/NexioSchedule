@@ -54,7 +54,7 @@ import com.haooz.chedule.ui.activities.applyPresetTimeSlots
 import com.haooz.chedule.ui.ai.AiEduPreviewHolder
 import com.haooz.chedule.ui.ai.EduAgentDraft
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.screens.AddCourseDialog
@@ -71,27 +71,27 @@ import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.continuousBackground
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.basic.ArrowRight
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 @Composable
 fun AiEduPreviewScreen(
@@ -202,8 +202,8 @@ fun AiEduPreviewScreen(
                 ) {
                     Text(
                         text = ImportStr.aiEduPreviewEmpty(),
-                        style = MiuixTheme.textStyles.body1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        style = NexioTheme.textStyles.body1,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions
                     )
                 }
             } else {
@@ -213,23 +213,23 @@ fun AiEduPreviewScreen(
                 ) {
                     Text(
                         text = ImportStr.identifiedCoursesN(courses.size),
-                        style = MiuixTheme.textStyles.title2,
-                        color = MiuixTheme.colorScheme.primary,
+                        style = NexioTheme.textStyles.title2,
+                        color = NexioTheme.colorScheme.primary,
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 12.dp)
                     )
                     if (mergedDuplicates > 0) {
                         Text(
                             text = ImportStr.aiEduPreviewMergedN(mergedDuplicates),
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            style = NexioTheme.textStyles.body2,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp).padding(bottom = 8.dp)
                         )
                     }
                     if (skippedNames.isNotEmpty()) {
                         Text(
                             text = ImportStr.aiEduPreviewSkippedN(skippedNames.size),
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.error,
+                            style = NexioTheme.textStyles.body2,
+                            color = NexioTheme.colorScheme.error,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp).padding(bottom = 8.dp)
                         )
                     }
@@ -247,7 +247,7 @@ fun AiEduPreviewScreen(
                         }
                     }
                     CardExpand(visible = courses.isNotEmpty()) {
-                        TextButton(
+                        FlatTextButton(
                             text = ImportStr.confirmImportCard(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -297,7 +297,7 @@ fun AiEduPreviewScreen(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // 学校名称：脚本按它归类上传，留空则不允许导入
-            NativeMiuixTextField(
+            TextField(
                 value = schoolInput,
                 onValueChange = { if (it.length <= AiEduScriptUploader.MAX_SCHOOL_LENGTH) schoolInput = it },
                 minLines = 1,
@@ -307,8 +307,8 @@ fun AiEduPreviewScreen(
             )
             Text(
                 text = ImportStr.aiEduSchoolHint(),
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                style = NexioTheme.textStyles.body2,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                 modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 8.dp)
             )
             // 目标课表：整表替换，默认当前课表
@@ -346,7 +346,7 @@ fun AiEduPreviewScreen(
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -354,7 +354,7 @@ fun AiEduPreviewScreen(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = ImportStr.confirmImport(),
                     enabled = schoolInput.isNotBlank() && targetSchedule != null,
                     onClick = {
@@ -430,9 +430,9 @@ private fun CoursePreviewRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = course.name,
-                    style = MiuixTheme.textStyles.body1,
+                    style = NexioTheme.textStyles.body1,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 val summaryLine1 = buildString {
                     append(dayText)
@@ -443,20 +443,20 @@ private fun CoursePreviewRow(
                 }
                 Text(
                     text = summaryLine1,
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    style = NexioTheme.textStyles.body2,
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                 )
                 Text(
                     text = weekText,
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    style = NexioTheme.textStyles.body2,
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                 )
             }
             Icon(
-                imageVector = MiuixIcons.Basic.ArrowRight,
+                imageVector = NexioIcons.Basic.ArrowRight,
                 contentDescription = CommonStr.edit(),
                 modifier = Modifier.size(16.dp),
-                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                tint = NexioTheme.colorScheme.onSurfaceVariantActions
             )
         }
     }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -115,20 +116,20 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.isoDayNumber
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.LocalOverScrollState
-import top.yukonga.miuix.kmp.utils.OverScrollState
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.numberpicker.NumberPicker
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.LocalOverScrollState
+import com.haooz.nexioui.overscroll.OverScrollState
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 
 /**
@@ -322,9 +323,9 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = course.name,
-                style = MiuixTheme.textStyles.body1.copy(fontSize = 17.sp),
+                style = NexioTheme.textStyles.body1.copy(fontSize = 17.sp),
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface
+                color = NexioTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -333,8 +334,8 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
                     if (showClassroom && course.classroom.isNotEmpty()) append(" | ").append(course.classroom)
                     if (showTeacher && course.teacher.isNotEmpty()) append(" | ").append(course.teacher)
                 },
-                style = MiuixTheme.textStyles.body2.copy(fontSize = 14.sp),
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                style = NexioTheme.textStyles.body2.copy(fontSize = 14.sp),
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary
                 )
             // 备注只在今日页显示：单周备注优先，没有就回退到「所有周」那条
             val note = if (week > 0) course.noteForWeek(week) else course.note
@@ -342,8 +343,8 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = note,
-                    style = MiuixTheme.textStyles.body2.copy(fontSize = 13.sp),
-                    color = MiuixTheme.colorScheme.primary,
+                    style = NexioTheme.textStyles.body2.copy(fontSize = 13.sp),
+                    color = NexioTheme.colorScheme.primary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -352,17 +353,17 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = timeRange,
-                style = MiuixTheme.textStyles.footnote1.copy(fontSize = 15.sp),
-                color = MiuixTheme.colorScheme.primary,
+                style = NexioTheme.textStyles.footnote1.copy(fontSize = 15.sp),
+                color = NexioTheme.colorScheme.primary,
                 textAlign = TextAlign.End,
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = statusText,
-                style = MiuixTheme.textStyles.footnote2.copy(fontSize = 14.sp),
+                style = NexioTheme.textStyles.footnote2.copy(fontSize = 14.sp),
                 color = when (courseStatus) {
-                    "进行中" -> MiuixTheme.colorScheme.primary
-                    else -> MiuixTheme.colorScheme.onSurfaceVariantActions
+                    "进行中" -> NexioTheme.colorScheme.primary
+                    else -> NexioTheme.colorScheme.onSurfaceVariantActions
                 },
                 textAlign = TextAlign.End,
             )
@@ -401,6 +402,8 @@ fun TodayScreen(
     softGlassSurface: SoftGlassSurface? = null,
     /** 主 tab pager 的位置信号：切今日/课表时内容整体平移，必须让玻璃重绘 */
     tabRedraw: () -> Unit = {},
+    /** 跳转日期弹窗的可见性上报：宿主据此准备「含底栏」的采样层，弹窗才采得到底栏 */
+    onDatePickerShowChanged: (Boolean) -> Unit = {},
     // true：壁纸由主 pager 后共享层绘制，本页透明叠上，切 tab 时不随页平移
     useSharedWallpaper: Boolean = false,
     liquidGlassBackdrop: GlassBackdrop? = null,
@@ -465,6 +468,9 @@ fun TodayScreen(
     val scope = rememberCoroutineScope()
     var pendingDatePage by remember { mutableIntStateOf(-1) }
     var showDatePicker by remember { mutableStateOf(false) }
+    LaunchedEffect(showDatePicker) { onDatePickerShowChanged(showDatePicker) }
+    // 页面被销毁时（切排班模式等）要把上报复位，否则宿主的底栏采样层会一直挂着
+    DisposableEffect(Unit) { onDispose { onDatePickerShowChanged(false) } }
     // 点课程先出详情弹窗（与课程表页一致），弹窗里点卡片才进全屏详情
     var detailSheetCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
     var detailSheetWeek by remember { mutableIntStateOf(0) }
@@ -617,7 +623,7 @@ fun TodayScreen(
         containerColor = if (useSharedWallpaper) {
             Color.Transparent
         } else {
-            MiuixTheme.colorScheme.surface
+            NexioTheme.colorScheme.surface
         }
     ) { paddingValues ->
         Box(
@@ -862,13 +868,13 @@ fun TodayScreen(
                                     text = dateText,
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = MiuixTheme.colorScheme.onSurface,
+                                    color = NexioTheme.colorScheme.onSurface,
                                 )
                                 if (isPageToday && holidayCountdownText != null) {
                                     Text(
                                         text = holidayCountdownText,
                                         fontSize = 14.sp,
-                                        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                        color = NexioTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                                         modifier = Modifier.padding(top = 2.dp),
                                     )
                                 }
@@ -961,13 +967,13 @@ fun TodayScreen(
                                     text = dateText,
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = MiuixTheme.colorScheme.onSurface,
+                                    color = NexioTheme.colorScheme.onSurface,
                                 )
                                 if (isPageToday && holidayCountdownText != null) {
                                     Text(
                                         text = holidayCountdownText,
                                         fontSize = 14.sp,
-                                        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                        color = NexioTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                                         modifier = Modifier.padding(top = 2.dp),
                                     )
                                 }
@@ -1060,7 +1066,7 @@ fun TodayScreen(
                         visibleItemCount = 3,
                         itemHeight = 60.dp,
                         label = { TodayStr.yearN(it) },
-                        textStyle = MiuixTheme.textStyles.title2,
+                        textStyle = NexioTheme.textStyles.title2,
                         modifier = Modifier.weight(1f)
                     )
                     NumberPicker(
@@ -1071,7 +1077,7 @@ fun TodayScreen(
                         itemHeight = 60.dp,
                         label = { TodayStr.monthN(it + 1) },
                         wrapAround = true,
-                        textStyle = MiuixTheme.textStyles.title2,
+                        textStyle = NexioTheme.textStyles.title2,
                         modifier = Modifier.weight(1f)
                     )
                     val maxDay = try {
@@ -1089,7 +1095,7 @@ fun TodayScreen(
                         itemHeight = 60.dp,
                         label = { CommonStr.dateN(it) },
                         wrapAround = true,
-                        textStyle = MiuixTheme.textStyles.title2,
+                        textStyle = NexioTheme.textStyles.title2,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -1097,7 +1103,7 @@ fun TodayScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    TextButton(
+                    FlatTextButton(
                         text = CommonStr.cancel(),
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1105,7 +1111,7 @@ fun TodayScreen(
                         },
                         modifier = Modifier.weight(1f)
                     )
-                    TextButton(
+                    FlatTextButton(
                         text = CommonStr.ok(),
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1405,9 +1411,9 @@ private fun QuoteCard(
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Text(
                 text = quote,
-                style = MiuixTheme.textStyles.body1.copy(fontSize = 18.sp),
+                style = NexioTheme.textStyles.body1.copy(fontSize = 18.sp),
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
             )
         }
     }
@@ -1422,7 +1428,7 @@ private fun CourseSectionTitle(
     surfaceOpacity: Float,
     modifier: Modifier = Modifier,
     style: TextStyle =
-        MiuixTheme.textStyles.subtitle.copy(fontWeight = FontWeight.Medium),
+        NexioTheme.textStyles.subtitle.copy(fontWeight = FontWeight.Medium),
     textAlign: TextAlign? = null,
 ) {
     val isDark = isAppDarkTheme()
@@ -1680,7 +1686,7 @@ private fun LazyListScope.addCourseSections(
                         else -> TodayStr.noCourseOtherDay()
                     },
                     surfaceOpacity = surfaceOpacity,
-                    style = MiuixTheme.textStyles.body1.copy(
+                    style = NexioTheme.textStyles.body1.copy(
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                     ),
@@ -1724,7 +1730,7 @@ private fun CourseItemWithClick(
             //   miuix `Card()`，卡片色正是 surfaceContainer（Card.kt defaultColors）。内置方案下
             //   两者恰好相等（#FFFFFF / #242424），莫奈下才分家：background 取 tone 98/6、
             //   surfaceContainer 取 tone 94/12，差 4 个明度阶，写错会偏色。
-            .then(if (hasGlass) Modifier else Modifier.background(MiuixTheme.colorScheme.surfaceContainer))
+            .then(if (hasGlass) Modifier else Modifier.background(NexioTheme.colorScheme.surfaceContainer))
             .clickable {
                 openTodayCourse(course, pageWeek, onCourseClick)
             }

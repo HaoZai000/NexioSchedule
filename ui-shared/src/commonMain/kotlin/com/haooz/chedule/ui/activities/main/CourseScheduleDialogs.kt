@@ -25,10 +25,10 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.softglass.backdrop.GlassBackdrop
-import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.checkbox.Checkbox
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 课表页的确认/选择类弹窗：删除课程、粘贴范围、调课冲突。
@@ -74,13 +74,13 @@ internal fun DeleteWeekCourseDialog(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = ChromeStr.deleteAllWeeksLabel(),
-                        style = MiuixTheme.textStyles.body1,
-                        color = MiuixTheme.colorScheme.onSurface
+                        style = NexioTheme.textStyles.body1,
+                        color = NexioTheme.colorScheme.onSurface
                     )
                     Text(
                         text = if (deleteAllWeeks) ChromeStr.deleteAllWeeksDesc() else ChromeStr.deleteOnlyThisWeekDesc(week),
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        style = NexioTheme.textStyles.body2,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions
                     )
                 }
             }
@@ -90,7 +90,7 @@ internal fun DeleteWeekCourseDialog(
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -98,7 +98,7 @@ internal fun DeleteWeekCourseDialog(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.delete(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -138,7 +138,7 @@ internal fun PasteRangeDialog(
                 .padding(top = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            TextButton(
+            FlatTextButton(
                 text = ChromeStr.allWeeks(),
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -146,9 +146,9 @@ internal fun PasteRangeDialog(
                 },
                 modifier = Modifier.weight(1f)
             )
-            TextButton(
+            FlatTextButton(
                 text = ChromeStr.currentWeekOption(),
-                textColor = MiuixTheme.colorScheme.primary,
+                textColor = NexioTheme.colorScheme.primary,
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     onPaste(false)
@@ -193,7 +193,7 @@ internal fun RescheduleConflictDialog(
                 .padding(top = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            TextButton(
+            FlatTextButton(
                 text = ChromeStr.overwrite(),
                 textColor = Color(0xFFFF9800),
                 modifier = Modifier.fillMaxWidth(),
@@ -202,16 +202,16 @@ internal fun RescheduleConflictDialog(
                     onChooseOverwrite()
                 },
             )
-            TextButton(
+            FlatTextButton(
                 text = ChromeStr.swap(),
-                textColor = MiuixTheme.colorScheme.primary,
+                textColor = NexioTheme.colorScheme.primary,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     onChooseSwap()
                 },
             )
-            TextButton(
+            FlatTextButton(
                 text = CommonStr.cancel(),
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
@@ -276,7 +276,7 @@ internal fun RescheduleConflictConfirmDialog(
                 .padding(top = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            TextButton(
+            FlatTextButton(
                 text = CommonStr.cancel(),
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -284,12 +284,12 @@ internal fun RescheduleConflictConfirmDialog(
                     onCancel()
                 },
             )
-            TextButton(
+            FlatTextButton(
                 text = CommonStr.ok(),
                 textColor = if (resolution == ConflictResolution.OVERWRITE) {
                     Color(0xFFFF9800)
                 } else {
-                    MiuixTheme.colorScheme.primary
+                    NexioTheme.colorScheme.primary
                 },
                 modifier = Modifier.weight(1f),
                 onClick = {

@@ -60,10 +60,10 @@ import com.haooz.chedule.ui.theme.scheduleAccentColor
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /**
  * 课表页的呈现方式。
@@ -429,9 +429,9 @@ internal fun TimelineAxis(
     // 横线口径与周视图网格线一致（深色比亮色略白一档）。
     // 注意：周视图的网格线已全部统一为这一档；时间轴视图时间列右缘仍保留略深的
     // rail 作为唯一主轴（这个视图没有周视图那样的竖向日分界线），不要反向同步过去。
-    val hourLineColor = MiuixTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.09f else 0.05f)
-    val railColor = MiuixTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.16f else 0.12f)
-    val tickColor = MiuixTheme.colorScheme.onSurfaceVariantActions
+    val hourLineColor = NexioTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.09f else 0.05f)
+    val railColor = NexioTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.16f else 0.12f)
+    val tickColor = NexioTheme.colorScheme.onSurfaceVariantActions
     val sectionWidthPx = with(density) { sectionColumnWidth.toPx() }
     val gapPx = with(density) { 2.dp.toPx() }
     val hairlinePx = with(density) { 1.dp.toPx() }.coerceAtLeast(1f)

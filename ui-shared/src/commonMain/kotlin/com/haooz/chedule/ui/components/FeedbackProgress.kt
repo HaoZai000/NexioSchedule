@@ -25,7 +25,7 @@ import com.haooz.chedule.data.platform.FeedbackKind
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 一条反馈走过的阶段。
@@ -100,14 +100,14 @@ fun FeedbackStageBar(
     kind: FeedbackKind,
     modifier: Modifier = Modifier,
 ) {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     val stage = FeedbackStage.of(status)
     val label = if (status == "pending") FeedbackStr.stagePending() else stage.label(kind)
 
     if (stage == FeedbackStage.Closed) {
         Text(
             text = FeedbackStr.stageClosedWithReason(FeedbackStr.statusLabel(status, kind)),
-            style = MiuixTheme.textStyles.body2,
+            style = NexioTheme.textStyles.body2,
             color = theme.onSurfaceVariantSummary,
             modifier = modifier.fillMaxWidth(),
         )
@@ -138,7 +138,7 @@ fun FeedbackStageBar(
         }
         Text(
             text = label,
-            style = MiuixTheme.textStyles.body2,
+            style = NexioTheme.textStyles.body2,
             color = activeColor,
             modifier = Modifier.padding(start = 10.dp),
             maxLines = 1,
@@ -155,8 +155,8 @@ fun FeedbackKindLabel(
     Text(
         text = if (kind == FeedbackKind.Bug) FeedbackStr.typeBug() else FeedbackStr.typeFeature(),
         modifier = modifier,
-        style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        style = NexioTheme.textStyles.body2,
+        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
         maxLines = 1,
     )
 }
@@ -171,7 +171,7 @@ fun FeedbackReplyBlock(
     modifier: Modifier = Modifier,
 ) {
     if (reply.isBlank()) return
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -181,14 +181,14 @@ fun FeedbackReplyBlock(
     ) {
         Text(
             text = FeedbackStr.officialReply(),
-            style = MiuixTheme.textStyles.footnote1,
+            style = NexioTheme.textStyles.footnote1,
             fontWeight = FontWeight.Medium,
             color = theme.primary,
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = reply,
-            style = MiuixTheme.textStyles.body2,
+            style = NexioTheme.textStyles.body2,
             color = theme.onSurfaceVariantActions,
         )
     }

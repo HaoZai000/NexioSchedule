@@ -31,7 +31,7 @@ import kotlin.concurrent.Volatile
 import kotlin.math.abs
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
 
 /**
  * 课表主界面用到的运行期数据模型、位图工具与小几何工具。

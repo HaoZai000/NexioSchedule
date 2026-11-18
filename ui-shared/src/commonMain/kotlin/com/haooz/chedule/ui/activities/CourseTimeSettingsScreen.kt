@@ -55,26 +55,26 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.numberpicker.NumberPicker
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.arrowpreference.ArrowPreference
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 data class TimeConfigCardBounds(
     val left: Float,
@@ -112,7 +112,7 @@ fun CourseTimeSettingsScreen(
     DisposableEffect(graphicsContext) {
         onDispose { routineLayers.values.forEach(graphicsContext::releaseGraphicsLayer) }
     }
-    val routineBackground = MiuixTheme.colorScheme.surfaceContainer
+    val routineBackground = NexioTheme.colorScheme.surfaceContainer
     // 液态玻璃效果的透明下拉颜色（与项目其他页面保持一致）
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
         containerColor = Color.Transparent,
@@ -133,7 +133,7 @@ fun CourseTimeSettingsScreen(
         if (refreshTrigger > 0) refreshList()
     }
 
-    val backgroundColor = MiuixTheme.colorScheme.surface
+    val backgroundColor = NexioTheme.colorScheme.surface
     val isTablet = isTabletWidth()
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
@@ -215,7 +215,7 @@ fun CourseTimeSettingsScreen(
                                                             ContinuousRoundedRectangle(6.dp)
                                                         )
                                                         .background(
-                                                            MiuixTheme.colorScheme.primary
+                                                            NexioTheme.colorScheme.primary
                                                                 .copy(alpha = 0.15f)
                                                         )
                                                         .padding(
@@ -227,7 +227,7 @@ fun CourseTimeSettingsScreen(
                                                         TimeCfgStr.activeNow(),
                                                         fontSize = 12.sp,
                                                         fontWeight = FontWeight.Medium,
-                                                        color = MiuixTheme.colorScheme.primary,
+                                                        color = NexioTheme.colorScheme.primary,
                                                         textAlign = TextAlign.End,
                                                     )
                                                 }
@@ -339,7 +339,7 @@ fun CourseTimeSettingsScreen(
         onDismissRequest = { showAddRoutine = false }
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            NativeMiuixTextField(
+            TextField(
                 value = newRoutineName,
                 onValueChange = { newRoutineName = it },
                 label = TimeCfgStr.routineNameLabel(),
@@ -363,7 +363,7 @@ fun CourseTimeSettingsScreen(
                     itemHeight = 60.dp,
                     label = { TimeCfgStr.monthN(it) },
                     wrapAround = true,
-                    textStyle = MiuixTheme.textStyles.title2,
+                    textStyle = NexioTheme.textStyles.title2,
                     modifier = Modifier.weight(1f)
                 )
                 NumberPicker(
@@ -374,7 +374,7 @@ fun CourseTimeSettingsScreen(
                     visibleItemCount = 3,
                     itemHeight = 60.dp,
                     label = { CommonStr.dateN(it) },
-                    textStyle = MiuixTheme.textStyles.title2,
+                    textStyle = NexioTheme.textStyles.title2,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -382,7 +382,7 @@ fun CourseTimeSettingsScreen(
             Text(
                 TimeCfgStr.effectiveFromN(newRoutineMonth, newRoutineDay),
                 fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -391,18 +391,18 @@ fun CourseTimeSettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = { showAddRoutine = false },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.add(),
                     onClick = {
                         // 同一天只能有一套作息，否则到点切换的结果取决于列表顺序
                         if (config.isRoutineDateTaken(newRoutineMonth, newRoutineDay)) {
                             showToast(TimeCfgStr.routineDateTaken())
-                            return@TextButton
+                            return@FlatTextButton
                         }
                         val name = newRoutineName.trim().ifEmpty { TimeCfgStr.defaultRoutineName() }
                         val (updated, _) = config.withRoutineAdded(
@@ -438,7 +438,7 @@ fun CourseTimeSettingsScreen(
                     Text(
                         TimeCfgStr.noScheduleToCopy(),
                         fontSize = 14.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         modifier = Modifier.padding(16.dp)
                     )
                 }
@@ -486,7 +486,7 @@ fun CourseTimeSettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -495,7 +495,7 @@ fun CourseTimeSettingsScreen(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = TimeCfgStr.confirmCopy(),
                     enabled = copyCandidate != null,
                     onClick = {

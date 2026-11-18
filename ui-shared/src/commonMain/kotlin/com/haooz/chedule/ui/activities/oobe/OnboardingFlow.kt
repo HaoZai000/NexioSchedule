@@ -54,25 +54,26 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.i18n.LanguagePref
-import com.haooz.chedule.ui.effects.background.BgEffectConfig
-import com.haooz.chedule.ui.effects.motion.MORPH_BACKGROUND_SHRINK
-import com.haooz.chedule.ui.effects.motion.MorphTransition
-import com.haooz.chedule.ui.effects.motion.OobeHomeSpringEasing
-import com.haooz.chedule.ui.effects.motion.OobeSinOutEasing
-import com.haooz.chedule.ui.effects.motion.rememberMorphTransition
-import com.haooz.chedule.ui.effects.ripple.WaterRippleOverlay
-import com.haooz.chedule.ui.effects.ripple.supportsWaterRipple
-import com.haooz.chedule.ui.theme.rememberAppThemeController
+import com.haooz.nexioui.background.BgEffectConfig
+import com.haooz.nexioui.motion.MORPH_BACKGROUND_SHRINK
+import com.haooz.nexioui.motion.MorphTransition
+import com.haooz.nexioui.motion.OobeHomeSpringEasing
+import com.haooz.nexioui.motion.OobeSinOutEasing
+import com.haooz.nexioui.motion.rememberMorphTransition
+import com.haooz.nexioui.ripple.WaterRippleOverlay
+import com.haooz.nexioui.ripple.supportsWaterRipple
+import com.haooz.chedule.ui.theme.AppNexioTheme
+import com.haooz.chedule.ui.theme.rememberAppThemeColors
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
-import com.haooz.chedule.ui.utils.toShape
+import com.haooz.nexioui.window.toShape
 import com.haooz.softglass.platform.isRenderEffectSupported
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.min
 import kotlin.math.sqrt
 
@@ -153,10 +154,10 @@ fun OnboardingFlow(
     onFinishStart: () -> Unit = {},
 ) {
     // 引导固定浅色，不跟随应用/系统深色模式
-    val lightController = rememberAppThemeController(isDark = false, monetEnabled = false)
+    val lightColors = rememberAppThemeColors(isDark = false, monetEnabled = false)
     // 玻璃按钮等组件读 LocalForcedDarkTheme：一起锁成浅色，避免深色偏好下变黑底
     CompositionLocalProvider(LocalForcedDarkTheme provides false) {
-        MiuixTheme(controller = lightController) {
+        AppNexioTheme(colors = lightColors) {
             OnboardingFlowContent(onFinish, onReachedFinishPage, mainContentLoaded, onFinishStart)
         }
     }
@@ -531,6 +532,7 @@ private fun PageMorphLayer(
             }
         },
         autoStart = true,
+        predictiveBackEnabled = { PredictiveBackSettings.enabled },
     )
 
     // 进度推给背景层；同时在收起末段触发一次过冲（snapshotFlow 订阅，不引起重组）

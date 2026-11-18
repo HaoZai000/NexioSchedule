@@ -51,10 +51,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.holiday.HolidayEntry
@@ -70,11 +67,12 @@ import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.HolidayStr
 import com.haooz.chedule.i18n.orDefaultName
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
-import com.haooz.chedule.ui.components.CardExpand
-import com.haooz.chedule.ui.components.DateRangeCalendar
-import com.haooz.chedule.ui.components.DualDateCalendar
+import com.haooz.nexioui.cardexpand.CardExpand
+import com.haooz.nexioui.daterangecalendar.CalendarStrings
+import com.haooz.nexioui.daterangecalendar.DateRangeCalendar
+import com.haooz.nexioui.daterangecalendar.DualDateCalendar
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.haooz.softglass.backdrop.GlassBackdrop
@@ -87,46 +85,44 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.todayIn
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.PopupPositionProvider
-import top.yukonga.miuix.kmp.basic.PopupPositionResult
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Ok
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.layout.liquidDropdownPositionProvider
-import top.yukonga.miuix.kmp.overlay.BackdropHolder
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
-import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
-import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
+import com.haooz.nexioui.button.Button
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.numberpicker.NumberPicker
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.icon.extended.Delete
+import com.haooz.nexioui.icon.extended.Info
+import com.haooz.nexioui.icon.extended.Ok
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.blurbottomsheet.BackdropHolder
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
+import com.haooz.nexioui.blurbottomsheet.LocalBlurBottomSheetContentExpanded
+import com.haooz.nexioui.blurbottomsheet.LocalSheetContentBackdrop
+import com.haooz.nexioui.blurbottomsheet.LocalSheetTopBarMaterial
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.overlaypopup.OverlayPopup
+import com.haooz.nexioui.overlaypopup.PopupAlignment
+import com.haooz.nexioui.overlaypopup.PopupColumn
+import com.haooz.nexioui.arrowpreference.ArrowPreference
+import com.haooz.nexioui.switchpreference.SwitchPreference
 import com.haooz.softglass.shape.continuousClip
 import com.haooz.chedule.ui.components.sheetContentBottomInset
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 // commonMain 没有 JVM 的 String.format（原来是 "%04d-%02d-%02d".format(...)），改用 padStart 手写零填充日期
 private fun isoDate(year: Int, month: Int, day: Int): String =
@@ -754,7 +750,7 @@ fun HolidaySettingsScreen(
                 .padding(top = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            TextButton(
+            FlatTextButton(
                 CommonStr.cancel(),
                 {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -762,7 +758,7 @@ fun HolidaySettingsScreen(
                 },
                 modifier = Modifier.weight(1f),
             )
-            TextButton(
+            FlatTextButton(
                 CommonStr.delete(),
                 { deleteEntry() },
                 textColor = Color(0xFFF44336),
@@ -857,12 +853,12 @@ fun HolidaySettingsScreen(
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            TextButton(
+            FlatTextButton(
                 CommonStr.cancel(),
                 { showTeachingWeekDeleteConfirm = false },
                 modifier = Modifier.weight(1f),
             )
-            TextButton(
+            FlatTextButton(
                 CommonStr.delete(),
                 { deleteTeachingWeekRule() },
                 textColor = Color(0xFFF44336),
@@ -960,15 +956,15 @@ private fun TeachingWeekRuleEditDialog(
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val isTablet = isTabletWidth()
-    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val isDark = NexioTheme.colorScheme.background.luminance() < 0.5f
     val startAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
-        LiquidTopBarButton(
+        IconButton(
             onClick = {
                 onDismiss()
             },
             backdrop = LocalSheetContentBackdrop.current!!,
-            icon = MiuixIcons.Normal.Close,
+            icon = NexioIcons.Normal.Close,
             contentDescription = CommonStr.cancel(),
             modifier = Modifier.padding(start = if (isTablet) 16.dp else 18.dp),
             iconSize = 24.dp,
@@ -978,19 +974,19 @@ private fun TeachingWeekRuleEditDialog(
     }
     val endAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
-        LiquidTopBarButton(
+        IconButton(
             onClick = {
                 if (validationError == null) {
                     onSave()
                 }
             },
             backdrop = LocalSheetContentBackdrop.current!!,
-            icon = MiuixIcons.Ok,
+            icon = NexioIcons.Ok,
             contentDescription = if (validationError == null) CommonStr.save() else HolidayStr.cannotSave(),
             modifier = Modifier.padding(end = if (isTablet) 16.dp else 18.dp),
             iconSize = 25.dp,
             iconTint = if (validationError == null) Color.Unspecified
-                else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.45f),
+                else NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.45f),
             enabled = validationError == null,
             backdropAlpha = material.backdropAlpha,
             shadowAlpha = material.shadowAlpha,
@@ -1004,9 +1000,9 @@ private fun TeachingWeekRuleEditDialog(
                 colors = CardDefaults.defaultColors(
                     // 卡底色：莫奈取色下跟随 surfaceContainerHigh（比 sheet 底亮一档，
                     // 与 AddEditCourseBottomSheet / AddCourseDialog 同一套）；非莫奈保持原硬编码
-                    color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh
+                    color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh
                     else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
-                    contentColor = MiuixTheme.colorScheme.onSurface,
+                    contentColor = NexioTheme.colorScheme.onSurface,
                 ),
             ) {
                 Column {
@@ -1029,9 +1025,9 @@ private fun TeachingWeekRuleEditDialog(
                 insideMargin = PaddingValues(0.dp),
                 colors = CardDefaults.defaultColors(
                     // 同上：莫奈取色下跟随 surfaceContainerHigh
-                    color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh
+                    color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh
                     else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
-                    contentColor = MiuixTheme.colorScheme.onSurface,
+                    contentColor = NexioTheme.colorScheme.onSurface,
                 ),
             ) {
                 Column {
@@ -1071,7 +1067,7 @@ private fun TeachingWeekRuleEditDialog(
                     ),
                 ) {
                     Icon(
-                        imageVector = MiuixIcons.Delete,
+                        imageVector = NexioIcons.Delete,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
                         tint = Color(0xFFF44336),
@@ -1151,8 +1147,8 @@ private fun TeachingWeekRulePreviewCard(
     validationError: String?,
     isDark: Boolean,
 ) {
-    val primaryColor = MiuixTheme.colorScheme.primary
-    val dividerColor = MiuixTheme.colorScheme.outline.copy(alpha = 0.35f)
+    val primaryColor = NexioTheme.colorScheme.primary
+    val dividerColor = NexioTheme.colorScheme.outline.copy(alpha = 0.35f)
     val outcomeLabels = teachingWeekRuleOutcomeLabels(
         savedFirstPartWeek = preview.savedFirstPartWeek,
         savedSecondPartWeek = preview.savedSecondPartWeek,
@@ -1164,9 +1160,9 @@ private fun TeachingWeekRulePreviewCard(
         insideMargin = PaddingValues(0.dp),
         colors = CardDefaults.defaultColors(
             // 卡底色：莫奈取色下跟随 surfaceContainerHigh（本组件只在 sheet 内使用）
-            color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh
+            color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh
             else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
-            contentColor = MiuixTheme.colorScheme.onSurface,
+            contentColor = NexioTheme.colorScheme.onSurface,
         ),
     ) {
         Column(
@@ -1180,7 +1176,7 @@ private fun TeachingWeekRulePreviewCard(
                     text = HolidayStr.reorgPreview(),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
@@ -1208,7 +1204,7 @@ private fun TeachingWeekRulePreviewCard(
                     TeachingWeekRuleTimelineItem(
                         title = HolidayStr.coursesPaused(),
                         dateRange = dateRange,
-                        markerColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f),
+                        markerColor = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f),
                         connectorColor = dividerColor,
                         hasConnector = true,
                     )
@@ -1216,7 +1212,7 @@ private fun TeachingWeekRulePreviewCard(
                 TeachingWeekRuleTimelineItem(
                     title = HolidayStr.secondHalfOriginalWeekN(secondWeek),
                     dateRange = preview.secondPartDateRange ?: HolidayStr.dateUnavailable(),
-                    markerColor = MiuixTheme.colorScheme.secondaryVariant,
+                    markerColor = NexioTheme.colorScheme.secondaryVariant,
                     connectorColor = dividerColor,
                     hasConnector = false,
                 )
@@ -1281,14 +1277,14 @@ private fun TeachingWeekRuleTimelineItem(
             modifier = Modifier.weight(1f),
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             maxLines = 1,
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = dateRange,
             fontSize = 12.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
             maxLines = 1,
             textAlign = TextAlign.End,
         )
@@ -1303,7 +1299,7 @@ private fun TeachingWeekdayRangeSelector(
     selectableDays: IntRange,
     onDayClick: (Int) -> Unit,
 ) {
-    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val isDark = NexioTheme.colorScheme.background.luminance() < 0.5f
     val daySpacing = 6.dp
     val daySpacingPx = with(LocalDensity.current) { daySpacing.toPx() }
     val haptics = LocalHapticFeedback.current
@@ -1317,13 +1313,13 @@ private fun TeachingWeekdayRangeSelector(
                 text = title,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = HolidayStr.continuousRange(),
                 fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
             )
         }
         Row(
@@ -1362,14 +1358,14 @@ private fun TeachingWeekdayRangeSelector(
             for (day in 1..7) {
                 val enabled = day in selectableDays
                 val selected = day in selectedStart..selectedEnd
-                val backgroundColor = if (selected) MiuixTheme.colorScheme.primary
+                val backgroundColor = if (selected) NexioTheme.colorScheme.primary
                     // 未选中格子底：莫奈下 surfaceContainerHighest（比分组卡再亮一档）
-                    else if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHighest
+                    else if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHighest
                     else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
                 val textColor = when {
-                    selected -> MiuixTheme.colorScheme.onPrimary
-                    enabled -> MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.4f)
+                    selected -> NexioTheme.colorScheme.onPrimary
+                    enabled -> NexioTheme.colorScheme.onSurfaceVariantSummary
+                    else -> NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.4f)
                 }
                 Box(
                     modifier = Modifier
@@ -1467,7 +1463,7 @@ private fun TeachingWeekNumberPickerDialog(
             Text(
                 text = dateRangeSummary,
                 fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                 // 父 Column 居中摆位：日期区间变长变短时要按中心收放，否则会先贴到左边
                 textAlign = TextAlign.Center,
             )
@@ -1475,8 +1471,8 @@ private fun TeachingWeekNumberPickerDialog(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                TextButton(CommonStr.cancel(), onDismiss, modifier = Modifier.weight(1f))
-                TextButton(
+                FlatTextButton(CommonStr.cancel(), onDismiss, modifier = Modifier.weight(1f))
+                FlatTextButton(
                     CommonStr.ok(),
                     {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1491,60 +1487,6 @@ private fun TeachingWeekNumberPickerDialog(
 }
 
 // ---------- 区块标题（含功能说明） ----------
-
-/**
- * 基于默认下拉位置再做微调。
- *
- * @param base 基础 provider（[liquidDropdownPositionProvider]，已按当前 density 归一）
- * @param offsetYPx 沿展开方向的额外偏移：向下展开时为正、向上展开时为负
- * @param offsetXPx 水平额外偏移：右为正、左为负
- * 两处都会再过一次窗口边界 clamp，不会把弹窗顶出屏幕。
- */
-@Composable
-private fun expandDirectionOffsetProvider(
-    base: PopupPositionProvider,
-    offsetYPx: Int,
-    offsetXPx: Int = 0,
-): PopupPositionProvider = remember(base, offsetYPx, offsetXPx) {
-    object : PopupPositionProvider {
-        override fun calculatePosition(
-            anchorBounds: IntRect,
-            windowBounds: IntRect,
-            layoutDirection: LayoutDirection,
-            popupContentSize: IntSize,
-            popupMargin: IntRect,
-            alignment: PopupPositionProvider.Align,
-        ): PopupPositionResult {
-            val result = base.calculatePosition(
-                anchorBounds,
-                windowBounds,
-                layoutDirection,
-                popupContentSize,
-                popupMargin,
-                alignment,
-            )
-            val deltaY = when {
-                result.showBelow -> offsetYPx
-                result.showAbove -> -offsetYPx
-                else -> 0
-            }
-            val minX = windowBounds.left + popupMargin.left
-            val maxX = (windowBounds.right - popupContentSize.width - popupMargin.right).coerceAtLeast(minX)
-            val clampedX = (result.offset.x + offsetXPx).coerceIn(minX, maxX)
-            val clampedY = (result.offset.y + deltaY).coerceIn(
-                windowBounds.top + popupMargin.top,
-                windowBounds.bottom - popupContentSize.height - popupMargin.bottom,
-            )
-            return PopupPositionResult(
-                IntOffset(clampedX, clampedY),
-                result.showBelow,
-                result.showAbove,
-            )
-        }
-
-        override fun getMargins(): PaddingValues = base.getMargins()
-    }
-}
 
 @Composable
 private fun SectionTitleRow(
@@ -1600,8 +1542,8 @@ private fun SectionRangeDialog(
                 ) {
                     Text(
                         text = HolidayStr.startLabel(),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        style = NexioTheme.textStyles.footnote1,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
                     )
                     NumberPicker(
@@ -1618,8 +1560,8 @@ private fun SectionRangeDialog(
                 ) {
                     Text(
                         text = HolidayStr.endLabel(),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        style = NexioTheme.textStyles.footnote1,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
                     )
                     NumberPicker(
@@ -1641,7 +1583,7 @@ private fun SectionRangeDialog(
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1649,7 +1591,7 @@ private fun SectionRangeDialog(
                     },
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.ok(),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1665,10 +1607,11 @@ private fun SectionRangeDialog(
 }
 
 // ── 叹号说明弹窗的位置微调 ──────────────────────────────
-// 直接改这两行即可，不用碰 provider：Y 沿展开方向偏移（向下为正、向上自动取反），
+// 直接改这两行即可：Y 沿展开方向偏移（向下为正、向上自动取反），
 // X 水平偏移（右为正）；两者都会过窗口边界 clamp，太远会停在屏幕边缘不会跑出去。
-private val InfoPopupOffsetY = 13.dp
-private val InfoPopupOffsetX = (-15).dp
+// 已在弹层自带的 7dp/5dp 补偿之上再让 15dp/13dp，故净值为 -8dp/-8dp。
+private val InfoPopupOffsetY = (-8).dp
+private val InfoPopupOffsetX = (-8).dp
 
 @Composable
 private fun InfoDropdown(
@@ -1680,13 +1623,7 @@ private fun InfoDropdown(
     var triggerVisible by remember { mutableStateOf(true) }
     var triggerSize by remember { mutableStateOf(IntSize.Zero) }
     val coroutineScope = rememberCoroutineScope()
-    val infoColor = MiuixTheme.colorScheme.primary
-    val density = LocalDensity.current
-    val positionProvider = expandDirectionOffsetProvider(
-        base = liquidDropdownPositionProvider(),
-        offsetYPx = with(density) { InfoPopupOffsetY.roundToPx() },
-        offsetXPx = with(density) { InfoPopupOffsetX.roundToPx() },
-    )
+    val infoColor = NexioTheme.colorScheme.primary
 
     // 展开后等两帧再藏：第一帧让弹窗画出收起态，第二帧确保已上屏，否则中间会空一帧。
     LaunchedEffect(expanded) {
@@ -1699,7 +1636,7 @@ private fun InfoDropdown(
     // 弹窗里那份图标：没有那 8dp 尾部内边距（那是给列表对齐用的，与弹窗无关）
     val collapseIcon: @Composable () -> Unit = {
         Image(
-            imageVector = MiuixIcons.Info,
+            imageVector = NexioIcons.Info,
             contentDescription = null,
             colorFilter = ColorFilter.tint(infoColor),
             modifier = Modifier.size(20.dp),
@@ -1718,7 +1655,7 @@ private fun InfoDropdown(
         contentAlignment = Alignment.CenterEnd,
     ) {
         Image(
-            imageVector = MiuixIcons.Info,
+            imageVector = NexioIcons.Info,
             contentDescription = null,
             colorFilter = ColorFilter.tint(infoColor),
             modifier = Modifier
@@ -1727,9 +1664,9 @@ private fun InfoDropdown(
                 .onSizeChanged { triggerSize = it }
                 .graphicsLayer { alpha = if (triggerVisible) 1f else 0f },
         )
-        OverlayListPopup(
+        OverlayPopup(
             show = expanded,
-            alignment = PopupPositionProvider.Align.End,
+            alignment = PopupAlignment.End,
             onDismissRequest = { expanded = false },
             onDismissFinished = {
                 // 压满三帧再显示：弹窗节点撤下后渲染还要一帧才真正不画
@@ -1738,17 +1675,18 @@ private fun InfoDropdown(
                     triggerVisible = true
                 }
             },
-            popupPositionProvider = positionProvider,
+            anchorOffsetX = InfoPopupOffsetX,
+            anchorOffsetY = InfoPopupOffsetY,
             liquidGlassBackdrop = liquidGlassBackdrop,
             // 弹窗从叹号原位长成面板，而不是从一个大圆里长出来
             collapseSize = triggerSize,
             collapseContent = collapseIcon,
         ) {
-            ListPopupColumn {
+            PopupColumn {
                 Text(
                     text = description,
                     fontSize = 14.2.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier
                         .width(200.dp)
                         .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -1812,13 +1750,13 @@ private fun EmptyAnnualCard(
                 text = HolidayStr.emptyAnnualHint(),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
             )
             Text(
                 text = HolidayStr.emptyAnnualDesc(),
                 fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                 textAlign = TextAlign.Center,
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -1874,9 +1812,9 @@ private fun AnnualEntryRow(
 private fun EntryTypeTag(type: Int) {
     val isHoliday = type == HolidayManager.TYPE_HOLIDAY
     val color = if (isHoliday) {
-        MiuixTheme.colorScheme.primary
+        NexioTheme.colorScheme.primary
     } else {
-        MiuixTheme.colorScheme.onSurfaceVariantActions
+        NexioTheme.colorScheme.onSurfaceVariantActions
     }
     Text(
         text = if (isHoliday) HolidayStr.typeHolidayTag() else HolidayStr.typeWorkswapTag(),
@@ -1988,8 +1926,8 @@ private fun EntryEditDialog(
     val isHoliday = dialogType == HolidayManager.TYPE_HOLIDAY
     val hapticFeedback = LocalHapticFeedback.current
     val isTablet = isTabletWidth()
-    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val cardColor = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh
+    val isDark = NexioTheme.colorScheme.background.luminance() < 0.5f
+    val cardColor = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh
     else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF)
     val canSave = name.isNotBlank()
 
@@ -1997,13 +1935,13 @@ private fun EntryEditDialog(
     // sheet 顶栏是浮在内容之上的，不喂 backdrop 就是一块实心色块。
     val startAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
-        LiquidTopBarButton(
+        IconButton(
             onClick = {
                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                 onDismiss()
             },
             backdrop = LocalSheetContentBackdrop.current!!,
-            icon = MiuixIcons.Normal.Close,
+            icon = NexioIcons.Normal.Close,
             contentDescription = CommonStr.cancel(),
             modifier = Modifier.padding(start = if (isTablet) 16.dp else 18.dp),
             iconSize = 24.dp,
@@ -2013,7 +1951,7 @@ private fun EntryEditDialog(
     }
     val endAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
-        LiquidTopBarButton(
+        IconButton(
             onClick = {
                 if (canSave) {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -2021,12 +1959,12 @@ private fun EntryEditDialog(
                 }
             },
             backdrop = LocalSheetContentBackdrop.current!!,
-            icon = MiuixIcons.Ok,
+            icon = NexioIcons.Ok,
             contentDescription = if (canSave) CommonStr.save() else HolidayStr.enterNameFirst(),
             modifier = Modifier.padding(end = if (isTablet) 16.dp else 18.dp),
             iconSize = 25.dp,
             iconTint = if (canSave) Color.Unspecified
-                else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.45f),
+                else NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.45f),
             enabled = canSave,
             backdropAlpha = material.backdropAlpha,
             shadowAlpha = material.shadowAlpha,
@@ -2046,10 +1984,10 @@ private fun EntryEditDialog(
                 insideMargin = PaddingValues(0.dp),
                 colors = CardDefaults.defaultColors(
                     color = cardColor,
-                    contentColor = MiuixTheme.colorScheme.onSurface,
+                    contentColor = NexioTheme.colorScheme.onSurface,
                 ),
             ) {
-                NativeMiuixTextField(
+                TextField(
                     name,
                     onNameChange,
                     label = HolidayStr.nameLabel(),
@@ -2068,7 +2006,7 @@ private fun EntryEditDialog(
                         insideMargin = PaddingValues(0.dp),
                         colors = CardDefaults.defaultColors(
                             color = cardColor,
-                            contentColor = MiuixTheme.colorScheme.onSurface,
+                            contentColor = NexioTheme.colorScheme.onSurface,
                         ),
                     ) {
                         DualDateCalendar(
@@ -2080,8 +2018,10 @@ private fun EntryEditDialog(
                                 onStartDayChange(date.dayOfMonth)
                             },
                             onSecondaryChange = { date -> onFollowDateChange(date) },
-                            weekdayLabels = HolidayStr.weekdayChars.map { it() },
-                            monthTitle = { y, m -> HolidayStr.yearMonthN(y, m) },
+                            strings = CalendarStrings(
+                                weekdayLabels = HolidayStr.weekdayChars.map { it() },
+                                monthTitle = { y, m -> HolidayStr.yearMonthN(y, m) },
+                            ),
                             resetKey = show,
                             yearRange = yearRange,
                             startWithSecondary = dualStartsOnSecondary,
@@ -2102,24 +2042,28 @@ private fun EntryEditDialog(
                         insideMargin = PaddingValues(0.dp),
                         colors = CardDefaults.defaultColors(
                             color = cardColor,
-                            contentColor = MiuixTheme.colorScheme.onSurface,
+                            contentColor = NexioTheme.colorScheme.onSurface,
                         ),
                     ) {
                         DateRangeCalendar(
-                            startDate = LocalDate(startYear, startMonth, startDay),
-                            endDate = LocalDate(endYear, endMonth, endDay),
-                            weekdayLabels = HolidayStr.weekdayChars.map { it() },
-                            monthTitle = { y, m -> HolidayStr.yearMonthN(y, m) },
+                            selectedStart = LocalDate(startYear, startMonth, startDay),
+                            selectedEnd = LocalDate(endYear, endMonth, endDay),
+                            strings = CalendarStrings(
+                                weekdayLabels = HolidayStr.weekdayChars.map { it() },
+                                monthTitle = { y, m -> HolidayStr.yearMonthN(y, m) },
+                            ),
                             resetKey = show,
                             yearRange = yearRange,
                             modifier = Modifier.fillMaxWidth(),
-                            onRangeChange = { start, end ->
+                            onRangeSelected = { start, end ->
                                 onStartYearChange(start.year)
                                 onStartMonthChange(start.monthNumber)
                                 onStartDayChange(start.dayOfMonth)
-                                onEndYearChange(end.year)
-                                onEndMonthChange(end.monthNumber)
-                                onEndDayChange(end.dayOfMonth)
+                                if (end != null) {
+                                    onEndYearChange(end.year)
+                                    onEndMonthChange(end.monthNumber)
+                                    onEndDayChange(end.dayOfMonth)
+                                }
                             },
                         )
                     }
@@ -2141,7 +2085,7 @@ private fun EntryEditDialog(
                     ),
                 ) {
                     Icon(
-                        imageVector = MiuixIcons.Delete,
+                        imageVector = NexioIcons.Delete,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
                         tint = Color(0xFFF44336),
@@ -2212,7 +2156,7 @@ private fun EntryEditDialog(
 }
 
 @Composable
-private fun pickerTextStyle() = MiuixTheme.textStyles.body1.copy(
+private fun pickerTextStyle() = NexioTheme.textStyles.body1.copy(
     fontSize = 22.sp,
     fontWeight = FontWeight.Medium,
 )

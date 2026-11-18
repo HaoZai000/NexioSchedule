@@ -16,7 +16,7 @@ import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.haooz.chedule.widget.WidgetUpdateCache
 import java.net.HttpURLConnection
 import java.net.URL
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
 
 /**
  * [SettingsPaneArgs] → [AndroidSettingsScreen] 的装配入口

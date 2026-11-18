@@ -44,8 +44,8 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 详细数据瓦片点开后的「走势」。
@@ -204,7 +204,7 @@ internal fun MetricTrendBody(snapshot: WeatherSnapshot, kind: DetailMetric) {
  */
 @Composable
 private fun ReadingHero(reading: MetricReading) {
-    val secondary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val secondary = NexioTheme.colorScheme.onSurfaceVariantSummary
     // "6小时52分钟后"这种长句子按大数字的字号会顶满整行，长值降一档
     val long = reading.value.length > 6
     // 弹窗里**不在卡片内**的裸文字统一让 8dp：卡片内的正文有 14dp 内边距，
@@ -219,7 +219,7 @@ private fun ReadingHero(reading: MetricReading) {
                 fontSize = if (long) 24.sp else 38.sp,
                 lineHeight = if (long) 30.sp else 42.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 maxLines = 1,
             )
             if (reading.unit.isNotBlank()) {
@@ -256,7 +256,7 @@ internal fun TrendSection(
     trailing: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val secondary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val secondary = NexioTheme.colorScheme.onSurfaceVariantSummary
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             // 标题左对齐、区间右对齐 → 两端各让 8dp
@@ -302,7 +302,7 @@ private fun EmptyTrendHint() {
         text = WeatherStr.trendEmpty(),
         fontSize = 13.sp,
         lineHeight = 19.sp,
-        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
         modifier = Modifier.padding(start = 8.dp),
     )
 }
@@ -374,8 +374,8 @@ private fun HourlyTrendChart(points: List<TrendPoint>, kind: DetailMetric) {
     val axis = remember(points, kind) { hourlyAxisOf(kind, values) }
     val baseColor = hourlyColor(kind)
     val temperature = isTemperature(kind)
-    val grid = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.13f)
-    val axisColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val grid = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.13f)
+    val axisColor = NexioTheme.colorScheme.onSurfaceVariantSummary
     val labelStyle = TextStyle(fontSize = 10.sp, color = axisColor)
 
     Row(modifier = Modifier.fillMaxWidth()) {
@@ -492,7 +492,7 @@ private fun HourlyTrendChart(points: List<TrendPoint>, kind: DetailMetric) {
                         Text(
                             text = if (order == 0) WeatherStr.now() else points[i].label,
                             fontSize = 11.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                             maxLines = 1,
                         )
                     }
@@ -564,7 +564,7 @@ private fun DailyTrendList(points: List<TrendPoint>, kind: DetailMetric, axis: D
                 Text(
                     text = point.label,
                     fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -580,7 +580,7 @@ private fun DailyTrendList(points: List<TrendPoint>, kind: DetailMetric, axis: D
                     text = dayValueText(kind, point.value),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End,
                     maxLines = 1,
                     modifier = Modifier.width(valueWidth),
@@ -610,7 +610,7 @@ private fun DayMark(value: Double, axis: DayAxis, kind: DetailMetric) {
 /** 绝对刻度填充条：条从 0 起，长度就是数值本身（0~100% 就该铺满一百格）。 */
 @Composable
 private fun ScaleFillBar(value: Double, axis: DayAxis, color: Color) {
-    val track = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.14f)
+    val track = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.14f)
     Canvas(modifier = Modifier.fillMaxWidth().height(14.dp)) {
         val h = 6.dp.toPx()
         val top = (size.height - h) / 2f
@@ -655,9 +655,9 @@ private fun UvLevelMeter(value: Double) {
 /** 偏差条：从中轴（1013）向数值那一侧伸，低=冷色、高=暖色。没有"填满"这回事。 */
 @Composable
 private fun PressureDeviationBar(value: Double, axis: DayAxis) {
-    val track = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.12f)
+    val track = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.12f)
     val mark = axis.mark ?: PRESSURE_NORMAL
-    val tick = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f)
+    val tick = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f)
     Canvas(modifier = Modifier.fillMaxWidth().height(14.dp)) {
         val h = 6.dp.toPx()
         val top = (size.height - h) / 2f
@@ -684,8 +684,8 @@ private fun PressureDeviationBar(value: Double, axis: DayAxis) {
 /** 风：一条带箭头的射线，长度 = 风速在刻度上的位置。没有轨道，就是一段"吹出去"的长度。 */
 @Composable
 private fun WindLengthBar(value: Double, axis: DayAxis) {
-    val ink = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-    val rail = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.12f)
+    val ink = NexioTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+    val rail = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.12f)
     Canvas(modifier = Modifier.fillMaxWidth().height(14.dp)) {
         val y = size.height / 2f
         drawLine(rail, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
@@ -708,8 +708,8 @@ private fun WindLengthBar(value: Double, axis: DayAxis) {
 /** 能见度：一把刻度尺 + 一个落点。每 10km 一根短刻度，读的是"落在哪"。 */
 @Composable
 private fun RulerDot(value: Double, axis: DayAxis, color: Color) {
-    val line = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.4f)
-    val surface = MiuixTheme.colorScheme.surface
+    val line = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.4f)
+    val surface = NexioTheme.colorScheme.surface
     Canvas(modifier = Modifier.fillMaxWidth().height(14.dp)) {
         val y = size.height / 2f
         drawLine(line, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
@@ -745,7 +745,7 @@ private fun SunRowView(row: SunRow) {
         Text(
             text = row.label,
             fontSize = 13.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            color = NexioTheme.colorScheme.onSurfaceVariantActions,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -760,7 +760,7 @@ private fun SunRowView(row: SunRow) {
         Text(
             text = WeatherStr.sunSpan(row.rise, row.set),
             fontSize = 12.sp,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             textAlign = TextAlign.End,
             maxLines = 1,
         )
@@ -770,7 +770,7 @@ private fun SunRowView(row: SunRow) {
 /** 24 小时尺上的白昼段：两头暗、正午亮，一眼看出"长还是短、早晚还是晚"。 */
 @Composable
 private fun DaylightBand(startMin: Int, endMin: Int) {
-    val track = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.14f)
+    val track = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.14f)
     val warm = Color(0xFFF6BE5C)
     Canvas(modifier = Modifier.fillMaxWidth().height(14.dp)) {
         val h = 6.dp.toPx()

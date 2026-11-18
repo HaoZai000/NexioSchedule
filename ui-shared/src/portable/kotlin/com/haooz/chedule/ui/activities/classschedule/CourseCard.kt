@@ -78,8 +78,8 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.material.LocalMaterialNoneEnabled
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.material.LocalMaterialNoneEnabled
+import com.haooz.nexioui.theme.NexioTheme
 
 /** 落地冲击波：中心坐标 + token，触发周围课程卡涟漪。 */
 data class LandRippleSpec(
@@ -254,9 +254,9 @@ fun CourseCard(
         Modifier
     }
 
-    val useMonet = MiuixTheme.isDynamicColor
+    val useMonet = NexioTheme.isDynamicColor
     val inactiveColor =
-        if (useMonet) MiuixTheme.colorScheme.onSurfaceVariantActions else Color(0xFF9E9E9E)
+        if (useMonet) NexioTheme.colorScheme.onSurfaceVariantActions else Color(0xFF9E9E9E)
     val cardColor = remember(
         courseColors.tint,
         inactiveColor,
@@ -271,7 +271,7 @@ fun CourseCard(
             inactiveColor.copy(alpha = effectiveAlpha * 0.7f)
         }
     }
-    val themeBackground = MiuixTheme.colorScheme.background
+    val themeBackground = NexioTheme.colorScheme.background
     // 无壁纸时由宿主给页底色；无材质档有壁纸时自己补同值的一层
     val cardBacking = solidBackingColor
         ?: if (!materialsEnabled) courseCardNoneTierBacking(isDark) else null
@@ -700,7 +700,7 @@ private fun BoxScope.CardContent(
             fontSize = 9.sp,
             fontWeight = FontWeight.Medium,
             color = when {
-                badge.usesWorkSwapStyle && MiuixTheme.isDynamicColor -> textColor
+                badge.usesWorkSwapStyle && NexioTheme.isDynamicColor -> textColor
                 badge.usesWorkSwapStyle -> if (isDark) Color.White.copy(alpha = 0.8f) else Color.White
                 isDark -> Color.White.copy(alpha = 0.4f)
                 else -> Color.Black.copy(alpha = 0.4f)

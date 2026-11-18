@@ -106,9 +106,9 @@ import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.data.ChangelogEntry
 import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.effects.motion.ArcBendAxis
-import com.haooz.chedule.ui.effects.motion.ArcBendShape
-import com.haooz.chedule.ui.effects.motion.arcBend
+import com.haooz.nexioui.motion.ArcBendAxis
+import com.haooz.nexioui.motion.ArcBendShape
+import com.haooz.nexioui.motion.arcBend
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.HostNavigationState
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
@@ -135,26 +135,26 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ChevronForward
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.button.Button
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.progressindicator.LinearProgressIndicator
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.ChevronForward
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.arrowpreference.ArrowPreference
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 import kotlin.math.PI
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -690,7 +690,7 @@ fun UpdateSettingsScreen(
                         Text(
                             text = AboutStr.gettingDownloadUrlDots(),
                             fontSize = 14.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     } else if (isDownloading) {
                         LinearProgressIndicator(
@@ -701,7 +701,7 @@ fun UpdateSettingsScreen(
                         Text(
                             text = "${(downloadProgress * 100).toInt()}%",
                             fontSize = 14.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                             textAlign = TextAlign.Center,
                         )
                     } else if (downloadComplete) {
@@ -713,7 +713,7 @@ fun UpdateSettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // 始终提供关闭入口：安装中也能关掉弹窗
-                        TextButton(
+                        FlatTextButton(
                             text = if (isInstalling) CommonStr.close() else CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -1259,12 +1259,12 @@ private fun HeroCardFace(
     val shape = remember { ContinuousRoundedRectangle(20.dp) }
     val isDark = isAppDarkTheme()
     val baseCardColor = CardDefaults.defaultColors().color
-    val primary = MiuixTheme.colorScheme.primary
+    val primary = NexioTheme.colorScheme.primary
     // 淡蓝底：纯白上微光几乎不可见，给卡片一点色相才能读出高光扫过
     val cardColor = remember(baseCardColor, primary, isDark) {
         lerp(baseCardColor, primary, if (isDark) 0.12f else 0.08f)
     }
-    val onCard = MiuixTheme.colorScheme.onSurface
+    val onCard = NexioTheme.colorScheme.onSurface
     val glassOn = true
     val cardBackdrop = rememberLayerBackdrop { drawContent() }
     val recordKey = remember(isDark, cardColor) { listOf(isDark, cardColor) }
@@ -1408,7 +1408,7 @@ private fun HeroCardFace(
                     .matchParentSize()
                     .border(
                         width = 1.dp,
-                        color = MiuixTheme.colorScheme.primary.copy(alpha = borderAlpha),
+                        color = NexioTheme.colorScheme.primary.copy(alpha = borderAlpha),
                         shape = shape,
                     )
             )
@@ -1427,8 +1427,8 @@ private fun HeroCardFront(
     onOpenChangelog: () -> Unit,
     onOpenUpdate: () -> Unit,
 ) {
-    val onCard = MiuixTheme.colorScheme.onSurface
-    val summary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val onCard = NexioTheme.colorScheme.onSurface
+    val summary = NexioTheme.colorScheme.onSurfaceVariantSummary
     val heroNumber = majorMinorVersion(version)
     // 内容比卡片晚半拍落定：先看到卡，再看到版本号浮上来。
     // 但浮层卡是「同一张卡接着翻面」，不是新进场：必须直接落到终态，
@@ -1604,7 +1604,7 @@ private fun HeroMonogram() {
     val outline = if (isDark) {
         Color.White.copy(alpha = 0.16f)
     } else {
-        MiuixTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+        NexioTheme.colorScheme.onSurface.copy(alpha = 0.10f)
     }
     Box(
         modifier = Modifier
@@ -1634,7 +1634,7 @@ private fun UpdateStatusAction(
     glass: GlassBackdrop?,
     onClick: () -> Unit,
 ) {
-    val colorScheme = MiuixTheme.colorScheme
+    val colorScheme = NexioTheme.colorScheme
     val isDark = isAppDarkTheme()
     val actionable = hasUpdate && !checking
     val isLightTheme = !isDark
@@ -1648,8 +1648,8 @@ private fun UpdateStatusAction(
         colorScheme.primary.copy(
             alpha = AppMaterialSettings.solidSurfaceAlpha(if (isLightTheme) 0.72f else 0.62f)
         )
-    } else if (MiuixTheme.isDynamicColor) {
-        MiuixTheme.colorScheme.surfaceContainer.copy(
+    } else if (NexioTheme.isDynamicColor) {
+        NexioTheme.colorScheme.surfaceContainer.copy(
             alpha = AppMaterialSettings.glassSurfaceAlpha(if (isLightTheme) 0.76f else 0.84f, isLightTheme)
         )
     } else if (isLightTheme) {
@@ -1792,7 +1792,7 @@ private fun StatusDot(
 /** 底部「更新日志 ›」：整块圆角点击区，别让手指只能点到那几个字。 */
 @Composable
 private fun ChangelogLink(onClick: () -> Unit) {
-    val summary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val summary = NexioTheme.colorScheme.onSurfaceVariantSummary
     Row(
         modifier = Modifier
             .clip(ContinuousRoundedRectangle(12.dp))
@@ -1812,7 +1812,7 @@ private fun ChangelogLink(onClick: () -> Unit) {
         )
         Spacer(modifier = Modifier.width(6.dp))
         Icon(
-            imageVector = MiuixIcons.ChevronForward,
+            imageVector = NexioIcons.ChevronForward,
             contentDescription = null,
             modifier = Modifier.size(13.dp),
             tint = summary
@@ -1843,7 +1843,7 @@ private fun NewVersionBack(
     interactive: Boolean,
     onStartUpdate: () -> Unit,
 ) {
-    val colorScheme = MiuixTheme.colorScheme
+    val colorScheme = NexioTheme.colorScheme
     val onCard = colorScheme.onSurface
     val body = prettyReleaseBody(release?.body.orEmpty())
 
@@ -1938,7 +1938,7 @@ private fun NewVersionBack(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
-                imageVector = MiuixIcons.ChevronForward,
+                imageVector = NexioIcons.ChevronForward,
                 contentDescription = null,
                 modifier = Modifier.size(15.dp),
                 tint = colorScheme.primary

@@ -39,7 +39,7 @@ import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.CardReveal
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.ExtractedShareTools
@@ -50,21 +50,21 @@ import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import com.haooz.chedule.ui.components.sheetContentBottomInset
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.Surface
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
-import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
-import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.surface.Surface
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
+import com.haooz.nexioui.blurbottomsheet.LocalBlurBottomSheetContentExpanded
+import com.haooz.nexioui.blurbottomsheet.LocalSheetContentBackdrop
+import com.haooz.nexioui.blurbottomsheet.LocalSheetTopBarMaterial
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /**
  * 适配器选择底部弹窗
@@ -110,10 +110,10 @@ fun AdapterSelectionBottomSheet(
 
     val startAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
-        LiquidTopBarButton(
+        IconButton(
             onClick = onDismissRequest,
             backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
-            icon = MiuixIcons.Normal.Close,
+            icon = NexioIcons.Normal.Close,
             contentDescription = CommonStr.close(),
             modifier = Modifier.padding(start = if (isTablet) 16.dp else 18.dp),
             iconSize = 24.dp,
@@ -136,8 +136,8 @@ fun AdapterSelectionBottomSheet(
                 ) {
                     Text(
                         text = ImportStr.noAdapters(),
-                        style = MiuixTheme.textStyles.body1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        style = NexioTheme.textStyles.body1,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions
                     )
                 }
             } else if (currentSchool != null) {
@@ -221,7 +221,7 @@ fun AdapterSelectionBottomSheet(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            NativeMiuixTextField(
+            TextField(
                 value = customUrl,
                 onValueChange = { customUrl = it },
                 label = ImportStr.urlLabel(),
@@ -233,12 +233,12 @@ fun AdapterSelectionBottomSheet(
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = { showUrlDialog = false },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.ok(),
                     onClick = {
                         if (customUrl.isNotBlank()) {
@@ -271,7 +271,7 @@ private fun AdapterRow(
         color = when {
             fromAiDock && dark -> Color(0xFF16283F)
             fromAiDock -> Color(0xFFEAF2FF)
-            MiuixTheme.isDynamicColor -> MiuixTheme.colorScheme.surfaceContainerHigh
+            NexioTheme.isDynamicColor -> NexioTheme.colorScheme.surfaceContainerHigh
             dark -> Color(0xFF303030)
             else -> Color(0xFFFFFFFF)
         },
@@ -290,7 +290,7 @@ private fun AdapterRow(
                     text = adapter.adapterName,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
@@ -298,7 +298,7 @@ private fun AdapterRow(
                 Text(
                     text = categoryName,
                     fontSize = 14.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
@@ -306,14 +306,14 @@ private fun AdapterRow(
             Text(
                 text = adapter.description.ifBlank { ImportStr.noDescription() },
                 fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions,
             )
             if (adapter.maintainer.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = ImportStr.maintainerN(adapter.maintainer),
                     fontSize = 14.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    color = NexioTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
         }

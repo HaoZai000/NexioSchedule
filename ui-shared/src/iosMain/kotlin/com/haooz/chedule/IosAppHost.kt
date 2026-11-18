@@ -20,9 +20,6 @@ import androidx.compose.runtime.saveable.SaveableStateRegistry
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.BlurEffect
-import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeUIViewController
@@ -55,10 +52,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.readThemeModePref
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
 import platform.UIKit.UIViewController
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.MiuixOverlayHostProvider
-import top.yukonga.miuix.kmp.utils.MiuixOverlayHostState
-import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.MiuixPopupHost
+import com.haooz.nexioui.theme.NexioTheme
 
 /** One retained app session shared by native document and Compose controllers. */
 class IosAppHost {
@@ -69,7 +63,6 @@ class IosAppHost {
     private var systemDarkTheme by mutableStateOf<Boolean?>(null)
     private val overlays = HostOverlayState()
     private val scheduleLibraryOverlays = HostOverlayState()
-    private val popupHost = MiuixOverlayHostState()
     private val nativePages = mutableStateListOf<NativeDocumentPage>()
     private var nextNativePageId = 0L
     private var requestedPopDepth by mutableStateOf<Int?>(null)
@@ -103,7 +96,7 @@ class IosAppHost {
     /** Instance IDs, not route kinds: pushing the same document twice keeps independent state. */
     val nativeRouteIds: List<String>
         get() = nativePages.take(requestedPopDepth ?: nativePages.size).map { it.id }
-    val floatingOverlayActive: Boolean get() = overlays.isBelowPopupsActive || popupHost.isActive
+    val floatingOverlayActive: Boolean get() = overlays.isBelowPopupsActive
     /** 弹窗层之上的 overlay（课程详情页）是否在显示；iOS 上它与弹窗容器分开承载 */
     val detailOverlayActive: Boolean get() = overlays.isAbovePopupsActive
     val nativePageActive: Boolean get() = nativePages.isNotEmpty()
@@ -305,7 +298,7 @@ class IosAppHost {
                     // ⚠ 必须给：页里 navigate 读 LocalAppRouter，而它默认值是 error(...)
                     LocalAppRouter provides router,
                 ) {
-                    Surface(Modifier.fillMaxSize(), color = MiuixTheme.colorScheme.surface) {
+                    Surface(Modifier.fillMaxSize(), color = NexioTheme.colorScheme.surface) {
                         NexioIosRouteContent(router, page.route)
                     }
                 }
@@ -380,7 +373,7 @@ class IosAppHost {
     val keepsNativeHeaderDuringCutout: Boolean get() = navigation.keepsNativeHeaderDuringCutout
     val isDark: Boolean get() = navigation.isDark
     val overlayActive: Boolean
-        get() = router.hasOverlay || navigationOverlayActive || overlays.isActive || popupHost.isActive || scheduleLibraryOverlays.isActive
+        get() = router.hasOverlay || navigationOverlayActive || overlays.isActive || scheduleLibraryOverlays.isActive
     val mainProgress: Double get() = mainTransition.value.toDouble()
     val cutoutScale: Float get() = navigation.cutoutScale
     val cutoutCenterYRatio: Float get() = navigation.cutoutCenterYRatio
@@ -431,14 +424,6 @@ class IosAppHost {
                 Box(Modifier.fillMaxSize()) {
                     HostOverlayContent(overlays) {
                         nativePages.isEmpty() && !router.hasOverlay && !navigationOverlayActive
-                    }
-                    Box(Modifier.fillMaxSize().graphicsLayer {
-                        // 弹窗层同样不在 Compose 主内容的模糊层里，半径与主内容同源
-                        val blurDp = navigation.detailBackgroundBlur
-                        val blurPx = if (blurDp > 0.01f) blurDp.dp.toPx() else 0f
-                        renderEffect = if (blurPx > 0f) BlurEffect(null, blurPx, blurPx, TileMode.Clamp) else null
-                    }) {
-                        MiuixPopupHost()
                     }
                 }
                 val appDark = isAppDarkTheme()
@@ -536,14 +521,12 @@ class IosAppHost {
         CourseScheduleTheme(systemDarkTheme = systemDarkTheme) {
             // Keep observing window geometry: rotation/resizing can change each physical corner.
             ScreenCornerRadiusBridge()
-            MiuixOverlayHostProvider(popupHost) {
-                CompositionLocalProvider(
-                    LocalAppRouter provides router,
-                    LocalHostNavigation provides navigation,
-                    LocalHostOverlays provides overlays,
-                    content = content,
-                )
-            }
+            CompositionLocalProvider(
+                LocalAppRouter provides router,
+                LocalHostNavigation provides navigation,
+                LocalHostOverlays provides overlays,
+                content = content,
+            )
         }
     }
 

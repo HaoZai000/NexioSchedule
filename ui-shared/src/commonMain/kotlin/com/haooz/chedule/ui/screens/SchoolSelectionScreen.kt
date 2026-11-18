@@ -54,15 +54,15 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.TopBarMaterialThreshold
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.progressindicator.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.basic.ArrowRight
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topbarmaterial.TopBarMaterialThreshold
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 @Composable
 fun SchoolSelectionScreen(
@@ -139,15 +139,15 @@ fun SchoolSelectionScreen(
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
     Column(
-        modifier = modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)
+        modifier = modifier.fillMaxSize().background(NexioTheme.colorScheme.surface)
     ) {
         when {
             filteredSchools.isEmpty() && !isUpdating -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (searchQuery.isBlank()) ImportStr.noSchoolData() else ImportStr.noSchoolMatch(),
-                        style = MiuixTheme.textStyles.body1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        style = NexioTheme.textStyles.body1,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         textAlign = TextAlign.Center,
                     )
                 }
@@ -163,8 +163,8 @@ fun SchoolSelectionScreen(
                         Spacer(Modifier.height(16.dp))
                         Text(
                             text = ImportStr.checkingUpdates(),
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            style = NexioTheme.textStyles.body2,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                 }
@@ -253,7 +253,7 @@ fun SchoolSelectionScreen(
                                             horizontal = 26.dp,
                                             vertical = 12.dp
                                         ),
-                                        color = MiuixTheme.colorScheme.outline,
+                                        color = NexioTheme.colorScheme.outline,
                                         thickness = 0.5.dp
                                     )
                                 }
@@ -263,7 +263,7 @@ fun SchoolSelectionScreen(
                                     text = letter,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Normal,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                     modifier = Modifier.padding(
                                         start = 26.dp,
                                         top = 16.dp,
@@ -295,14 +295,14 @@ fun SchoolSelectionScreen(
                                             text = school.name,
                                             fontSize = 17.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = MiuixTheme.colorScheme.onSurface
+                                            color = NexioTheme.colorScheme.onSurface
                                         )
                                         if (isPostgrad) {
                                             Text(
                                                 modifier = Modifier.padding(start = 4.dp),
                                                 text = ImportStr.categoryPostgraduate(),
                                                 fontSize = 14.sp,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                color = NexioTheme.colorScheme.onSurfaceVariantActions
                                             )
                                         }
                                     }
@@ -411,9 +411,9 @@ fun SchoolSelectionScreen(
                                     text = letter,
                                     fontSize = 10.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) MiuixTheme.colorScheme.primary
-                                    else if (isAvailable) MiuixTheme.colorScheme.onSurfaceVariantActions
-                                    else MiuixTheme.colorScheme.outline,
+                                    color = if (isSelected) NexioTheme.colorScheme.primary
+                                    else if (isAvailable) NexioTheme.colorScheme.onSurfaceVariantActions
+                                    else NexioTheme.colorScheme.outline,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .weight(1f)
@@ -504,7 +504,7 @@ private fun AiEduImportEntryCard(onClick: () -> Unit) {
                 )
             }
             Icon(
-                imageVector = MiuixIcons.Basic.ArrowRight,
+                imageVector = NexioIcons.Basic.ArrowRight,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
                 tint = subColor

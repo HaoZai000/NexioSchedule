@@ -41,7 +41,7 @@ import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.ui.activities.applyComboSchedule
 import com.haooz.chedule.ui.activities.applyImportedScheduleConfig
 import com.haooz.chedule.ui.activities.applyPresetTimeSlots
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.PageBlurBaseHeight
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
@@ -57,14 +57,14 @@ import com.haooz.chedule.viewmodel.scheduleViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
 import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.icon.extended.Refresh
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBar
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
+import com.haooz.nexioui.theme.NexioTheme
 
 @Composable
 fun WebImportScreen(
@@ -91,7 +91,7 @@ fun WebImportScreen(
     val nativeChrome = LocalNativeDocumentChrome.current
     val nativeBarInset = (nativeChrome?.barInset ?: 0.0).dp
     // ⚠ 必须在组合期取好：SideEffect 的 lambda 不是 @Composable，读不了 MiuixTheme
-    val chromeTint = MiuixTheme.colorScheme.primary.toArgb().toLong()
+    val chromeTint = NexioTheme.colorScheme.primary.toArgb().toLong()
     // iOS 原生文档页：顶栏整个交给系统（原生导航栏标题 + 材质 + 关闭/刷新按钮）
     NativeDocumentSystemHeaderEffect(nativeChrome != null)
 
@@ -224,13 +224,13 @@ fun WebImportScreen(
                     scrollBehavior = webViewScrollBehavior,
                     contentPadding = {},
                     startAction = { backdropAlpha, shadowAlpha ->
-                        LiquidTopBarButton(
+                        IconButton(
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 onFinish()
                             },
                             backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.Close,
+                            icon = NexioIcons.Close,
                             iconTint = webBarContentColor.copy(alpha = 0.85f),
                             contentDescription = CommonStr.close(),
                             performHapticFeedback = false,
@@ -240,13 +240,13 @@ fun WebImportScreen(
                         )
                     },
                     endAction = { backdropAlpha, shadowAlpha ->
-                        LiquidTopBarButton(
+                        IconButton(
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 reloadWebViewAction?.invoke()
                             },
                             backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.Refresh,
+                            icon = NexioIcons.Refresh,
                             iconTint = webBarContentColor.copy(alpha = 0.85f),
                             contentDescription = ImportStr.refresh(),
                             performHapticFeedback = false,

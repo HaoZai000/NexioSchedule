@@ -1,25 +1,23 @@
 package com.haooz.chedule.ui.utils
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import com.haooz.chedule.data.appearance.ThemeMode
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.KEY_CHANGED_ANYWHERE
 import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
-import top.yukonga.miuix.kmp.theme.AppSettingDarkBridge
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.platformDynamicColors
-import top.yukonga.miuix.kmp.theme.rememberAppSettingDark as miuixRememberAppSettingDark
+import com.haooz.nexioui.theme.NexioTheme
 
 // 壁纸强制主题：非 null 时 isAppDarkTheme 直接用该值，今日页/课程表页按壁纸亮暗锁定。
-// 别名指向 :miuix 里的同一个 CompositionLocal 实例，调用方无需改动。
-val LocalForcedDarkTheme = top.yukonga.miuix.kmp.theme.LocalForcedDarkTheme
+val LocalForcedDarkTheme = staticCompositionLocalOf<Boolean?> { null }
 
 /**
  * 课程表 / 排班页底色（无壁纸时铺满页面的那一层）。
@@ -27,7 +25,7 @@ val LocalForcedDarkTheme = top.yukonga.miuix.kmp.theme.LocalForcedDarkTheme
  */
 @Composable
 fun schedulePageBackgroundColor(isDark: Boolean): Color =
-    if (MiuixTheme.isDynamicColor) platformDynamicColors(dark = isDark).background
+    if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.background
     else if (isDark) Color(0xFF000000) else Color(0xFFF7F7F7)
 
 /** 无壁纸时课程卡垫底色的不透明度（浮层与网格卡片共用，保持两者观感一致） */
@@ -64,10 +62,27 @@ fun isAppDarkTheme(): Boolean =
 /**
  * App 偏好里的「是否深色」（`theme_mode`：system / light / dark）。
  *
- * 实现在 :miuix（弹窗也要用），数据源由 [installAppSettingDarkBridge] 注入。
+ * 纯读，不写任何全局快照；system 档跟随系统。
  */
 @Composable
-fun rememberAppSettingDark(): Boolean = miuixRememberAppSettingDark()
+fun rememberAppSettingDark(): Boolean {
+    val prefs = remember { AppStorage.store(APP_THEME_PREFS_FILE) }
+    var mode by remember { mutableStateOf(prefs.getString(KEY_THEME_MODE, THEME_MODE_SYSTEM)) }
+    DisposableEffect(prefs) {
+        // iOS 的通知不带 key（传哨兵），必须接受它
+        val token = prefs.registerListener { key ->
+            if (key == KEY_CHANGED_ANYWHERE || key == KEY_THEME_MODE) {
+                mode = prefs.getString(KEY_THEME_MODE, THEME_MODE_SYSTEM)
+            }
+        }
+        onDispose { prefs.unregisterListener(token) }
+    }
+    return when (mode) {
+        THEME_MODE_LIGHT -> false
+        THEME_MODE_DARK -> true
+        else -> isSystemInDarkTheme()
+    }
+}
 
 /**
  * 全局主题偏好（`app_theme_prefs.theme_mode`）的落盘契约。
@@ -84,26 +99,6 @@ internal const val THEME_MODE_DARK = "dark"
 /** 读当前全局主题偏好：system / light / dark。纯读，不写任何全局快照。 */
 internal fun readThemeModePref(): String =
     AppStorage.store(APP_THEME_PREFS_FILE).getString(KEY_THEME_MODE, THEME_MODE_SYSTEM)
-
-/**
- * 向 :miuix 注入读 `theme_mode` 的实现。由 [CourseScheduleTheme] 在组合根部调用，
- * 必须在任何 miuix 组件之前。重复调用无副作用。
- */
-internal fun installAppSettingDarkBridge() {
-    if (AppSettingDarkBridge.read != null) return
-    AppSettingDarkBridge.read = { readThemeModePref() }
-    val subscribe: (onChange: () -> Unit) -> (() -> Unit) = { onChange ->
-        val store = AppStorage.store(APP_THEME_PREFS_FILE)
-        // iOS 的通知不带 key（传哨兵），必须接受它
-        val token = store.registerListener { key ->
-            if (key == KEY_CHANGED_ANYWHERE || key == KEY_THEME_MODE) onChange()
-        }
-        // 取消订阅，否则每次主题重建泄漏一个监听
-        val unsubscribe: () -> Unit = { store.unregisterListener(token) }
-        unsubscribe
-    }
-    AppSettingDarkBridge.subscribe = subscribe
-}
 
 // ── 今日页天气显隐 ───────────────────────────────────────────────────────
 // 与触感反馈共用 app_preferences；键名是落盘契约，改了即丢用户选择。

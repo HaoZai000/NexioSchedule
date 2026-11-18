@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.i18n.CommonStr
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.screens.LocalTabletSettingsPaneChrome
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
@@ -42,20 +42,20 @@ import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import com.haooz.softglass.platform.isRenderEffectSupported
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.LocalTopBarMaterial
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.LocalOverScrollState
-import top.yukonga.miuix.kmp.utils.OverScrollState
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.ChevronBackward
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBar
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topbarmaterial.LocalTopBarMaterial
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
+import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.LocalOverScrollState
+import com.haooz.nexioui.overscroll.OverScrollState
 
 /** 顶部糊带基准高度（不含状态栏）。 */
 internal val PageBlurBaseHeight: Dp = 72.dp
@@ -125,8 +125,8 @@ fun DocumentPageScaffold(
     } else {
         Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
     }
-    val backgroundColor = MiuixTheme.colorScheme.surface
-    val primaryColor = MiuixTheme.colorScheme.primary
+    val backgroundColor = NexioTheme.colorScheme.surface
+    val primaryColor = NexioTheme.colorScheme.primary
     val tintArgb = remember(primaryColor) { primaryColor.toArgb().toLong() }
 
     SideEffect {
@@ -211,10 +211,10 @@ fun DocumentPageScaffold(
                             contentPadding = {},
                             startAction = if (showNavigationActions && paneChrome.showBackButton) {
                                 { backdropAlpha, shadowAlpha ->
-                                    LiquidTopBarButton(
+                                    IconButton(
                                         onClick = onBack,
                                         backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.ChevronBackward,
+                                        icon = NexioIcons.ChevronBackward,
                                         contentDescription = CommonStr.back(),
                                         performHapticFeedback = false,
                                         iconSize = 25.dp,

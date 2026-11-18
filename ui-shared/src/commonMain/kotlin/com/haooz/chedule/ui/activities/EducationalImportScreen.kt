@@ -64,7 +64,7 @@ import com.haooz.chedule.data.util.parseJsonArray
 import com.haooz.chedule.data.util.parseJsonObject
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
@@ -92,23 +92,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.InputField
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SearchBar
-import top.yukonga.miuix.kmp.basic.Surface
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Update
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.progressindicator.CircularProgressIndicator
+import com.haooz.nexioui.searchbar.InputField
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.searchbar.SearchBar
+import com.haooz.nexioui.surface.Surface
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.ChevronBackward
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.icon.extended.Update
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBar
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults.CollapsedHeight
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
+import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 学校 / 适配器选择页主体。
@@ -142,9 +142,9 @@ fun EducationalImportScreen(
     val nativeBarInset = (nativeChrome?.barInset ?: 0.0).dp
     val showNavigationActions = nativeChrome == null
     // ⚠ 必须在组合期取好：SideEffect 的 lambda 不是 @Composable，读不了 MiuixTheme
-    val chromeTint = MiuixTheme.colorScheme.primary.toArgb().toLong()
+    val chromeTint = NexioTheme.colorScheme.primary.toArgb().toLong()
 
-    val backgroundColor = MiuixTheme.colorScheme.surface
+    val backgroundColor = NexioTheme.colorScheme.surface
     // 本页 backdrop 是纯采样层（onDraw 画背景+内容，contentOnlyCapture=false，
     // 上屏本来就双遍历），降采样录制不增加遍历成本，采样 blit 面积降 4 倍。
     // 顶栏 ProgressiveBlurTopBar 采它；模糊带内容对本就不敏感。
@@ -299,10 +299,10 @@ fun EducationalImportScreen(
                     // 原生文档页（iOS）这两个按钮由 Swift 画（见上面的 effect）
                     startAction = if (showNavigationActions) {
                         { backdropAlpha, shadowAlpha ->
-                            LiquidTopBarButton(
+                            IconButton(
                                 onClick = onFinish,
                                 backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.ChevronBackward,
+                                icon = NexioIcons.ChevronBackward,
                                 contentDescription = CommonStr.back(),
                                 performHapticFeedback = false,
                                 iconSize = 25.dp,
@@ -326,10 +326,10 @@ fun EducationalImportScreen(
                                     )
                                 }
                             } else {
-                                LiquidTopBarButton(
+                                IconButton(
                                     onClick = onForceUpdate,
                                     backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Normal.Update,
+                                    icon = NexioIcons.Normal.Update,
                                     contentDescription = CommonStr.update(),
                                     iconSize = 28.dp,
                                     backdropAlpha = backdropAlpha,
@@ -373,7 +373,7 @@ fun EducationalImportScreen(
                     },
                     expanded = searchExpanded,
                     onExpandedChange = { searchExpanded = it },
-                    actionIcon = MiuixIcons.Normal.Close,
+                    actionIcon = NexioIcons.Normal.Close,
                     onActionClick = {
                         searchExpanded = false
                         searchQuery = ""
@@ -395,7 +395,7 @@ fun EducationalImportScreen(
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                     selectedTab = index
                                 },
-                            color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.surfaceVariant
+                            color = if (isSelected) NexioTheme.colorScheme.primary else NexioTheme.colorScheme.surfaceVariant
                         ) {
                             Box(
                                 modifier = Modifier.padding(horizontal = 16.dp).height(35.dp).clip(ContinuousCapsule()),
@@ -404,7 +404,7 @@ fun EducationalImportScreen(
                                 Text(
                                     text = tabName,
                                     fontSize = 14.sp,
-                                    color = if (isSelected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurfaceVariantActions
+                                    color = if (isSelected) NexioTheme.colorScheme.onPrimary else NexioTheme.colorScheme.onSurfaceVariantActions
                                 )
                             }
                         }

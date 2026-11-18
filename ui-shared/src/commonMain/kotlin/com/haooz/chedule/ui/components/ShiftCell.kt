@@ -21,10 +21,10 @@ import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.shape.ContinuousCapsule
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.card.PressFeedbackType
 
 private val ShiftBlue = Color(0xFF2196F3)
 
@@ -41,7 +41,7 @@ fun ShiftCell(
     if (courses.isEmpty()) return
 
     val isMulti = courses.size > 1
-    val accentColor = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.primary else ShiftBlue
+    val accentColor = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.primary else ShiftBlue
     val chipColor = accentColor.copy(alpha = if (isDark) 0.16f else 0.14f)
     val textColor = accentColor.copy(alpha = if (isDark) 0.9f else 0.85f)
 
@@ -55,7 +55,7 @@ fun ShiftCell(
         showIndication = true,
         colors = CardDefaults.defaultColors(
             color = chipColor,
-            contentColor = MiuixTheme.colorScheme.onSurface
+            contentColor = NexioTheme.colorScheme.onSurface
         ),
         onClick = onClick
     ) {
@@ -70,7 +70,7 @@ fun ShiftCell(
                 courses.forEach { (scheduleName, _) ->
                     Text(
                         text = scheduleName,
-                        style = MiuixTheme.textStyles.footnote1.copy(
+                        style = NexioTheme.textStyles.footnote1.copy(
                             fontWeight = FontWeight.Bold,
                             lineHeight = 14.sp
                         ),

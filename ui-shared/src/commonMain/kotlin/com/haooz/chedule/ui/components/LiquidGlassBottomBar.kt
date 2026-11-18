@@ -51,8 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
-import com.haooz.chedule.ui.effects.liquidglass.DampedDragAnimation
-import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.nexioui.interaction.DampedDragAnimation
+import com.haooz.nexioui.interaction.InteractiveHighlight
+import com.haooz.softglass.GlassEnvironment
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -77,15 +78,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 /**
- * 液态玻璃档的底栏：整体移植自 AndroidLiquidGlass 的 `catalog/components/LiquidBottomTabs`。
- *
- * 结构保持原库一致：
- * 1. 底栏本身是一块玻璃胶囊（`blur` + 常驻 `lens(24dp)`）；
- * 2. 一份 `alpha(0f)` 的隐藏副本录进 [tabsBackdrop]，让滑块能采到「底栏玻璃 + 图标」；
- * 3. 滑块采 combined(page, tabs)，按下时做 `lens(10dp, 14dp) + 色散`，并叠投影、放大与速度拉伸。
- *
- * 与原库的差异只在 API 适配：`vibrancy` 用柔光材质自带的调色替代、
- * `Highlight` / `InnerShadow` 暂未接（softglass 的 `drawBackdrop` 只有外阴影）。
+ * 液态玻璃档的底栏
  */
 @Composable
 fun LiquidGlassBottomBar(
@@ -234,7 +227,8 @@ fun LiquidGlassBottomBar(
                         },
                         size.height / 2f
                     )
-                }
+                },
+                isDark = { GlassEnvironment.isDark },
             )
         }
 

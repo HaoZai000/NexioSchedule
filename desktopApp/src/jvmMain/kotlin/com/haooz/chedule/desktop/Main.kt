@@ -52,10 +52,10 @@ import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import java.io.File
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.button.Button
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 桌面端当前阶段的形态：迁移验证壳。每迁入一批页面就多一批可点开的真实页面，作为「迁移可用、可以跑」的直接证据；全部迁完后由正式路由（AppRouter）替换。
@@ -258,7 +258,7 @@ private fun HomeContent(onOpen: (DesktopPage) -> Unit) {
         )
         Text(
             text = com.haooz.chedule.i18n.DesktopStr.migratedPagesDesc(),
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            color = NexioTheme.colorScheme.onSurfaceVariantActions,
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
         )
         DesktopPage.entries

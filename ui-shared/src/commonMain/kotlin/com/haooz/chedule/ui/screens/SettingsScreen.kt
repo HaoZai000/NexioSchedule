@@ -67,7 +67,7 @@ import com.haooz.chedule.data.holiday.HolidayEntry
 import com.haooz.chedule.data.util.lengthOfMonth
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.SettingsStr
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.navigation.AppRoute
@@ -90,28 +90,28 @@ import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.datetime.LocalDate
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.PreferenceFlash
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.All
-import top.yukonga.miuix.kmp.icon.extended.ChevronForward
-import top.yukonga.miuix.kmp.icon.extended.CloudFill
-import top.yukonga.miuix.kmp.icon.extended.FavoritesFill
-import top.yukonga.miuix.kmp.icon.extended.Months
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.TopBarMaterialThreshold
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.preference.CheckboxLocation
-import top.yukonga.miuix.kmp.preference.CheckboxPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.basiccomponent.PreferenceFlash
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.All
+import com.haooz.nexioui.icon.extended.ChevronForward
+import com.haooz.nexioui.icon.extended.CloudFill
+import com.haooz.nexioui.icon.extended.FavoritesFill
+import com.haooz.nexioui.icon.extended.Months
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topbarmaterial.TopBarMaterialThreshold
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.checkboxpreference.CheckboxLocation
+import com.haooz.nexioui.checkboxpreference.CheckboxPreference
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.haooz.chedule.ui.activities.BackupCenterPrefs
 
@@ -193,7 +193,7 @@ private fun SettingsEntryRow(
                 text = title,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -201,7 +201,7 @@ private fun SettingsEntryRow(
                 Text(
                     text = summary,
                     fontSize = 14.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -211,18 +211,18 @@ private fun SettingsEntryRow(
             Text(
                 text = endText,
                 fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                 maxLines = 1,
             )
         }
         Spacer(Modifier.width(8.dp))
         Icon(
-            imageVector = MiuixIcons.ChevronForward,
+            imageVector = NexioIcons.ChevronForward,
             contentDescription = null,
             modifier = Modifier
                 .size(17.dp)
                 .graphicsLayer { rotationZ = rotation },
-            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            tint = NexioTheme.colorScheme.onSurfaceVariantActions,
         )
     }
 }
@@ -272,7 +272,7 @@ internal fun DrawableEntryIcon(resource: DrawableResource, accent: Color) {
 /** 课程表图标。 */
 @Composable
 internal fun ScheduleSettingsIcon() {
-    VectorEntryIcon(MiuixIcons.Months, SettingsAccents.Blue)
+    VectorEntryIcon(NexioIcons.Months, SettingsAccents.Blue)
 }
 
 /** 课程提醒图标。 */
@@ -284,7 +284,7 @@ internal fun CourseReminderIcon() {
 /** 桌面小部件图标。 */
 @Composable
 internal fun HomeScreenWidgetIcon() {
-    VectorEntryIcon(MiuixIcons.All, SettingsAccents.Green)
+    VectorEntryIcon(NexioIcons.All, SettingsAccents.Green)
 }
 
 /** AI 功能图标：白底 + 灰色描边 + 彩色渐变图形。 */
@@ -294,7 +294,7 @@ internal fun AiFeaturesIcon() {
     val outline = if (isAppDarkTheme()) {
         Color.White.copy(alpha = 0.16f)
     } else {
-        MiuixTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+        NexioTheme.colorScheme.onSurface.copy(alpha = 0.10f)
     }
     // 渐变坐标按 1024 视口路径空间给出（对齐圆形轮廓 bounds）：Canvas 做了 scale，
     // 若用默认 size 取终点，渐变只覆盖左上角极小区域，整枚图标会渲染成最后一种颜色
@@ -351,7 +351,7 @@ internal fun ImportExportIcon() {
 /** 备份与同步图标。 */
 @Composable
 internal fun BackupSyncIcon() {
-    VectorEntryIcon(MiuixIcons.CloudFill, SettingsAccents.Blue)
+    VectorEntryIcon(NexioIcons.CloudFill, SettingsAccents.Blue)
 }
 
 /** 应用个性化图标。 */
@@ -375,7 +375,7 @@ internal fun AboutAppIcon() {
 /** 捐赠支持图标。 */
 @Composable
 internal fun DonateIcon() {
-    VectorEntryIcon(MiuixIcons.FavoritesFill, SettingsAccents.Red)
+    VectorEntryIcon(NexioIcons.FavoritesFill, SettingsAccents.Red)
 }
 
 /** 问题反馈图标。 */
@@ -644,7 +644,7 @@ fun SettingsScreen(
                 }
 
                 item(key = "shift_exit") {
-                    top.yukonga.miuix.kmp.basic.Button(
+                    com.haooz.nexioui.button.Button(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 24.dp, end = tabletHorizontalPadding, start = tabletHorizontalPadding)

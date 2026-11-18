@@ -45,8 +45,8 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.CourseEditStr
 import com.haooz.chedule.i18n.NoteStr
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.iconbutton.IconButton
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.CardReveal
 import com.haooz.chedule.ui.components.WeekRangeSelectGrid
 import com.haooz.chedule.ui.components.text.material.Text as Text
@@ -55,30 +55,30 @@ import com.haooz.chedule.ui.utils.rememberImeDismiss
 import com.haooz.chedule.ui.utils.rememberOpenKey
 import com.haooz.softglass.backdrop.GlassBackdrop
 import kotlin.time.Clock
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.NativeTextField
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Ok
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.BackdropHolder
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
-import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
-import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.checkbox.Checkbox
+import com.haooz.nexioui.nativetextfield.NativeTextField
+import com.haooz.nexioui.numberpicker.NumberPicker
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.icon.extended.Ok
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.blurbottomsheet.BackdropHolder
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
+import com.haooz.nexioui.blurbottomsheet.LocalBlurBottomSheetContentExpanded
+import com.haooz.nexioui.blurbottomsheet.LocalSheetContentBackdrop
+import com.haooz.nexioui.blurbottomsheet.LocalSheetTopBarMaterial
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.arrowpreference.ArrowPreference
 import com.haooz.softglass.shape.continuousClip
 import com.haooz.chedule.ui.components.sheetContentBottomInset
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 @Composable
 fun AddEditCourseBottomSheet(
@@ -220,9 +220,9 @@ fun AddEditCourseBottomSheet(
     // 4 张卡共用一套配色，别各建一次。卡底色莫奈下取 surfaceContainerHigh（比 sheet 底亮一档，
     // 与 DayColumn 待放格同一套）；非莫奈保持原硬编码。
     val sheetCardColors = CardDefaults.defaultColors(
-        color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh
+        color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh
         else if (isAppDarkTheme()) Color(0xFF303030) else Color(0xFFFFFFFF),
-        contentColor = MiuixTheme.colorScheme.onSurface
+        contentColor = NexioTheme.colorScheme.onSurface
     )
 
     val hasOccupiedOddWeeks =
@@ -296,13 +296,13 @@ fun AddEditCourseBottomSheet(
 
     val startAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
-        LiquidTopBarButton(
+        IconButton(
             onClick = {
                 dismissKeyboard()
                 onDismissRequest()
             },
             backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
-            icon = MiuixIcons.Normal.Close,
+            icon = NexioIcons.Normal.Close,
             contentDescription = CommonStr.close(),
             modifier = Modifier.padding(start = if (isTablet) 16.dp else 18.dp),
             iconSize = 24.dp,
@@ -313,10 +313,10 @@ fun AddEditCourseBottomSheet(
 
     val endAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
-        LiquidTopBarButton(
+        IconButton(
             onClick = onConfirmClick,
             backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
-            icon = MiuixIcons.Ok,
+            icon = NexioIcons.Ok,
             contentDescription = CommonStr.ok(),
             modifier = Modifier.padding(end = if (isTablet) 16.dp else 18.dp),
             iconSize = 25.dp,
@@ -384,7 +384,7 @@ fun AddEditCourseBottomSheet(
                         .fillMaxWidth()
                         .padding(vertical = 17.dp, horizontal = 16.dp)
                 ) {
-                    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+                    val isDark = NexioTheme.colorScheme.background.luminance() < 0.5f
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -395,7 +395,7 @@ fun AddEditCourseBottomSheet(
                             text = CourseEditStr.classDay(),
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface,
+                            color = NexioTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f)
                         )
                         Checkbox(
@@ -406,7 +406,7 @@ fun AddEditCourseBottomSheet(
                         Text(
                             text = CourseEditStr.customTime(),
                             fontSize = 15.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            color = NexioTheme.colorScheme.onSurfaceVariantSummary
                         )
                     }
                     Row(
@@ -416,14 +416,14 @@ fun AddEditCourseBottomSheet(
                         val dayLabels = CourseEditStr.dayLabels
                         for (day in 1..7) {
                             val isSelected = day == dayOfWeek
-                            val bgColor = if (isSelected) MiuixTheme.colorScheme.primary
+                            val bgColor = if (isSelected) NexioTheme.colorScheme.primary
                                 // 未选中格子底：莫奈下 surfaceContainerHighest（比分组卡再亮一档）
-                                else if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHighest
+                                else if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHighest
                                 else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
                             // 选中格文字：primary 底上的对色取 onPrimary（莫奈下 primary 亮度不定，
                             // 死白对比可能不足）；非莫奈时 onPrimary 即白，行为不变
-                            val textColor = if (isSelected) MiuixTheme.colorScheme.onPrimary
-                                else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            val textColor = if (isSelected) NexioTheme.colorScheme.onPrimary
+                                else NexioTheme.colorScheme.onSurfaceVariantSummary
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -464,7 +464,7 @@ fun AddEditCourseBottomSheet(
                             Text(
                                 text = "$customStartTime - $customEndTime",
                                 fontSize = 14.5.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                 textAlign = TextAlign.End,
                             )
                         },
@@ -486,7 +486,7 @@ fun AddEditCourseBottomSheet(
                             Text(
                                 text = if (startSection > 0) CourseEditStr.periodsRange(startSection, endSection) else CommonStr.notSet(),
                                 fontSize = 14.5.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                 textAlign = TextAlign.End,
                             )
                         },
@@ -529,7 +529,7 @@ fun AddEditCourseBottomSheet(
                             modifier = Modifier.weight(1f),
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface
+                            color = NexioTheme.colorScheme.onSurface
                         )
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -555,7 +555,7 @@ fun AddEditCourseBottomSheet(
                                 Text(
                                     text = CourseEditStr.all(),
                                     fontSize = 15.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                    color = NexioTheme.colorScheme.onSurfaceVariantSummary
                                 )
                             }
 
@@ -587,7 +587,7 @@ fun AddEditCourseBottomSheet(
                                 Text(
                                     text = CourseEditStr.oddWeeks(),
                                     fontSize = 15.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                    color = NexioTheme.colorScheme.onSurfaceVariantSummary
                                 )
                             }
 
@@ -619,7 +619,7 @@ fun AddEditCourseBottomSheet(
                                 Text(
                                     text = CourseEditStr.evenWeeks(),
                                     fontSize = 15.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                    color = NexioTheme.colorScheme.onSurfaceVariantSummary
                                 )
                             }
                         }
@@ -702,8 +702,8 @@ fun AddEditCourseBottomSheet(
                 ) {
                     Text(
                         text = CourseEditStr.start(),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        style = NexioTheme.textStyles.footnote1,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                     )
                     NumberPicker(
@@ -720,8 +720,8 @@ fun AddEditCourseBottomSheet(
                 ) {
                     Text(
                         text = CourseEditStr.end(),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        style = NexioTheme.textStyles.footnote1,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                     )
                     NumberPicker(
@@ -740,7 +740,7 @@ fun AddEditCourseBottomSheet(
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -748,7 +748,7 @@ fun AddEditCourseBottomSheet(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.ok(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -788,7 +788,7 @@ fun AddEditCourseBottomSheet(
             if (timeError) {
                 Text(
                     text = CourseEditStr.timeSameError(),
-                    style = MiuixTheme.textStyles.footnote1,
+                    style = NexioTheme.textStyles.footnote1,
                     color = Color(0xFFF44336),
                     modifier = Modifier.padding(top = 8.dp)
                 )
@@ -800,7 +800,7 @@ fun AddEditCourseBottomSheet(
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -809,7 +809,7 @@ fun AddEditCourseBottomSheet(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.ok(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -866,7 +866,7 @@ private fun SheetTextFieldRow(
                 modifier = Modifier.weight(1f),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface
+                color = NexioTheme.colorScheme.onSurface
             )
             NativeTextField(
                 value = state.value,
@@ -887,7 +887,7 @@ private fun SheetTextFieldRow(
                     .fillMaxWidth()
                     .padding(top = 4.dp),
                 fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                 textAlign = TextAlign.End,
             )
         }
@@ -919,14 +919,14 @@ private fun TimeRangePickerGroup(
             itemHeight = 60.dp,
             label = { it.toString().padStart(2, '0') },
             wrapAround = true,
-            textStyle = MiuixTheme.textStyles.title2,
+            textStyle = NexioTheme.textStyles.title2,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = ":",
-            style = MiuixTheme.textStyles.paragraph,
+            style = NexioTheme.textStyles.paragraph,
             fontWeight = FontWeight.Bold,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             modifier = Modifier.padding().offset(y = (-2).dp)
         )
         val sMinIdx = minuteValues.indexOf(startMinute).coerceAtLeast(0)
@@ -938,13 +938,13 @@ private fun TimeRangePickerGroup(
             itemHeight = 60.dp,
             label = { minuteValues[it].toString().padStart(2, '0') },
             wrapAround = true,
-            textStyle = MiuixTheme.textStyles.title2,
+            textStyle = NexioTheme.textStyles.title2,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = "-",
-            style = MiuixTheme.textStyles.title2,
-            color = MiuixTheme.colorScheme.onSurface,
+            style = NexioTheme.textStyles.title2,
+            color = NexioTheme.colorScheme.onSurface,
             modifier = Modifier.padding()
         )
         NumberPicker(
@@ -955,14 +955,14 @@ private fun TimeRangePickerGroup(
             itemHeight = 60.dp,
             label = { it.toString().padStart(2, '0') },
             wrapAround = true,
-            textStyle = MiuixTheme.textStyles.title2,
+            textStyle = NexioTheme.textStyles.title2,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = ":",
-            style = MiuixTheme.textStyles.paragraph,
+            style = NexioTheme.textStyles.paragraph,
             fontWeight = FontWeight.Bold,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             modifier = Modifier.padding().offset(y = (-2).dp)
         )
         val eMinIdx = minuteValues.indexOf(endMinute).coerceAtLeast(0)
@@ -974,7 +974,7 @@ private fun TimeRangePickerGroup(
             itemHeight = 60.dp,
             label = { minuteValues[it].toString().padStart(2, '0') },
             wrapAround = true,
-            textStyle = MiuixTheme.textStyles.title2,
+            textStyle = NexioTheme.textStyles.title2,
             modifier = Modifier.weight(1f)
         )
     }

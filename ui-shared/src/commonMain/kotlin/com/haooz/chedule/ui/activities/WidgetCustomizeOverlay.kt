@@ -1,7 +1,8 @@
 /** 桌面小部件自定义浮层 - 小部件从原位连贯移到屏幕中心，其余区域压成深灰 */
 package com.haooz.chedule.ui.activities
 
-import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.nexioui.interaction.InteractiveHighlight
+import com.haooz.softglass.GlassEnvironment
 import com.haooz.softglass.glass.BrightTone
 import com.haooz.softglass.glass.CustomizeFill
 import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
@@ -14,7 +15,6 @@ import com.haooz.softglass.backdrop.effects.blur
 import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
-import top.yukonga.miuix.kmp.material.LocalGlassBlurDp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -83,7 +83,7 @@ import com.haooz.chedule.data.updateWidgetCropForGesture
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.components.text.material.Text
-import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
+import com.haooz.nexioui.motion.CustomizePageEasing
 import com.haooz.chedule.ui.screens.SliderItem
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -91,16 +91,19 @@ import com.haooz.softglass.shape.ContinuousCapsule
 import kotlin.math.roundToInt
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.GridView
-import top.yukonga.miuix.kmp.icon.extended.Image
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.darkColorScheme
-import top.yukonga.miuix.kmp.theme.platformDynamicColors
-import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.icon.extended.GridView
+import com.haooz.nexioui.icon.extended.Image
+
+import com.haooz.chedule.ui.theme.AppNexioTheme
+import com.haooz.chedule.ui.theme.AppThemeColors
+import com.haooz.chedule.ui.theme.rememberAppThemeColors
+import com.haooz.nexioui.theme.NexioDarkColorScheme
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
 
 /**
  * 进入自定义浮层需要的现场信息。
@@ -361,7 +364,7 @@ fun WidgetCustomizeOverlay(
     val sourceRect = remember(source, overlayOrigin) {
         source.translate(-overlayOrigin.x, -overlayOrigin.y)
     }
-    val primaryColor = MiuixTheme.colorScheme.primary
+    val primaryColor = NexioTheme.colorScheme.primary
     // 顶栏胶囊采它下面的 scrim + 预览；录制层必须在胶囊之外，避免采到自己
     val glassBackdrop = rememberLayerBackdrop()
 
@@ -493,7 +496,7 @@ fun WidgetCustomizeOverlay(
             Box(modifier = Modifier.padding(WidgetCustomizeToolPadding)) {
                 val hasWallpaper = wallpaper != null
                 WidgetToolButton(
-                    icon = if (hasWallpaper) MiuixIcons.Normal.Close else MiuixIcons.Image,
+                    icon = if (hasWallpaper) NexioIcons.Normal.Close else NexioIcons.Image,
                     contentDescription = if (hasWallpaper) SchedStr.clearWallpaper()
                     else SchedStr.wallpaper(),
                     iconSize = 26.dp,
@@ -533,7 +536,7 @@ fun WidgetCustomizeOverlay(
             Spacer(modifier = Modifier.width(4.dp))
             Box(modifier = Modifier.padding(WidgetCustomizeToolPadding)) {
                 WidgetToolButton(
-                    icon = MiuixIcons.GridView,
+                    icon = NexioIcons.GridView,
                     contentDescription = SchedStr.customize(),
                     iconSize = 24.dp,
                     onClick = {
@@ -577,7 +580,12 @@ private fun WidgetChromeCapsule(
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val animationScope = rememberCoroutineScope()
-    val highlight = remember(animationScope) { InteractiveHighlight(animationScope) }
+    val highlight = remember(animationScope) {
+        InteractiveHighlight(
+            animationScope = animationScope,
+            isDark = { GlassEnvironment.isDark },
+        )
+    }
     val glassEffectsOn = AppMaterialSettings.glassEffectsEnabled()
     val glassBlur = AppMaterialSettings.glassBlurDp()
     val capsuleShape = remember { ContinuousCapsule() }
@@ -689,20 +697,23 @@ private fun WidgetCustomizeSheet(
     onHeightChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val dynamic = MiuixTheme.isDynamicColor
-    // platformDynamicColors 是 @Composable（要读系统色），不能塞进 remember
+    val dynamic = NexioTheme.isDynamicColor
     val sheetColors = if (dynamic) {
-        platformDynamicColors(dark = true)
+        rememberAppThemeColors(isDark = true, monetEnabled = true)
     } else {
-        // 非动态色就用 Miuix 的深色方案，只把两张卡片的底色对齐现有深色观感
+        // 非动态色就用深色方案，只把两张卡片的底色对齐现有深色观感
         remember {
-            darkColorScheme(
-                surfaceContainerHigh = Color(0xFF303030),
-                surfaceContainerHighest = Color(0xFF3F3F3F),
+            AppThemeColors(
+                isDark = true,
+                isDynamicColor = false,
+                colorScheme = NexioDarkColorScheme.copy(
+                    surfaceContainerHigh = Color(0xFF303030),
+                    surfaceContainerHighest = Color(0xFF3F3F3F),
+                ),
             )
         }
     }
-    MiuixTheme(colors = sheetColors) {
+    AppNexioTheme(colors = sheetColors) {
         AnimatedVisibility(
             visible = visible,
             modifier = modifier,
@@ -735,7 +746,7 @@ private fun WidgetCustomizeSheet(
                             text = SchedStr.defaultTheme(),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface,
+                            color = NexioTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(start = 2.dp, bottom = 10.dp)
                         )
                         Row(
@@ -750,8 +761,8 @@ private fun WidgetCustomizeSheet(
                                         .height(36.dp)
                                         .clip(ContinuousCapsule())
                                         .background(
-                                            if (selected) MiuixTheme.colorScheme.primary
-                                            else MiuixTheme.colorScheme.surfaceContainerHighest
+                                            if (selected) NexioTheme.colorScheme.primary
+                                            else NexioTheme.colorScheme.surfaceContainerHighest
                                         )
                                         .clickable(
                                             interactionSource = null,
@@ -766,7 +777,7 @@ private fun WidgetCustomizeSheet(
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = if (selected) Color.White
-                                        else MiuixTheme.colorScheme.onSurface
+                                        else NexioTheme.colorScheme.onSurface
                                     )
                                 }
                             }
@@ -851,8 +862,8 @@ private fun WidgetSheetCard(content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         colors = CardDefaults.defaultColors(
-            color = MiuixTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MiuixTheme.colorScheme.onSurface
+            color = NexioTheme.colorScheme.surfaceContainerHigh,
+            contentColor = NexioTheme.colorScheme.onSurface
         ),
     ) { content() }
 }

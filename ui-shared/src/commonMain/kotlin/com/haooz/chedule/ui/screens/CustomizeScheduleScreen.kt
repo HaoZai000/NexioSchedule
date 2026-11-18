@@ -94,11 +94,12 @@ import com.haooz.chedule.data.util.formatOneDecimal
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
+import com.haooz.nexioui.interaction.InteractiveHighlight
+import com.haooz.softglass.GlassEnvironment
+import com.haooz.nexioui.motion.CustomizePageEasing
 import com.haooz.softglass.glass.BrightTone
 import com.haooz.softglass.glass.CustomizeFill
 import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
@@ -107,11 +108,11 @@ import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.TodayViewMode
-import com.haooz.chedule.ui.utils.addScreenCornerRect
+import com.haooz.nexioui.window.addScreenCornerRect
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
-import com.haooz.chedule.ui.utils.toShape
+import com.haooz.nexioui.window.toShape
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.haooz.softglass.backdrop.drawBackdrop
 import com.haooz.softglass.backdrop.effects.blur as backdropBlur
@@ -124,35 +125,36 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
-import top.yukonga.miuix.kmp.basic.NativeTextField
-import top.yukonga.miuix.kmp.basic.Scaffold
-import com.haooz.chedule.ui.components.slider.Slider
-import top.yukonga.miuix.kmp.basic.SliderDefaults
-import top.yukonga.miuix.kmp.basic.Switch
-import top.yukonga.miuix.kmp.basic.VerticalDivider
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Album
-import top.yukonga.miuix.kmp.icon.extended.Background
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.GridView
-import top.yukonga.miuix.kmp.icon.extended.Image
-import top.yukonga.miuix.kmp.icon.extended.Months
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
-import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
-import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import com.haooz.nexioui.progressindicator.InfiniteProgressIndicator
+import com.haooz.nexioui.nativetextfield.NativeTextField
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.slider.Slider
+import com.haooz.nexioui.slider.SliderDefaults
+import com.haooz.nexioui.slider.SliderHapticEffect
+import com.haooz.nexioui.switch.Switch
+import com.haooz.nexioui.divider.VerticalDivider
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Album
+import com.haooz.nexioui.icon.extended.Background
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.icon.extended.GridView
+import com.haooz.nexioui.icon.extended.Image
+import com.haooz.nexioui.icon.extended.Months
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
+import com.haooz.nexioui.blurbottomsheet.LocalBlurBottomSheetContentExpanded
+import com.haooz.nexioui.blurbottomsheet.LocalSheetContentBackdrop
+import com.haooz.nexioui.blurbottomsheet.LocalSheetTopBarMaterial
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /** 外观页在全屏遮罩上挖洞后铺的底色（与外壳 `shellBackground` 同一色值）。 */
 private val CustomizePageBackground = Color(0xFF1A1A1A)
@@ -292,7 +294,7 @@ fun CustomizeScheduleScreen(
         selectedContainerColor = Color.Transparent,
     )
 
-    val primaryColor = MiuixTheme.colorScheme.primary
+    val primaryColor = NexioTheme.colorScheme.primary
     val exitContainerColor = Color(0xFF363636)
         .copy(AppMaterialSettings.solidSurfaceAlpha(0.8f))
     val exitIconColor = Color.White
@@ -1024,9 +1026,19 @@ fun CustomizeScheduleScreen(
                     ) {
                         val animationScope = rememberCoroutineScope()
                         val exitHighlight =
-                            remember(animationScope) { InteractiveHighlight(animationScope) }
+                            remember(animationScope) {
+                                InteractiveHighlight(
+                                    animationScope = animationScope,
+                                    isDark = { GlassEnvironment.isDark },
+                                )
+                            }
                         val applyHighlight =
-                            remember(animationScope) { InteractiveHighlight(animationScope) }
+                            remember(animationScope) {
+                                InteractiveHighlight(
+                                    animationScope = animationScope,
+                                    isDark = { GlassEnvironment.isDark },
+                                )
+                            }
                         val hapticFeedback = LocalHapticFeedback.current
                         // 无材质档的实色底：按引用比较，必须 remember 成稳定 lambda。
                         val cancelOnDrawSurface: DrawScope.() -> Unit =
@@ -1137,7 +1149,7 @@ fun CustomizeScheduleScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = MiuixIcons.Album,
+                                            imageVector = NexioIcons.Album,
                                             contentDescription = CommonStr.today(),
                                             modifier = Modifier.size(20.dp),
                                             tint = if (resolvedPreview == 0) Color.White
@@ -1160,7 +1172,7 @@ fun CustomizeScheduleScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = MiuixIcons.Months,
+                                            imageVector = NexioIcons.Months,
                                             contentDescription = SchedStr.schedule(),
                                             modifier = Modifier.size(20.dp),
                                             tint = if (resolvedPreview == 1) Color.White
@@ -1301,7 +1313,7 @@ fun CustomizeScheduleScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = if (hasWallpaper) MiuixIcons.Normal.Close else MiuixIcons.Image,
+                                    imageVector = if (hasWallpaper) NexioIcons.Normal.Close else NexioIcons.Image,
                                     contentDescription = if (hasWallpaper) SchedStr.clearWallpaper() else SchedStr.wallpaper(),
                                     modifier = Modifier.size(26.dp),
                                     tint = Color.White
@@ -1337,7 +1349,7 @@ fun CustomizeScheduleScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = MiuixIcons.Background,
+                                    imageVector = NexioIcons.Background,
                                     contentDescription = SchedStr.effects(),
                                     modifier = Modifier.size(28.dp),
                                     tint = Color.White
@@ -1359,7 +1371,7 @@ fun CustomizeScheduleScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = MiuixIcons.GridView,
+                                    imageVector = NexioIcons.GridView,
                                     contentDescription = SchedStr.customize(),
                                     tint = Color.White
                                 )
@@ -1395,16 +1407,16 @@ fun CustomizeScheduleScreen(
                 // 退出快照由 MainActivity 覆盖层统一放大淡出，本页不重复渲染
                 val sheetCloseButton: @Composable ((() -> Unit), Dp) -> Unit = { onClose, startPad ->
                     val material = LocalSheetTopBarMaterial.current
-                    LiquidTopBarButton(
+                    IconButton(
                         onClick = onClose,
                         // 读 Local 而非页面级 State，避免 backdrop 就绪时整页重跑组合
                         backdrop = LocalSheetContentBackdrop.current
                             ?: liquidGlassBackdrop,
-                        icon = MiuixIcons.Normal.Close,
+                        icon = NexioIcons.Normal.Close,
                         contentDescription = CommonStr.close(),
                         modifier = Modifier.padding(start = startPad),
                         iconSize = 24.dp,
-                        containerColor = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh
+                        containerColor = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh
                             .copy(alpha = if (isAppDarkTheme()) 0.4f else 0.6f)
                         else if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                         else Color(0xFFFFFFFF).copy(0.6f),
@@ -1468,8 +1480,8 @@ fun CustomizeScheduleScreen(
                                     text = SchedStr.wallpaperBlur(),
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 17.sp,
-                                    color = if (hasWallpaper) MiuixTheme.colorScheme.onSurface
-                                    else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                    color = if (hasWallpaper) NexioTheme.colorScheme.onSurface
+                                    else NexioTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                                 )
                                 Switch(
                                     checked = wallpaperBlurValue && hasWallpaper,
@@ -1569,8 +1581,8 @@ fun CustomizeScheduleScreen(
                                     text = SchedStr.cardRim(),
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 17.sp,
-                                    color = if (rimEnabled) MiuixTheme.colorScheme.onSurface
-                                    else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                    color = if (rimEnabled) NexioTheme.colorScheme.onSurface
+                                    else NexioTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                                 )
                                 Switch(
                                     checked = cardRimValue,
@@ -1676,7 +1688,7 @@ fun CustomizeScheduleScreen(
                                     text = SchedStr.showClassroom(),
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 17.sp,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                    color = NexioTheme.colorScheme.onSurface
                                 )
                                 Switch(
                                     checked = showClassroomValue,
@@ -1694,7 +1706,7 @@ fun CustomizeScheduleScreen(
                                     text = SchedStr.showTeacher(),
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 17.sp,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                    color = NexioTheme.colorScheme.onSurface
                                 )
                                 Switch(
                                     checked = showTeacherValue,
@@ -1772,7 +1784,7 @@ fun CustomizeScheduleScreen(
                                     text = SchedStr.weekGridLines(),
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 17.sp,
-                                    color = MiuixTheme.colorScheme.onSurface.copy(
+                                    color = NexioTheme.colorScheme.onSurface.copy(
                                         alpha = if (weekGridEnabled) 1f else 0.4f
                                     ),
                                     modifier = Modifier.weight(1f)
@@ -1794,7 +1806,7 @@ fun CustomizeScheduleScreen(
                                     text = SchedStr.breakDividers(),
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 17.sp,
-                                    color = MiuixTheme.colorScheme.onSurface.copy(
+                                    color = NexioTheme.colorScheme.onSurface.copy(
                                         alpha = if (weekGridEnabled) 1f else 0.4f
                                     ),
                                     modifier = Modifier.weight(1f)
@@ -1931,9 +1943,9 @@ private fun SheetCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         colors = CardDefaults.defaultColors(
-            color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh
+            color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh
             else if (isAppDarkTheme()) Color(0xFF303030) else Color(0xFFFFFFFF),
-            contentColor = MiuixTheme.colorScheme.onSurface
+            contentColor = NexioTheme.colorScheme.onSurface
         ),
     ) { content() }
 }
@@ -1968,8 +1980,8 @@ internal fun SliderItem(
         // 拖动中禁止回写，否则 thumb 会被拉回整数档位、丢掉连贯性
         if (!isDragging) rawValue = value
     }
-    val textColor = if (enabled) MiuixTheme.colorScheme.onSurface
-    else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    val textColor = if (enabled) NexioTheme.colorScheme.onSurface
+    else NexioTheme.colorScheme.onSurface.copy(alpha = 0.4f)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -2040,7 +2052,7 @@ internal fun SliderItem(
             keyPoints = keyPoints,
             magnetThreshold = 0.05f,
             modifier = Modifier.fillMaxWidth(),
-            hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+            hapticEffect = SliderHapticEffect.Step,
             enabled = enabled
         )
     }
@@ -2056,8 +2068,8 @@ private fun RefractionItem(
 ) {
     val levels = CardRefractionLevel.entries
     val lastIndex = levels.lastIndex
-    val textColor = if (enabled) MiuixTheme.colorScheme.onSurface
-    else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    val textColor = if (enabled) NexioTheme.colorScheme.onSurface
+    else NexioTheme.colorScheme.onSurface.copy(alpha = 0.4f)
     // 与 SliderItem 同理：位置连续跟手，档位取整只作用于对外提交
     var rawValue by remember { mutableFloatStateOf(value.ordinal.toFloat()) }
     var isDragging by remember { mutableStateOf(false) }
@@ -2115,7 +2127,7 @@ private fun RefractionItem(
             keyPoints = levels.indices.map { it.toFloat() },
             magnetThreshold = 0.01f,
             modifier = Modifier.fillMaxWidth(),
-            hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+            hapticEffect = SliderHapticEffect.Step,
             enabled = enabled
         )
     }
@@ -2136,8 +2148,8 @@ private fun EdgeThicknessItem(
 ) {
     val levels = CardEdgeThickness.entries
     val lastIndex = levels.lastIndex
-    val textColor = if (enabled) MiuixTheme.colorScheme.onSurface
-    else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    val textColor = if (enabled) NexioTheme.colorScheme.onSurface
+    else NexioTheme.colorScheme.onSurface.copy(alpha = 0.4f)
     var rawValue by remember { mutableFloatStateOf(value.ordinal.toFloat()) }
     var isDragging by remember { mutableStateOf(false) }
     LaunchedEffect(value) {
@@ -2193,7 +2205,7 @@ private fun EdgeThicknessItem(
             keyPoints = levels.indices.map { it.toFloat() },
             magnetThreshold = 0.01f,
             modifier = Modifier.fillMaxWidth(),
-            hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+            hapticEffect = SliderHapticEffect.Step,
             enabled = enabled
         )
     }

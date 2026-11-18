@@ -51,11 +51,12 @@ import com.haooz.chedule.data.model.TeachingWeekReorganization
 import com.haooz.chedule.data.util.formatMonthDayShort
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.CommonStr
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.effects.motion.morphClip
-import com.haooz.chedule.ui.effects.motion.rememberMorphTransition
+import com.haooz.nexioui.motion.morphClip
+import com.haooz.nexioui.motion.rememberMorphTransition
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.TransitionLayerImage
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.blockTouchPassThrough
@@ -69,21 +70,21 @@ import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.datetime.LocalDate
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.TopBarMaterialThreshold
-import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.ChevronBackward
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBar
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
+import com.haooz.nexioui.topbarmaterial.TopBarMaterialThreshold
+import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 
 @Composable
@@ -163,6 +164,7 @@ fun CourseDetailScreen(
         onBackStart = onBackStart,
         onBack = onBack,
         autoStart = morphStarted,
+        predictiveBackEnabled = { PredictiveBackSettings.enabled },
     )
 
 
@@ -195,7 +197,7 @@ fun CourseDetailScreen(
                     translationY = s.translationY
                 }
                 .morphClip(morph)
-                .background(MiuixTheme.colorScheme.background)
+                .background(NexioTheme.colorScheme.background)
         ) {
             if (cardSnapshot != null) {
                 TransitionLayerImage(
@@ -233,10 +235,10 @@ fun CourseDetailScreen(
                                 materialState = material,
                                 contentPadding = {},
                                 startAction = { backdropAlpha, shadowAlpha ->
-                                    LiquidTopBarButton(
+                                    IconButton(
                                         onClick = { morph.close() },
                                         backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.ChevronBackward,
+                                        icon = NexioIcons.ChevronBackward,
                                         contentDescription = CommonStr.back(),
                                         performHapticFeedback = false,
                                         iconSize = 25.dp,
@@ -289,11 +291,11 @@ fun CourseDetailScreen(
                                 }
                             }
                             Card(
-                                modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface),
+                                modifier = Modifier.fillMaxSize().background(NexioTheme.colorScheme.surface),
                                 insideMargin = PaddingValues(0.dp),
                                 colors = CardDefaults.defaultColors(
-                                    color = MiuixTheme.colorScheme.surface,
-                                    contentColor = MiuixTheme.colorScheme.onSurface)
+                                    color = NexioTheme.colorScheme.surface,
+                                    contentColor = NexioTheme.colorScheme.onSurface)
                             ) {
                                 val topBarHeightDp = with(density) {
                                     scrollBehavior.currentHeightPx.toDp()
@@ -409,9 +411,9 @@ fun CourseDetailScreen(
                                                                 Column(modifier = Modifier.weight(1f)) {
                                                                     Text(
                                                                         text = "$dateStr $dayName $sectionText",
-                                                                        style = MiuixTheme.textStyles.body1.copy(fontSize = 17.sp),
+                                                                        style = NexioTheme.textStyles.body1.copy(fontSize = 17.sp),
                                                                         fontWeight = FontWeight.Medium,
-                                                                        color = MiuixTheme.colorScheme.onSurface
+                                                                        color = NexioTheme.colorScheme.onSurface
                                                                     )
                                                                     Spacer(modifier = Modifier.height(4.dp))
                                                                     val detailParts = mutableListOf<String>()
@@ -420,8 +422,8 @@ fun CourseDetailScreen(
                                                                     if (detailParts.isNotEmpty()) {
                                                                         Text(
                                                                             text = detailParts.joinToString(" | "),
-                                                                            style = MiuixTheme.textStyles.body2.copy(fontSize = 14.sp),
-                                                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                                                            style = NexioTheme.textStyles.body2.copy(fontSize = 14.sp),
+                                                                            color = NexioTheme.colorScheme.onSurfaceVariantSummary
                                                                         )
                                                                     }
                                                                 }
@@ -429,8 +431,8 @@ fun CourseDetailScreen(
                                                                     Column(horizontalAlignment = Alignment.End) {
                                                                         Text(
                                                                             text = timeText,
-                                                                            style = MiuixTheme.textStyles.footnote1.copy(fontSize = 15.sp),
-                                                                            color = MiuixTheme.colorScheme.primary,
+                                                                            style = NexioTheme.textStyles.footnote1.copy(fontSize = 15.sp),
+                                                                            color = NexioTheme.colorScheme.primary,
                                                                             textAlign = TextAlign.End,
                                                                         )
                                                                     }

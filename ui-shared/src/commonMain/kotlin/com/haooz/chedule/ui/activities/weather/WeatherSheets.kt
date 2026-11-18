@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.today.weatherIconRes
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
@@ -44,16 +44,16 @@ import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.chedule.ui.components.sheetContentBottomInset
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
-import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
-import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
+import com.haooz.nexioui.blurbottomsheet.LocalBlurBottomSheetContentExpanded
+import com.haooz.nexioui.blurbottomsheet.LocalSheetContentBackdrop
+import com.haooz.nexioui.blurbottomsheet.LocalSheetTopBarMaterial
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 天气页的底部详情面板。
@@ -107,10 +107,10 @@ internal fun WeatherSheetHost(
     val fallbackBackdrop = rememberLayerBackdrop()
     val closeAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
-        LiquidTopBarButton(
+        IconButton(
             onClick = onDismiss,
             backdrop = LocalSheetContentBackdrop.current ?: fallbackBackdrop,
-            icon = MiuixIcons.Normal.Close,
+            icon = NexioIcons.Normal.Close,
             contentDescription = CommonStr.close(),
             modifier = Modifier.padding(start = 18.dp),
             // 比「添加课程」那颗 24dp 略小：这里是纯关闭，不该抢读数
@@ -157,9 +157,9 @@ private val SHEET_TABLET_TOP_BAR = 74.dp
 // sheet 内卡片底色与其它面板一致：莫奈取 surfaceContainerHigh，非莫奈沿用硬编码。
 @Composable
 internal fun weatherSheetCardColors() = CardDefaults.defaultColors(
-    color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh
+    color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh
     else if (isAppDarkTheme()) Color(0xFF303030) else Color(0xFFFFFFFF),
-    contentColor = MiuixTheme.colorScheme.onSurface,
+    contentColor = NexioTheme.colorScheme.onSurface,
 )
 
 @Composable
@@ -215,7 +215,7 @@ private fun sheetTitle(target: WeatherSheetTarget): String = when (target) {
 @Composable
 private fun AirSheetBody(snapshot: WeatherSnapshot) {
     val air = snapshot.air
-    val secondary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val secondary = NexioTheme.colorScheme.onSurfaceVariantSummary
     if (air == null) {
         Text(
             text = WeatherStr.aqiMissing(),
@@ -375,7 +375,7 @@ private fun airTrend(snapshot: WeatherSnapshot): List<Pair<String, Int>> =
  */
 @Composable
 private fun AqiBars(points: List<Pair<String, Int>>) {
-    val secondary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val secondary = NexioTheme.colorScheme.onSurfaceVariantSummary
     // 纵轴上界向上取到 50 的倍数：AQI 的分档线都是 50/100/150，柱子对齐分档才有意义
     val top = (((points.maxOf { it.second }) / 50) + 1) * 50
     Canvas(modifier = Modifier.fillMaxWidth().height(104.dp)) {
@@ -431,14 +431,14 @@ private fun AllDaysBody(snapshot: WeatherSnapshot) {
         Text(
             text = WeatherStr.trendEmpty(),
             fontSize = 13.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.padding(start = 8.dp),
         )
         return
     }
     val minTemp = days.mapNotNull { it.low }.minOrNull() ?: 0.0
     val maxTemp = days.mapNotNull { it.high }.maxOrNull() ?: 1.0
-    val divider = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+    val divider = NexioTheme.colorScheme.onSurface.copy(alpha = 0.06f)
     Card(
         modifier = Modifier.fillMaxWidth(),
         insideMargin = PaddingValues(0.dp),
@@ -470,9 +470,9 @@ private fun AllDaysBody(snapshot: WeatherSnapshot) {
  */
 @Composable
 private fun DayBlock(day: WeatherDay, index: Int, minTemp: Double, maxTemp: Double) {
-    val secondary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val secondary = NexioTheme.colorScheme.onSurfaceVariantSummary
     val isToday = index == 0
-    val accent = MiuixTheme.colorScheme.primary
+    val accent = NexioTheme.colorScheme.primary
     val dateText = monthDayOf(day.date)
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
         // ① 日期 + 相对日名 … 低温 + 条 + 高温
@@ -483,7 +483,7 @@ private fun DayBlock(day: WeatherDay, index: Int, minTemp: Double, maxTemp: Doub
                     text = md,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     maxLines = 1,
                 )
                 Spacer(Modifier.width(8.dp))
@@ -492,7 +492,7 @@ private fun DayBlock(day: WeatherDay, index: Int, minTemp: Double, maxTemp: Doub
                 text = dayLabel(index, day.date),
                 fontSize = 15.sp,
                 fontWeight = if (isToday) FontWeight.Medium else null,
-                color = if (dateText != null) secondary else MiuixTheme.colorScheme.onSurface,
+                color = if (dateText != null) secondary else NexioTheme.colorScheme.onSurface,
                 maxLines = 1,
             )
             Spacer(Modifier.weight(1f))
@@ -515,7 +515,7 @@ private fun DayBlock(day: WeatherDay, index: Int, minTemp: Double, maxTemp: Doub
                 text = day.high?.let { "${it.toInt()}°" } ?: "—",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 maxLines = 1,
             )
         }
@@ -535,7 +535,7 @@ private fun DayBlock(day: WeatherDay, index: Int, minTemp: Double, maxTemp: Doub
                     .joinToString(" 转 ")
                     .ifBlank { WeatherStr.noDataField() },
                 fontSize = 15.sp,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),

@@ -107,9 +107,8 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.1-1.1.0-02")
             implementation("app.cash.sqldelight:runtime:2.2.1-1.1.0-01")
             implementation("app.cash.sqldelight:native-driver:2.2.1-1.1.0-01")
-            // 液态玻璃与 miuix 的 ohos 变体（玻璃在鸿蒙上降级为纯色，API 面与 Android 一致）
+            // 液态玻璃的 ohos 变体（玻璃在鸿蒙上降级为纯色，API 面与 Android 一致）
             api(project(":sharedBackdrop"))
-            api(project(":sharedMiuix"))
         }
     }
 

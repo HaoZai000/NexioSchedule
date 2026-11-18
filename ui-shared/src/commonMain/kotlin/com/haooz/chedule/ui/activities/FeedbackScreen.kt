@@ -1,7 +1,7 @@
 /** 应用内反馈（表单页）- Screen */
 package com.haooz.chedule.ui.activities
 
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import com.haooz.nexioui.button.ButtonDefaults
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.clip
@@ -42,18 +42,18 @@ import com.haooz.chedule.data.platform.currentDeviceInfo
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /**
  * 表单状态。
@@ -166,9 +166,9 @@ private fun FeedbackForm(
     state: FeedbackFormState,
     onOpenHistory: () -> Unit,
 ) {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
 
-    NativeMiuixTextField(
+    TextField(
         value = state.title,
         onValueChange = { state.title = it },
         label = FeedbackStr.titleLabel(),
@@ -177,7 +177,7 @@ private fun FeedbackForm(
         maxLength = FeedbackClient.MAX_TITLE_LENGTH,
     )
     Spacer(modifier = Modifier.height(10.dp))
-    NativeMiuixTextField(
+    TextField(
         value = state.content,
         onValueChange = { state.content = it },
         // 占位符直接给填写结构（3 条），比「具体内容」四个字有用；开始输入即隐藏
@@ -189,7 +189,7 @@ private fun FeedbackForm(
     )
     Text(
         text = FeedbackStr.contentCounter(state.content.length, FeedbackClient.MAX_CONTENT_LENGTH),
-        style = MiuixTheme.textStyles.footnote2,
+        style = NexioTheme.textStyles.footnote2,
         color = theme.onSurfaceVariantSummary,
         textAlign = TextAlign.End,
         modifier = Modifier
@@ -198,7 +198,7 @@ private fun FeedbackForm(
     )
 
     Spacer(modifier = Modifier.height(12.dp))
-    NativeMiuixTextField(
+    TextField(
         value = state.email,
         onValueChange = {
             state.email = it
@@ -219,7 +219,7 @@ private fun FeedbackForm(
     ) {
         Text(
             text = FeedbackStr.viewMine() + " ›",
-            style = MiuixTheme.textStyles.footnote1,
+            style = NexioTheme.textStyles.footnote1,
             color = theme.primary,
             modifier = Modifier
                 .clickable { onOpenHistory() }
@@ -230,7 +230,7 @@ private fun FeedbackForm(
     Spacer(modifier = Modifier.height(14.dp))
     Text(
         text = deviceSummary(),
-        style = MiuixTheme.textStyles.footnote2,
+        style = NexioTheme.textStyles.footnote2,
         color = theme.onSurfaceVariantSummary,
         modifier = Modifier.padding(start = 8.dp),
     )
@@ -253,7 +253,7 @@ private fun SubmittedCard(
     onOpenHistory: () -> Unit,
     onOpenRoadmap: () -> Unit,
 ) {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(24.dp)) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -277,7 +277,7 @@ private fun SubmittedCard(
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = FeedbackStr.successTitle(),
-                style = MiuixTheme.textStyles.title2,
+                style = NexioTheme.textStyles.title2,
                 fontWeight = FontWeight.Medium,
                 color = theme.onSurface,
                 textAlign = TextAlign.Center,
@@ -285,14 +285,14 @@ private fun SubmittedCard(
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = FeedbackStr.successHint(),
-                style = MiuixTheme.textStyles.body2,
+                style = NexioTheme.textStyles.body2,
                 color = theme.onSurfaceVariantSummary,
                 textAlign = TextAlign.Center,
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = FeedbackStr.successBody(requestId),
-                style = MiuixTheme.textStyles.footnote2,
+                style = NexioTheme.textStyles.footnote2,
                 color = theme.onSurfaceVariantSummary,
                 textAlign = TextAlign.Center,
             )
@@ -302,13 +302,13 @@ private fun SubmittedCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                TextButton(
+                FlatTextButton(
                     text = FeedbackStr.viewMine(),
                     onClick = onOpenHistory,
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(
+                FlatTextButton(
                     text = FeedbackStr.viewRoadmap(),
                     onClick = onOpenRoadmap,
                     colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -316,7 +316,7 @@ private fun SubmittedCard(
                 )
             }
             Spacer(modifier = Modifier.height(6.dp))
-            TextButton(
+            FlatTextButton(
                 text = FeedbackStr.writeAnother(),
                 onClick = onWriteAnother,
                 modifier = Modifier.fillMaxWidth(),

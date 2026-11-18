@@ -28,17 +28,17 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.BasicComponentColors
-import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
-import top.yukonga.miuix.kmp.basic.DropdownArrowEndAction
-import top.yukonga.miuix.kmp.basic.DropdownColors
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.interactive.DropdownMaskMode
-import top.yukonga.miuix.kmp.interactive.DropdownPanelDragSelectState
-import top.yukonga.miuix.kmp.popup.OverlayDropdownPopup
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.basiccomponent.BasicComponent
+import com.haooz.nexioui.basiccomponent.BasicComponentColors
+import com.haooz.nexioui.basiccomponent.BasicComponentDefaults
+import com.haooz.nexioui.dropdown.DropdownArrowEndAction
+import com.haooz.nexioui.dropdown.DropdownColors
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownMaskMode
+import com.haooz.nexioui.dropdown.DropdownPanelDragSelectState
+import com.haooz.nexioui.dropdown.OverlayDropdownPopup
+import com.haooz.nexioui.theme.NexioTheme
 
 private fun resolveSelectedText(entries: List<DropdownEntry>): String? {
     for (entry in entries) {
@@ -66,7 +66,7 @@ private fun RowScope.DropdownTriggerContent(
         Text(
             text = selectedText,
             fontSize = 14.2.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            color = NexioTheme.colorScheme.onSurfaceVariantActions,
             maxLines = 1,
             modifier = Modifier
                 .padding(end = 8.dp)
@@ -207,9 +207,9 @@ fun OverlayDropdownMenu(
     val actualEnabled = enabled && hasEntries
     val selectedText = resolveSelectedText(nonEmptyEntries)
     val actionColor = if (actualEnabled) {
-        MiuixTheme.colorScheme.onSurfaceVariantActions
+        NexioTheme.colorScheme.onSurfaceVariantActions
     } else {
-        MiuixTheme.colorScheme.disabledOnSecondaryVariant
+        NexioTheme.colorScheme.disabledOnSecondaryVariant
     }
 
     val handleClick = remember(actualEnabled) {

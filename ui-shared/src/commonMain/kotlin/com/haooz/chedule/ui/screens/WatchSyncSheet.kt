@@ -34,15 +34,15 @@ import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.ui.components.text.miuix.Text
 import com.haooz.chedule.ui.utils.screenWidthDp
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.HorizontalDivider
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.progressindicator.CircularProgressIndicator
+import com.haooz.nexioui.divider.HorizontalDivider
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /** 扫描到的手表（跨平台层只认名称与地址，不暴露平台类型） */
 data class WatchTarget(val name: String, val address: String)
@@ -142,7 +142,7 @@ fun WatchSyncSheet(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                 textAlign = TextAlign.Center,
             )
 
@@ -177,7 +177,7 @@ fun WatchSyncSheet(
                                     text = BackupStr.watchSyncEmpty(),
                                     modifier = Modifier.padding(horizontal = 24.dp),
                                     fontSize = 14.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                     textAlign = TextAlign.Center,
                                 )
                             }
@@ -230,7 +230,7 @@ fun WatchSyncSheet(
                         }
                     }
 
-                    TextButton(
+                    FlatTextButton(
                         text = BackupStr.watchSyncRescan(),
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
@@ -240,7 +240,7 @@ fun WatchSyncSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
-                        textColor = MiuixTheme.colorScheme.primary,
+                        textColor = NexioTheme.colorScheme.primary,
                     )
                 }
             }
@@ -294,7 +294,7 @@ private fun WatchRow(
                 text = target.name,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -302,7 +302,7 @@ private fun WatchRow(
             Text(
                 text = target.address,
                 fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
             )
         }
         Text(
@@ -310,9 +310,9 @@ private fun WatchRow(
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             color = if (sent) {
-                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                NexioTheme.colorScheme.onSurfaceVariantSummary
             } else {
-                MiuixTheme.colorScheme.primary
+                NexioTheme.colorScheme.primary
             },
         )
     }
@@ -332,7 +332,7 @@ private fun StatusBlock(text: String) {
         Text(
             text = text,
             fontSize = 14.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
         )
     }
 }
@@ -342,7 +342,7 @@ private fun MessageBlock(text: String, isError: Boolean) {
     Text(
         text = text,
         fontSize = 14.sp,
-        color = if (isError) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary,
+        color = if (isError) NexioTheme.colorScheme.error else NexioTheme.colorScheme.primary,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }

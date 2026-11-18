@@ -25,18 +25,18 @@ import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.platform.LocalDensity
-import com.haooz.chedule.ui.effects.motion.OobeQuartOutSoftStartEasing
-import com.haooz.chedule.ui.effects.motion.SecondaryPageExitEasing
+import com.haooz.nexioui.motion.OobeQuartOutSoftStartEasing
+import com.haooz.nexioui.motion.SecondaryPageExitEasing
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.clipDuringTransition
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
-import com.haooz.chedule.ui.utils.toShape
+import com.haooz.nexioui.window.toShape
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.utils.rememberNavigationBack
+import com.haooz.nexioui.navigationback.rememberNavigationBack
 
 /**
  * 子页叠加层：整栈常驻组合，用一个进度驱动栈顶滑入滑出。

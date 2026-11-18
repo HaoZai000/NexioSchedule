@@ -37,19 +37,19 @@ import com.haooz.chedule.i18n.McpStr
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.NativeTextField
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Switch
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.nativetextfield.NativeTextField
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.switch.Switch
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /**
  * 「MCP 服务」页：把课表以只读 MCP 工具的形式暴露给手机上的 AI 助手。
@@ -64,7 +64,7 @@ fun McpServiceScreen(
     val isTablet = isTabletWidth()
     val horizontalPadding = if (isTablet) 20.dp else 16.dp
     val haptic = LocalHapticFeedback.current
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
 
     var enabled by remember { mutableStateOf(McpServicePrefs.isEnabled()) }
     var token by remember { mutableStateOf(McpServicePrefs.token()) }
@@ -163,7 +163,7 @@ fun McpServiceScreen(
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    TextButton(
+                    FlatTextButton(
                         text = if (copied) McpStr.copied() else McpStr.copy(),
                         onClick = {
                             onCopyToClipboard(McpToolCatalog.SERVER_URL)
@@ -246,7 +246,7 @@ fun McpServiceScreen(
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = McpStr.toolsNote(),
-                        style = MiuixTheme.textStyles.footnote2,
+                        style = NexioTheme.textStyles.footnote2,
                         fontSize = 14.sp,
                         color = theme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp),

@@ -101,12 +101,12 @@ import com.haooz.chedule.ui.ai.StreamingRevealText
 import com.haooz.chedule.ui.ai.bottomAnchoredClip
 import com.haooz.chedule.ui.ai.streamingWindowStart
 import com.haooz.chedule.ui.ai.stripMarkdownEmphasis
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.iconbutton.IconButton
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.PageBlurBaseHeight
 import com.haooz.chedule.ui.components.softGlassBackdrop
 import com.haooz.chedule.ui.components.text.material.Text
-import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.nexioui.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.chedule.ui.screens.AdapterSelectionBottomSheet
 import com.haooz.chedule.ui.utils.AppMaterialSettings
@@ -137,20 +137,20 @@ import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
+import com.haooz.nexioui.button.ButtonDefaults
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.basic.ArrowRight
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.icon.extended.Refresh
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBar
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.material3.Text as PlainText
@@ -218,7 +218,7 @@ fun AiEduImportScreen(
     val nativeBarInset = (nativeChrome?.barInset ?: 0.0).dp
     val showNavigationActions = nativeChrome == null
     // ⚠ 必须在组合期取好：SideEffect 的 lambda 不是 @Composable，读不了 MiuixTheme
-    val chromeTint = MiuixTheme.colorScheme.primary.toArgb().toLong()
+    val chromeTint = NexioTheme.colorScheme.primary.toArgb().toLong()
 
     var stage by remember { mutableStateOf(Stage.Web) }
     var urlInput by remember {
@@ -436,7 +436,7 @@ fun AiEduImportScreen(
                     onOpenAdapterImport()
                 },
                 footerContent = {
-                    TextButton(
+                    FlatTextButton(
                         text = ImportStr.aiEduContinue(),
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
@@ -467,13 +467,13 @@ fun AiEduImportScreen(
                     contentPadding = {},
                     startAction = if (showNavigationActions) {
                         { backdropAlpha, shadowAlpha ->
-                            LiquidTopBarButton(
+                            IconButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                     onBack()
                                 },
                                 backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Close,
+                                icon = NexioIcons.Close,
                                 contentDescription = CommonStr.close(),
                                 performHapticFeedback = false,
                                 iconSize = 22.dp,
@@ -485,7 +485,7 @@ fun AiEduImportScreen(
                     endAction = if (showNavigationActions) {
                         { backdropAlpha, shadowAlpha ->
                             if (openedUrl == null) {
-                                LiquidTopBarButton(
+                                IconButton(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                         onOpenHistory()
@@ -499,13 +499,13 @@ fun AiEduImportScreen(
                                     shadowAlpha = shadowAlpha,
                                 )
                             } else {
-                                LiquidTopBarButton(
+                                IconButton(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                         host?.reload()
                                     },
                                     backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Refresh,
+                                    icon = NexioIcons.Refresh,
                                     contentDescription = ImportStr.refresh(),
                                     performHapticFeedback = false,
                                     iconSize = 24.dp,
@@ -534,19 +534,19 @@ private fun UrlEntryOverlay(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MiuixTheme.colorScheme.surface)
+            .background(NexioTheme.colorScheme.surface)
             .padding(horizontal = 16.dp)
             .padding(top = 120.dp)
     ) {
         Text(
             text = ImportStr.aiEduUrlHint(),
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            style = NexioTheme.textStyles.body2,
+            color = NexioTheme.colorScheme.onSurfaceVariantActions,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(12.dp))
-        NativeMiuixTextField(
+        TextField(
             value = urlInput,
             onValueChange = onUrlChange,
             minLines = 4,
@@ -555,7 +555,7 @@ private fun UrlEntryOverlay(
             useLabelAsPlaceholder = true,
         )
         Spacer(Modifier.height(12.dp))
-        TextButton(
+        FlatTextButton(
             text = ImportStr.aiEduOpen(),
             onClick = onOpen,
             colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -654,15 +654,15 @@ private fun ChatSheet(
             .fillMaxWidth()
             .fillMaxHeight(ChatSheetFraction)
             .clip(sheetShape)
-            .background(MiuixTheme.colorScheme.surface)
-            .border(0.5.dp, MiuixTheme.colorScheme.outline, sheetShape)
+            .background(NexioTheme.colorScheme.surface)
+            .border(0.5.dp, NexioTheme.colorScheme.outline, sheetShape)
             .imePadding()
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .layerBackdrop(sheetBackdrop)
-                .background(MiuixTheme.colorScheme.surface)
+                .background(NexioTheme.colorScheme.surface)
         ) {
             LazyColumn(
                 state = listState,
@@ -695,8 +695,8 @@ private fun ChatSheet(
                     item(key = "queued") {
                         PlainText(
                             text = ImportStr.aiEduQueuedNote(state.queued.size),
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            style = NexioTheme.textStyles.body2,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         )
                     }
@@ -705,8 +705,8 @@ private fun ChatSheet(
                     item(key = "error") {
                         PlainText(
                             text = error,
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.error,
+                            style = NexioTheme.textStyles.body2,
+                            color = NexioTheme.colorScheme.error,
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         )
                     }
@@ -714,7 +714,7 @@ private fun ChatSheet(
                 // 预览入口放在滚动区尾部：贴底会让它和输入条抢同一块区域，滚到底就能点到
                 if (state.draft != null) {
                     item(key = "preview") {
-                        TextButton(
+                        FlatTextButton(
                             text = ImportStr.aiEduPreviewActionN(state.draft.courseCount),
                             onClick = onPreview,
                             colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -725,7 +725,7 @@ private fun ChatSheet(
             }
 
             // 顶部渐变遮罩（照 BlurBottomSheet）：常驻、固定 ChatTopInset、多段色标，向下淡出到透明
-            val scrimColor = MiuixTheme.colorScheme.surface
+            val scrimColor = NexioTheme.colorScheme.surface
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -848,7 +848,7 @@ private fun SheetDragHandle() {
                 .width(45.dp)
                 .height(4.dp)
                 .clip(ContinuousRoundedRectangle(2.dp))
-                .background(MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.2f))
+                .background(NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.2f))
         )
     }
 }
@@ -868,10 +868,10 @@ private fun StatusRow(
 ) {
     val pillShape = remember { ContinuousCapsule() }
     val accentColor = when {
-        state.running -> MiuixTheme.colorScheme.primary
-        state.error != null -> MiuixTheme.colorScheme.error
-        state.draft != null -> MiuixTheme.colorScheme.primary
-        else -> MiuixTheme.colorScheme.onSurfaceVariantActions
+        state.running -> NexioTheme.colorScheme.primary
+        state.error != null -> NexioTheme.colorScheme.error
+        state.draft != null -> NexioTheme.colorScheme.primary
+        else -> NexioTheme.colorScheme.onSurfaceVariantActions
     }
     Row(
         modifier = Modifier
@@ -899,7 +899,7 @@ private fun StatusRow(
                     state.error != null -> ImportStr.aiEduFailed()
                     else -> ImportStr.aiEduStatusIdle(formatDurationPlain(elapsedMs))
                 },
-                style = MiuixTheme.textStyles.body2,
+                style = NexioTheme.textStyles.body2,
                 fontWeight = FontWeight.Medium,
                 color = accentColor,
             )
@@ -907,8 +907,8 @@ private fun StatusRow(
         Spacer(Modifier.weight(1f))
         PlainText(
             text = if (state.running) ImportStr.aiEduStop() else ImportStr.aiEduCollapseSheet(),
-            style = MiuixTheme.textStyles.body2,
-            color = if (state.running) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary,
+            style = NexioTheme.textStyles.body2,
+            color = if (state.running) NexioTheme.colorScheme.error else NexioTheme.colorScheme.primary,
             modifier = Modifier
                 .clip(CircleShape)
                 .clickable { if (state.running) onStop() else onCollapse() }
@@ -940,8 +940,8 @@ private fun Composer(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.weight(1f),
-            textStyle = MiuixTheme.textStyles.body1.copy(color = MiuixTheme.colorScheme.onSurface),
-            cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
+            textStyle = NexioTheme.textStyles.body1.copy(color = NexioTheme.colorScheme.onSurface),
+            cursorBrush = SolidColor(NexioTheme.colorScheme.primary),
             maxLines = 1,
             decorationBox = { inner ->
                 Box(
@@ -957,7 +957,7 @@ private fun Composer(
                                     radiusPx = capsuleRadiusPx,
                                 )
                             } else {
-                                Modifier.background(MiuixTheme.colorScheme.surfaceVariant)
+                                Modifier.background(NexioTheme.colorScheme.surfaceVariant)
                             }
                         )
                         .padding(horizontal = 20.dp, vertical = 14.dp)
@@ -965,8 +965,8 @@ private fun Composer(
                     if (value.isEmpty()) {
                         PlainText(
                             text = placeholder,
-                            style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            style = NexioTheme.textStyles.body1,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -982,9 +982,9 @@ private fun Composer(
             base = ScheduleSoftGlassStyle,
             isDark = isAppDarkTheme(),
             fill = if (enabled) {
-                CustomizeFill(MiuixTheme.colorScheme.primary)
+                CustomizeFill(NexioTheme.colorScheme.primary)
             } else {
-                CustomizeFill(MiuixTheme.colorScheme.surfaceVariant)
+                CustomizeFill(NexioTheme.colorScheme.surfaceVariant)
             },
             tone = BrightTone,
         )
@@ -1003,8 +1003,8 @@ private fun Composer(
                     } else {
                         // 无材质档退成实色，禁用态同样只置灰
                         Modifier.background(
-                            if (enabled) MiuixTheme.colorScheme.primary
-                            else MiuixTheme.colorScheme.surfaceVariant
+                            if (enabled) NexioTheme.colorScheme.primary
+                            else NexioTheme.colorScheme.surfaceVariant
                         )
                     }
                 )
@@ -1012,13 +1012,13 @@ private fun Composer(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = MiuixIcons.Basic.ArrowRight,
+                imageVector = NexioIcons.Basic.ArrowRight,
                 contentDescription = if (running) ImportStr.aiEduSteer() else ImportStr.aiEduSend(),
                 modifier = Modifier
                     .size(20.dp)
                     // ArrowRight 转 -90° 就是向上的发送箭头，省一个图标资源
                     .graphicsLayer { rotationZ = -90f },
-                tint = if (enabled) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurfaceVariantActions,
+                tint = if (enabled) NexioTheme.colorScheme.onPrimary else NexioTheme.colorScheme.onSurfaceVariantActions,
             )
         }
     }
@@ -1029,12 +1029,12 @@ private fun UserBubble(text: String, maxWidth: Dp) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         PlainText(
             text = text,
-            style = MiuixTheme.textStyles.body1,
-            color = MiuixTheme.colorScheme.onPrimary,
+            style = NexioTheme.textStyles.body1,
+            color = NexioTheme.colorScheme.onPrimary,
             modifier = Modifier
                 .widthIn(max = maxWidth)
                 .clip(ContinuousRoundedRectangle(18.dp))
-                .background(MiuixTheme.colorScheme.primary)
+                .background(NexioTheme.colorScheme.primary)
                 .padding(horizontal = 14.dp, vertical = 9.dp),
         )
     }
@@ -1044,14 +1044,14 @@ private fun UserBubble(text: String, maxWidth: Dp) {
 private fun AssistantBubble(text: String, maxWidth: Dp, streaming: Boolean) {
     // 模型很爱回 markdown 加粗，这里只做最轻的清洗：留着星号比渲染错更难看
     val clean = text.stripMarkdownEmphasis()
-    val style = LocalTextStyle.current.merge(MiuixTheme.textStyles.body1)
-        .copy(color = MiuixTheme.colorScheme.onSurface)
+    val style = LocalTextStyle.current.merge(NexioTheme.textStyles.body1)
+        .copy(color = NexioTheme.colorScheme.onSurface)
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
         Box(
             modifier = Modifier
                 .widthIn(max = maxWidth)
                 .clip(ContinuousRoundedRectangle(18.dp))
-                .background(MiuixTheme.colorScheme.surfaceVariant)
+                .background(NexioTheme.colorScheme.surfaceVariant)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             if (streaming) {
@@ -1106,9 +1106,9 @@ private fun ThinkingBlock(item: EduChatItem.Thinking) {
                 } else {
                     ImportStr.aiEduThinkingBlock(formatDuration((item.seconds * 1000).toLong()))
                 },
-                style = MiuixTheme.textStyles.body2,
+                style = NexioTheme.textStyles.body2,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions,
             )
             if (item.streaming) {
                 Spacer(Modifier.size(6.dp))
@@ -1116,13 +1116,13 @@ private fun ThinkingBlock(item: EduChatItem.Thinking) {
             } else if (expandable) {
                 Spacer(Modifier.size(4.dp))
                 Icon(
-                    imageVector = MiuixIcons.Basic.ArrowRight,
+                    imageVector = NexioIcons.Basic.ArrowRight,
                     contentDescription = if (expanded) ImportStr.aiEduCollapse() else ImportStr.aiEduExpand(),
                     modifier = Modifier
                         .size(13.dp)
                         // 未展开朝右，展开转 90° 朝下
                         .graphicsLayer { rotationZ = chevronRotation },
-                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    tint = NexioTheme.colorScheme.onSurfaceVariantActions,
                 )
             }
         }
@@ -1140,9 +1140,9 @@ private fun ThinkingBlock(item: EduChatItem.Thinking) {
             ) {
                 StreamingRevealText(
                     text = window,
-                    style = MiuixTheme.textStyles.body2.copy(
+                    style = NexioTheme.textStyles.body2.copy(
                         fontSize = 13.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                     ),
                     revealBase = windowStart,
                     modifier = Modifier.fillMaxWidth().bottomAnchoredClip(),
@@ -1184,9 +1184,9 @@ private fun ThinkingText(
 ) {
     PlainText(
         text = text,
-        style = MiuixTheme.textStyles.body2,
+        style = NexioTheme.textStyles.body2,
         fontSize = 13.sp,
-        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+        color = NexioTheme.colorScheme.onSurfaceVariantActions,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         onTextLayout = onTextLayout ?: {},
@@ -1198,9 +1198,9 @@ private fun ThinkingText(
 @Composable
 private fun StepBlock(item: EduChatItem.Step) {
     val statusColor = if (item.failed) {
-        MiuixTheme.colorScheme.error
+        NexioTheme.colorScheme.error
     } else {
-        MiuixTheme.colorScheme.onSurfaceVariantActions
+        NexioTheme.colorScheme.onSurfaceVariantActions
     }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1214,9 +1214,9 @@ private fun StepBlock(item: EduChatItem.Step) {
         Spacer(Modifier.size(8.dp))
         PlainText(
             text = item.title,
-            style = MiuixTheme.textStyles.body2,
+            style = NexioTheme.textStyles.body2,
             fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -1240,7 +1240,7 @@ private fun PulsingDot(size: Dp = 5.dp) {
         modifier = Modifier
             .size(size)
             .graphicsLayer { this.alpha = alpha }
-            .background(MiuixTheme.colorScheme.primary, CircleShape)
+            .background(NexioTheme.colorScheme.primary, CircleShape)
     )
 }
 

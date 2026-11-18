@@ -28,7 +28,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "Nexio课程表"
 
-// 柔光玻璃是独立仓库（HaoZai000/softglass）。本地存在源码时用复合构建直接编源码，
+// 柔光玻璃是独立仓库（HaoZai000/SoftGlass）。本地存在源码时用复合构建直接编源码，
 // 改库即改即测；没有源码（CI / 他人 clone）时才回落到 JitPack 坐标。
 // 复合构建按 group:name 精确替换，而 JitPack 给的是 com.github.HaoZai000 前缀，
 // 与库自身的 group 不同，所以必须显式声明 substitution。
@@ -36,14 +36,23 @@ val softglassSource = file("../softglass")
 if (softglassSource.resolve("build.gradle.kts").exists()) {
     includeBuild(softglassSource) {
         dependencySubstitution {
-            substitute(module("com.github.HaoZai000.softglass:softglass")).using(project(":"))
+            substitute(module("com.github.HaoZai000.SoftGlass:softglass")).using(project(":"))
+        }
+    }
+}
+
+// NexioUI 是独立开源控件库。本地存在源码时走复合构建，改库即改即测；
+// 后续发布后可改为 Maven 坐标。
+val nexiouiSource = file("../nexioui")
+if (nexiouiSource.resolve("build.gradle.kts").exists()) {
+    includeBuild(nexiouiSource) {
+        dependencySubstitution {
+            substitute(module("com.haooz.nexioui:nexioui")).using(project(":nexioui"))
         }
     }
 }
 include(":androidApp")
 include(":core")
-include(":miuix")
 include(":ui-shared")
 include(":desktopApp")
- 
 

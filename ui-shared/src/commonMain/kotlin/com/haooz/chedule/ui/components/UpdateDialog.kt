@@ -39,12 +39,12 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.button.Button
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.progressindicator.LinearProgressIndicator
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 更新弹窗：每天启动时检查一次更新，有新版本则弹窗提示。
@@ -249,7 +249,7 @@ fun UpdateDialog(
                 Text(
                     text = updateBody.take(300),
                     fontSize = 14.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
             }
@@ -261,7 +261,7 @@ fun UpdateDialog(
                     Text(
                         text = AboutStr.gettingDownloadUrlDots(),
                         fontSize = 14.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions
                     )
                 } else {
                     LinearProgressIndicator(
@@ -272,7 +272,7 @@ fun UpdateDialog(
                     Text(
                         text = "${(downloadProgress * 100).toInt()}%",
                         fontSize = 14.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         textAlign = TextAlign.Center,
                     )
                 }
@@ -286,7 +286,7 @@ fun UpdateDialog(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // 始终提供关闭入口：安装中也能关，否则用户在系统安装器点「取消」后回不来
-                TextButton(
+                FlatTextButton(
                     text = when {
                         isInstalling -> CommonStr.close()
                         isDownloading -> AboutStr.backgroundDownload()
@@ -328,7 +328,7 @@ fun UpdateDialog(
                         // 按钮自己把内容居中：文案在「立即更新 / 下载中 / 安装」之间换字时按中心收放
                         textAlign = TextAlign.Center,
                         color = if (isDownloading || isInstalling) {
-                            MiuixTheme.colorScheme.onSurfaceVariantActions
+                            NexioTheme.colorScheme.onSurfaceVariantActions
                         } else {
                             Color.White
                         }

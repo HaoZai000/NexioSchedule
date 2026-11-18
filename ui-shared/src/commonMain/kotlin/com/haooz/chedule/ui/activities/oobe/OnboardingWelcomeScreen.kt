@@ -49,7 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.i18n.OnboardingStr
-import com.haooz.chedule.ui.effects.background.BgEffectBackgroundWithPreset
+import com.haooz.nexioui.background.BgEffectBackgroundWithPreset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.about_app_icon
@@ -58,7 +58,7 @@ import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.utils.SinkFeedback
+import com.haooz.nexioui.pressfeedback.SinkFeedback
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.time.Duration.Companion.milliseconds

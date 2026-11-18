@@ -69,18 +69,15 @@ kotlin {
             // 开机引导播放小米原版 Lottie 素材
             implementation(libs.compottie)
             // 柔光玻璃档位与材质口径
-            api("com.github.HaoZai000.softglass:softglass:0.1.2")
+            api("com.github.HaoZai000.SoftGlass:softglass:0.1.3")
+            // NexioUI 通用控件与图标
+            api("com.haooz.nexioui:nexioui:0.1.0")
             // 数据层与跨平台抽象
             api(project(":core"))
-            // 页面骨架与组件
-            api(project(":miuix"))
-            // 液态玻璃采样
+            // 课程色板要做 Hct 换算
+            implementation(libs.materialKolor.utilities)
 
-            // miuix 子库用不带 -android 的根坐标（写死会让 jvm 编不过），
-            // 且必须 exclude 官方 miuix-ui：与 :miuix 的同名 fork 一起进 iOS 链接会 already bound。
-            implementation("top.yukonga.miuix.kmp:miuix-icons:${libs.versions.miuix.get()}") {
-                exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui")
-            }
+            // 仅关于页的纹理模糊还在用；exclude 传递进来的 miuix-ui，避免把整套组件打进包
             implementation("top.yukonga.miuix.kmp:miuix-blur:${libs.versions.miuix.get()}") {
                 exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui")
             }

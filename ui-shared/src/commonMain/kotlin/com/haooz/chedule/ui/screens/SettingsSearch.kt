@@ -43,18 +43,18 @@ import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.backdrop.GlassBackdrop
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.InputField
-import top.yukonga.miuix.kmp.basic.SearchBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.layout.LocalTopBarMaterial
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.LocalOverScrollState
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.searchbar.InputField
+import com.haooz.nexioui.searchbar.SearchBar
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.topbarmaterial.LocalTopBarMaterial
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.LocalOverScrollState
 
 /** 搜索框整块占用的高度（上下间距 + 输入框最小高度），列表按它让位。 */
 internal val SettingsSearchBarBlockHeight = 59.dp
@@ -496,7 +496,7 @@ internal fun SettingsSearchField(
         },
         expanded = expanded,
         onExpandedChange = onExpandedChange,
-        actionIcon = MiuixIcons.Normal.Close,
+        actionIcon = NexioIcons.Normal.Close,
         onActionClick = {
             onQueryChange("")
             onExpandedChange(false)
@@ -542,7 +542,7 @@ internal fun SettingsSearchResults(
                     Text(
                         text = SettingsStr.searchNoResults(),
                         fontSize = 15.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                     )
                 }
             }
@@ -595,14 +595,14 @@ private fun SettingsSearchResultRow(
                 text = highlightedTitle(entry.title, query),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = entry.breadcrumb,
                 fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -631,7 +631,7 @@ private fun SettingsSearchGroupIcon(group: SettingsSearchGroup) {
 @Composable
 private fun highlightedTitle(title: String, query: String): AnnotatedString {
     val q = query.trim()
-    val accent = MiuixTheme.colorScheme.primary
+    val accent = NexioTheme.colorScheme.primary
     return remember(title, q, accent) {
         if (q.isEmpty()) {
             AnnotatedString(title)
