@@ -11,7 +11,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,11 +19,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
@@ -36,18 +33,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
@@ -65,6 +54,7 @@ import com.haooz.chedule.data.util.parseHourMinute
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.AssistantStr
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.ui.components.CouiConicProgressRow
 import com.haooz.chedule.ui.components.WeatherAlertBadge
 import com.haooz.chedule.weather.WeatherAlert
 import com.haooz.chedule.ui.components.text.material.Text as Text
@@ -94,12 +84,6 @@ import com.haooz.chedule.uishared.resources.icon_t_storm
 import com.haooz.chedule.ui.components.LocalSoftGlassSurface
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import kotlin.math.PI
-import kotlin.math.acos
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.datetime.LocalTime
@@ -178,127 +162,21 @@ private fun StatusBadge(text: String) {
     }
 }
 
-// 条高两态：静止 0.5dp 细线 ↔ 满血 6dp；上下留白恒为 RULE_GAP
-private val BAR_HEIGHT = 6.dp
-private val RULE_HEIGHT = 0.5.dp
+// 上下留白恒为 RULE_GAP；条本体高度与视效由 COUI 锥光组件自管
 private val RULE_GAP = 10.dp
 
-/** 分隔线与进度条是同一根：静止 0.5dp 细线，上课中长成 6dp 进度条。 */
+/**
+ * 今日助手卡片的读条：COUI IntentSeekBar 锥光，1:1 移植。
+ * 静止时是一条分割线，上课中长成带锥光的进度条；保留 percent(Int) 入参以贴合调用方数据。
+ */
 @Composable
 private fun CourseRuleBar(percent: Int?) {
-    val accent = MiuixTheme.colorScheme.primary
-    val isDark = isAppDarkTheme()
-    // 0 = 细线，1 = 满血条；只在测量期与绘制期读，长出/收回不重组整张卡
-    val morph = animateFloatAsState(
-        targetValue = if (percent != null) 1f else 0f,
-        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
-        label = "assistantRuleBar"
+    CouiConicProgressRow(
+        progress = percent?.let { it.coerceIn(0, 100) / 100f },
+        accent = MiuixTheme.colorScheme.primary,
+        foreground = MiuixTheme.colorScheme.onSurfaceVariantActions,
+        darkSurface = isAppDarkTheme(),
     )
-    val rawFrac = (percent ?: 0).coerceIn(0, 100) / 100f
-    // 下课瞬间 percent 变 null，留住最后一次宽度跟着高度淡出（普通字段，不进快照）
-    val lastFrac = remember { floatArrayOf(0f) }
-    if (percent != null) lastFrac[0] = rawFrac
-    val frac = if (percent != null) rawFrac else lastFrac[0]
-
-    val ruleColor = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.09f)
-    val trackColor = remember(accent) { accent.copy(alpha = 0.08f) }
-    // 左淡右浓，尾巴淡出
-    val fillBrush = remember(accent) {
-        Brush.horizontalGradient(
-            listOf(accent.copy(alpha = 0.36f), accent.copy(alpha = 0.62f))
-        )
-    }
-    // 叠加层往白里混一档：深色卡轻、浅色卡重
-    val overlayTint = remember(accent, isDark) {
-        lerp(accent, Color.White, if (isDark) 0.06f else 0.4f)
-    }
-
-    // 高度给线自己：留白恒为 RULE_GAP，长高的只有中间那根
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            // ⚠ 只在测量期读 morph：只触发重排，不重组整张卡
-            .layout { measurable, constraints ->
-                val h = (RULE_HEIGHT + (BAR_HEIGHT - RULE_HEIGHT) * morph.value).roundToPx()
-                val placeable = measurable.measure(
-                    constraints.copy(minHeight = h, maxHeight = h)
-                )
-                layout(placeable.width, h) { placeable.place(0, 0) }
-            }
-    ) {
-        // 轨道 + 本体：不模糊，容器高度就是条高
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val m = morph.value
-            val radius = CornerRadius(size.height / 2f, size.height / 2f)
-            // 颜色跟着高度一起过渡，不先跳粗细再跳色
-            drawRoundRect(
-                color = lerp(ruleColor, trackColor, m),
-                size = size,
-                cornerRadius = radius
-            )
-            if (frac > 0f) {
-                drawRoundRect(
-                    brush = fillBrush,
-                    size = Size(size.width * frac, size.height),
-                    cornerRadius = radius,
-                    alpha = m
-                )
-            }
-        }
-
-        // 叠加层：圆头 + 切线尾迹，一笔闭合路径
-        // ⚠ 承载模糊的节点必须比条高，否则 RenderNode 只有条那么大，模糊上下被裁断
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .requiredHeight(22.dp)
-                .align(Alignment.Center)
-                .blur(0.5.dp, BlurredEdgeTreatment.Unbounded)
-        ) {
-            val m = morph.value
-            if (frac <= 0f || m <= 0f) return@Canvas
-            val cy = size.height / 2f
-            val rBar = (RULE_HEIGHT + (BAR_HEIGHT - RULE_HEIGHT) * m).toPx() / 2f
-            val barRight = size.width * frac      // 条的右边缘
-            val rHead = rBar * 1.4f
-            // 光/圆头锚在圆头圆心，不是条的右边缘
-            val headX = (barRight - rBar).coerceAtLeast(rHead)
-            val rTail = rBar * 1.4f
-            val xTail = (headX - headX.coerceAtMost(36.dp.toPx())).coerceAtLeast(0f)
-
-            val circle = Rect(
-                Offset(headX - rHead, cy - rHead),
-                Size(rHead * 2f, rHead * 2f)
-            )
-            val dx = headX - xTail
-            val dist = sqrt(dx * dx + rTail * rTail)
-            val path = Path()
-            if (dist <= rHead * 1.02f) {
-                // 尾巴短到没有直线段可用，退化成一个圆头
-                path.addOval(circle)
-            } else {
-                // 直线必须切于圆：连到顶点就是折角。切点兼作弧起点，接缝处方向连续
-                val phi = atan2(rTail, dx) - (PI.toFloat() - acos((rHead / dist).coerceIn(-1f, 1f)))
-                val phiDeg = phi * (180f / PI.toFloat())
-                path.moveTo(xTail, cy - rTail)
-                path.lineTo(headX + rHead * cos(phi), cy + rHead * sin(phi))
-                // 从上方切点顺时针扫到镜像的下方切点，正好兜住整个圆头
-                path.arcTo(circle, phiDeg, -2f * phiDeg, false)
-                path.lineTo(xTail, cy + rTail)
-                path.close()
-            }
-            drawPath(
-                path = path,
-                brush = Brush.horizontalGradient(
-                    0f to Color.Transparent,       // 尾部淡出，融进本体
-                    1f to overlayTint.copy(alpha = 0.72f),
-                    startX = xTail,
-                    endX = headX
-                ),
-                alpha = m
-            )
-        }
-    }
 }
 
 private fun parseTime(timeStr: String): LocalTime? {

@@ -1,8 +1,6 @@
 package com.haooz.chedule.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -46,10 +44,11 @@ import com.haooz.chedule.i18n.AiStr
 import com.haooz.chedule.i18n.McpStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.chedule.ui.components.CouiConicProgressRow
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.backdrop.GlassBackdrop
-import com.haooz.softglass.shape.ContinuousCapsule
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -557,22 +556,13 @@ private fun QuotaLine(label: String, used: Int, limit: Int) {
                 color = theme.primary,
             )
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .height(6.dp)
-                .background(theme.onSurfaceVariantActions.copy(alpha = 0.12f), ContinuousCapsule()),
-        ) {
-            if (fraction > 0f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction)
-                        .height(6.dp)
-                        .background(theme.primary, ContinuousCapsule()),
-                )
-            }
-        }
+        CouiConicProgressRow(
+            progress = fraction,
+            accent = theme.primary,
+            foreground = theme.onSurfaceVariantActions,
+            darkSurface = isAppDarkTheme(),
+            modifier = Modifier.padding(top = 8.dp),
+        )
         Text(
             text = AiStr.quotaUsed(used, limit),
             style = MiuixTheme.textStyles.footnote2,
