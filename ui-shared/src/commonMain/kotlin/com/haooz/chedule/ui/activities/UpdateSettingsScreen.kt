@@ -1174,7 +1174,8 @@ internal fun UpdateChangelogMorphLayer(
                         axis = ArcBendAxis.Vertical,
                         visible = { flip() > 0.5f },
                     )
-                    .clip(revealShape)
+                    // 圆角裁切只服务翻转/展开过程；落定后撤掉，静止的全屏页面不能被裁。
+                    .then(if (settled) Modifier else Modifier.clip(revealShape))
                     // 整页自己接住点击：铺开后点空白处不该再落到下面的遮罩上退出。
                     // 必须放在 graphicsLayer 之内，触摸区域才会跟着翻转/缩放的那条矩形走
                     .pointerInput(Unit) { detectTapGestures { } }
