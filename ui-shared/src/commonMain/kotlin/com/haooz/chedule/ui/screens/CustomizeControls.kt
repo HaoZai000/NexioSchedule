@@ -176,7 +176,7 @@ private fun <T> LevelSliderItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 2.dp, end = 2.dp, bottom = 8.dp),
+                .padding(horizontal = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
