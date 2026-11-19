@@ -138,7 +138,6 @@ import com.haooz.chedule.ui.utils.TodayViewMode
 import com.haooz.nexioui.window.addScreenCornerRect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
-import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
@@ -1723,50 +1722,45 @@ internal fun CourseScheduleAppMainContent(
                     val editingEndSection = editingCourse?.endSection ?: selectedEndSection
                     val addDialogSectionTimes by settingsViewModel.sectionTimes.collectAsState()
 
-                    // 始终跟随应用主题，不受壁纸强制主题影响
-                    val appDialogDark = rememberAppSettingDark()
-                    val appDialogColors = rememberAppThemeColors(isDark = appDialogDark)
-                    AppNexioTheme(colors = appDialogColors) {
-                        CompositionLocalProvider(LocalForcedDarkTheme provides null) {
-                            val addDialogDefaultWeeks by viewModel.addDialogDefaultWeeks.collectAsState()
-                            val addDialogCustomTime by viewModel.addDialogCustomTime.collectAsState()
-                            AddCourseDialog(
-                                show = showAddDialog,
-                                course = editingCourse,
-                                selectedDay = viewModel.selectedDay.collectAsState().value,
-                                liquidGlassBackdrop = overlayGlassBackdrop,
-                                totalWeeks = totalWeeks,
-                                totalSections = totalSections,
-                                defaultStartSection = editingStartSection,
-                                defaultEndSection = editingEndSection,
-                                defaultWeeks = addDialogDefaultWeeks,
-                                defaultCustomStartTime = addDialogCustomTime?.first,
-                                defaultCustomEndTime = addDialogCustomTime?.second,
-                                getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds, startTime, endTime ->
-                                    viewModel.getOccupiedWeeks(
-                                        dayOfWeek = dayOfWeek,
-                                        startSection = startSection,
-                                        endSection = endSection,
-                                        excludeIds = excludeIds.toSet(),
-                                        startTime = startTime,
-                                        endTime = endTime
-                                    )
-                                },
-                                onDismiss = { viewModel.hideDialog() },
-                                onConfirm = { course ->
-                                    if (editingCourse != null) {
-                                        viewModel.updateCourse(course)
-                                    } else {
-                                        viewModel.addCourse(course)
-                                    }
-                                },
-                                onDelete = { courseId ->
-                                    viewModel.deleteCourse(courseId)
-                                },
-                                sectionTimes = addDialogSectionTimes
+                    // 弹层内容组在 Scaffold 的 popupHost 里，天然吃页面主题；
+                    // 这里不再另套一层应用主题，否则「弹窗底色跟页面、卡片跟应用」会分裂。
+                    val addDialogDefaultWeeks by viewModel.addDialogDefaultWeeks.collectAsState()
+                    val addDialogCustomTime by viewModel.addDialogCustomTime.collectAsState()
+                    AddCourseDialog(
+                        show = showAddDialog,
+                        course = editingCourse,
+                        selectedDay = viewModel.selectedDay.collectAsState().value,
+                        liquidGlassBackdrop = overlayGlassBackdrop,
+                        totalWeeks = totalWeeks,
+                        totalSections = totalSections,
+                        defaultStartSection = editingStartSection,
+                        defaultEndSection = editingEndSection,
+                        defaultWeeks = addDialogDefaultWeeks,
+                        defaultCustomStartTime = addDialogCustomTime?.first,
+                        defaultCustomEndTime = addDialogCustomTime?.second,
+                        getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds, startTime, endTime ->
+                            viewModel.getOccupiedWeeks(
+                                dayOfWeek = dayOfWeek,
+                                startSection = startSection,
+                                endSection = endSection,
+                                excludeIds = excludeIds.toSet(),
+                                startTime = startTime,
+                                endTime = endTime
                             )
-                        }
-                    }
+                        },
+                        onDismiss = { viewModel.hideDialog() },
+                        onConfirm = { course ->
+                            if (editingCourse != null) {
+                                viewModel.updateCourse(course)
+                            } else {
+                                viewModel.addCourse(course)
+                            }
+                        },
+                        onDelete = { courseId ->
+                            viewModel.deleteCourse(courseId)
+                        },
+                        sectionTimes = addDialogSectionTimes
+                    )
                     DeleteWeekCourseDialog(
                         show = showDeleteConfirmDialog,
                         course = deleteConfirmCourse,

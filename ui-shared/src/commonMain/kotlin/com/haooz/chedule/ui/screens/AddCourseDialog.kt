@@ -63,7 +63,6 @@ import com.haooz.chedule.ui.theme.AppNexioTheme
 import com.haooz.chedule.ui.theme.rememberAppThemeColors
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.haooz.chedule.ui.utils.rememberImeDismiss
 import com.haooz.chedule.ui.utils.rememberOpenKey
 import com.haooz.softglass.backdrop.GlassBackdrop
@@ -182,10 +181,10 @@ fun AddCourseDialog(
         dismissKeyboard()
         onDismiss()
     }
+    // 弹窗底色、卡片、二级弹窗全部取同一个「本作用域生效的深浅」：
+    // 用户把课表页设成深色（跟随壁纸）时，同一张弹窗里不能一半深一半浅。
     val isDark = isAppDarkTheme()
-    // 嵌套弹窗在 root popup host，强制跟随应用主题而非壁纸主题
-    val appDialogDark = rememberAppSettingDark()
-    val appDialogColors = rememberAppThemeColors(isDark = appDialogDark)
+    val appDialogColors = rememberAppThemeColors(isDark = isDark)
     // 二级弹窗在弹窗作用域外读不到 LocalSheetContentBackdrop，用非快照 holder 接收
     val sheetContentBackdropHolder = remember { BackdropHolder() }
 
@@ -481,7 +480,7 @@ fun AddCourseDialog(
         liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop
     ) {
         AppNexioTheme(colors = appDialogColors) {
-            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides isDark) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -519,7 +518,7 @@ fun AddCourseDialog(
         liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop,
     ) {
         AppNexioTheme(colors = appDialogColors) {
-            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides isDark) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -613,7 +612,7 @@ fun AddCourseDialog(
         liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop,
     ) {
         AppNexioTheme(colors = appDialogColors) {
-            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides isDark) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -685,7 +684,7 @@ fun AddCourseDialog(
         liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop,
     ) {
         AppNexioTheme(colors = appDialogColors) {
-            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides isDark) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
