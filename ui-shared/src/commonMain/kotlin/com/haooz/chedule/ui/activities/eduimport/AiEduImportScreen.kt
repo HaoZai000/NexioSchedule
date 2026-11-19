@@ -237,11 +237,22 @@ fun AiEduImportScreen(
     var pendingUrl by remember { mutableStateOf<String?>(null) }
     // 顶栏跟着网页标题走（同 WebImportScreen）：进去以后这条顶栏就是「你在看哪一页」
     var webPageTitle by remember(AppLanguage.resolved) { mutableStateOf(CommonStr.loading()) }
+    // 网页顶部取色：顶栏文字/图标按页面背景反色，不跟应用深浅主题（同 WebImportScreen）
+    var webTopColor by remember { mutableStateOf<Color?>(null) }
+    val themeBarColor = NexioTheme.colorScheme.onSurface
+    val webBarContentColor = when {
+        // 还没进网页或还没采到色：顶栏压在应用底色上，跟主题走
+        openedUrl == null || webTopColor == null -> themeBarColor
+        else -> {
+            val color = webTopColor!!
+            val lum = 0.299f * color.red + 0.587f * color.green + 0.114f * color.blue
+            if (lum >= 0.55f) Color.Black else Color.White
+        }
+    }
 
     val session = remember { EduAgentSession() }
     val state by session.state.collectAsState()
-    // 拉着同一段对话：用户收起浮层去网页里登录 / 翻课表后，底栏给他回来的入口，
-    // 而不是把「开始分析」再点一次（那会 reset 掉上下文与网络记录）
+    // 拉着同一段对话：用户收起浮层去网页里登录 / 翻课表后，底栏给他回来的入口
     val hasConversation = state.items.isNotEmpty()
     // WebViewScreen 内部 remember 出来的宿主，通过 onHostReady 交过来 —— agent 的工具都在它上面跑
     var host by remember { mutableStateOf<WebHost?>(null) }
@@ -338,6 +349,7 @@ fun AiEduImportScreen(
                 onImportComplete = {},
                 onTaskCompleted = {},
                 onPageTitleChanged = { webPageTitle = it },
+                onTopColorChanged = { webTopColor = it },
                 onHostReady = { host = it },
                 webHostFactory = webHostFactory,
                 dockTitle = ImportStr.aiEduImportTitle(),
@@ -477,6 +489,7 @@ fun AiEduImportScreen(
                     // 折叠标题：本页内容是网页 + 浮层，展开大标题只会把网页挤下去
                     showLargeTitle = false,
                     showShadow = false,
+                    titleColor = webBarContentColor,
                     modifier = Modifier,
                     scrollBehavior = webViewScrollBehavior,
                     contentPadding = {},
@@ -489,6 +502,7 @@ fun AiEduImportScreen(
                                 },
                                 backdrop = liquidGlassBackdrop,
                                 icon = NexioIcons.Close,
+                                iconTint = webBarContentColor.copy(alpha = 0.85f),
                                 contentDescription = CommonStr.close(),
                                 performHapticFeedback = false,
                                 iconSize = 22.dp,
@@ -507,6 +521,7 @@ fun AiEduImportScreen(
                                     },
                                     backdrop = liquidGlassBackdrop,
                                     icon = AiEduHistoryIcon,
+                                    iconTint = webBarContentColor.copy(alpha = 0.85f),
                                     contentDescription = ImportStr.aiEduHistory(),
                                     performHapticFeedback = false,
                                     iconSize = 22.dp,
@@ -521,6 +536,7 @@ fun AiEduImportScreen(
                                     },
                                     backdrop = liquidGlassBackdrop,
                                     icon = NexioIcons.Refresh,
+                                    iconTint = webBarContentColor.copy(alpha = 0.85f),
                                     contentDescription = ImportStr.refresh(),
                                     performHapticFeedback = false,
                                     iconSize = 24.dp,
