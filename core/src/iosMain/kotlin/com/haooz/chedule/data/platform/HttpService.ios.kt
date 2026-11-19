@@ -40,7 +40,7 @@ import platform.darwin.NSObject
  * `setValue` / `setHTTPMethod` / `setHTTPBody` 是 `NSMutableURLRequest` 的**扩展函数**，调用处必须显式 import；
  * `statusCode` / `expectedContentLength` 为 `Long`（`NSInteger`）。
  */
-actual fun createHttpService(timeouts: HttpTimeouts): HttpService =
+actual fun createPlatformHttpService(timeouts: HttpTimeouts): HttpService =
     NsUrlSessionHttpService(timeouts)
 
 private class NsUrlSessionHttpService(private val timeouts: HttpTimeouts) : HttpService {

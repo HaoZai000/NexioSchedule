@@ -21,9 +21,10 @@ object AiStr {
     val providerLabel = L("服务商", "Provider")
     val providerFree = L("每日免费 AI", "Free daily AI")
     val providerCustom = L("自定义", "Custom")
-    val providerFreeNote = L(
-        "当前使用 Nexio 免费额度，无需填写 apikey",
-        "Nexio's free quota is in use. No API key is required.",
+    /** 免费额度且拿得到服务端模型名时用这条：显示名由服务端预设里填，可自定义 */
+    val providerFreeModel = L(
+        "当前使用 Nexio 免费额度，模型：%s",
+        "Nexio's free quota is in use · Model: %s",
     )
     val byokBaseUrl = L("接口地址", "Base URL")
     val byokBaseUrlHint = L("https://…/v1", "https://…/v1")

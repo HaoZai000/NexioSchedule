@@ -325,8 +325,11 @@ fun AiFeaturesScreen(
 
                     // 免费额度与自填配置互斥：切换服务商时高度做展开/收起动画
                     CardExpand(visible = isFreeProvider) {
+                        // 显示名在服务端预设里填，没填就退回模型 ID
+                        val serverModel = capabilities?.modelDisplay?.takeIf { it.isNotBlank() }
+                            ?: capabilities?.model.orEmpty()
                         Text(
-                            text = AiStr.providerFreeNote(),
+                            text = AiStr.providerFreeModel(serverModel),
                             fontSize = 14.sp,
                             color = theme.onSurfaceVariantSummary,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),

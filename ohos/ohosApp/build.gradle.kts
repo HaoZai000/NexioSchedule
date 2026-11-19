@@ -87,6 +87,11 @@ kotlin {
             getByName("commonMain").kotlin.srcDir(rootProject.file("../ui-shared/src/portable/kotlin"))
             getByName("commonMain").kotlin.srcDir(rootProject.file("../ui-shared/src/commonMain/kotlin"))
             getByName("commonMain").kotlin.srcDir(rootProject.file("../core/src/commonMain/kotlin"))
+            // 访问密钥：与 core/build.gradle.kts 同一套二选一规则
+            val accessKeySecret = rootProject.file("../core/src/accessKeySecret/kotlin")
+            getByName("commonMain").kotlin.srcDir(
+                if (accessKeySecret.exists()) accessKeySecret else rootProject.file("../core/src/accessKeyFallback/kotlin"),
+            )
             // 柔光玻璃的 Skiko 后端（与桌面 / iOS 同一份 actual），鸿蒙也走 Skia
             ohosMain.kotlin.srcDir(rootProject.file("../ui-shared/src/skikoMain/kotlin"))
             // 需要被共享代码看见的平台实现只能进 commonMain 源根

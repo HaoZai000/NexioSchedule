@@ -32,7 +32,7 @@ private fun clientFor(timeouts: HttpTimeouts): OkHttpClient =
         }
     }
 
-actual fun createHttpService(timeouts: HttpTimeouts): HttpService = OkHttpHttpService(timeouts)
+actual fun createPlatformHttpService(timeouts: HttpTimeouts): HttpService = OkHttpHttpService(timeouts)
 
 private class OkHttpHttpService(private val timeouts: HttpTimeouts) : HttpService {
 

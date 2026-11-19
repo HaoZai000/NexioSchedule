@@ -95,7 +95,7 @@ fun NexioOnHttpResult(
     HttpBridge.onResult(requestId, code, bytes, truncated)
 }
 
-actual fun createHttpService(timeouts: HttpTimeouts): HttpService = ArkTsHttpService(timeouts)
+actual fun createPlatformHttpService(timeouts: HttpTimeouts): HttpService = ArkTsHttpService(timeouts)
 
 private class ArkTsHttpService(private val timeouts: HttpTimeouts) : HttpService {
 
