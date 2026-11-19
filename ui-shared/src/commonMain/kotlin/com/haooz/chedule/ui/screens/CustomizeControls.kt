@@ -1,6 +1,5 @@
 package com.haooz.chedule.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,7 +28,6 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.nexioui.nativetextfield.NativeTextField
 import com.haooz.nexioui.slider.Slider
 import com.haooz.nexioui.slider.SliderHapticEffect
-import com.haooz.nexioui.switch.Switch
 import com.haooz.nexioui.theme.NexioTheme
 import kotlin.math.roundToInt
 
@@ -258,34 +256,4 @@ internal fun EdgeThicknessItem(
         disabledText = disabledText,
         onValueChange = onValueChange,
     )
-}
-
-/** 标题 + 开关的设置行。 */
-@Composable
-internal fun SettingSwitchRow(
-    label: String,
-    checked: Boolean,
-    enabled: Boolean = true,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            fontWeight = FontWeight.Medium,
-            fontSize = 17.sp,
-            color = NexioTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.4f),
-            modifier = Modifier.weight(1f)
-        )
-        Switch(
-            checked = checked,
-            enabled = enabled,
-            onCheckedChange = onCheckedChange
-        )
-    }
 }

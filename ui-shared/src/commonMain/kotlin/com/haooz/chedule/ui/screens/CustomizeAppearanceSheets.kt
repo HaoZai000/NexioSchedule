@@ -47,6 +47,7 @@ import com.haooz.nexioui.icon.extended.Close
 import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.nexioui.overscroll.overScrollVertical
 import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
+import com.haooz.nexioui.switchpreference.SwitchPreference
 import com.haooz.nexioui.theme.NexioTheme
 import com.haooz.softglass.backdrop.GlassBackdrop
 import kotlin.math.roundToInt
@@ -256,8 +257,8 @@ internal fun EffectSheetContent(
                 },
                 parseInput = { it.toFloatOrNull()?.coerceIn(-50f, 50f) }
             )
-            SettingSwitchRow(
-                label = SchedStr.wallpaperBlur(),
+            SwitchPreference(
+                title = SchedStr.wallpaperBlur(),
                 checked = config.wallpaperBlur && hasWallpaper,
                 enabled = hasWallpaper,
                 onCheckedChange = { checked ->
@@ -333,8 +334,8 @@ internal fun EffectSheetContent(
                 disabledText = cardTuningDisabledText
             )
             // 高光描边各材质档都有，只按有无壁纸判可用
-            SettingSwitchRow(
-                label = SchedStr.cardRim(),
+            SwitchPreference(
+                title = SchedStr.cardRim(),
                 checked = config.cardRim,
                 enabled = hasWallpaper,
                 onCheckedChange = { checked ->
@@ -443,13 +444,13 @@ internal fun CustomizeSheetContent(
 
     SheetCard {
         Column {
-            SettingSwitchRow(
-                label = SchedStr.showClassroom(),
+            SwitchPreference(
+                title = SchedStr.showClassroom(),
                 checked = config.showClassroom,
                 onCheckedChange = { checked -> draft.update { it.copy(showClassroom = checked) } }
             )
-            SettingSwitchRow(
-                label = SchedStr.showTeacher(),
+            SwitchPreference(
+                title = SchedStr.showTeacher(),
                 checked = config.showTeacher,
                 onCheckedChange = { checked -> draft.update { it.copy(showTeacher = checked) } }
             )
@@ -500,14 +501,14 @@ internal fun CustomizeSheetContent(
                 dropdownColors = dropdownColors,
             )
             // 时间轴没有节次网格：两个开关在时间轴下置灰
-            SettingSwitchRow(
-                label = SchedStr.weekGridLines(),
+            SwitchPreference(
+                title = SchedStr.weekGridLines(),
                 checked = config.showWeekGridLines,
                 enabled = isWeekView,
                 onCheckedChange = { checked -> draft.update { it.copy(showWeekGridLines = checked) } }
             )
-            SettingSwitchRow(
-                label = SchedStr.breakDividers(),
+            SwitchPreference(
+                title = SchedStr.breakDividers(),
                 checked = config.showBreakDividers,
                 enabled = isWeekView,
                 onCheckedChange = { checked -> draft.update { it.copy(showBreakDividers = checked) } }
