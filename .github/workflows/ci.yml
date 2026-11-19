@@ -34,6 +34,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # NexioUI 是独立仓库，本地靠 ../nexioui 的复合构建接源码。
+      # CI 上没有兄弟目录时会退回 JitPack 坐标，而库还没发布到能编译的版本，
+      # 所以这里把库拉到同级路径，让 CI 和本地走同一套源码。
+      - name: Fetch NexioUI (sibling for composite build)
+        run: git clone --depth 1 https://github.com/HaoZai000/NexioUI "$GITHUB_WORKSPACE/../nexioui"
+
       # gradle/gradle-daemon-jvm.properties 要求 toolchainVersion=25。
       # 只装 17/21 会让 Gradle 卡在 toolchain 解析（本地实测卡过 20 分钟无输出），
       # 不是报错而是静默挂起，很难从日志看出来。
