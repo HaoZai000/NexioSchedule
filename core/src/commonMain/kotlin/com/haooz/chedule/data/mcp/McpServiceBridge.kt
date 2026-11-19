@@ -1,5 +1,7 @@
 package com.haooz.chedule.data.mcp
 
+import kotlin.concurrent.Volatile
+
 /**
  * 共享 UI 与服务进程之间的桥。
  *
