@@ -102,6 +102,7 @@ class DraggingSlotsState {
 }
 
 /** 课程卡在网格里的共享视觉参数，避免两层调用各传十几份。 */
+@Stable
 private data class ColumnCardStyle(
     val isDark: Boolean,
     val cardAlpha: Float,

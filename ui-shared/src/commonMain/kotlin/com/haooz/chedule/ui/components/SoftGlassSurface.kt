@@ -5,6 +5,7 @@ package com.haooz.chedule.ui.components
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +58,7 @@ internal const val GlassDragTranslationDamping = 0.032f
  * 需要这层抽象：卡片背景由平台画（AGSL / SkSL + 纹理采样），`commonMain` 引不到 `GlassRuntimeShader`，
  * 所以这里只暴露「给我一个 Modifier」。shader 实例由 `SoftGlassProgramCache` 按尺寸 / 圆角共享。
  */
+@Stable
 interface SoftGlassSurface {
     /**
      * @param origin 面板左上角的**窗口坐标**，绘制期求值。
