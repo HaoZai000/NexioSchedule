@@ -258,12 +258,11 @@ private fun AdapterRow(
     onClick: () -> Unit
 ) {
     val dark = isAppDarkTheme()
-    // AI 仓库生成的适配器叠一层很淡的蓝，和拾光的人工适配区分开
+    // AI 仓库生成的适配器叠一层主题蓝淡底，和拾光的人工适配区分开；深浅色与动态取色都跟随主题
     val fromAiDock = adapter.source == AdapterData.SOURCE_AI_DOCK
     Surface(
         color = when {
-            fromAiDock && dark -> Color(0xFF16283F)
-            fromAiDock -> Color(0xFFEAF2FF)
+            fromAiDock -> NexioTheme.colorScheme.primary.copy(alpha = if (NexioTheme.isDark) 0.16f else 0.12f)
             NexioTheme.isDynamicColor -> NexioTheme.colorScheme.surfaceContainerHigh
             dark -> Color(0xFF303030)
             else -> Color(0xFFFFFFFF)
