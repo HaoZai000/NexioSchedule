@@ -71,7 +71,7 @@ kotlin {
             // 柔光玻璃档位与材质口径
             api("com.github.HaoZai000.SoftGlass:softglass:0.1.3")
             // NexioUI 通用控件与图标
-            api("com.haooz.nexioui:nexioui:0.1.0")
+            api("com.github.HaoZai000.NexioUI:nexioui:0.1.1")
             // 数据层与跨平台抽象
             api(project(":core"))
             // 课程色板要做 Hct 换算

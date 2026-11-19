@@ -47,7 +47,7 @@ val nexiouiSource = file("../nexioui")
 if (nexiouiSource.resolve("build.gradle.kts").exists()) {
     includeBuild(nexiouiSource) {
         dependencySubstitution {
-            substitute(module("com.haooz.nexioui:nexioui")).using(project(":nexioui"))
+            substitute(module("com.github.HaoZai000.NexioUI:nexioui")).using(project(":nexioui"))
         }
     }
 }
