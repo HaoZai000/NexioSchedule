@@ -2,14 +2,13 @@
  * 教务导入第一步：学校 / 适配器选择，由路由 `AppRoute.EducationalImport` 打开。
  * 选完跳独立路由 `AppRoute.WebImport`（见 WebImportScreen）。
  */
-package com.haooz.chedule.ui.activities
+package com.haooz.chedule.ui.activities.eduimport
 
 
 import com.haooz.chedule.ui.components.PageHeaderContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -29,7 +28,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -64,6 +62,7 @@ import com.haooz.chedule.data.util.parseJsonArray
 import com.haooz.chedule.data.util.parseJsonObject
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
@@ -74,9 +73,6 @@ import com.haooz.chedule.ui.web.EduImportSelection
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
-import com.haooz.chedule.viewmodel.courseViewModel
-import com.haooz.chedule.viewmodel.scheduleViewModel
-import com.haooz.chedule.viewmodel.settingsViewModel
 import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
@@ -102,9 +98,7 @@ import com.haooz.nexioui.icon.extended.ChevronBackward
 import com.haooz.nexioui.icon.extended.Close
 import com.haooz.nexioui.icon.extended.Update
 import com.haooz.nexioui.topappbar.CollapsibleTopAppBar
-import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults.CollapsedHeight
 import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
-import com.haooz.nexioui.topappbar.collapsibleTopInset
 import com.haooz.nexioui.window.isTabletWidth
 import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
 import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
@@ -129,30 +123,19 @@ fun EducationalImportScreen(
     /** 打开 AI 教务导入（模型现场写适配脚本）。同样由路由层注入。 */
     onOpenAiImport: () -> Unit = {},
 ) {
-    val courseViewModel = courseViewModel()
-    val scheduleViewModel = scheduleViewModel()
-    val settingsViewModel = settingsViewModel()
 
-    val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
-    val currentScheduleName by scheduleViewModel.currentScheduleName.collectAsState()
-
-    // 本页只做学校 / 适配器选择：顶栏标题与渐变模糊由 Compose 画，
-    // 左右两个按钮在 iOS 原生文档下由 Swift 画（避免双层）。整页系统化只用于 WebImportScreen。
+    // 本页只做学校 / 适配器选择：顶栏标题与渐变模糊由 Compose 画
     val nativeChrome = LocalNativeDocumentChrome.current
     val nativeBarInset = (nativeChrome?.barInset ?: 0.0).dp
     val showNavigationActions = nativeChrome == null
-    // ⚠ 必须在组合期取好：SideEffect 的 lambda 不是 @Composable，读不了 MiuixTheme
     val chromeTint = NexioTheme.colorScheme.primary.toArgb().toLong()
 
     val backgroundColor = NexioTheme.colorScheme.surface
-    // 本页 backdrop 是纯采样层（onDraw 画背景+内容，contentOnlyCapture=false，
-    // 上屏本来就双遍历），降采样录制不增加遍历成本，采样 blit 面积降 4 倍。
-    // 顶栏 ProgressiveBlurTopBar 采它；模糊带内容对本就不敏感。
     val backdrop = rememberLayerBackdrop(recordScale = 0.5f) {
         drawRect(backgroundColor)
         drawContent()
     }
-    val liquidGlassBackdrop: LayerBackdrop = com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop()
+    val liquidGlassBackdrop: LayerBackdrop = rememberLayerBackdrop()
     val scrollBehavior = rememberSharedScrollBehavior()
 
     var searchQuery by remember { mutableStateOf("") }
@@ -239,7 +222,7 @@ fun EducationalImportScreen(
                     .fillMaxSize()
                     .then(
                         // 无材质档：顶栏走渐变遮罩、玻璃全关，录屏层不挂
-                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) Modifier
+                        if (AppMaterialSettings.isNoneTier()) Modifier
                         else Modifier.layerBackdrop(
                             backdrop,
                             recordKey = eduRecordKey,
@@ -249,7 +232,7 @@ fun EducationalImportScreen(
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize().then(
-                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) Modifier
+                        if (AppMaterialSettings.isNoneTier()) Modifier
                         else Modifier.layerBackdrop(
                             liquidGlassBackdrop,
                             recordKey = eduRecordKey,
@@ -257,7 +240,7 @@ fun EducationalImportScreen(
                         )
                     )
                 ) {
-                    com.haooz.chedule.ui.screens.SchoolSelectionScreen(
+                    SchoolSelectionScreen(
                         modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
                         isUpdating = isUpdating,
                         dataVersion = dataVersion,
@@ -518,7 +501,7 @@ internal fun applyImportedScheduleConfig(
     if (startDate != null) {
         if (isTargetCurrent) {
             courseViewModel.setClassStartTime(startDate)
-        } else if (!targetScheduleId.isNullOrEmpty()) {
+        } else if (targetScheduleId.isNotEmpty()) {
             // 只写目标课表存储，不 refreshEssentialData：当前 UI/提醒不应被非当前课表改动触发
             repository.setClassStartTime(targetScheduleId, startDate)
         }
@@ -530,7 +513,7 @@ internal fun applyImportedScheduleConfig(
     if (totalWeeks > 0) {
         if (isTargetCurrent) {
             courseViewModel.setTotalWeeks(totalWeeks)
-        } else if (!targetScheduleId.isNullOrEmpty()) {
+        } else if (targetScheduleId.isNotEmpty()) {
             repository.setTotalWeeks(targetScheduleId, totalWeeks)
         }
         applied = true
@@ -542,7 +525,7 @@ internal fun applyImportedScheduleConfig(
     val breakDuration = prefs.getInt("default_break_duration", -1)
     if (classDuration > 0 || breakDuration > 0) {
         val targetId = if (isTargetCurrent) repository.getCurrentScheduleId() else targetScheduleId
-        if (!targetId.isNullOrEmpty()) {
+        if (targetId.isNotEmpty()) {
             repository.applyImportedDefaultDurationsToSchedule(
                 scheduleId = targetId,
                 classDuration = classDuration.takeIf { it > 0 } ?: 45,
@@ -558,7 +541,7 @@ internal fun applyImportedScheduleConfig(
     val firstDayOfWeek = prefs.getInt("first_day_of_week", 1)
     if (firstDayOfWeek in 2..7) {
         val targetId = if (isTargetCurrent) repository.getCurrentScheduleId() else targetScheduleId
-        if (!targetId.isNullOrEmpty()) {
+        if (targetId.isNotEmpty()) {
             val courses = repository.getCoursesForSchedule(targetId)
             if (courses.isNotEmpty()) {
                 val remapped = courses.map { course ->
@@ -639,7 +622,7 @@ internal fun applyComboSchedule(
             targetScheduleId == scheduleViewModel.currentScheduleName.value
         val repository = CourseRepository.getInstance()
         val targetId = if (isTargetCurrent) repository.getCurrentScheduleId() else targetScheduleId
-        if (targetId.isNullOrEmpty()) {
+        if (targetId.isEmpty()) {
             prefs.edit { remove("combo_schedule") }
             return
         }

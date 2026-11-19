@@ -11,7 +11,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -27,7 +26,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 import com.haooz.nexioui.basiccomponent.BasicComponent
 import com.haooz.nexioui.basiccomponent.BasicComponentColors
 import com.haooz.nexioui.basiccomponent.BasicComponentDefaults
@@ -162,7 +160,6 @@ fun OverlayDropdownMenu(
     val hapticFeedback = LocalHapticFeedback.current
     val currentHapticFeedback by rememberUpdatedState(hapticFeedback)
     val currentOnExpandedChange = rememberUpdatedState(onExpandedChange)
-    val coroutineScope = rememberCoroutineScope()
 
     // 触发内容只在「彻底退场」后显示。判据不能用 fraction：退场 spring 阻尼 0.85 会
     // 过冲到负值并在 0 附近振荡，拿阈值判断会在振荡途中误判结束 → 内容提前冒出来。
@@ -195,8 +192,8 @@ fun OverlayDropdownMenu(
     // 摘掉节点的话 triggerSize 变 0，弹窗就不知道从哪长出来了。
     val triggerAlpha: () -> Float = { if (popupFullyDismissed) 1f else 0f }
 
-    // 跟手滑选状态。必须在本组件创建（不能由弹窗内容层自建）：弹窗在 Popup 独立
-    // 窗口里，要跨窗口回传选中项，只能靠调用方持有的同一个实例
+    // 跟手滑选状态。必须在本组件创建（不能由弹窗内容层自建）：弹层挂在 Scaffold 弹层宿主里，
+    // 跟手滑动要跨层回传选中项，只能靠调用方持有的同一个实例
     // 与 LiquidGlassDropdownMenu 同款：整块遮罩在选项间连贯滑动
     val dragSelectState = remember {
         DropdownPanelDragSelectState(maskMode = DropdownMaskMode.Sliding)
@@ -253,18 +250,16 @@ fun OverlayDropdownMenu(
                     onDismiss = { setExpanded(false) },
                     onDismissFinished = {
                         isHoldDown.value = false
-                        // 压满3帧再显示：否则弹窗还在屏幕上会重叠
-                        coroutineScope.launch {
-                            repeat(3) { withFrameNanos { } }
-                            popupFullyDismissed = true
-                        }
+                        popupFullyDismissed = true
                     },
                     maxHeight = maxHeight,
                     dropdownColors = dropdownColors,
                     renderInRootScaffold = renderInRootScaffold,
                     collapseOnSelection = collapseOnSelection,
                     liquidGlassBackdrop = liquidGlassBackdrop,
-                    onFractionProgress = { fractionState.value = it },
+                    onFractionProgress = { fraction ->
+                        fractionState.value = fraction
+                    },
                     collapseSize = triggerSize,
                     collapseExtra = collapseExtra,
                     dragSelectState = dragSelectState,

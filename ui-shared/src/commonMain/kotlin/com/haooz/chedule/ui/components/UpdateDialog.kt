@@ -1,11 +1,14 @@
 package com.haooz.chedule.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,16 +38,18 @@ import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.haooz.nexioui.button.Button
 import com.haooz.nexioui.button.ButtonDefaults
-import com.haooz.nexioui.progressindicator.LinearProgressIndicator
 import com.haooz.nexioui.button.FlatTextButton
 import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.progressbar.ProgressBar
 import com.haooz.nexioui.theme.NexioTheme
+import androidx.compose.material3.Text as PlainText
 
 /**
  * 更新弹窗：每天启动时检查一次更新，有新版本则弹窗提示。
@@ -76,7 +81,6 @@ fun UpdateDialog(
     var isResolvingUrl by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableFloatStateOf(0f) }
     var downloadComplete by remember { mutableStateOf(false) }
-    var isInstalling by remember { mutableStateOf(false) }
     // 用绝对路径而不是 File：跨平台侧没有 java.io.File（控制器接口也是这么定的）
     var downloadedApkPath by remember { mutableStateOf<String?>(null) }
 
@@ -197,11 +201,10 @@ fun UpdateDialog(
         val apkPath = downloadedApkPath ?: return
         updateController.installApk(
             apkPath = apkPath,
-            onInstallingChanged = { isInstalling = it },
+            onInstallingChanged = {},
             onFinished = {
                 // 安装流程已交棒（静默成功 / 系统安装器已拉起）：无条件收尾，
-                // 避免用户在系统安装器点取消后弹窗卡在「安装中」
-                isInstalling = false
+                // 避免用户在系统安装器点取消后弹窗卡住
                 showUpdateDialog = false
                 downloadComplete = false
                 downloadProgress = 0f
@@ -210,7 +213,6 @@ fun UpdateDialog(
     }
 
     val primaryLabel = when {
-        isInstalling -> AboutStr.installing()
         isResolvingUrl -> AboutStr.getLink()
         isDownloading -> CommonStr.downloading()
         downloadComplete || hasDownloadedApk -> AboutStr.install()
@@ -219,24 +221,19 @@ fun UpdateDialog(
 
     OverlayDialog(
         title = when {
-            isInstalling -> AboutStr.installing()
             isResolvingUrl -> AboutStr.gettingLink()
             isDownloading -> CommonStr.downloading()
             downloadComplete -> AboutStr.downloadComplete()
             else -> AboutStr.newVersionFound()
         },
-        summary = when {
-            isInstalling -> AboutStr.installingSummary()
-            else -> AboutStr.latestVersionN(updateTagName)
-        },
+        summary = AboutStr.latestVersionN(updateTagName),
         show = showUpdateDialog,
         liquidGlassBackdrop = liquidGlassBackdrop,
         // 安装/下载都不阻塞关闭（系统安装器可被取消，弹窗不能卡死）；
-        // 关闭时同步清掉 transient 状态，否则下次打开会残留「安装中」。
+        // 关闭时同步清掉 transient 状态，否则下次打开会残留进度。
         onDismissRequest = {
             showUpdateDialog = false
             if (!isDownloading) {
-                isInstalling = false
                 downloadProgress = 0f
             }
         }
@@ -245,59 +242,55 @@ fun UpdateDialog(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (updateBody.isNotBlank() && !isDownloading && !isInstalling) {
+            if (updateBody.isNotBlank() && !isDownloading) {
                 Text(
-                    text = updateBody.take(300),
+                    text = updateBody,
                     fontSize = 14.sp,
                     color = NexioTheme.colorScheme.onSurfaceVariantActions,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier
+                        .heightIn(max = 200.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 16.dp)
                 )
             }
             if (isDownloading) {
+                // COUI 锥光辉光进度条：解析地址阶段传 null 显示静止细线，下载中读实际进度
+                ProgressBar(
+                    progress = if (isResolvingUrl) null else downloadProgress,
+                    color = NexioTheme.colorScheme.primary,
+                    foreground = NexioTheme.colorScheme.onSurfaceVariantActions,
+                    darkSurface = isAppDarkTheme(),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 if (isResolvingUrl) {
-                    // 回源解析地址时进度未知，用不确定态进度条
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = AboutStr.gettingDownloadUrlDots(),
                         fontSize = 14.sp,
                         color = NexioTheme.colorScheme.onSurfaceVariantActions
                     )
                 } else {
-                    LinearProgressIndicator(
-                        progress = downloadProgress,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
+                    // 百分比每秒变多次，用原生 Text 避免项目 Text 的 TextMotion 模糊聚焦过渡
+                    PlainText(
                         text = "${(downloadProgress * 100).toInt()}%",
                         fontSize = 14.sp,
                         color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         textAlign = TextAlign.Center,
                     )
                 }
-            } else if (isInstalling) {
-                Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 始终提供关闭入口：安装中也能关，否则用户在系统安装器点「取消」后回不来
+                // 始终提供关闭入口：下载中也能关，关掉后下载在后台继续
                 FlatTextButton(
-                    text = when {
-                        isInstalling -> CommonStr.close()
-                        isDownloading -> AboutStr.backgroundDownload()
-                        else -> AboutStr.later()
-                    },
+                    text = if (isDownloading) AboutStr.backgroundDownload() else AboutStr.later(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         // 下载中点「后台下载」只关弹窗，下载继续
                         showUpdateDialog = false
                         if (!isDownloading) {
-                            isInstalling = false
                             downloadProgress = 0f
                         }
                     },
@@ -305,11 +298,11 @@ fun UpdateDialog(
                 )
                 Button(
                     modifier = Modifier.weight(1f),
-                    enabled = !isDownloading && !isInstalling,
+                    enabled = !isDownloading,
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         when {
-                            isDownloading || isInstalling -> Unit
+                            isDownloading -> Unit
                             downloadComplete || hasDownloadedApk -> {
                                 if (downloadedApkPath == null && updateTagName.isNotBlank()) {
                                     downloadedApkPath = updateController.localApkPath(updateTagName)
@@ -319,7 +312,12 @@ fun UpdateDialog(
                             else -> startDownload()
                         }
                     },
-                    colors = ButtonDefaults.buttonColorsPrimary()
+                    // 下载中从主色蓝换成默认色底，收起蓝色强调
+                    colors = if (isDownloading) {
+                        ButtonDefaults.buttonColors()
+                    } else {
+                        ButtonDefaults.buttonColorsPrimary()
+                    }
                 ) {
                     Text(
                         text = primaryLabel,
@@ -327,8 +325,8 @@ fun UpdateDialog(
                         fontWeight = FontWeight.Medium,
                         // 按钮自己把内容居中：文案在「立即更新 / 下载中 / 安装」之间换字时按中心收放
                         textAlign = TextAlign.Center,
-                        color = if (isDownloading || isInstalling) {
-                            NexioTheme.colorScheme.onSurfaceVariantActions
+                        color = if (isDownloading) {
+                            if (isAppDarkTheme()) Color.White else Color.Black
                         } else {
                             Color.White
                         }

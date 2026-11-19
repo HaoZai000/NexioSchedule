@@ -38,9 +38,6 @@ import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
-import com.haooz.chedule.ui.activities.applyComboSchedule
-import com.haooz.chedule.ui.activities.applyImportedScheduleConfig
-import com.haooz.chedule.ui.activities.applyPresetTimeSlots
 import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.PageBlurBaseHeight
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome

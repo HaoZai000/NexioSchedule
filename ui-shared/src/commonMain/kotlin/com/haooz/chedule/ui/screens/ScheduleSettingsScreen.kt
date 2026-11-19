@@ -39,8 +39,8 @@ import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouter
-import com.haooz.chedule.ui.screens.getDaysInMonth
-import com.haooz.chedule.ui.screens.parseDate
+import com.haooz.chedule.ui.activities.setting.getDaysInMonth
+import com.haooz.chedule.ui.activities.setting.parseDate
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.viewmodel.courseViewModel

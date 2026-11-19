@@ -52,7 +52,7 @@ import com.haooz.chedule.ui.activities.main.CourseScheduleApp
 import com.haooz.chedule.ui.activities.main.bitmapRecycler
 import com.haooz.chedule.ui.activities.today.TodayAssistantCard
 import com.haooz.chedule.ui.components.SharedFileIntent
-import com.haooz.chedule.ui.screens.LocalTabletSettingsPaneRouteContent
+import com.haooz.chedule.ui.activities.setting.LocalTabletSettingsPaneRouteContent
 import com.haooz.chedule.ui.navigation.AppNavHost
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouteContent

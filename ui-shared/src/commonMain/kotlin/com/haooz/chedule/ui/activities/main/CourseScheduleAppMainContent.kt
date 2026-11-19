@@ -39,6 +39,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -98,6 +99,7 @@ import com.haooz.chedule.ui.activities.today.TodayPageChrome
 import com.haooz.chedule.ui.activities.today.TodayScreen
 import com.haooz.chedule.ui.components.HorizontalPageSwitch
 import com.haooz.chedule.ui.components.SoftGlassSurface
+import com.haooz.chedule.ui.components.WALLPAPER_BRIGHTNESS_SETTLE_MS
 import com.haooz.chedule.ui.components.BackToNowFloatingButton
 import com.haooz.chedule.ui.components.LiquidNavigationRail
 import com.haooz.chedule.ui.components.LocalChromeStartInset
@@ -547,19 +549,29 @@ internal fun CourseScheduleAppMainContent(
                             // 全屏垫背景色 + 裁切：页滑走露出的空隙由背景色/壁纸垫住（侧栏下始终有内容，不出漏）
                             val wallpaperPadColor =
                                 NexioTheme.colorScheme.surface
+                            // 亮度滑杆拖动中壁纸自身靠 ColorFilter 即时变亮（跟手），但壁纸层的
+                            // backdrop 录制供玻璃采样——不能每 tick 全屏重录。防抖到停手后再补一帧，
+                            // 与 SoftGlassSurface 卡片玻璃同一口径、同一常量。
+                            val brightness = displayAppearance.wallpaperBrightness
+                            var settledBrightness by remember { mutableFloatStateOf(brightness) }
+                            LaunchedEffect(brightness) {
+                                if (settledBrightness == brightness) return@LaunchedEffect
+                                delay(WALLPAPER_BRIGHTNESS_SETTLE_MS)
+                                settledBrightness = brightness
+                            }
                             // 壁纸层只跟壁纸自身状态走；页面平移/切页不该让它重录
                             val wallpaperLayerRecordKey = remember(
                                 sharedWallpaperBitmap,
                                 sharedWallpaperOffset,
                                 sharedWallpaperScale,
-                                displayAppearance.wallpaperBrightness,
+                                settledBrightness,
                                 displayAppearance.wallpaperBlur,
                                 wallpaperPadColor,
                             ) {
                                 var key = sharedWallpaperBitmap.hashCode()
                                 key = 31 * key + sharedWallpaperOffset.hashCode()
                                 key = 31 * key + sharedWallpaperScale.hashCode()
-                                key = 31 * key + displayAppearance.wallpaperBrightness.hashCode()
+                                key = 31 * key + settledBrightness.hashCode()
                                 key = 31 * key + displayAppearance.wallpaperBlur.hashCode()
                                 key = 31 * key + wallpaperPadColor.value.toLong().hashCode()
                                 key

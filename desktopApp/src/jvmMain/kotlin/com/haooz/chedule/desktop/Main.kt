@@ -46,7 +46,7 @@ import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.ui.screens.CourseDetailScreen
 import com.haooz.chedule.ui.screens.CourseEditScreen
-import com.haooz.chedule.ui.screens.SchoolSelectionScreen
+import com.haooz.chedule.ui.activities.eduimport.SchoolSelectionScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx

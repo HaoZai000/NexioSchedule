@@ -1,5 +1,5 @@
 /** 学校选择页面 - 用于教务系统导入时选择学校 */
-package com.haooz.chedule.ui.screens
+package com.haooz.chedule.ui.activities.eduimport
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -63,6 +63,8 @@ import com.haooz.nexioui.topbarmaterial.TopBarMaterialThreshold
 import com.haooz.nexioui.theme.NexioTheme
 import com.haooz.nexioui.overscroll.overScrollVertical
 import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
+import com.haooz.softglass.backdrop.GlassBackdrop
+import kotlin.collections.get
 
 @Composable
 fun SchoolSelectionScreen(
@@ -74,7 +76,7 @@ fun SchoolSelectionScreen(
     searchQuery: String = "",
     selectedTab: Int = 0,
     topContentPadding: Dp = 0.dp,
-    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     onAdapterSelected: (SchoolData, AdapterData) -> Unit,
     /** 顶部「AI 教务导入」入口：模型现场读页面 / 写脚本，不走仓库里的适配 */
     onOpenAiImport: () -> Unit = {},

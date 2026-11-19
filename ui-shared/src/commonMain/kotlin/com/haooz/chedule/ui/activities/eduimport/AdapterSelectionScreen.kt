@@ -1,8 +1,6 @@
 /** 适配器选择底部弹窗 - 显示指定学校的全部适配器（含描述与贡献者信息） */
-package com.haooz.chedule.ui.screens
+package com.haooz.chedule.ui.activities.eduimport
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +16,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -26,9 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,32 +34,30 @@ import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
-import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.CardReveal
-import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.components.sheetContentBottomInset
+import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.utils.ExtractedShareTools
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
-import com.haooz.softglass.backdrop.GlassBackdrop
-import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import com.haooz.chedule.ui.components.sheetContentBottomInset
-import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.delay
-import com.haooz.nexioui.button.ButtonDefaults
-import com.haooz.nexioui.textfield.TextField
-import com.haooz.nexioui.surface.Surface
-import com.haooz.nexioui.button.FlatTextButton
-import com.haooz.nexioui.icon.NexioIcons
-import com.haooz.nexioui.icon.extended.Close
 import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
 import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
 import com.haooz.nexioui.blurbottomsheet.LocalBlurBottomSheetContentExpanded
 import com.haooz.nexioui.blurbottomsheet.LocalSheetContentBackdrop
 import com.haooz.nexioui.blurbottomsheet.LocalSheetTopBarMaterial
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.nexioui.overlaydialog.OverlayDialog
-import com.haooz.nexioui.theme.NexioTheme
 import com.haooz.nexioui.overscroll.overScrollVertical
 import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
+import com.haooz.nexioui.surface.Surface
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.softglass.backdrop.GlassBackdrop
+import com.haooz.softglass.shape.ContinuousRoundedRectangle
 
 /**
  * 适配器选择底部弹窗

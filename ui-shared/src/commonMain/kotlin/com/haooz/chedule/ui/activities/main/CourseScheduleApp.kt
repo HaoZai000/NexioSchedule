@@ -823,6 +823,11 @@ fun CourseScheduleApp(
                 scheduleShowCourseDetail.value,
                 weekPageState.settledPage,
                 themeBackdropKey,
+                // 编辑期外观/壁纸编辑值：它们变化时宿主本来就在重组（combinations/state 驱动），
+                // 进 recordKey 让各 layerBackdrop 节点各自独立补录一帧，取代编辑期 mustRecord 恒 true。
+                displayAppearance,
+                wallpaperOffset,
+                wallpaperScale,
             ) {
                 listOf(
                     mainTabPosition.currentPage, isShiftMode, showDetail, showCustomizePage,
@@ -831,6 +836,7 @@ fun CourseScheduleApp(
                     currentCombinationIndex, effectiveIsDark, wallpaperBitmap,
                     TabletNavSideState.expanded, scheduleShowCourseDetail.value,
                     weekPageState.settledPage, themeBackdropKey,
+                    displayAppearance, wallpaperOffset, wallpaperScale,
                 )
             }
 
@@ -838,7 +844,6 @@ fun CourseScheduleApp(
             //   `Animatable.value`，长按菜单模糊 / 开洞缩放 / 面板位移期间外壳会逐帧重组
             //   （实测长按后每 11~14ms 一次，整张课表跟着重跑）。lambda 里直接读即可，
             //   它只在 draw 阶段执行，订阅落在 draw 上。
-            val latestIsWindowCutout by rememberUpdatedState(isWindowCutoutActive)
             val latestShowCustomize by rememberUpdatedState(showCustomizePage)
             val latestIsCustomizeExiting by rememberUpdatedState(isCustomizeExiting)
 
@@ -876,8 +881,9 @@ fun CourseScheduleApp(
                             navSampling.moved() ||
                             forceRail ||
                             epochBumped ||
-                            // 开洞编辑时主内容持续缩放，绝不能停录
-                            latestIsWindowCutout ||
+                            // 开洞退出时主内容从 0.75 弹回 1，每帧录；进入的中间态由下面 cutoutMainScale 判断。
+                            // 外观/壁纸编辑期的值变化由 liquidGlassRecordKey 各节点独立补录，不走这里
+                            // （本闭包被 3 个节点共用，比较上次值会导致只有第一个节点看到变化）。
                             (latestShowCustomize && latestIsCustomizeExiting) ||
                             shortcutMenuBlurRadius.value > 0.01f ||
                             managePageBlurRadius.value > 0.01f ||

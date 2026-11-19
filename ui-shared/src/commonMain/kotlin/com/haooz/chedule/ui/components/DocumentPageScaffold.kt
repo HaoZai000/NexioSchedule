@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.nexioui.iconbutton.IconButton
-import com.haooz.chedule.ui.screens.LocalTabletSettingsPaneChrome
+import com.haooz.chedule.ui.activities.setting.LocalTabletSettingsPaneChrome
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.hostVerticalBarEdge

@@ -48,9 +48,6 @@ import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
-import com.haooz.chedule.ui.activities.applyComboSchedule
-import com.haooz.chedule.ui.activities.applyImportedScheduleConfig
-import com.haooz.chedule.ui.activities.applyPresetTimeSlots
 import com.haooz.chedule.ui.ai.AiEduPreviewHolder
 import com.haooz.chedule.ui.ai.EduAgentDraft
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu

@@ -157,7 +157,7 @@ fun Modifier.softGlassBackdrop(
 
 
 /** 壁纸亮度的采样源重建延迟：亮度滑杆拖动中只跟手壁纸层，停手后卡片再补一帧。 */
-private const val WALLPAPER_BRIGHTNESS_SETTLE_MS = 120L
+internal const val WALLPAPER_BRIGHTNESS_SETTLE_MS = 120L
 
 /** 采样源最长边（与 `prepareSoftGlassBackdrop` 的 BASE_MAX_EDGE 一致），先缩小再调色省一次全尺寸拷贝。 */
 private const val GLASS_SOURCE_MAX_EDGE = 1024

@@ -1,4 +1,4 @@
-package com.haooz.chedule.ui.screens
+package com.haooz.chedule.ui.activities.setting
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable

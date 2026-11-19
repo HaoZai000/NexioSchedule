@@ -20,8 +20,8 @@ import com.haooz.chedule.data.appearance.CardEdgeThickness
 import com.haooz.chedule.data.appearance.CardRefractionLevel
 import com.haooz.chedule.data.appearance.CardTextColor
 import com.haooz.chedule.ui.components.PageSwitchState
-import com.haooz.chedule.ui.screens.SettingsScreen
-import com.haooz.chedule.ui.screens.SettingsSearchState
+import com.haooz.chedule.ui.activities.setting.SettingsScreen
+import com.haooz.chedule.ui.activities.setting.SettingsSearchState
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel

@@ -1,4 +1,4 @@
-package com.haooz.chedule.ui.screens
+package com.haooz.chedule.ui.activities.setting
 
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -43,7 +43,10 @@ import com.haooz.chedule.data.holiday.HolidayEntry
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.components.LocalPageStartPadding
+import com.haooz.chedule.ui.components.TabletNavIconRailWidth
+import com.haooz.chedule.ui.components.TabletNavSideInset
 import com.haooz.chedule.ui.components.tabletNavChromeTitleSlot
+import com.haooz.chedule.ui.components.tabletNavExpandedWidthDp
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.navigation.AboutRoute
 import com.haooz.chedule.ui.navigation.AiEduImportHistoryRoute
@@ -84,6 +87,8 @@ import com.haooz.chedule.ui.navigation.WebDavSettingsRoute
 import com.haooz.chedule.ui.navigation.WidgetIntroRoute
 import com.haooz.chedule.ui.navigation.rememberNavTransitionState
 import com.haooz.chedule.ui.navigation.settleOnGlobalCurve
+import com.haooz.chedule.ui.utils.AppMaterialSettings
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
@@ -96,6 +101,7 @@ import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
 import com.haooz.nexioui.overlaydialog.LocalOverlayDialogBackdrop
 import com.haooz.nexioui.theme.NexioTheme
 import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
+import com.haooz.softglass.backdrop.GlassBackdrop
 import kotlin.math.roundToInt
 
 /** 右栏页面壳：二级页无返回按钮，标题锁折叠态。 */
@@ -172,11 +178,11 @@ fun TabletSettingsChromeOverlay() {
     val statusBarPx = with(density) { statusBar.roundToPx() }
     val collapsedHPx = with(density) { collapsedH.roundToPx() }
     val collapsedTotalPx = with(density) {
-        (com.haooz.chedule.ui.components.TabletNavSideInset +
-            com.haooz.chedule.ui.components.TabletNavIconRailWidth).toPx()
+        (TabletNavSideInset +
+                TabletNavIconRailWidth).toPx()
     }
     val expandedWidthPx = with(density) {
-        com.haooz.chedule.ui.components.tabletNavExpandedWidthDp(widthDp.toFloat()).toPx()
+        tabletNavExpandedWidthDp(widthDp.toFloat()).toPx()
     }
 
     BoxWithConstraints(
@@ -220,7 +226,7 @@ private val TabletPaneBlurHeight: Dp
 /** 左栏顶部糊层，采样本栏 backdrop。 */
 @Composable
 private fun TabletPaneTopChrome(
-    backdrop: com.haooz.softglass.backdrop.GlassBackdrop?,
+    backdrop: GlassBackdrop?,
     modifier: Modifier = Modifier,
 ) {
     val maskHeight = TabletPaneBlurHeight
@@ -340,7 +346,7 @@ fun TabletSettingsScreen(
     isShiftMode: Boolean,
     onExitShiftMode: () -> Unit,
     onEnterShiftMode: () -> Unit = {},
-    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     onSendTestNotification: () -> Unit = {},
     isIslandSupported: () -> Boolean = { false },
     testActionLabel: String? = null,
@@ -400,14 +406,14 @@ fun TabletSettingsScreen(
             .fillMaxSize()
             .background(paneSurface)
             .then(
-                if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) Modifier
+                if (AppMaterialSettings.isNoneTier()) Modifier
                 else Modifier.layerBackdrop(overlayDialogBackdrop)
             )
             .then(LocalPageStartPadding.current)
     ) {
         val leftWidth = screenWidthDp().dp * 0.39f
         val rightWidth = maxWidth - leftWidth
-        val dividerColor = if (com.haooz.chedule.ui.utils.isAppDarkTheme()) {
+        val dividerColor = if (isAppDarkTheme()) {
             Color.White.copy(alpha = 0.1f)
         } else {
             Color.Black.copy(alpha = 0.06f)
@@ -433,7 +439,7 @@ fun TabletSettingsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .then(
-                            if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) Modifier
+                            if (AppMaterialSettings.isNoneTier()) Modifier
                             else Modifier.layerBackdrop(leftPaneBackdrop)
                         )
                 ) {
@@ -457,7 +463,7 @@ fun TabletSettingsScreen(
                             searchState = leftSearchState,
                             showSearch = searchVisible,
                             listTopPaddingOverride = chromeTop +
-                                (if (searchVisible) SettingsSearchBarBlockHeight else 0.dp),
+                                    (if (searchVisible) SettingsSearchBarBlockHeight else 0.dp),
                         )
                     }
                 }
@@ -496,7 +502,7 @@ fun TabletSettingsScreen(
                     LocalAppRouter provides paneRouter,
                     // 浮层改用整页采样层，否则跨栏浮层背面一半是黑的
                     LocalOverlayDialogBackdrop provides
-                        if (com.haooz.chedule.ui.utils.AppMaterialSettings.isNoneTier()) null
+                        if (AppMaterialSettings.isNoneTier()) null
                         else overlayDialogBackdrop,
                 ) {
                     TabletPaneNavHost(paneRouter) { route -> paneContent(paneRouter, route) }

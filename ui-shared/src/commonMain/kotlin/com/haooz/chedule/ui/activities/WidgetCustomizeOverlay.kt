@@ -15,15 +15,12 @@ import com.haooz.softglass.backdrop.effects.blur
 import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
@@ -38,7 +35,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -82,8 +78,11 @@ import com.haooz.chedule.data.appearance.ThemeMode
 import com.haooz.chedule.data.updateWidgetCropForGesture
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
+import com.haooz.chedule.ui.components.sheetContentBottomInset
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.nexioui.motion.CustomizePageEasing
+import com.haooz.chedule.ui.screens.SheetCard
+import com.haooz.chedule.ui.screens.SheetCloseButton
 import com.haooz.chedule.ui.screens.SliderItem
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -91,17 +90,16 @@ import com.haooz.softglass.shape.ContinuousCapsule
 import kotlin.math.roundToInt
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import com.haooz.nexioui.card.Card
-import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
 import com.haooz.nexioui.icon.NexioIcons
 import com.haooz.nexioui.icon.extended.Close
 import com.haooz.nexioui.icon.extended.GridView
 import com.haooz.nexioui.icon.extended.Image
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
+import com.haooz.nexioui.window.isTabletWidth
 
-import com.haooz.chedule.ui.theme.AppNexioTheme
-import com.haooz.chedule.ui.theme.AppThemeColors
-import com.haooz.chedule.ui.theme.rememberAppThemeColors
-import com.haooz.nexioui.theme.NexioDarkColorScheme
 import com.haooz.nexioui.theme.NexioTheme
 import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
 
@@ -133,9 +131,6 @@ private val WidgetCustomizeToolPadding = 7.dp
 
 /** 工具栏距底（导航栏之外）的固定距离。写死，不跟面板/小部件算 */
 private val WidgetCustomizeToolBottom = 80.dp
-
-/** 底部面板距屏幕底（导航栏之外）的距离 */
-private val WidgetCustomizeSheetBottom = 60.dp
 
 private const val MOVE_IN_MILLIS = 460
 private const val DIM_IN_MILLIS = 320
@@ -565,7 +560,7 @@ fun WidgetCustomizeOverlay(
             onAppearanceChange = { appearance = it },
             hasWallpaper = wallpaper != null,
             onHeightChange = { sheetHeightPx = it },
-            modifier = Modifier.align(Alignment.BottomCenter)
+            onDismiss = { showSheet = false },
         )
     }
 }
@@ -684,7 +679,7 @@ private fun WidgetToolButton(
 }
 
 
-/** 小部件自定义面板 */
+/** 小部件自定义面板：标准 bottom sheet，内容沿用深色主题与两个滑杆。 */
 @Composable
 private fun WidgetCustomizeSheet(
     visible: Boolean,
@@ -695,135 +690,127 @@ private fun WidgetCustomizeSheet(
     /** 没有壁纸时「壁纸模糊」没意义，直接禁用（右侧显示「需设置壁纸」） */
     hasWallpaper: Boolean,
     onHeightChange: (Float) -> Unit,
-    modifier: Modifier = Modifier,
+    onDismiss: () -> Unit,
 ) {
-    val dynamic = NexioTheme.isDynamicColor
-    val sheetColors = if (dynamic) {
-        rememberAppThemeColors(isDark = true, monetEnabled = true)
-    } else {
-        // 非动态色就用深色方案，只把两张卡片的底色对齐现有深色观感
-        remember {
-            AppThemeColors(
-                isDark = true,
-                isDynamicColor = false,
-                colorScheme = NexioDarkColorScheme.copy(
-                    surfaceContainerHigh = Color(0xFF303030),
-                    surfaceContainerHighest = Color(0xFF3F3F3F),
-                ),
-            )
-        }
-    }
-    AppNexioTheme(colors = sheetColors) {
-        AnimatedVisibility(
-            visible = visible,
-            modifier = modifier,
-            enter = slideInVertically(
-                initialOffsetY = { it },
-                animationSpec = tween(350, easing = CustomizePageEasing)
-            ) + fadeIn(tween(200)),
-            exit = slideOutVertically(
-                targetOffsetY = { it },
-                animationSpec = tween(250, easing = CustomizePageEasing)
-            ) + fadeOut(tween(150)),
+    val isTablet = isTabletWidth()
+    val content: @Composable () -> Unit = {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .overScrollVertical()
+                .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
+                .verticalScroll(rememberScrollState())
+                .sheetContentBottomInset(isTablet)
+                .onSizeChanged { onHeightChange(it.height.toFloat()) },
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .pointerInput(Unit) { detectTapGestures { } }
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .padding(bottom = WidgetCustomizeSheetBottom)
-                    .onSizeChanged { onHeightChange(it.height.toFloat()) },
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                WidgetSheetCard {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp)
+            Spacer(Modifier.height(if (isTablet) 56.dp else 58.dp))
+            SheetCard {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                ) {
+                    Text(
+                        text = SchedStr.defaultTheme(),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = NexioTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 2.dp, bottom = 10.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = SchedStr.defaultTheme(),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = NexioTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(start = 2.dp, bottom = 10.dp)
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            WidgetThemeOptions.forEach { mode ->
-                                val selected = themeMode == mode
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(36.dp)
-                                        .clip(ContinuousCapsule())
-                                        .background(
-                                            if (selected) NexioTheme.colorScheme.primary
-                                            else NexioTheme.colorScheme.surfaceContainerHighest
-                                        )
-                                        .clickable(
-                                            interactionSource = null,
-                                            indication = null,
-                                            role = Role.Button,
-                                            onClick = { onThemeModeChange(mode) }
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = widgetThemeLabel(mode),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (selected) Color.White
-                                        else NexioTheme.colorScheme.onSurface
+                        WidgetThemeOptions.forEach { mode ->
+                            val selected = themeMode == mode
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(36.dp)
+                                    .clip(ContinuousCapsule())
+                                    .background(
+                                        if (selected) NexioTheme.colorScheme.primary
+                                        else NexioTheme.colorScheme.surfaceContainerHighest
                                     )
-                                }
+                                    .clickable(
+                                        interactionSource = null,
+                                        indication = null,
+                                        role = Role.Button,
+                                        onClick = { onThemeModeChange(mode) }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = widgetThemeLabel(mode),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (selected) Color.White
+                                    else NexioTheme.colorScheme.onSurface
+                                )
                             }
                         }
                     }
                 }
-                WidgetSheetCard {
-                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                        SliderItem(
-                            label = SchedStr.cardTextScale(),
-                            value = appearance.textScale,
-                            valueRange = WidgetTextScaleRange,
-                            keyPoints = listOf(WidgetTextScaleDefault),
-                            enabled = true,
-                            onValueChange = { onAppearanceChange(appearance.copy(textScale = it)) },
-                            quantize = { (it * 20f).roundToInt() / 20f },
-                            suffix = "%",
-                            displayValue = { (it * 100).roundToInt().toString() },
-                            parseInput = { input ->
-                                input.replace(',', '.').toFloatOrNull()
-                                    ?.div(100f)
-                                    ?.coerceIn(WidgetTextScaleRange.start, WidgetTextScaleRange.endInclusive)
-                            }
-                        )
-                        SliderItem(
-                            label = SchedStr.wallpaperBlur(),
-                            value = appearance.wallpaperBlur,
-                            valueRange = WidgetWallpaperBlurRange,
-                            keyPoints = listOf(WidgetWallpaperBlurDefault),
-                            enabled = hasWallpaper,
-                            onValueChange = { onAppearanceChange(appearance.copy(wallpaperBlur = it)) },
-                            quantize = { it.roundToInt().toFloat() },
-                            suffix = "dp",
-                            displayValue = { it.roundToInt().toString() },
-                            parseInput = { input ->
-                                input.replace(',', '.').toFloatOrNull()
-                                    ?.coerceIn(
-                                        WidgetWallpaperBlurRange.start,
-                                        WidgetWallpaperBlurRange.endInclusive
-                                    )
-                            }
-                        )
-                    }
+            }
+            SheetCard {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    SliderItem(
+                        label = SchedStr.cardTextScale(),
+                        value = appearance.textScale,
+                        valueRange = WidgetTextScaleRange,
+                        keyPoints = listOf(WidgetTextScaleDefault),
+                        enabled = true,
+                        onValueChange = { onAppearanceChange(appearance.copy(textScale = it)) },
+                        quantize = { (it * 100f).roundToInt() / 100f },
+                        suffix = "%",
+                        displayValue = { (it * 100).roundToInt().toString() },
+                        parseInput = { input ->
+                            input.replace(',', '.').toFloatOrNull()
+                                ?.div(100f)
+                                ?.coerceIn(WidgetTextScaleRange.start, WidgetTextScaleRange.endInclusive)
+                        }
+                    )
+                    SliderItem(
+                        label = SchedStr.wallpaperBlur(),
+                        value = appearance.wallpaperBlur,
+                        valueRange = WidgetWallpaperBlurRange,
+                        keyPoints = listOf(WidgetWallpaperBlurDefault),
+                        enabled = hasWallpaper,
+                        onValueChange = { onAppearanceChange(appearance.copy(wallpaperBlur = it)) },
+                        quantize = { it.roundToInt().toFloat() },
+                        suffix = "dp",
+                        displayValue = { it.roundToInt().toString() },
+                        parseInput = { input ->
+                            input.replace(',', '.').toFloatOrNull()
+                                ?.coerceIn(
+                                    WidgetWallpaperBlurRange.start,
+                                    WidgetWallpaperBlurRange.endInclusive
+                                )
+                        }
+                    )
                 }
             }
         }
+    }
+    if (isTablet) {
+        BlurBottomSheetTablet(
+            show = visible,
+            title = SchedStr.customize(),
+            sheetMaxHeight = 480.dp,
+            isBottomAligned = true,
+            onDismissRequest = onDismiss,
+            startAction = { SheetCloseButton(onClick = onDismiss) },
+            content = content,
+        )
+    } else {
+        BlurBottomSheet(
+            show = visible,
+            title = SchedStr.customize(),
+            onDismissRequest = onDismiss,
+            startAction = { SheetCloseButton(onClick = onDismiss) },
+            content = content,
+        )
     }
 }
 
@@ -845,8 +832,8 @@ private fun widgetThemeLabel(mode: ThemeMode): String = when (mode) {
     else -> mode.label
 }
 
-/** 字号倍率可调区间 */
-private val WidgetTextScaleRange = 0.8f..1.4f
+/** 字号倍率可调区间：80%~150%，按整数百分比调节 */
+private val WidgetTextScaleRange = 0.8f..1.5f
 
 /** 字号倍率的出厂值（100%）：滑杆上的锚点 */
 private const val WidgetTextScaleDefault = 1f
@@ -856,14 +843,3 @@ private val WidgetWallpaperBlurRange = 0f..24f
 
 /** 壁纸模糊的出厂值：与落盘默认值同源，别各写各的 */
 private const val WidgetWallpaperBlurDefault = WIDGET_WALLPAPER_BLUR_DEFAULT
-
-@Composable
-private fun WidgetSheetCard(content: @Composable () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        colors = CardDefaults.defaultColors(
-            color = NexioTheme.colorScheme.surfaceContainerHigh,
-            contentColor = NexioTheme.colorScheme.onSurface
-        ),
-    ) { content() }
-}

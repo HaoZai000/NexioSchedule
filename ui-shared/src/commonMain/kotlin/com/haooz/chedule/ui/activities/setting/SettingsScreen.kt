@@ -1,4 +1,4 @@
-package com.haooz.chedule.ui.screens
+package com.haooz.chedule.ui.activities.setting
 
 // ⚠ 本文件不得出现 android.* / androidx.activity / androidx.core；平台能力做成注入参数。
 
@@ -94,6 +94,7 @@ import com.haooz.nexioui.button.ButtonDefaults
 import com.haooz.nexioui.card.Card
 import androidx.compose.material3.Icon
 import com.haooz.nexioui.basiccomponent.PreferenceFlash
+import com.haooz.nexioui.button.Button
 import com.haooz.nexioui.scaffold.Scaffold
 import com.haooz.nexioui.smalltitle.SmallTitle
 import com.haooz.nexioui.icon.NexioIcons
@@ -112,8 +113,8 @@ import com.haooz.nexioui.checkboxpreference.CheckboxPreference
 import com.haooz.nexioui.theme.NexioTheme
 import com.haooz.nexioui.overscroll.overScrollVertical
 import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
+import com.haooz.softglass.backdrop.GlassBackdrop
 import androidx.compose.ui.graphics.Color as ComposeColor
-import com.haooz.chedule.ui.activities.BackupCenterPrefs
 
 // 解析失败时回退到今天，避免弹窗初值出现非法日期
 internal fun parseDate(dateStr: String): Triple<Int, Int, Int> {
@@ -395,7 +396,7 @@ fun SettingsScreen(
     onEnterShiftMode: () -> Unit = {},
     navBarStyle: String = "standard",
     settingsScrollBehavior: SharedScrollBehavior? = null,
-    liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
+    liquidGlassBackdrop: GlassBackdrop? = null,
     /** 搜索状态（由路由持有：搜索框挂在页面采样层外，与列表共享同一份状态） */
     searchState: SettingsSearchState? = null,
     // ── 平台注入（宿主提供；桌面/iOS 用默认空实现）──
@@ -644,7 +645,7 @@ fun SettingsScreen(
                 }
 
                 item(key = "shift_exit") {
-                    com.haooz.nexioui.button.Button(
+                    Button(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 24.dp, end = tabletHorizontalPadding, start = tabletHorizontalPadding)
@@ -793,9 +794,9 @@ fun SettingsScreen(
                 groups = searchResults,
                 query = searchQuery,
                 topPadding = paddingValues.calculateTopPadding() +
-                    CollapsibleTopAppBarDefaults.CollapsedHeight +
-                    pageTopExtra(isTablet, hasSmallTitle = false) +
-                    SettingsSearchBarBlockHeight + 4.dp,
+                        CollapsibleTopAppBarDefaults.CollapsedHeight +
+                        pageTopExtra(isTablet, hasSmallTitle = false) +
+                        SettingsSearchBarBlockHeight + 4.dp,
                 horizontalPadding = tabletHorizontalPadding,
                 scrollBehavior = settingsScrollBehavior,
                 onEntryClick = { entry ->

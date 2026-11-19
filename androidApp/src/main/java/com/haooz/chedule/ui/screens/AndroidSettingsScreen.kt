@@ -9,6 +9,9 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.AndroidMiscStr
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
+import com.haooz.chedule.ui.activities.setting.SettingsScreen
+import com.haooz.chedule.ui.activities.setting.SettingsSearchState
+import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -56,7 +59,7 @@ fun AndroidSettingsScreen(
     settingsScrollBehavior: SharedScrollBehavior? = null,
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
     /** 搜索状态（由路由持有并挂在页面采样层外） */
-    searchState: com.haooz.chedule.ui.screens.SettingsSearchState? = null,
+    searchState: SettingsSearchState? = null,
     /** 是否显示「更新」入口（Android 恒 true；iOS 走 App Store 传 false） */
     showUpdateSettings: Boolean = true,
 ) {
@@ -80,8 +83,8 @@ fun AndroidSettingsScreen(
         // 提醒页底部「测试通知」：原平板页覆盖层 onClick（FeatureLog + 超级岛/实时活动 + toast）逐字迁入
         onSendTestNotification = {
             val islandEnabled = islandNotification &&
-                IslandNotificationHelper.isIslandSupported(context)
-            com.haooz.chedule.ui.utils.FeatureLog.reminderFlow(
+                    IslandNotificationHelper.isIslandSupported(context)
+            FeatureLog.reminderFlow(
                 "test_notification",
                 if (islandEnabled) "island" else "live"
             )
@@ -89,13 +92,13 @@ fun AndroidSettingsScreen(
                 IslandNotificationHelper.sendTestIslandNotification(
                     context
                 )
-                com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_island_sent")
+                FeatureLog.reminderFlow("test_island_sent")
                 showToast(AndroidMiscStr.islandTestSent())
             } else {
                 CourseReminderHelper.sendTestLiveNotification(
                     context
                 )
-                com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_live_sent")
+                FeatureLog.reminderFlow("test_live_sent")
                 showToast(AndroidMiscStr.liveActivityTestSent())
             }
         },

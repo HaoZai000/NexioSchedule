@@ -112,8 +112,8 @@ import com.haooz.chedule.ui.activities.CommunicationScreen
 import com.haooz.chedule.ui.activities.CourseManageScreen
 import com.haooz.chedule.ui.activities.CourseReminderScreen
 import com.haooz.chedule.ui.activities.CourseTimeSettingsScreen
-import com.haooz.chedule.ui.activities.EduImportUpdater
-import com.haooz.chedule.ui.activities.EducationalImportScreen
+import com.haooz.chedule.ui.activities.eduimport.EduImportUpdater
+import com.haooz.chedule.ui.activities.eduimport.EducationalImportScreen
 import com.haooz.chedule.ui.activities.FeedbackHistoryScreen
 import com.haooz.chedule.ui.activities.FeedbackRoadmapScreen
 import com.haooz.chedule.ui.activities.FeedbackScreen
@@ -160,9 +160,9 @@ import com.haooz.chedule.ui.screens.AiFeaturesScreen
 import com.haooz.chedule.ui.screens.CourseEditScreen
 import com.haooz.chedule.ui.screens.McpServiceScreen
 import com.haooz.chedule.ui.screens.ScheduleSettingsScreen
-import com.haooz.chedule.ui.screens.SettingsSearchHeader
+import com.haooz.chedule.ui.activities.setting.SettingsSearchHeader
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
-import com.haooz.chedule.ui.screens.rememberSettingsSearchState
+import com.haooz.chedule.ui.activities.setting.rememberSettingsSearchState
 import com.haooz.chedule.ui.theme.AppNexioTheme
 import com.haooz.chedule.ui.theme.rememberAppThemeColors
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme

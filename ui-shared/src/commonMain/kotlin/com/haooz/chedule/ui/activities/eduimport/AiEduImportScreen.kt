@@ -108,7 +108,6 @@ import com.haooz.chedule.ui.components.softGlassBackdrop
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.nexioui.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
-import com.haooz.chedule.ui.screens.AdapterSelectionBottomSheet
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalNativeDocumentChrome
 import com.haooz.chedule.ui.utils.NativeDocumentAction
