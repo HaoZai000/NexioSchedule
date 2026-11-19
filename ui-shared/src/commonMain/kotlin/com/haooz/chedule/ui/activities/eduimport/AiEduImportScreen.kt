@@ -8,6 +8,7 @@ package com.haooz.chedule.ui.activities.eduimport
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -117,6 +118,9 @@ import com.haooz.chedule.ui.utils.ExtractedShareTools
 import com.haooz.chedule.ui.utils.NativeDocumentSystemHeaderEffect
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
+import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
+import com.haooz.nexioui.window.ScreenCornerRadiiPx
+import com.haooz.nexioui.window.toShape
 import com.haooz.chedule.ui.web.EduCourseJson
 import com.haooz.chedule.ui.web.EduImportSelection
 import com.haooz.chedule.ui.web.EduNetLogStore
@@ -195,6 +199,9 @@ private val ChatHPadding = 12.dp
 
 /** 顶部悬浮头 + 渐变遮罩的高度。 */
 private val ChatTopInset = 64.dp
+
+/** 对话浮层离屏幕左/右/下的距离；底部圆角要跟着收窄同样的量才能与屏幕同心。 */
+private val ChatSheetInset = 4.dp
 
 /** 流式思考的展示高度：约 4 行，超出部分靠自动贴底滚上来。 */
 private val StreamingThinkingMaxHeight = 78.dp
@@ -350,9 +357,18 @@ fun AiEduImportScreen(
             // ── 对话：底部浮层，上方露出网页 ──
             AnimatedVisibility(
                 visible = stage == Stage.Chat,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut(),
-                modifier = Modifier.align(Alignment.BottomCenter),
+                enter = slideInVertically(
+                    animationSpec = tween(
+                        durationMillis = 480,
+                        easing = CubicBezierEasing(0.34f, 1.12f, 0.3f, 1f),
+                    )
+                ) { it },
+                exit = slideOutVertically(
+                    animationSpec = tween(320, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f))
+                ) { it },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = ChatSheetInset, end = ChatSheetInset, bottom = ChatSheetInset),
             ) {
                 ChatSheet(
                     state = state,
@@ -582,8 +598,20 @@ private fun ChatSheet(
     val listState = rememberLazyListState()
     var input by remember { mutableStateOf("") }
     val bubbleMax = (screenWidthDp() * 0.8f).dp.coerceAtMost(520.dp)
-    // 与 BlurBottomSheet 一致：固定 36dp，不跟随屏幕物理圆角
-    val sheetShape = remember { ContinuousRoundedRectangle(36.dp) }
+    // 顶部沿用 BlurBottomSheet 的 36dp；底部两角贴合屏幕物理圆角
+    val density = LocalDensity.current
+    val screenCorners = rememberScreenCornerRadiiPx()
+    val sheetShape = remember(screenCorners, density) {
+        val topPx = with(density) { 36.dp.toPx() }
+        // 浮层离屏幕边缘 4dp，底部圆角同步减掉才和屏幕圆角同心
+        val bottomInsetPx = with(density) { ChatSheetInset.toPx() }
+        ScreenCornerRadiiPx(
+            topLeft = topPx,
+            topRight = topPx,
+            bottomRight = (screenCorners.bottomRight - bottomInsetPx).coerceAtLeast(0f),
+            bottomLeft = (screenCorners.bottomLeft - bottomInsetPx).coerceAtLeast(0f),
+        ).toShape(density)
+    }
 
     // 输入条玻璃的采样源：浮层**内部**的内容（列表 + 底色）。
     // ⚠ 生产者只包列表，Composer 在它外面 —— 玻璃节点不能采样自己所在的层（见 topics/glass.md）。
