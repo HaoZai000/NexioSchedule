@@ -130,15 +130,7 @@ fun AboutScreen(
     embedded: Boolean = false,
     /** 弹窗的玻璃采样层：内嵌时传全屏层，使弹窗能采样到左侧内容 */
     dialogBackdrop: GlassBackdrop? = null,
-    /**
-     * 打开子页面（更新日志 / 开源协议 / 隐私政策）。
-     *
-     * 这三页已经从独立 Activity 改成路由，所以**必须由宿主决定怎么跳**：
-     * - 路由宿主（[com.haooz.chedule.ui.activities.AboutActivity]）→ `router.navigate(...)`
-     * - 平板设置页内嵌（还没路由化）→ `startActivity(AboutActivity + 初始路由)`
-     *
-     * 默认空实现是为了让签名向后兼容；**两处调用点都显式传了**，别依赖默认值。
-     */
+    /** 打开开源协议 / 隐私政策，由宿主决定跳转方式。 */
     onNavigate: (AppRoute) -> Unit = {},
     /** 应用版本号（宿主从 packageManager 取）；桌面/iOS 用各自来源 */
     appVersion: String = AboutStr.unknownVersion(),
