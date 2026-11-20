@@ -373,6 +373,7 @@ fun AiEduPreviewScreen(
                                 pageUrl = target.pageUrl,
                                 script = target.script,
                                 courseCount = written,
+                                sessionId = target.sessionId,
                             )
                             showToast(ImportStr.importedCoursesN(written), longDuration = true)
                             showConfirmDialog = false
