@@ -460,14 +460,11 @@ fun AiFeaturesScreen(
                         text = AiStr.testConnection(),
                         enabled = testState != AiTestState.Running,
                         onClick = { runConnectionTest() },
-                        colors = ButtonDefaults.textButtonColorsPrimary(
-                            color = Color(0xFF0A84FF),
-                            textColor = Color.White,
-                        ),
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
                         cornerRadius = 100.dp,
-                        minWidth = 76.dp,
+                        minWidth = 72.dp,
                         minHeight = 36.dp,
-                        insideMargin = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                     )
                 }
             }
