@@ -32,6 +32,9 @@ object FeedbackClient {
     const val MAX_CONTENT_LENGTH = 2000
     const val MAX_EMAIL_LENGTH = 120
 
+    /** 开发进度分页大小：首屏 10 条，触底继续追加 */
+    const val ROADMAP_PAGE_SIZE = 10
+
     /** 可替换（`internal var`）以便测试注入 FakeHttpService */
     internal var http: HttpService = createHttpService(
         HttpTimeouts(connectSeconds = 10, readSeconds = 15, callSeconds = 20),
@@ -130,14 +133,25 @@ object FeedbackClient {
         }
     }
 
-    /** 公开的开发进度列表（App 只读） */
-    suspend fun fetchRoadmap(): Result<List<RoadmapRecord>> = withContext(ioDispatcher) {
+    /** 公开的开发进度列表（App 只读，分页） */
+    suspend fun fetchRoadmap(
+        offset: Int = 0,
+        limit: Int = ROADMAP_PAGE_SIZE,
+        kind: FeedbackKind? = null,
+    ): Result<RoadmapPage> = withContext(ioDispatcher) {
         runCatching {
             NexioLog.i(TAG, "查询开发进度")
-            val resp = http.get("$BASE_URL/roadmap")
+            val url = buildString {
+                append(BASE_URL).append("/roadmap?limit=").append(limit).append("&offset=").append(offset)
+                if (kind != null) append("&type=").append(kind.wire)
+            }
+            val resp = http.get(url)
             val json = parseOrThrow(resp)
             val records = json.optJsonArray("records") ?: JsonArray(emptyList())
-            records.mapNotNull { it.asObjectOrNull()?.toRoadmapRecord() }
+            RoadmapPage(
+                records = records.mapNotNull { it.asObjectOrNull()?.toRoadmapRecord() },
+                hasMore = json.optBoolean("has_more", false),
+            )
         }
     }
 
@@ -242,6 +256,12 @@ data class RoadmapRecord(
     val statusNote: String,
     val version: String,
     val updatedAt: String,
+)
+
+/** 开发进度分页结果；[hasMore] 为 false 表示已拉完 */
+data class RoadmapPage(
+    val records: List<RoadmapRecord>,
+    val hasMore: Boolean = false,
 )
 
 // ---- 内部小工具 ----
