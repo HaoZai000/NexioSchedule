@@ -77,6 +77,7 @@ import com.haooz.chedule.ui.utils.NativeDocumentBottomBar
 import com.haooz.chedule.ui.utils.NativeDocumentBottomBarEffect
 import com.haooz.chedule.ui.utils.bottomFloatingPadding
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.ui.web.NoopWebHost
 import com.haooz.chedule.ui.web.WebHost
 import com.haooz.chedule.ui.web.WebHostConfig
@@ -149,6 +150,8 @@ fun WebViewScreen(
     netRecorderEnabled: Boolean = false,
     webContentBackdrop: LayerBackdrop,
     contentTopPadding: Dp = 0.dp,
+    /** 右侧避让 Modifier：平板 AI 对话面板常驻右侧时给网页 / 顶栏色条 / 底栏统一避让 + 平移 */
+    webAvoidance: Modifier = Modifier,
     scheduleNames: List<String> = emptyList(),
     currentScheduleName: String = "",
     onBack: () -> Unit,
@@ -185,6 +188,11 @@ fun WebViewScreen(
     // 76dp = Swift 侧底栏高度（44 按钮 + 上下 10 内边距 + 12 让位），给网页留出底部让位
     val bottomBarHeight = 76.dp
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
+    // 底部 dock 两边距走全屏页统一口径：600dp 起 20dp，每多 600dp 加 108dp（封顶 128dp），
+    // 与课程详情 / 协议 / 天气页一致。对话框仍用 tabletHorizontalPadding，不受此影响。
+    val dockHorizontalPadding = if (isTablet) {
+        ((screenWidthDp() - 600).coerceIn(0, 600) / 600f * 108 + 20).dp
+    } else 16.dp
     var loadingProgress by remember { mutableFloatStateOf(0f) }
     // 顶栏采样色：宿主逐帧上报（Android = PixelCopy）；null = 该平台没有这个能力，不画色带
     var topColor by remember { mutableStateOf<Color?>(null) }
@@ -480,6 +488,7 @@ fun WebViewScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(contentTopPadding)
+                        .then(webAvoidance)
                         .background(animatedColor)
                 )
             }
@@ -487,6 +496,7 @@ fun WebViewScreen(
                 modifier = Modifier
                     // 原生文档页不推：让网页铺到导航栏下面，顶部让位由系统安全区处理
                     .padding(top = if (nativeChrome != null) 0.dp else contentTopPadding)
+                    .then(webAvoidance)
                     .fillMaxSize()
             ) {
                 webHost.Content(
@@ -520,7 +530,9 @@ fun WebViewScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                    .padding(horizontal = tabletHorizontalPadding)
+                    .padding(horizontal = dockHorizontalPadding)
+                    // 平板 AI 对话面板常驻右侧时，底栏同步避让 + 平移
+                    .then(webAvoidance)
                     // 与首页底栏同一套底部间距算法
                     .padding(bottom = bottomFloatingPadding())
                     .fillMaxWidth()

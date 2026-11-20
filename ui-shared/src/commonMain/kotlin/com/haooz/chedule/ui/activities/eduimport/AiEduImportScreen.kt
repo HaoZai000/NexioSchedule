@@ -14,10 +14,13 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,6 +43,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,6 +62,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,10 +87,17 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.LayoutModifier
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
@@ -94,7 +106,9 @@ import com.haooz.chedule.data.storage.getStringOrNull
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
+import androidx.compose.runtime.DisposableEffect
 import com.haooz.chedule.ui.ai.AiEduPreviewHolder
+import com.haooz.chedule.ui.ai.AiEduUrlHolder
 import com.haooz.chedule.ui.ai.EduAgentSession
 import com.haooz.chedule.ui.ai.EduAgentUiState
 import com.haooz.chedule.ui.ai.EduChatItem
@@ -120,6 +134,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
 import com.haooz.nexioui.window.ScreenCornerRadiiPx
+import com.haooz.nexioui.window.isTabletWidth
 import com.haooz.nexioui.window.toShape
 import com.haooz.chedule.ui.web.EduCourseJson
 import com.haooz.chedule.ui.web.EduImportSelection
@@ -162,7 +177,7 @@ private const val PREFS_AI_EDU = "ai_edu_import_prefs"
 private const val KEY_LAST_URL = "last_url"
 
 /** 右上角「历史」图标：1024×1024 的时钟 SVG，路径直接交给 [PathParser] 解析成 [ImageVector]。 */
-private val AiEduHistoryIcon: ImageVector by lazy {
+internal val AiEduHistoryIcon: ImageVector by lazy {
     ImageVector.Builder(
         name = "AiEduHistory",
         defaultWidth = 24.dp,
@@ -200,8 +215,86 @@ private val ChatHPadding = 12.dp
 /** 顶部悬浮头 + 渐变遮罩的高度。 */
 private val ChatTopInset = 64.dp
 
-/** 对话浮层离屏幕左/右/下的距离；底部圆角要跟着收窄同样的量才能与屏幕同心。 */
+/** 对话浮层离屏幕左/右/下的距离（手机）。 */
 private val ChatSheetInset = 4.dp
+
+/** 手机浮层底部圆角相对屏幕物理圆角的收窄量（与 4dp 离屏间距分开，不强制相等）。 */
+private val ChatSheetCornerInset = 2.dp
+
+// ── 平板：对话常驻右侧，口径对齐 pad 侧边导航栏（TabletNavDefaults）──
+/** 平板对话面板占屏宽比例。 */
+private const val ChatPanelWidthFraction = 0.32f
+/** 面板距屏幕边缘：与侧栏 SideInset / BottomInset 一致。 */
+private val ChatPanelEdgeInset = 12.dp
+/** 面板圆角 = 屏幕物理圆角 − 10dp；读不到时回落 28dp（同侧栏 FallbackCornerRadius）。 */
+private val ChatPanelFallbackCorner = 28.dp
+private val ChatPanelCornerInset = 10.dp
+
+/** 面板推入/退出与页面避让共用同一组曲线，保证平移与面板同帧。 */
+private val ChatEnterEasing = CubicBezierEasing(0.34f, 1.12f, 0.3f, 1f)
+private val ChatExitEasing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)
+
+/**
+ * 平板 AI 对话面板的网页避让：与首页侧栏 [com.haooz.chedule.ui.components.tabletNavRailStartPadding]
+ * 同款——布局在展开/收起那一刻按布尔只重排一次，动画期间所有帧只在 place 阶段读进度做水平偏移，
+ * 内容树零重组、零重排，玻璃采样层也能跟着窗口坐标重录。
+ *
+ * @param avoidPx 需要让出的总宽（面板宽 + 边距）
+ * @param panelProgress 0→1 的面板进度，在 place 阶段现读，不进组合
+ */
+private class ChatPanelAvoidElement(
+    /** 面板在不在（布尔）；只随它重组一次、重排一次 */
+    private val avoiding: Boolean,
+    private val avoidPx: Float,
+    private val panelProgress: () -> Float,
+) : LayoutModifier {
+    override fun MeasureScope.measure(
+        measurable: Measurable,
+        constraints: Constraints,
+    ): MeasureResult {
+        // 布局 pad 只看布尔，目标态一次到位；中间帧 progress 变化不改这里，故零重排
+        val targetPad = if (avoiding) avoidPx.toInt() else 0
+        // 子约束必须自洽：fillMaxSize 下父给的是固定宽（min == max），只减 maxWidth 会让
+        // maxWidth < minWidth，Constraints.copy 直接抛 IllegalArgumentException。min 要跟着夹。
+        val childMaxWidth = if (constraints.maxWidth == Constraints.Infinity) {
+            Constraints.Infinity
+        } else {
+            (constraints.maxWidth - targetPad).coerceAtLeast(0)
+        }
+        val childMinWidth = constraints.minWidth.coerceAtMost(childMaxWidth)
+        val childConstraints = if (
+            childMinWidth == constraints.minWidth && childMaxWidth == constraints.maxWidth
+        ) {
+            constraints
+        } else {
+            Constraints(
+                minWidth = childMinWidth,
+                maxWidth = childMaxWidth,
+                minHeight = constraints.minHeight,
+                maxHeight = constraints.maxHeight,
+            )
+        }
+        val placeable = measurable.measure(childConstraints)
+        val width = (placeable.width + targetPad).coerceIn(constraints.minWidth, constraints.maxWidth)
+        val height = placeable.height.coerceIn(constraints.minHeight, constraints.maxHeight)
+        return layout(width, height) {
+            // 右缘 = 布局右缘 − avoidPx·p：布局已按目标态收窄 targetPad，
+            // 这里补上「目标 pad − 当前进度 pad」的差，让右缘（贴着面板那一侧）首尾相接：
+            //   展开 avoiding=true :  dx = avoidPx·(1−p)，p 0→1 从 avoidPx 滑到 0
+            //   收起 avoiding=false:  dx = −avoidPx·p，p 1→0 从 −avoidPx 滑到 0
+            val dx = (targetPad - avoidPx * panelProgress()).roundToInt()
+            placeable.placeRelative(dx, 0)
+        }
+    }
+
+    override fun equals(other: Any?): Boolean =
+        other is ChatPanelAvoidElement &&
+            avoiding == other.avoiding && avoidPx == other.avoidPx &&
+            panelProgress === other.panelProgress
+
+    override fun hashCode(): Int =
+        31 * (31 * avoiding.hashCode() + avoidPx.hashCode()) + panelProgress.hashCode()
+}
 
 /** 流式思考的展示高度：约 4 行，超出部分靠自动贴底滚上来。 */
 private val StreamingThinkingMaxHeight = 78.dp
@@ -212,10 +305,7 @@ private enum class Stage { Web, Chat }
 fun AiEduImportScreen(
     webHostFactory: @Composable (WebHostConfig, WebHostEvents) -> WebHost,
     onBack: () -> Unit,
-    onOpenHistory: () -> Unit,
     onOpenPreview: () -> Unit,
-    /** 地址命中本地适配后，用户选择走现成适配器导入 */
-    onOpenAdapterImport: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -227,14 +317,9 @@ fun AiEduImportScreen(
     val chromeTint = NexioTheme.colorScheme.primary.toArgb().toLong()
 
     var stage by remember { mutableStateOf(Stage.Web) }
-    var urlInput by remember {
-        mutableStateOf(AppStorage.store(PREFS_AI_EDU).getStringOrNull(KEY_LAST_URL).orEmpty())
-    }
-    var openedUrl by remember { mutableStateOf<String?>(null) }
-    // 本地已有匹配适配时，先让用户选「用现成适配」还是「继续 AI」；两个状态一起出现
-    val localSchools = remember { SchoolRepository().getSchools() }
-    var matchedSchool by remember { mutableStateOf<SchoolData?>(null) }
-    var pendingUrl by remember { mutableStateOf<String?>(null) }
+    // 地址由入口页（AiEduUrlEntry）经 holder 传入；本页只负责网页与对话，不再输入网址。
+    val openedUrl = remember { AiEduUrlHolder.take() }
+    DisposableEffect(Unit) { onDispose { AiEduUrlHolder.clear() } }
     // 顶栏跟着网页标题走（同 WebImportScreen）：进去以后这条顶栏就是「你在看哪一页」
     var webPageTitle by remember(AppLanguage.resolved) { mutableStateOf(CommonStr.loading()) }
     // 网页顶部取色：顶栏文字/图标按页面背景反色，不跟应用深浅主题（同 WebImportScreen）
@@ -270,28 +355,17 @@ fun AiEduImportScreen(
         } else null
     )
     NativeDocumentActionEffect(
-        if (openedUrl == null) {
-            // 还没进网页时没有可刷新的东西，右上角换成「历史」
-            NativeDocumentAction(
-                symbol = "clock.arrow.circlepath",
-                label = ImportStr.aiEduHistory(),
-                onClick = onOpenHistory,
-            )
-        } else {
-            NativeDocumentAction(
-                symbol = "arrow.clockwise",
-                label = ImportStr.refresh(),
-                onClick = { host?.reload() },
-            )
-        }
+        NativeDocumentAction(
+            symbol = "arrow.clockwise",
+            label = ImportStr.refresh(),
+            onClick = { host?.reload() },
+        )
     )
 
-    LaunchedEffect(openedUrl) {
-        val url = openedUrl ?: return@LaunchedEffect
-        // 换了一个教务系统：旧学校的请求记录与对话都不能留给下一次分析
+    LaunchedEffect(Unit) {
+        // 进网页即清掉上一轮的请求记录与对话（地址已由入口页写入历史 URL）
         EduNetLogStore.clear()
         session.reset()
-        AppStorage.store(PREFS_AI_EDU).edit { putString(KEY_LAST_URL, url) }
     }
 
     val startAnalyze: () -> Unit = {
@@ -329,6 +403,33 @@ fun AiEduImportScreen(
         val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val blurHeight = PageBlurBaseHeight + (statusBarHeight - nativeBarInset).coerceAtLeast(0.dp)
         val contentTopInset = paddingValues.calculateTopPadding() + nativeBarInset
+        // 平板：对话常驻右侧，网页内容让出面板宽度；手机仍是底部浮层，不让位。
+        val isPad = isTabletWidth()
+        val chatPanelWidth = (screenWidthDp() * ChatPanelWidthFraction).dp
+        val avoidPx = with(LocalDensity.current) {
+            (chatPanelWidth + ChatPanelEdgeInset).toPx()
+        }
+        // 页面避让进度：0=全宽，1=让出面板。LaunchedEffect 里用 animate 驱动 mutableFloat，
+        // 逐帧只改这个状态；下方 LayoutModifier 在 place 阶段现读它平移，不进组合、不重排。
+        var avoidProgress by remember { mutableFloatStateOf(if (isPad && stage == Stage.Chat) 1f else 0f) }
+        LaunchedEffect(isPad, stage) {
+            val target = if (isPad && stage == Stage.Chat) 1f else 0f
+            if (avoidProgress == target) return@LaunchedEffect
+            animate(
+                initialValue = avoidProgress,
+                targetValue = target,
+                animationSpec = tween(
+                    durationMillis = if (target == 1f) 480 else 320,
+                    easing = if (target == 1f) ChatEnterEasing else ChatExitEasing,
+                ),
+            ) { value, _ -> avoidProgress = value }
+        }
+        // 布局层只按布尔切换 pad（一次重排），平移交给 ChatPanelAvoidElement 在 place 阶段读进度
+        val avoiding = isPad && stage == Stage.Chat
+        val avoidElement = if (isPad) {
+            ChatPanelAvoidElement(avoiding, avoidPx) { avoidProgress }
+        } else null
+        val panelTop = if (nativeChrome != null) nativeBarInset else statusBarHeight + 2.dp
         // 顶栏与底部悬浮条共用：录的是 WebView 的离屏层
         val webContentBackdrop = rememberLayerBackdrop()
 
@@ -344,6 +445,7 @@ fun AiEduImportScreen(
                 netRecorderEnabled = true,
                 webContentBackdrop = webContentBackdrop,
                 contentTopPadding = (contentTopInset + topBarHeightDp + 12.dp).coerceAtLeast(0.dp),
+                webAvoidance = avoidElement ?: Modifier,
                 onBack = onBack,
                 // AI 这条路不接原生桥：课程必须过本地预览，直连落库就绕过确认了
                 onImportComplete = {},
@@ -366,23 +468,49 @@ fun AiEduImportScreen(
                 },
             )
 
-            // ── 对话：底部浮层，上方露出网页 ──
+            // ── 对话：手机底部浮层（上方露网页）；平板常驻右侧，网页内容避让 ──
             AnimatedVisibility(
                 visible = stage == Stage.Chat,
-                enter = slideInVertically(
-                    animationSpec = tween(
-                        durationMillis = 480,
-                        easing = CubicBezierEasing(0.34f, 1.12f, 0.3f, 1f),
-                    )
-                ) { it },
-                exit = slideOutVertically(
-                    animationSpec = tween(320, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f))
-                ) { it },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(start = ChatSheetInset, end = ChatSheetInset, bottom = ChatSheetInset),
+                // 平板从右侧推入，手机从底部升起，共用同一条错落曲线
+                enter = if (isPad) {
+                    slideInHorizontally(
+                        animationSpec = tween(480, easing = ChatEnterEasing)
+                    ) { it }
+                } else {
+                    slideInVertically(
+                        animationSpec = tween(480, easing = ChatEnterEasing)
+                    ) { it }
+                },
+                exit = if (isPad) {
+                    slideOutHorizontally(
+                        animationSpec = tween(320, easing = ChatExitEasing)
+                    ) { it }
+                } else {
+                    slideOutVertically(
+                        animationSpec = tween(320, easing = ChatExitEasing)
+                    ) { it }
+                },
+                modifier = if (isPad) {
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .width(chatPanelWidth)
+                        .fillMaxHeight()
+                        .padding(
+                            top = panelTop,
+                            end = ChatPanelEdgeInset,
+                            bottom = ChatPanelEdgeInset,
+                        )
+                } else {
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(
+                            start = ChatSheetInset,
+                            end = ChatSheetInset,
+                            bottom = ChatSheetInset,
+                        )
+                },
             ) {
-                ChatSheet(
+                ChatSheet(isPad = isPad,
                     state = state,
                     onStop = { session.requestStop() },
                     onSend = { text ->
@@ -423,69 +551,16 @@ fun AiEduImportScreen(
                 )
             }
 
-            // ── 地址没填时：先让人填地址，别让他对着一片白页面猜 ──
-            if (openedUrl == null) {
-                UrlEntryOverlay(
-                    urlInput = urlInput,
-                    onUrlChange = { urlInput = it },
-                    onOpen = {
-                        val normalized = normalizeEduUrl(urlInput)
-                        if (normalized == null) {
-                            showToast(ImportStr.aiEduNeedUrl())
-                        } else {
-                            haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            // 本地已有这个站点的适配时先弹出来：能走现成脚本就不必让模型重写
-                            val matched = findLocalSchoolForUrl(normalized, localSchools)
-                            if (matched == null) {
-                                openedUrl = normalized
-                            } else {
-                                pendingUrl = normalized
-                                matchedSchool = matched
-                            }
-                        }
-                    },
-                )
-            }
-
-            AdapterSelectionBottomSheet(
-                show = matchedSchool != null,
-                school = matchedSchool,
-                liquidGlassBackdrop = liquidGlassBackdrop,
-                onDismissRequest = {
-                    matchedSchool = null
-                    pendingUrl = null
-                },
-                onAdapterSelected = { school, adapter ->
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    matchedSchool = null
-                    pendingUrl = null
-                    EduImportSelection.set(school, adapter)
-                    onOpenAdapterImport()
-                },
-                footerContent = {
-                    FlatTextButton(
-                        text = ImportStr.aiEduContinue(),
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            val url = pendingUrl
-                            matchedSchool = null
-                            pendingUrl = null
-                            if (url != null) openedUrl = url
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                },
-            )
-
             // iOS 顶栏归系统，Compose 渐变模糊顶栏整条不画（同 WebImportScreen）
             if (nativeChrome == null) ProgressiveBlurTopBar(
                 backdrop = liquidGlassBackdrop,
+                // 顶栏与网页同源避让：布局按布尔一次到位，平移在 place 阶段读进度
+                modifier = avoidElement ?: Modifier,
                 height = blurHeight,
                 blurAlpha = 0f,
             ) {
                 CollapsibleTopAppBar(
-                    title = if (openedUrl == null) ImportStr.aiEduImportTitle() else webPageTitle,
+                    title = webPageTitle,
                     // 折叠标题：本页内容是网页 + 浮层，展开大标题只会把网页挤下去
                     showLargeTitle = false,
                     showShadow = false,
@@ -513,85 +588,25 @@ fun AiEduImportScreen(
                     } else null,
                     endAction = if (showNavigationActions) {
                         { backdropAlpha, shadowAlpha ->
-                            if (openedUrl == null) {
-                                IconButton(
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                        onOpenHistory()
-                                    },
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = AiEduHistoryIcon,
-                                    iconTint = webBarContentColor.copy(alpha = 0.85f),
-                                    contentDescription = ImportStr.aiEduHistory(),
-                                    performHapticFeedback = false,
-                                    iconSize = 22.dp,
-                                    backdropAlpha = backdropAlpha,
-                                    shadowAlpha = shadowAlpha,
-                                )
-                            } else {
-                                IconButton(
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                        host?.reload()
-                                    },
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = NexioIcons.Refresh,
-                                    iconTint = webBarContentColor.copy(alpha = 0.85f),
-                                    contentDescription = ImportStr.refresh(),
-                                    performHapticFeedback = false,
-                                    iconSize = 24.dp,
-                                    backdropAlpha = backdropAlpha,
-                                    shadowAlpha = shadowAlpha,
-                                )
-                            }
+                            IconButton(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                    host?.reload()
+                                },
+                                backdrop = liquidGlassBackdrop,
+                                icon = NexioIcons.Refresh,
+                                iconTint = webBarContentColor.copy(alpha = 0.85f),
+                                contentDescription = ImportStr.refresh(),
+                                performHapticFeedback = false,
+                                iconSize = 24.dp,
+                                backdropAlpha = backdropAlpha,
+                                shadowAlpha = shadowAlpha,
+                            )
                         }
                     } else null,
                 )
             }
         }
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════════
-//  地址入口
-// ════════════════════════════════════════════════════════════════════════
-
-@Composable
-private fun UrlEntryOverlay(
-    urlInput: String,
-    onUrlChange: (String) -> Unit,
-    onOpen: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(NexioTheme.colorScheme.surface)
-            .padding(horizontal = 16.dp)
-            .padding(top = 120.dp)
-    ) {
-        Text(
-            text = ImportStr.aiEduUrlHint(),
-            style = NexioTheme.textStyles.body2,
-            color = NexioTheme.colorScheme.onSurfaceVariantActions,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(12.dp))
-        TextField(
-            value = urlInput,
-            onValueChange = onUrlChange,
-            minLines = 4,
-            maxLines = 4,
-            label = ImportStr.aiEduUrlLabel(),
-            useLabelAsPlaceholder = true,
-        )
-        Spacer(Modifier.height(12.dp))
-        FlatTextButton(
-            text = ImportStr.aiEduOpen(),
-            onClick = onOpen,
-            colors = ButtonDefaults.textButtonColorsPrimary(),
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 
@@ -610,23 +625,36 @@ private fun ChatSheet(
     onSend: (String) -> Unit,
     onPreview: () -> Unit,
     onCollapse: () -> Unit,
+    /** 平板右侧常驻面板；手机为底部浮层 */
+    isPad: Boolean = false,
 ) {
     val listState = rememberLazyListState()
     var input by remember { mutableStateOf("") }
     val bubbleMax = (screenWidthDp() * 0.8f).dp.coerceAtMost(520.dp)
-    // 顶部沿用 BlurBottomSheet 的 36dp；底部两角贴合屏幕物理圆角
     val density = LocalDensity.current
     val screenCorners = rememberScreenCornerRadiiPx()
-    val sheetShape = remember(screenCorners, density) {
-        val topPx = with(density) { 36.dp.toPx() }
-        // 浮层离屏幕边缘 4dp，底部圆角同步减掉才和屏幕圆角同心
-        val bottomInsetPx = with(density) { ChatSheetInset.toPx() }
-        ScreenCornerRadiiPx(
-            topLeft = topPx,
-            topRight = topPx,
-            bottomRight = (screenCorners.bottomRight - bottomInsetPx).coerceAtLeast(0f),
-            bottomLeft = (screenCorners.bottomLeft - bottomInsetPx).coerceAtLeast(0f),
-        ).toShape(density)
+    val sheetShape = remember(screenCorners, density, isPad) {
+        if (isPad) {
+            // 平板右侧面板：四角同侧栏口径（屏幕物理圆角 − 10dp，读不到回落 28dp），
+            // 距屏幕边缘 12dp 已由外层 padding 处理，这里不再收角。
+            val radius = with(density) {
+                val screenRadius = screenCorners.maxRadius.toDp()
+                val base = if (screenRadius > 0.dp) screenRadius else ChatPanelFallbackCorner
+                (base - ChatPanelCornerInset).coerceAtLeast(0.dp).toPx()
+            }
+            ContinuousRoundedRectangle(with(density) { radius.toDp() })
+        } else {
+            // 手机：顶角沿用 BlurBottomSheet 的 36dp；底部两角贴合屏幕物理圆角
+            val topPx = with(density) { 36.dp.toPx() }
+            // 底部圆角按 2dp 收窄（与 4dp 离屏间距分开）
+            val bottomInsetPx = with(density) { ChatSheetCornerInset.toPx() }
+            ScreenCornerRadiiPx(
+                topLeft = topPx,
+                topRight = topPx,
+                bottomRight = (screenCorners.bottomRight - bottomInsetPx).coerceAtLeast(0f),
+                bottomLeft = (screenCorners.bottomLeft - bottomInsetPx).coerceAtLeast(0f),
+            ).toShape(density)
+        }
     }
 
     // 输入条玻璃的采样源：浮层**内部**的内容（列表 + 底色）。
@@ -694,8 +722,8 @@ private fun ChatSheet(
 
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(ChatSheetFraction)
+            // 平板：外层 AnimatedVisibility 已定宽定高，这里填满即可
+            .then(if (isPad) Modifier.fillMaxSize() else Modifier.fillMaxWidth().fillMaxHeight(ChatSheetFraction))
             .clip(sheetShape)
             .background(NexioTheme.colorScheme.surface)
             .border(0.5.dp, NexioTheme.colorScheme.outline, sheetShape)
@@ -1304,7 +1332,7 @@ private fun agentRuntimeHint(netCount: Int): String = buildString {
 }
 
 /** 地址归一：省略协议时补 https（教务系统几乎都是 https）。 */
-private fun normalizeEduUrl(raw: String): String? {
+internal fun normalizeEduUrl(raw: String): String? {
     val text = raw.trim()
     if (text.isEmpty()) return null
     val withScheme = if (text.startsWith("http://") || text.startsWith("https://")) text else "https://$text"
@@ -1317,7 +1345,7 @@ private fun normalizeEduUrl(raw: String): String? {
  * 先按「host + path」精确匹配，再退到同 host：同一所学校常有本科 / 研究生两套入口，
  * 精确命中能区分它们；用户只填到域名时也能用同 host 的适配兜住。
  */
-private fun findLocalSchoolForUrl(rawUrl: String, schools: List<SchoolData>): SchoolData? {
+internal fun findLocalSchoolForUrl(rawUrl: String, schools: List<SchoolData>): SchoolData? {
     val site = normalizedSite(rawUrl) ?: return null
     val host = site.substringBefore('/')
 

@@ -99,6 +99,7 @@ import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.AboutScreen
 import com.haooz.chedule.ui.activities.eduimport.AiEduImportScreen
+import com.haooz.chedule.ui.activities.eduimport.AiEduUrlEntryScreen
 import com.haooz.chedule.ui.activities.eduimport.AiEduImportHistoryScreen
 import com.haooz.chedule.ui.activities.eduimport.AiEduPreviewScreen
 import com.haooz.chedule.ui.activities.AiImportScreen
@@ -160,6 +161,7 @@ import com.haooz.chedule.ui.screens.AiFeaturesScreen
 import com.haooz.chedule.ui.screens.CourseEditScreen
 import com.haooz.chedule.ui.screens.McpServiceScreen
 import com.haooz.chedule.ui.screens.ScheduleSettingsScreen
+import com.haooz.chedule.ui.activities.setting.LocalTabletSettingsPaneChrome
 import com.haooz.chedule.ui.activities.setting.SettingsSearchHeader
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
 import com.haooz.chedule.ui.activities.setting.rememberSettingsSearchState
@@ -339,7 +341,7 @@ fun EducationalImportRoute(
         onFinish = { router.popBack() },
         // 用路由自己的 router（不用 LocalAppRouter：iOS 原生文档页容器不 provide 它）
         onOpenWebImport = { router.navigate(AppRoute.WebImport) },
-        onOpenAiImport = { router.navigate(AppRoute.AiEduImport) },
+        onOpenAiImport = { router.navigate(AppRoute.AiEduUrlEntry) },
     )
 }
 
@@ -357,10 +359,23 @@ fun AiEduImportRoute(
     AiEduImportScreen(
         webHostFactory = webHostFactory,
         onBack = { router.popBack() },
-        onOpenHistory = { router.navigate(AppRoute.AiEduImportHistory) },
         onOpenPreview = { router.navigate(AppRoute.AiEduPreview) },
-        // 选中项已由 AI 页写入 EduImportSelection，这里只负责推入现有适配器导入页
+    )
+}
+
+/**
+ * AI 教务导入第一步：输入教务网址（平板内嵌右栏，不走全屏）。
+ *
+ * 确定地址后经 `AiEduUrlHolder` 交给全屏的 [AiEduImportRoute]；
+ * 命中本地适配则走现成适配器导入页。
+ */
+@Composable
+fun AiEduUrlEntryRoute(router: AppRouter) {
+    AiEduUrlEntryScreen(
+        onBack = { router.popBack() },
+        onOpenHistory = { router.navigate(AppRoute.AiEduImportHistory) },
         onOpenAdapterImport = { router.navigate(AppRoute.WebImport) },
+        onOpenWeb = { router.navigate(AppRoute.AiEduImport) },
     )
 }
 
@@ -425,8 +440,12 @@ fun AboutRoute(
     diagnosticRecorder: DiagnosticRecorder = NoopDiagnosticRecorder,
     appIconShape: Shape = RectangleShape,
 ) {
+    // 平板设置右栏是左栏导航切换的页，不需要自己的返回按钮；手机独立路由才要。
+    // 右栏栈会 provide paneChrome（hostHandlesHorizontalInsets=true），全局路由用默认值。
+    val inTabletPane = LocalTabletSettingsPaneChrome.current.hostHandlesHorizontalInsets
     AboutScreen(
         onBack = { router.popBack() },
+        embedded = inTabletPane,
         liquidGlassBackdrop = rememberLayerBackdrop(),
         onNavigate = { router.navigate(it) },
         appVersion = appVersion,
@@ -441,8 +460,15 @@ fun AboutRoute(
 /** 更新日志路由。 */
 @Composable
 fun ChangelogRoute(router: AppRouter) {
-    DocumentRoute(title = ChromeStr.changelog(), router = router) { scrollBehavior ->
-        ChangelogScreen(scrollBehavior = scrollBehavior)
+    // 更新日志常从设置搜索直接跳进来，在 pad 右栏局部栈里是栈底二级页，
+    // 按栈深判断的 showBackButton 此时为 false。它必须始终留返回按钮才能退回设置。
+    val paneChrome = LocalTabletSettingsPaneChrome.current
+    CompositionLocalProvider(
+        LocalTabletSettingsPaneChrome provides paneChrome.copy(showBackButton = true),
+    ) {
+        DocumentRoute(title = ChromeStr.changelog(), router = router) { scrollBehavior ->
+            ChangelogScreen(scrollBehavior = scrollBehavior)
+        }
     }
 }
 
@@ -1382,7 +1408,7 @@ fun AiFeaturesRoute(router: AppRouter) {
             liquidGlassBackdrop = backdrop,
             onOpenMcp = { router.navigate(AppRoute.McpService) },
             onOpenReminder = { router.navigate(AppRoute.CourseReminder) },
-            onOpenEduImport = { router.navigate(AppRoute.AiEduImport) },
+            onOpenEduImport = { router.navigate(AppRoute.AiEduUrlEntry) },
             onOpenTextImport = { router.navigate(AppRoute.AiImport) },
         )
     }

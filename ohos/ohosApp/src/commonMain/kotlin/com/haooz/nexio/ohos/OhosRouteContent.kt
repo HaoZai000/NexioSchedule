@@ -23,6 +23,7 @@ import com.haooz.chedule.ui.activities.ReminderPermissionRow
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.navigation.AboutRoute
 import com.haooz.chedule.ui.navigation.AiEduImportHistoryRoute
+import com.haooz.chedule.ui.navigation.AiEduUrlEntryRoute
 import com.haooz.chedule.ui.navigation.AiFeaturesRoute
 import com.haooz.chedule.ui.navigation.AiImportRoute
 import com.haooz.chedule.ui.navigation.AppRoute
@@ -187,7 +188,8 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
         // 网页导入：网页与它自己的顶栏/底栏都在 ArkUI 层（压在整个 Compose 之上），
         // Compose 这层只留空占位 + 路由生命周期 + 落库收尾。
         AppRoute.WebImport -> OhosWebImportRoute(router)
-        // AI 教务导入要「带回传的 JS 执行」+ 模型通道，鸿蒙端尚未搭桥
+        // 输入网址这步是纯 Compose，鸿蒙可用；网页那步要带回传的 JS 执行 + 模型通道，尚未搭桥
+        AppRoute.AiEduUrlEntry -> AiEduUrlEntryRoute(router = router)
         AppRoute.AiEduImport -> RouteUnavailable(router, "AI 教务导入")
         AppRoute.AiEduImportHistory -> AiEduImportHistoryRoute(router)
         // 预览页只从 AI 教务导入进入，那边在鸿蒙上还不可用

@@ -100,6 +100,11 @@ sealed interface AppRoute {
         override val id: String get() = "ai_edu_import"
     }
 
+    /** AI 教务导入第一步：输入教务网址（平板内嵌右栏；确定后跳全屏 [AiEduImport]）。 */
+    data object AiEduUrlEntry : AppRoute {
+        override val id: String get() = "ai_edu_url_entry"
+    }
+
     /** AI 教务导入历史：AI 写过的每一版脚本。 */
     data object AiEduImportHistory : AppRoute {
         override val id: String get() = "ai_edu_import_history"
@@ -199,6 +204,7 @@ sealed interface AppRoute {
             ImportExport.id -> ImportExport
             AiImport.id -> AiImport
             AiEduImport.id -> AiEduImport
+            AiEduUrlEntry.id -> AiEduUrlEntry
             AiEduImportHistory.id -> AiEduImportHistory
             AiEduPreview.id -> AiEduPreview
             WidgetIntro.id -> WidgetIntro

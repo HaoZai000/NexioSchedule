@@ -691,6 +691,7 @@ internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     // 网页导入页与选择页同级：必须是原生文档（走 Compose 栈会被原生文档挡住）
     AppRoute.WebImport -> ChromeStr.webImport()
     // AI 教务导入同样是原生文档页（内含 WKWebView）
+    AppRoute.AiEduUrlEntry -> ChromeStr.aiEduImport()
     AppRoute.AiEduImport -> ChromeStr.aiEduImport()
     AppRoute.AiEduImportHistory -> ImportStr.aiEduHistoryTitle()
     AppRoute.AiEduPreview -> ImportStr.aiEduPreviewTitle()
