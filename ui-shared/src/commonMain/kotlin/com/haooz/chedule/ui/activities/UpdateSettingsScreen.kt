@@ -41,6 +41,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
@@ -109,6 +110,7 @@ import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.nexioui.motion.ArcBendAxis
 import com.haooz.nexioui.motion.ArcBendShape
 import com.haooz.nexioui.motion.arcBend
+import com.haooz.chedule.ui.activities.setting.LocalTabletSettingsPaneChrome
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.HostNavigationState
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
@@ -1176,19 +1178,19 @@ internal fun UpdateChangelogMorphLayer(
                     )
                     // 圆角裁切只服务翻转/展开过程；落定后撤掉，静止的全屏页面不能被裁。
                     .then(if (settled) Modifier else Modifier.clip(revealShape))
-                    // 整页自己接住点击：铺开后点空白处不该再落到下面的遮罩上退出。
-                    // 必须放在 graphicsLayer 之内，触摸区域才会跟着翻转/缩放的那条矩形走
                     .pointerInput(Unit) { detectTapGestures { } }
             ) {
-                DocumentPageScaffold(
-                    title = ChromeStr.changelog(),
-                    onBack = onClose,
-                    // 翻转期间内容静止（只排首屏 4 条、页内不可滚动）：给采样层一个稳定键。
-                    // recordKey 默认 null = 每帧把整页重录一遍供顶栏玻璃采样，那才是卡顿主因。
-                    // 落定后回到 null 恢复常规重录，滚动时玻璃不会冻结在旧帧。
-                    recordKey = if (settled) null else Unit,
-                ) { scrollBehavior, _ ->
-                    ChangelogScreen(scrollBehavior = scrollBehavior, settled = settled)
+                val paneChrome = LocalTabletSettingsPaneChrome.current
+                CompositionLocalProvider(
+                    LocalTabletSettingsPaneChrome provides paneChrome.copy(showBackButton = true),
+                ) {
+                    DocumentPageScaffold(
+                        title = ChromeStr.changelog(),
+                        onBack = onClose,
+                        recordKey = if (settled) null else Unit,
+                    ) { scrollBehavior, _ ->
+                        ChangelogScreen(scrollBehavior = scrollBehavior, settled = settled)
+                    }
                 }
             }
         }
@@ -1200,8 +1202,6 @@ internal fun UpdateChangelogMorphLayer(
                     .offset { IntOffset(startLeft.roundToInt(), startTop.roundToInt()) }
                     .size(cardWidthDp, cardHeightDp)
                     .onGloballyPositioned {
-                        // 这一层的卡真正上屏之后才让列表里那张隐身：否则首帧玻璃还没出图，
-                        // 会先看到卡凭空消失一下
                         onCardReady()
                     }
                     .graphicsLayer {
@@ -1213,8 +1213,6 @@ internal fun UpdateChangelogMorphLayer(
                         translationY = cardHeight * HeroFlipDipRatio * heroFlipCurve(p)
                         alpha = if (p < 0.5f) 1f else 0f
                     }
-                    // 第一段：版本卡「上内凹 → 下鼓起」逐渐展开，单曲率无拐点。
-                    // 与引导页语言卡同一幅度（相对半轴比例），只把弯曲轴换成上下方向。
                     .arcBend(
                         shape = ArcBendShape.InwardOutward,
                         amplitude = { HeroChangelogFrontBend * heroFlipCurve(flip()) },
