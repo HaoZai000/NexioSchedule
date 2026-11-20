@@ -165,6 +165,7 @@ import com.haooz.nexioui.topappbar.collapsibleTopInset
 import com.haooz.nexioui.window.isTabletWidth
 import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
 import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
+import com.haooz.nexioui.overlaydialog.LocalOverlayDialogBackdrop
 import com.haooz.nexioui.overlaydialog.OverlayDialog
 import com.haooz.nexioui.checkboxpreference.CheckboxLocation
 import com.haooz.nexioui.checkboxpreference.CheckboxPreference
@@ -479,6 +480,9 @@ fun SwitchScheduleScreen(
     // 注意：这里不要再挂一个未被消费的 layerBackdrop —— 它会把整页内容每帧额外离屏录制一遍，
     // 而录制结果没有任何 drawBackdrop 使用，等于白烧一整条渲染管线。
     val liquidGlassBackdrop = com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop()
+    // 平板切换课表 pane 的左栏：页级 backdrop 只录左半栏，弹窗压在两栏上会一半采空。
+    // 外层（TabletSwitchSchedulePane 注入）录整页两侧，优先用它；手机无外层时回退页级。
+    val dialogBackdrop = LocalOverlayDialogBackdrop.current ?: liquidGlassBackdrop
     val isTablet = isTabletWidth()
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
@@ -1194,7 +1198,7 @@ fun SwitchScheduleScreen(
                 title = SwitchStr.shareScheduleTitle(),
                 summary = SwitchStr.shareConfirmSummary(shareConfirmScheduleName.orEmpty()),
                 show = showShareConfirmDialog,
-                liquidGlassBackdrop = liquidGlassBackdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = {
                     showShareConfirmDialog = false
                     shareConfirmScheduleName = null
@@ -1235,7 +1239,7 @@ fun SwitchScheduleScreen(
             OverlayDialog(
                 title = SwitchStr.newSchedule(),
                 show = showAddDialog,
-                liquidGlassBackdrop = liquidGlassBackdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = {
                     showAddDialog = false
                     newScheduleName = ""
@@ -1297,7 +1301,7 @@ fun SwitchScheduleScreen(
             OverlayDialog(
                 title = SwitchStr.editSchedule(),
                 show = showEditDialog,
-                liquidGlassBackdrop = liquidGlassBackdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = {
                     showEditDialog = false
                     editScheduleName = ""
@@ -1385,7 +1389,7 @@ fun SwitchScheduleScreen(
             OverlayDialog(
                 title = deleteDialogTitle,
                 show = showDeleteDialog,
-                liquidGlassBackdrop = liquidGlassBackdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = { showDeleteDialog = false }
             ) {
                 Column(
@@ -1453,7 +1457,7 @@ fun SwitchScheduleScreen(
             OverlayDialog(
                 title = SwitchStr.newFolder(),
                 show = showAddFolderDialog,
-                liquidGlassBackdrop = liquidGlassBackdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = {
                     showAddFolderDialog = false
                     newFolderName = ""
@@ -1515,7 +1519,7 @@ fun SwitchScheduleScreen(
             OverlayDialog(
                 title = SwitchStr.renameFolder(),
                 show = showEditFolderDialog,
-                liquidGlassBackdrop = liquidGlassBackdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = {
                     showEditFolderDialog = false
                     editFolderName = ""
@@ -1580,7 +1584,7 @@ fun SwitchScheduleScreen(
                 title = SwitchStr.moveTo(),
                 summary = SwitchStr.moveSelectedCount(selectedSchedules.size),
                 show = showMoveDialog,
-                liquidGlassBackdrop = liquidGlassBackdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = { showMoveDialog = false }
             ) {
                 Column(

@@ -61,6 +61,7 @@ import com.haooz.nexioui.button.FlatTextButton
 import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
 import com.haooz.nexioui.topappbar.collapsibleTopInset
 import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.LocalOverlayDialogBackdrop
 import com.haooz.nexioui.overlaydialog.OverlayDialog
 import com.haooz.nexioui.arrowpreference.ArrowPreference
 import com.haooz.nexioui.switchpreference.SwitchPreference
@@ -130,6 +131,9 @@ fun ScheduleSettingsScreen(router: AppRouter) {
         title = SettingsStr.scheduleSettings(),
         onBack = { router.popBack() },
     ) { scrollBehavior, backdrop ->
+        // 平板设置页右栏：页级 backdrop 只录右半栏，弹窗压在两栏上会一半采空。
+        // 外层（TabletSettingsScreen 注入）录的是整页两侧，优先用它；手机无外层时回退页级。
+        val dialogBackdrop = LocalOverlayDialogBackdrop.current ?: backdrop
         Scaffold(topBar = {}) { paddingValues ->
             val listState = rememberLazyListState()
             val scrollBehaviorModifier = remember(scrollBehavior) {
@@ -322,7 +326,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
             OverlayDialog(
                 title = TimeCfgStr.sectionCountDialogTitle(),
                 show = showSectionPicker,
-                liquidGlassBackdrop = backdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = { showSectionPicker = false },
             ) {
                 Column(
@@ -407,7 +411,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                 title = SettingsStr.enterShiftMode(),
                 summary = SettingsStr.enterShiftModeSummary(),
                 show = showShiftModeConfirmDialog,
-                liquidGlassBackdrop = backdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = { showShiftModeConfirmDialog = false },
             ) {
                 Column(
@@ -450,7 +454,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                 title = SettingsStr.newSemester(),
                 summary = SettingsStr.newSemesterDialogSummary(),
                 show = showNewSemesterDialog,
-                liquidGlassBackdrop = backdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = {
                     showNewSemesterDialog = false
                     newSemesterName = ""
@@ -509,7 +513,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
             OverlayDialog(
                 title = SettingsStr.startDate(),
                 show = showStartDateDialog,
-                liquidGlassBackdrop = backdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = { showStartDateDialog = false },
             ) {
                 Column(
@@ -595,7 +599,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
             OverlayDialog(
                 title = SettingsStr.selectCurrentWeek(),
                 show = showCurrentWeekDialog,
-                liquidGlassBackdrop = backdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = { showCurrentWeekDialog = false },
             ) {
                 Column(
@@ -641,7 +645,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
             OverlayDialog(
                 title = SettingsStr.selectTotalWeeks(),
                 show = showTotalWeeksDialog,
-                liquidGlassBackdrop = backdrop,
+                liquidGlassBackdrop = dialogBackdrop,
                 onDismissRequest = { showTotalWeeksDialog = false },
             ) {
                 Column(
