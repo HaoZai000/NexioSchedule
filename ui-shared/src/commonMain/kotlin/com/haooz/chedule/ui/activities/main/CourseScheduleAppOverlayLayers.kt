@@ -1218,7 +1218,9 @@ private fun OverlayCourseCard(
         glassBackdrop = backdrop,
         glassStyle = style,
         cardAlpha = appearance.cardAlpha,
-        cardSurfaceAlpha = appearance.scheduleSurfaceAlpha(isAppDarkTheme()),
+        cardSurfaceAlpha = AppMaterialSettings.cardSurfaceAlpha(
+            appearance.scheduleSurfaceAlpha(isAppDarkTheme())
+        ),
         solidBackingColor = solidBacking,
         cardHeightPerSection = appearance.cardHeight,
         customCardHeightDp = customCardHeightDp,

@@ -115,6 +115,7 @@ import com.haooz.chedule.ui.components.scheduleRevealLayer
 import com.haooz.chedule.ui.components.tabletNavSamplingSignal
 import com.haooz.chedule.ui.components.text.LocalTextMotionInstant
 import com.haooz.chedule.ui.components.text.material.Text
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.courseCardSolidBacking
@@ -233,8 +234,10 @@ fun MainScheduleScreen(
     // 周页 lambda 只捕获稳定容器；update 必须在组合期同步写
     val draggingSlotsState = remember { DraggingSlotsState() }
     draggingSlotsState.update(draggingCourseSlots)
-    // 基准值（深色已 ×0.8）再低 15pp：亮色 34% ⇒ 19%，深色 27.2% ⇒ 12.2%
-    val cardSurfaceAlpha = appearance.scheduleSurfaceAlpha(isAppDarkTheme())
+    // 基准值（深色已 ×0.8）再低 15pp：亮色 34% ⇒ 19%，深色 27.2% ⇒ 12.2%；液态档再降 4pp
+    val cardSurfaceAlpha = AppMaterialSettings.cardSurfaceAlpha(
+        appearance.scheduleSurfaceAlpha(isAppDarkTheme())
+    )
     val cardHeightPerSection = appearance.cardHeight
     val cardCornerRadius = appearance.cardCornerRadius
     val showBreakDividers = appearance.showBreakDividers
