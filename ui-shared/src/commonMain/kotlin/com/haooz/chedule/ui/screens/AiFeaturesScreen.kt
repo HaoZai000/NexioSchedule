@@ -43,6 +43,7 @@ import com.haooz.chedule.data.ai.AiResult
 import com.haooz.chedule.data.platform.HttpTimeouts
 import com.haooz.chedule.data.platform.createHttpService
 import com.haooz.chedule.i18n.AiStr
+import com.haooz.chedule.i18n.McpStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
@@ -83,6 +84,8 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 fun AiFeaturesScreen(
     scrollBehavior: SharedScrollBehavior? = null,
     liquidGlassBackdrop: GlassBackdrop? = null,
+    onOpenMcp: () -> Unit = {},
+    onCopyToClipboard: ((String) -> Unit)? = null,
     onOpenReminder: () -> Unit = {},
     onOpenEduImport: () -> Unit = {},
     onOpenTextImport: () -> Unit = {},
@@ -158,7 +161,7 @@ fun AiFeaturesScreen(
      * 测试当前选择是否可用。
      *
      * 免费额度走 `/capabilities`（只读、不扣次数）；自有服务商发一条最小请求。
-     * 失败原因完整留在页面上，不只弹一个 Toast。
+     * 页面只显示脱敏失败提示，避免供应商错误正文回显地址或凭据。
      */
     fun runConnectionTest() {
         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -173,14 +176,14 @@ fun AiFeaturesScreen(
                     } else {
                         AiTestState.Failed(AiStr.serverDisabled())
                     }
-                    is AiResult.Error -> AiTestState.Failed(outcome.message)
+                    is AiResult.Error -> AiTestState.Failed(AiStr.privateConnectionFailure())
                 }
             } else {
                 val outcome = runCatching { AiClient(http).testByokConnection() }
                     .getOrElse { AiResult.Error(it.message ?: it::class.simpleName ?: "未知错误") }
                 when (outcome) {
                     is AiResult.Ok -> AiTestState.Ok(elapsedMs = outcome.value)
-                    is AiResult.Error -> AiTestState.Failed(outcome.message)
+                    is AiResult.Error -> AiTestState.Failed(AiStr.privateConnectionFailure())
                 }
             }
         }
@@ -206,6 +209,10 @@ fun AiFeaturesScreen(
                     bottom = 120.dp,
                 ),
         ) {
+            Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                FeatureRow(McpStr.entry(), McpStr.entrySummary(), onOpenMcp)
+            }
+            Spacer(modifier = Modifier.height(SECTION_GAP))
             SmallTitle(text = AiStr.freeQuota())
             Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
@@ -328,14 +335,15 @@ fun AiFeaturesScreen(
                             // 自定义 / 预设两段都走展开动画：从预设切到自定义时接口地址不会突然出现
                             CardExpand(visible = isCustomProvider) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                    InlineInputRow(
+                                    com.haooz.chedule.ui.components.PrivateSettingField(
                                         label = AiStr.byokBaseUrl(),
                                         value = baseUrl,
                                         onValueChange = {
                                             baseUrl = it
                                             persistByok(url = it)
                                         },
-                                        hint = AiStr.byokBaseUrlHint(),
+                                        hint = AiStr.byokBaseUrlHint(), isAddress = true,
+                                        onCopy = onCopyToClipboard,
                                     )
                                     InlineInputRow(
                                         label = AiStr.byokModel(),
@@ -393,14 +401,14 @@ fun AiFeaturesScreen(
                                 }
                             }
 
-                            InlineInputRow(
+                            com.haooz.chedule.ui.components.PrivateSettingField(
                                 label = AiStr.byokApiKey(),
                                 value = apiKey,
                                 onValueChange = {
                                     apiKey = it
                                     persistByok(key = it)
                                 },
-                                hint = AiStr.byokApiKeyHint(),
+                                hint = AiStr.byokApiKeyHint(), onCopy = onCopyToClipboard,
                             )
 
                             Text(

@@ -94,6 +94,7 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.i18n.HolidayStr
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.i18n.McpStr
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.AboutScreen
@@ -157,6 +158,7 @@ import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.AiFeaturesScreen
 import com.haooz.chedule.ui.screens.CourseEditScreen
+import com.haooz.chedule.ui.screens.McpServiceScreen
 import com.haooz.chedule.ui.screens.ScheduleSettingsScreen
 import com.haooz.chedule.ui.screens.SettingsSearchHeader
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
@@ -1367,7 +1369,7 @@ fun WidgetIntroRoute(
  * AI 功能路由：免费额度、自带服务商设置与各功能入口。
  */
 @Composable
-fun AiFeaturesRoute(router: AppRouter) {
+fun AiFeaturesRoute(router: AppRouter, onCopyToClipboard: ((String) -> Unit)? = null) {
     DocumentPageScaffold(
         title = SettingsStr.aiFeatures(),
         onBack = { router.popBack() },
@@ -1375,9 +1377,32 @@ fun AiFeaturesRoute(router: AppRouter) {
         AiFeaturesScreen(
             scrollBehavior = scrollBehavior,
             liquidGlassBackdrop = backdrop,
+            onOpenMcp = { router.navigate(AppRoute.McpService) },
+            onCopyToClipboard = onCopyToClipboard,
             onOpenReminder = { router.navigate(AppRoute.CourseReminder) },
             onOpenEduImport = { router.navigate(AppRoute.AiEduImport) },
             onOpenTextImport = { router.navigate(AppRoute.AiImport) },
+        )
+    }
+}
+
+/**
+ * MCP 服务路由：本地服务开关、地址与接入说明。
+ *
+ * @param onCopyToClipboard 复制服务器地址；各端注入系统剪切板实现，默认空实现。
+ */
+@Composable
+fun McpServiceRoute(
+    router: AppRouter,
+    onCopyToClipboard: (String) -> Unit = {},
+) {
+    DocumentPageScaffold(
+        title = McpStr.title(),
+        onBack = { router.popBack() },
+    ) { scrollBehavior, _ ->
+        McpServiceScreen(
+            scrollBehavior = scrollBehavior,
+            onCopyToClipboard = onCopyToClipboard,
         )
     }
 }

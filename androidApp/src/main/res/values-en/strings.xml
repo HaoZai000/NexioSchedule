@@ -7,4 +7,7 @@
     <string name="widget_course_reminder_pad">Course Reminders (Pad)</string>
     <string name="widget_today_course_pad">Today\'s Courses (Pad)</string>
     <string name="widget_no_classes_today">No classes today</string>
+    <string name="mcp_notification_channel">MCP Service</string>
+    <string name="mcp_notification_title">MCP service running</string>
+    <string name="mcp_notification_text">Lets your AI assistant read the timetable</string>
 </resources>

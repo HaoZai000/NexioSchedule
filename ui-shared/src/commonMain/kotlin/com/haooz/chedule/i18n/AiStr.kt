@@ -33,8 +33,8 @@ object AiStr {
     val byokApiKey = L("API key", "API key")
     val byokApiKeyHint = L("sk-...", "sk-...")
     val byokPrivacy = L(
-        "API key 只保存在本机，不会上传到服务器",
-        "Your API key stays on this device and is never uploaded.",
+        "API key 保存在本机，请求时仅发送给所选模型服务商，不随课表导出",
+        "Your API key is stored on this device, sent to the selected model provider for requests, and excluded from schedule exports.",
     )
     val testConnection = L("测试", "Test")
     val testIdle = L("尚未测试", "Not tested yet")
@@ -42,6 +42,10 @@ object AiStr {
     val testConnectionOk = L("连接正常，耗时 %d ms", "Connected in %d ms")
     val testServerOk = L("Nexio 免费 AI 可用", "Nexio free AI is available")
     val testConnectionFailed = L("连接失败：%s", "Connection failed: %s")
+    val privateConnectionFailure = L(
+        "请检查服务商地址、模型、API key 与网络；为保护隐私不显示原始响应",
+        "Check the provider URL, model, API key and network. The raw response is hidden for privacy.",
+    )
 
     val features = L("功能入口", "Features")
     val entryShrink = L("通知精简缩略语", "Shorten notification labels")
