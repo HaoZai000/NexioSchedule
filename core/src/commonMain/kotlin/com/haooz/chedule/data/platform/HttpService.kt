@@ -141,8 +141,61 @@ data class HttpTimeouts(
     val callSeconds: Long = 0,
 )
 
-/**
- * 平台侧创建默认实现：Android → OkHttp；JVM/桌面 → `HttpURLConnection`；
- * iOS → `NSURLSession`。
- */
-expect fun createHttpService(timeouts: HttpTimeouts): HttpService
+/** 平台实现（Android→OkHttp / JVM→UrlConnection / iOS→NSURLSession）。外部请用 [createHttpService]。 */
+expect fun createPlatformHttpService(timeouts: HttpTimeouts): HttpService
+
+/** 访问密钥请求头；App 开源，密钥可被逆向，只挡随手写脚本的，兜底靠服务端额度与预算。 */
+private const val ACCESS_KEY_HEADER = "X-Nexio-Key"
+
+/** 只看前缀会把 `nexioschedule.icu.evil.com` 也认成自家域名，必须要求主机后紧跟 `/`。 */
+private fun isOwnServer(url: String): Boolean {
+    if (!url.startsWith(ApiEndpoints.BASE)) return false
+    val rest = url.substring(ApiEndpoints.BASE.length)
+    return rest.isEmpty() || rest.startsWith("/") || rest.startsWith("?") || rest.startsWith("#")
+}
+
+/** 只给自家服务端加密钥头：BYOK / WebDAV 等第三方地址共用这个 HttpService，不能漏出去。 */
+internal fun withAccessKey(url: String, headers: Map<String, String>): Map<String, String> {
+    if (!isOwnServer(url)) return headers
+    val key = NexioAccessKey.VALUE
+    if (key.isEmpty() || headers.containsKey(ACCESS_KEY_HEADER)) return headers
+    return headers + (ACCESS_KEY_HEADER to key)
+}
+
+/** 透明代理：四个方法都只做「补请求头」，其余原样转发。 */
+private class AccessKeyHttpService(private val delegate: HttpService) : HttpService {
+
+    override suspend fun get(
+        url: String,
+        headers: Map<String, String>,
+        maxBytes: Long,
+    ): HttpResult = delegate.get(url, withAccessKey(url, headers), maxBytes)
+
+    override suspend fun post(
+        url: String,
+        body: String,
+        contentType: String,
+        headers: Map<String, String>,
+    ): HttpResult = delegate.post(url, body, contentType, withAccessKey(url, headers))
+
+    override suspend fun request(
+        method: String,
+        url: String,
+        body: String?,
+        contentType: String?,
+        headers: Map<String, String>,
+    ): HttpResult = delegate.request(method, url, body, contentType, withAccessKey(url, headers))
+
+    /** 显式转发：用默认实现会把 SSE 变成「读完再切行」。 */
+    override suspend fun streamPost(
+        url: String,
+        body: String,
+        contentType: String,
+        headers: Map<String, String>,
+        onLine: suspend (String) -> Unit,
+    ) = delegate.streamPost(url, body, contentType, withAccessKey(url, headers), onLine)
+}
+
+/** 全 App 统一的 HTTP 入口：平台实现外包一层访问密钥，调用方无需关心。 */
+fun createHttpService(timeouts: HttpTimeouts): HttpService =
+    AccessKeyHttpService(createPlatformHttpService(timeouts))

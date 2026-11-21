@@ -56,6 +56,7 @@ object AiEduScriptUploader {
         script: String,
         courseCount: Int,
         note: String = "",
+        sessionId: String = "",
     ): Result<String> = withContext(ioDispatcher) {
         runCatching {
             val cleanSchool = school.trim().take(MAX_SCHOOL_LENGTH)
@@ -74,6 +75,7 @@ object AiEduScriptUploader {
                 "ok" to true,
                 "course_count" to courseCount,
                 "device_id" to StatsReporter.ensureDeviceId(),
+                "session_id" to sessionId.trim(),
                 "app_version" to AppInfo.version,
                 "platform" to StatsReporter.platformTag(device),
             ).toString()
@@ -100,10 +102,11 @@ object AiEduScriptUploader {
         script: String,
         courseCount: Int,
         note: String = "",
+        sessionId: String = "",
     ) {
         if (school.isBlank() || script.isBlank()) return
         background.launch {
-            runCatching { upload(school, pageUrl, script, courseCount, note) }
+            runCatching { upload(school, pageUrl, script, courseCount, note, sessionId) }
                 .onFailure { NexioLog.i(TAG, "教务脚本上传失败: ${it.message}") }
         }
     }

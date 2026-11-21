@@ -31,6 +31,7 @@ import com.haooz.chedule.ui.navigation.AppreciateAuthorRoute
 import com.haooz.chedule.ui.navigation.BackupAndMigrationRoute
 import com.haooz.chedule.ui.navigation.BackupCenterRoute
 import com.haooz.chedule.ui.navigation.ChangelogRoute
+import com.haooz.chedule.ui.navigation.McpServiceRoute
 import com.haooz.chedule.ui.navigation.CommunicationRoute
 import com.haooz.chedule.ui.navigation.CourseManageRoute
 import com.haooz.chedule.ui.navigation.CourseReminderRoute
@@ -55,7 +56,7 @@ import com.haooz.chedule.ui.utils.ShareCodeImport
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.chedule.uishared.resources.about_app_icon
 import org.jetbrains.compose.resources.imageResource
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.theme.NexioTheme
 
 /** 鸿蒙没有这四类系统设置：精确闹钟授权、电池优化白名单、免打扰访问、自启动管理。 */
 private val OhosHiddenReminderPermissionRows = setOf(
@@ -116,6 +117,13 @@ fun OhosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
         AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
         AppRoute.AiFeatures -> AiFeaturesRoute(router)
+        AppRoute.McpService -> {
+            val clipboard = LocalClipboardManager.current
+            McpServiceRoute(
+                router = router,
+                onCopyToClipboard = { text -> clipboard.setText(AnnotatedString(text)) },
+            )
+        }
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
         AppRoute.AiImport -> {
             val clipboard = LocalClipboardManager.current
@@ -194,7 +202,7 @@ private fun RouteUnavailable(router: AppRouter, name: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MiuixTheme.colorScheme.surface),
+            .background(NexioTheme.colorScheme.surface),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -202,16 +210,16 @@ private fun RouteUnavailable(router: AppRouter, name: String) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(24.dp),
         ) {
-            Text(name, fontSize = 18.sp, color = MiuixTheme.colorScheme.onSurface)
+            Text(name, fontSize = 18.sp, color = NexioTheme.colorScheme.onSurface)
             Text(
                 "该页面需要 ArkTS 侧的 Web 组件 / 文件选择器，尚未搭桥",
                 fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions,
             )
             Text(
                 "点此返回",
                 fontSize = 15.sp,
-                color = MiuixTheme.colorScheme.primary,
+                color = NexioTheme.colorScheme.primary,
                 modifier = Modifier
                     .padding(top = 12.dp)
                     .clickable { router.popBack() },

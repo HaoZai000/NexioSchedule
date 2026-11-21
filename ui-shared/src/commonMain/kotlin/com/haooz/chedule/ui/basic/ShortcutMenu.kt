@@ -45,7 +45,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.ui.components.GlassDragStretchRatio
 import com.haooz.chedule.ui.components.GlassDragTranslationDamping
-import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.nexioui.interaction.InteractiveHighlight
+import com.haooz.softglass.GlassEnvironment
 import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.softglass.glass.applySoftGlass
@@ -56,15 +57,15 @@ import com.haooz.softglass.backdrop.effects.blur
 import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.interactive.DragSelectAxis
-import top.yukonga.miuix.kmp.interactive.DropdownMaskMode
-import top.yukonga.miuix.kmp.interactive.DropdownPanelDragSelectState
-import top.yukonga.miuix.kmp.interactive.computeDragTransform
-import top.yukonga.miuix.kmp.interactive.dropdownPanelDragSelect
-import top.yukonga.miuix.kmp.interactive.dropdownPanelEntry
-import top.yukonga.miuix.kmp.interactive.dropdownPanelSlidingMask
-import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.dropdown.DragSelectAxis
+import com.haooz.nexioui.dropdown.DropdownMaskMode
+import com.haooz.nexioui.dropdown.DropdownPanelDragSelectState
+import com.haooz.nexioui.dropdown.computeDragTransform
+import com.haooz.nexioui.dropdown.dropdownPanelDragSelect
+import com.haooz.nexioui.dropdown.dropdownPanelEntry
+import com.haooz.nexioui.dropdown.dropdownPanelSlidingMask
+import com.haooz.nexioui.internal.drawBlurredPathShadow
+import com.haooz.nexioui.theme.NexioTheme
 
 private val MenuEnterEasing = CubicBezierEasing(0.3f, 1.25f, 0.32f, 1f)
 private val MenuExitEasing = CubicBezierEasing(0.3f, 1f, 0.3f, 1f)
@@ -99,7 +100,7 @@ fun ShortcutMenu(
     val containerWidthPx = windowInfo.containerSize.width
 
     val containerColor =
-        if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainer
+        if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainer
             .copy(alpha = com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(if (isLightTheme) 0.6f else 0.54f))
         else if (isLightTheme) Color(0xFFFFFFFF)
             .copy(com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.6f))
@@ -161,7 +162,7 @@ fun ShortcutMenu(
             animationScope = dragScope,
             radiusScale = { 0.5f / 1.5f },
             radiusBaseDp = 150.dp,
-            fixedRadius = true,
+            isDark = { GlassEnvironment.isDark },
         )
     }
 
@@ -346,7 +347,7 @@ fun ShortcutMenu(
                         Icon(
                             imageVector = item.icon,
                             contentDescription = item.label,
-                            tint = MiuixTheme.colorScheme.onSurface,
+                            tint = NexioTheme.colorScheme.onSurface,
                             modifier = Modifier.size(item.iconSize)
                         )
                     }

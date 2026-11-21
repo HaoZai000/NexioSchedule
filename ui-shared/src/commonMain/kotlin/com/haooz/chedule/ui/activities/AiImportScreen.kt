@@ -43,7 +43,7 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.screens.AddCourseDialog
@@ -55,25 +55,25 @@ import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.continuousBackground
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.checkbox.Checkbox
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.basic.ArrowRight
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 @Composable
 fun AiImportScreen(
@@ -185,7 +185,7 @@ fun AiImportScreen(
             SmallTitle(
                 text = ImportStr.scheduleData(),
             )
-            NativeMiuixTextField(
+            TextField(
                 value = inputText,
                 onValueChange = { inputText = it },
                 minLines = 1,
@@ -208,8 +208,8 @@ fun AiImportScreen(
                     ) {
                         Text(
                             text = ImportStr.identifiedCoursesN(parsedCourses.size),
-                            style = MiuixTheme.textStyles.title2,
-                            color = MiuixTheme.colorScheme.primary,
+                            style = NexioTheme.textStyles.title2,
+                            color = NexioTheme.colorScheme.primary,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 12.dp)
                         )
                         parsedSectionConfig?.let { config ->
@@ -217,16 +217,16 @@ fun AiImportScreen(
                                 text = ImportStr.sectionConfigIdentified(config.morningCount, config.afternoonCount, config.eveningCount) +
                                     if (config.morningTimes.isNotEmpty() || config.afternoonTimes.isNotEmpty() || config.eveningTimes.isNotEmpty())
                                         ImportStr.withTimesSuffix() else ImportStr.autoApplySuffix(),
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                style = NexioTheme.textStyles.body2,
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
                             )
                         }
                         CardExpand(visible = parsedWarnings.isNotEmpty()) {
                             Text(
                                 text = ImportStr.warningsCountN(parsedWarnings.size),
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                style = NexioTheme.textStyles.body2,
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
                             )
                         }
@@ -244,7 +244,7 @@ fun AiImportScreen(
                             }
                         }
                         CardExpand(visible = parsedCourses.isNotEmpty()) {
-                            TextButton(
+                            FlatTextButton(
                                 text = ImportStr.confirmImportCard(),
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -265,16 +265,16 @@ fun AiImportScreen(
                         ) {
                             Text(
                                 text = ImportStr.warningDetails(),
-                                style = MiuixTheme.textStyles.title2,
+                                style = NexioTheme.textStyles.title2,
                                 fontSize = 17.sp,
-                                color = MiuixTheme.colorScheme.onSurface,
+                                color = NexioTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp)
                             )
                             parsedWarnings.forEachIndexed { idx, w ->
                                 Text(
                                     text = w,
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                    style = NexioTheme.textStyles.body2,
+                                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
@@ -283,7 +283,7 @@ fun AiImportScreen(
                                     androidx.compose.material3.HorizontalDivider(
                                         modifier = Modifier.padding(start = 16.dp, end = 16.dp),
                                         thickness = 0.5.dp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.1f)
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.1f)
                                     )
                                 }
                             }
@@ -306,7 +306,7 @@ fun AiImportScreen(
                         text = ImportStr.promptUsageHint(),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
+                        color = NexioTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Box(
@@ -317,12 +317,12 @@ fun AiImportScreen(
                     ) {
                         Text(
                             text = promptText,
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            style = NexioTheme.textStyles.body2,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-                    TextButton(
+                    FlatTextButton(
                         text = ImportStr.copyPrompt(),
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -406,13 +406,13 @@ fun AiImportScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = ImportStr.appendModeLabel(),
-                            style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onSurface
+                            style = NexioTheme.textStyles.body1,
+                            color = NexioTheme.colorScheme.onSurface
                         )
                         Text(
                             text = if (appendMode) ImportStr.appendModeOnDesc() else ImportStr.appendModeOffDesc(),
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            style = NexioTheme.textStyles.body2,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                 }
@@ -423,7 +423,7 @@ fun AiImportScreen(
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -431,7 +431,7 @@ fun AiImportScreen(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = if (appendMode) ImportStr.confirmAppend() else ImportStr.confirmImport(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -508,9 +508,9 @@ private fun CoursePreviewRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = course.name,
-                    style = MiuixTheme.textStyles.body1,
+                    style = NexioTheme.textStyles.body1,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 val summaryLine1 = buildString {
                     append(dayText)
@@ -521,20 +521,20 @@ private fun CoursePreviewRow(
                 }
                 Text(
                     text = summaryLine1,
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    style = NexioTheme.textStyles.body2,
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                 )
                 Text(
                     text = weekText,
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    style = NexioTheme.textStyles.body2,
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                 )
             }
             Icon(
-                imageVector = MiuixIcons.Basic.ArrowRight,
+                imageVector = NexioIcons.Basic.ArrowRight,
                 contentDescription = CommonStr.edit(),
                 modifier = Modifier.size(16.dp),
-                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                tint = NexioTheme.colorScheme.onSurfaceVariantActions
             )
         }
     }

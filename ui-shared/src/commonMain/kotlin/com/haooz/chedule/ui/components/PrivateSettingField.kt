@@ -32,11 +32,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.i18n.McpStr
-import com.haooz.chedule.ui.components.text.miuix.Text
+import com.haooz.chedule.ui.components.text.material.Text
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 带隐私掩码的设置字段：布局与 AI 页的行内输入行、服务器地址卡同一家族——
@@ -57,7 +57,7 @@ fun PrivateSettingField(
     var visible by remember { mutableStateOf(false) }
     var copied by remember { mutableStateOf(false) }
     var hadFocus by remember { mutableStateOf(false) }
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     val windowFocused = LocalWindowInfo.current.isWindowFocused
     LaunchedEffect(windowFocused, enabled) {
         if (!windowFocused || !enabled) {
@@ -95,7 +95,7 @@ fun PrivateSettingField(
                 fontWeight = FontWeight.Medium,
                 color = theme.onSurface,
             )
-            TextButton(
+            FlatTextButton(
                 text = if (visible) McpStr.hide() else McpStr.show(),
                 onClick = { visible = !visible }, enabled = enabled && value.isNotEmpty(),
                 colors = ButtonDefaults.textButtonColors(disabledColor = dimBackground),
@@ -105,7 +105,7 @@ fun PrivateSettingField(
             )
             if (onCopy != null) {
                 Spacer(modifier = Modifier.width(8.dp))
-                TextButton(
+                FlatTextButton(
                     text = if (copied) McpStr.copied() else McpStr.copy(),
                     onClick = { onCopy(value); copied = true },
                     enabled = enabled && value.isNotEmpty(),

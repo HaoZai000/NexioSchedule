@@ -63,6 +63,8 @@ internal data class EduAgentDraft(
     val script: String = "",
     /** 写脚本时的页面地址，上传时作为「哪个教务系统」的标识 */
     val pageUrl: String = "",
+    /** 本次分析会话 ID，上传脚本时用来关联服务端保存的完整对话 */
+    val sessionId: String = "",
 )
 
 /**

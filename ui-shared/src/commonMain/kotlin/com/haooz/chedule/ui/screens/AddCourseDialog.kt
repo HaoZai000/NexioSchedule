@@ -54,47 +54,48 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.CourseEditStr
 import com.haooz.chedule.i18n.NoteStr
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.iconbutton.IconButton
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.CardReveal
 import com.haooz.chedule.ui.components.WeekRangeSelectGrid
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.theme.rememberAppThemeController
+import com.haooz.chedule.ui.theme.AppNexioTheme
+import com.haooz.chedule.ui.theme.rememberAppThemeColors
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.haooz.chedule.ui.utils.rememberImeDismiss
 import com.haooz.chedule.ui.utils.rememberOpenKey
 import com.haooz.softglass.backdrop.GlassBackdrop
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.ColorPalette
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.NativeTextField
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Ok
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.BackdropHolder
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
-import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
+import com.haooz.nexioui.button.Button
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.checkbox.Checkbox
+import com.haooz.nexioui.colorpalette.ColorPalette
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.nativetextfield.NativeTextField
+import com.haooz.nexioui.numberpicker.NumberPicker
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Add
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.icon.extended.Delete
+import com.haooz.nexioui.icon.extended.Ok
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.blurbottomsheet.BackdropHolder
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
+import com.haooz.nexioui.blurbottomsheet.LocalSheetContentBackdrop
+import com.haooz.nexioui.blurbottomsheet.LocalSheetTopBarMaterial
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.arrowpreference.ArrowPreference
 import com.haooz.softglass.shape.continuousBorder
 import com.haooz.softglass.shape.continuousClip
 import com.haooz.chedule.ui.components.sheetContentBottomInset
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 // 字段只在消费它的那张卡片内读取；已在 compose-stability.conf 声明 stable
 private class AddCourseFormState(
@@ -180,10 +181,10 @@ fun AddCourseDialog(
         dismissKeyboard()
         onDismiss()
     }
+    // 弹窗底色、卡片、二级弹窗全部取同一个「本作用域生效的深浅」：
+    // 用户把课表页设成深色（跟随壁纸）时，同一张弹窗里不能一半深一半浅。
     val isDark = isAppDarkTheme()
-    // 嵌套弹窗在 root popup host，强制跟随应用主题而非壁纸主题
-    val appDialogDark = rememberAppSettingDark()
-    val appDialogController = rememberAppThemeController(isDark = appDialogDark)
+    val appDialogColors = rememberAppThemeColors(isDark = isDark)
     // 二级弹窗在弹窗作用域外读不到 LocalSheetContentBackdrop，用非快照 holder 接收
     val sheetContentBackdropHolder = remember { BackdropHolder() }
 
@@ -344,12 +345,12 @@ fun AddCourseDialog(
             onSheetContentBackdropCreated = { sheetContentBackdropHolder.value = it },
             startAction = {
                 val material = LocalSheetTopBarMaterial.current
-                LiquidTopBarButton(
+                IconButton(
                     onClick = {
                         dismissSheet()
                     },
                     backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
-                    icon = MiuixIcons.Normal.Close,
+                    icon = NexioIcons.Normal.Close,
                     contentDescription = CommonStr.close(),
                     modifier = Modifier.padding(start = 16.dp),
                     iconSize = 24.dp,
@@ -359,10 +360,10 @@ fun AddCourseDialog(
             },
             endAction = {
                 val material = LocalSheetTopBarMaterial.current
-                LiquidTopBarButton(
+                IconButton(
                     onClick = onConfirmClick,
                     backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
-                    icon = MiuixIcons.Ok,
+                    icon = NexioIcons.Ok,
                     contentDescription = CommonStr.ok(),
                     modifier = Modifier.padding(end = 16.dp),
                     iconSize = 25.dp,
@@ -411,12 +412,12 @@ fun AddCourseDialog(
             onSheetContentBackdropCreated = { sheetContentBackdropHolder.value = it },
             startAction = {
                 val material = LocalSheetTopBarMaterial.current
-                LiquidTopBarButton(
+                IconButton(
                     onClick = {
                         dismissSheet()
                     },
                     backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
-                    icon = MiuixIcons.Normal.Close,
+                    icon = NexioIcons.Normal.Close,
                     contentDescription = CommonStr.close(),
                     modifier = Modifier.padding(start = 18.dp),
                     iconSize = 24.dp,
@@ -426,10 +427,10 @@ fun AddCourseDialog(
             },
             endAction = {
                 val material = LocalSheetTopBarMaterial.current
-                LiquidTopBarButton(
+                IconButton(
                     onClick = onConfirmClick,
                     backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
-                    icon = MiuixIcons.Ok,
+                    icon = NexioIcons.Ok,
                     contentDescription = CommonStr.ok(),
                     modifier = Modifier.padding(end = 18.dp),
                     iconSize = 25.dp,
@@ -478,15 +479,15 @@ fun AddCourseDialog(
         onDismissRequest = { showDeleteDialog = false },
         liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop
     ) {
-        MiuixTheme(controller = appDialogController) {
-            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+        AppNexioTheme(colors = appDialogColors) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides isDark) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    TextButton(
+                    FlatTextButton(
                         text = CommonStr.cancel(),
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -494,7 +495,7 @@ fun AddCourseDialog(
                         },
                         modifier = Modifier.weight(1f)
                     )
-                    TextButton(
+                    FlatTextButton(
                         text = CommonStr.delete(),
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -516,8 +517,8 @@ fun AddCourseDialog(
         onDismissRequest = { showSectionDialog = false },
         liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop,
     ) {
-        MiuixTheme(controller = appDialogController) {
-            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+        AppNexioTheme(colors = appDialogColors) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides isDark) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -532,8 +533,8 @@ fun AddCourseDialog(
                         ) {
                             Text(
                                 text = CourseEditStr.start(),
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                style = NexioTheme.textStyles.footnote1,
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                             )
                             // 结束 >= 开始 的夹取在同一快照里同步完成，省掉一帧延迟
@@ -556,8 +557,8 @@ fun AddCourseDialog(
                         ) {
                             Text(
                                 text = CourseEditStr.end(),
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                style = NexioTheme.textStyles.footnote1,
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                             )
                             // 范围固定，拖动"开始"时不再反复重建本滚轮
@@ -577,7 +578,7 @@ fun AddCourseDialog(
                             .padding(top = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -585,7 +586,7 @@ fun AddCourseDialog(
                             },
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.ok(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -610,8 +611,8 @@ fun AddCourseDialog(
         onDismissRequest = { showTimeDialog = false },
         liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop,
     ) {
-        MiuixTheme(controller = appDialogController) {
-            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+        AppNexioTheme(colors = appDialogColors) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides isDark) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -629,7 +630,7 @@ fun AddCourseDialog(
                     if (timeError) {
                         Text(
                             text = CourseEditStr.timeSameError(),
-                            style = MiuixTheme.textStyles.footnote1,
+                            style = NexioTheme.textStyles.footnote1,
                             color = Color(0xFFF44336),
                             modifier = Modifier.padding(top = 8.dp)
                         )
@@ -641,7 +642,7 @@ fun AddCourseDialog(
                             .padding(top = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -650,7 +651,7 @@ fun AddCourseDialog(
                             },
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.ok(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -682,8 +683,8 @@ fun AddCourseDialog(
         onDismissRequest = { showColorDialog = false },
         liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop,
     ) {
-        MiuixTheme(controller = appDialogController) {
-            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+        AppNexioTheme(colors = appDialogColors) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides isDark) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -700,7 +701,7 @@ fun AddCourseDialog(
                             .padding(top = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -708,7 +709,7 @@ fun AddCourseDialog(
                             },
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.ok(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -830,7 +831,7 @@ private fun AddCourseDialogContent(
                     ),
                 ) {
                     Icon(
-                        imageVector = MiuixIcons.Delete,
+                        imageVector = NexioIcons.Delete,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
                         tint = Color(0xFFF44336)
@@ -858,8 +859,8 @@ private fun BasicInfoCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
-            contentColor = MiuixTheme.colorScheme.onSurface
+            color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
+            contentColor = NexioTheme.colorScheme.onSurface
         )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -874,7 +875,7 @@ private fun BasicInfoCard(
                     modifier = Modifier.weight(1f),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 NativeTextField(
                     value = form.name,
@@ -901,7 +902,7 @@ private fun BasicInfoCard(
                     modifier = Modifier.weight(1f),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 NativeTextField(
                     value = form.classroom,
@@ -928,7 +929,7 @@ private fun BasicInfoCard(
                     modifier = Modifier.weight(1f),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 NativeTextField(
                     value = form.teacher,
@@ -957,7 +958,7 @@ private fun BasicInfoCard(
                         modifier = Modifier.weight(1f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
+                        color = NexioTheme.colorScheme.onSurface
                     )
                     NativeTextField(
                         value = form.note,
@@ -987,8 +988,8 @@ private fun WeekdayCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
-            contentColor = MiuixTheme.colorScheme.onSurface
+            color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
+            contentColor = NexioTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -1008,7 +1009,7 @@ private fun WeekdayCard(
                     text = CourseEditStr.classDay(),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
                 Checkbox(
@@ -1019,7 +1020,7 @@ private fun WeekdayCard(
                 Text(
                     text = CourseEditStr.customTime(),
                     fontSize = 15.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    color = NexioTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
             Row(
@@ -1030,10 +1031,10 @@ private fun WeekdayCard(
                 val currentDay = form.dayOfWeek
                 for (day in 1..7) {
                     val isSelected = day == currentDay
-                    val bgColor = if (isSelected) MiuixTheme.colorScheme.primary
-                    else if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHighest else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
+                    val bgColor = if (isSelected) NexioTheme.colorScheme.primary
+                    else if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHighest else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
                     val textColor = if (isSelected) Color.White
-                    else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    else NexioTheme.colorScheme.onSurfaceVariantSummary
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -1072,8 +1073,8 @@ private fun SectionTimeCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
-            contentColor = MiuixTheme.colorScheme.onSurface
+            color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
+            contentColor = NexioTheme.colorScheme.onSurface
         )
     ) {
         // isCustomTime 只在 content lambda 内读：切换时不必重组 SectionTimeCard 本体
@@ -1084,7 +1085,7 @@ private fun SectionTimeCard(
                     Text(
                         text = "${form.customStartTime} - ${form.customEndTime}",
                         fontSize = 14.5.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         textAlign = TextAlign.End,
                     )
                 },
@@ -1098,7 +1099,7 @@ private fun SectionTimeCard(
                     Text(
                         text = CourseEditStr.periodsRange(form.startSection, form.endSection),
                         fontSize = 14.5.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         textAlign = TextAlign.End,
                     )
                 },
@@ -1127,8 +1128,8 @@ private fun WeekSettingCard(
             .fillMaxWidth()
             .alpha(if (noDaySelected) 0.5f else 1f),
         colors = CardDefaults.defaultColors(
-            color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
-            contentColor = MiuixTheme.colorScheme.onSurface
+            color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
+            contentColor = NexioTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -1164,7 +1165,7 @@ private fun WeekSettingCard(
                     modifier = Modifier.weight(1f),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1190,7 +1191,7 @@ private fun WeekSettingCard(
                         Text(
                             text = CourseEditStr.all(),
                             fontSize = 15.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            color = NexioTheme.colorScheme.onSurfaceVariantSummary
                         )
                     }
 
@@ -1220,7 +1221,7 @@ private fun WeekSettingCard(
                         Text(
                             text = CourseEditStr.oddWeeks(),
                             fontSize = 15.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            color = NexioTheme.colorScheme.onSurfaceVariantSummary
                         )
                     }
 
@@ -1250,7 +1251,7 @@ private fun WeekSettingCard(
                         Text(
                             text = CourseEditStr.evenWeeks(),
                             fontSize = 15.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            color = NexioTheme.colorScheme.onSurfaceVariantSummary
                         )
                     }
                 }
@@ -1289,8 +1290,8 @@ private fun ColorCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
-            contentColor = MiuixTheme.colorScheme.onSurface
+            color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
+            contentColor = NexioTheme.colorScheme.onSurface
         )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -1305,7 +1306,7 @@ private fun ColorCard(
                     modifier = Modifier.weight(1f),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
             }
             Column(
@@ -1359,7 +1360,7 @@ private fun RowScope.ColorSwatch(
     isDark: Boolean,
 ) {
     val isSelected = color == form.selectedColor
-    val primaryColor = MiuixTheme.colorScheme.primary
+    val primaryColor = NexioTheme.colorScheme.primary
     val borderAlpha by animateFloatAsState(
         targetValue = if (isSelected) 1f else 0f,
         animationSpec = tween(durationMillis = 200),
@@ -1398,8 +1399,8 @@ private fun RowScope.CustomColorSwatch(
 ) {
     val allColors = remember { Course.courseColors }
     val isCustomColor = form.selectedColor !in allColors
-    val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
-    val primaryColor = MiuixTheme.colorScheme.primary
+    val hintColor = NexioTheme.colorScheme.onSurfaceVariantSummary
+    val primaryColor = NexioTheme.colorScheme.primary
     val customBorderAlpha by animateFloatAsState(
         targetValue = if (isCustomColor) 1f else 0f,
         animationSpec = tween(durationMillis = 200),
@@ -1432,7 +1433,7 @@ private fun RowScope.CustomColorSwatch(
         ) {
             if (!isCustomColor) {
                 Icon(
-                    imageVector = MiuixIcons.Add,
+                    imageVector = NexioIcons.Add,
                     contentDescription = CourseEditStr.customColorLabel(),
                     modifier = Modifier.size(18.dp),
                     tint = hintColor
@@ -1467,14 +1468,14 @@ private fun TimeRangePickerGroup(
             itemHeight = 60.dp,
             label = { it.toString().padStart(2, '0') },
             wrapAround = true,
-            textStyle = MiuixTheme.textStyles.title2,
+            textStyle = NexioTheme.textStyles.title2,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = ":",
-            style = MiuixTheme.textStyles.paragraph,
+            style = NexioTheme.textStyles.paragraph,
             fontWeight = FontWeight.Bold,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             modifier = Modifier
                 .padding()
                 .offset(y = (-2).dp)
@@ -1488,13 +1489,13 @@ private fun TimeRangePickerGroup(
             itemHeight = 60.dp,
             label = { minuteValues[it].toString().padStart(2, '0') },
             wrapAround = true,
-            textStyle = MiuixTheme.textStyles.title2,
+            textStyle = NexioTheme.textStyles.title2,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = "-",
-            style = MiuixTheme.textStyles.title2,
-            color = MiuixTheme.colorScheme.onSurface,
+            style = NexioTheme.textStyles.title2,
+            color = NexioTheme.colorScheme.onSurface,
             modifier = Modifier.padding()
         )
         NumberPicker(
@@ -1505,14 +1506,14 @@ private fun TimeRangePickerGroup(
             itemHeight = 60.dp,
             label = { it.toString().padStart(2, '0') },
             wrapAround = true,
-            textStyle = MiuixTheme.textStyles.title2,
+            textStyle = NexioTheme.textStyles.title2,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = ":",
-            style = MiuixTheme.textStyles.paragraph,
+            style = NexioTheme.textStyles.paragraph,
             fontWeight = FontWeight.Bold,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             modifier = Modifier
                 .padding()
                 .offset(y = (-2).dp)
@@ -1526,7 +1527,7 @@ private fun TimeRangePickerGroup(
             itemHeight = 60.dp,
             label = { minuteValues[it].toString().padStart(2, '0') },
             wrapAround = true,
-            textStyle = MiuixTheme.textStyles.title2,
+            textStyle = NexioTheme.textStyles.title2,
             modifier = Modifier.weight(1f)
         )
     }

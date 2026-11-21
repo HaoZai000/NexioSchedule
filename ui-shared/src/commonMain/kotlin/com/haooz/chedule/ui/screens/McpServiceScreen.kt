@@ -32,21 +32,20 @@ import com.haooz.chedule.data.mcp.McpToolCatalog
 import com.haooz.chedule.i18n.McpStr
 import com.haooz.chedule.ui.components.PrivateSettingField
 import com.haooz.chedule.ui.components.pageTopExtra
-import com.haooz.chedule.ui.components.text.miuix.Text as Text
+import com.haooz.chedule.ui.components.text.material.Text as Text
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.switchpreference.SwitchPreference
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /** 「MCP 服务」页：把课表以只读 MCP 工具的形式暴露给 AI 助手。 */
 @Composable
@@ -57,7 +56,7 @@ fun McpServiceScreen(
     val isTablet = isTabletWidth()
     val horizontalPadding = if (isTablet) 20.dp else 16.dp
     val haptic = LocalHapticFeedback.current
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
 
     var enabled by remember { mutableStateOf(McpServicePrefs.isEnabled()) }
     var token by remember { mutableStateOf(McpServicePrefs.token()) }
@@ -113,24 +112,39 @@ fun McpServiceScreen(
                         enabled = McpServiceBridge.supported,
                     )
                     SettingDivider()
-                    BasicComponent(
-                        title = McpStr.serverAddress(),
-                        summary = McpServiceBridge.serverUrl,
-                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                        endActions = {
-                            TextButton(
-                                text = if (copied) McpStr.copied() else McpStr.copy(),
-                                onClick = {
-                                    onCopyToClipboard(McpServiceBridge.serverUrl)
-                                    copied = true
-                                },
-                                minWidth = 64.dp,
-                                minHeight = 36.dp,
-                                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                                cornerRadius = 100.dp,
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = McpStr.serverAddress(),
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = theme.onSurface,
                             )
-                        },
-                    )
+                            Text(
+                                text = McpServiceBridge.serverUrl,
+                                fontSize = 14.sp,
+                                color = theme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        FlatTextButton(
+                            text = if (copied) McpStr.copied() else McpStr.copy(),
+                            onClick = {
+                                onCopyToClipboard(McpServiceBridge.serverUrl)
+                                copied = true
+                            },
+                            minWidth = 64.dp,
+                            minHeight = 36.dp,
+                            insideMargin = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                            cornerRadius = 100.dp,
+                        )
+                    }
                     SettingDivider()
                     PrivateSettingField(
                         label = McpStr.tokenLabel(),
@@ -181,7 +195,7 @@ fun McpServiceScreen(
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = McpStr.toolsNote(),
-                        style = MiuixTheme.textStyles.footnote2,
+                        style = NexioTheme.textStyles.footnote2,
                         fontSize = 13.sp,
                         color = theme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp),
@@ -220,7 +234,7 @@ fun McpServiceScreen(
 
 @Composable
 private fun SettingDivider() {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 16.dp),
         thickness = 0.5.dp,

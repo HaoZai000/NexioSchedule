@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import com.haooz.nexioui.cardexpand.cardContentSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.i18n.CommonStr
@@ -40,10 +41,10 @@ import com.haooz.softglass.backdrop.drawBackdrop
 import com.haooz.softglass.backdrop.effects.blur
 import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
 import com.haooz.softglass.shape.ContinuousCapsule
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.basic.ArrowRight
+import com.haooz.nexioui.theme.NexioTheme
 
 /** 跨周提示胶囊的柔光 shader 缓存键：尺寸与其他玻璃件不同，不能共用 uniform。 */
 private const val LIVE_CROSS_WEEK_GLASS_KEY = "NexioSoftGlassLiveCrossWeekHint"
@@ -64,7 +65,7 @@ fun CrossWeekDropHint(
     val isLightTheme = !isAppDarkTheme()
     // 无材质档实色
     val baseAlpha = AppMaterialSettings.solidSurfaceAlpha(if (isLightTheme) 0.72f else 0.62f)
-    val containerColor = MiuixTheme.colorScheme.primary.copy(alpha = baseAlpha)
+    val containerColor = NexioTheme.colorScheme.primary.copy(alpha = baseAlpha)
     val textColor = Color.White
     val hintShape: Shape = ContinuousCapsule()
     val hintShapeBlock: () -> Shape = remember { { hintShape } }
@@ -73,7 +74,7 @@ fun CrossWeekDropHint(
     val hintGlassStyle = AppMaterialSettings.chromeGlassStyle(
         base = ScheduleSoftGlassStyle,
         isDark = !isLightTheme,
-        fill = CustomizeFill(MiuixTheme.colorScheme.primary),
+        fill = CustomizeFill(NexioTheme.colorScheme.primary),
         tone = BrightTone,
     )
     // drawBackdrop 按引用比较 shape / effects / onDrawSurface，lambda 每帧新建会重录采样层。
@@ -156,7 +157,7 @@ fun CrossWeekDropHint(
  * 边缘自动翻周指示：拖着课停在屏幕左右边缘热区时，在那一侧铺一条渐隐色带 + 方向箭头，
  * 告诉用户停住就会继续翻周（见 [EDGE_HINT_WIDTH]）。
  *
- * 箭头用设置项同款 `MiuixIcons.Basic.ArrowRight`，左侧镜像。
+ * 箭头用设置项同款 `NexioIcons.Basic.ArrowRight`，左侧镜像。
  *
  * @param direction -1 上一周（左）/ 1 下一周（右）；0 时不画。
  */
@@ -166,7 +167,7 @@ fun EdgeAutoPageIndicator(
     modifier: Modifier = Modifier,
 ) {
     if (direction == 0) return
-    val accent = MiuixTheme.colorScheme.primary.copy(alpha = 0.34f)
+    val accent = NexioTheme.colorScheme.primary.copy(alpha = 0.34f)
     val brush = if (direction < 0) {
         Brush.horizontalGradient(listOf(accent, Color.Transparent))
     } else {
@@ -180,7 +181,7 @@ fun EdgeAutoPageIndicator(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = MiuixIcons.Basic.ArrowRight,
+            imageVector = NexioIcons.Basic.ArrowRight,
             contentDescription = null,
             tint = Color.White,
             modifier = Modifier

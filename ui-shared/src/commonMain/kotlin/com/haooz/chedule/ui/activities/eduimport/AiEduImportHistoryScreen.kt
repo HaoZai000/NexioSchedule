@@ -43,15 +43,15 @@ import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 import androidx.compose.material3.Text as PlainText
 
 @Composable
@@ -114,7 +114,7 @@ fun AiEduImportHistoryScreen(
  */
 @Composable
 private fun AiEduScriptCard(record: AiEduScriptRecord) {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     var expanded by remember(record.id) { mutableStateOf(false) }
     val statusColor = if (record.ok) theme.primary else theme.error
     val statusText = if (record.ok) {
@@ -136,21 +136,21 @@ private fun AiEduScriptCard(record: AiEduScriptRecord) {
             Spacer(Modifier.size(7.dp))
             Text(
                 text = statusText,
-                style = MiuixTheme.textStyles.body2,
+                style = NexioTheme.textStyles.body2,
                 fontWeight = FontWeight.Medium,
                 color = statusColor,
             )
             Spacer(Modifier.weight(1f))
             Text(
                 text = formatScriptTime(record.createdAtMs),
-                style = MiuixTheme.textStyles.footnote2,
+                style = NexioTheme.textStyles.footnote2,
                 color = theme.onSurfaceVariantSummary,
             )
         }
         Spacer(Modifier.height(6.dp))
         Text(
             text = record.note.ifBlank { ImportStr.aiEduHistoryNoNote() },
-            style = MiuixTheme.textStyles.body1,
+            style = NexioTheme.textStyles.body1,
             fontWeight = FontWeight.Medium,
             color = theme.onSurface,
             maxLines = 2,
@@ -160,7 +160,7 @@ private fun AiEduScriptCard(record: AiEduScriptRecord) {
             Spacer(Modifier.height(4.dp))
             Text(
                 text = record.pageUrl,
-                style = MiuixTheme.textStyles.footnote1,
+                style = NexioTheme.textStyles.footnote1,
                 color = theme.onSurfaceVariantSummary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -170,7 +170,7 @@ private fun AiEduScriptCard(record: AiEduScriptRecord) {
             Spacer(Modifier.height(6.dp))
             Text(
                 text = record.error,
-                style = MiuixTheme.textStyles.body2,
+                style = NexioTheme.textStyles.body2,
                 color = theme.error,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
@@ -191,7 +191,7 @@ private fun AiEduScriptCard(record: AiEduScriptRecord) {
                 } else {
                     ImportStr.aiEduHistoryViewScript()
                 },
-                style = MiuixTheme.textStyles.body2,
+                style = NexioTheme.textStyles.body2,
                 fontWeight = FontWeight.Medium,
                 color = theme.primary,
             )

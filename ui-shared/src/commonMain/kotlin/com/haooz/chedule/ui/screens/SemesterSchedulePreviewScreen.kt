@@ -54,7 +54,7 @@ import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SwitchStr
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text
@@ -62,18 +62,18 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.withTimeoutOrNull
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Download
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Download
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 private val PreviewDayLabels = listOf(
     SwitchStr.dayHeaderMon,
@@ -103,8 +103,8 @@ fun SemesterSchedulePreviewScreen(
     val isTablet = isTabletWidth()
     val horizontalPadding = if (isTablet) 32.dp else 28.dp
     val hasCourses = courses.isNotEmpty()
-    val subtitleColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
-    val emptyColor = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    val subtitleColor = NexioTheme.colorScheme.onSurfaceVariantSummary
+    val emptyColor = NexioTheme.colorScheme.onSurface.copy(alpha = 0.45f)
 
     DocumentPageScaffold(
         title = scheduleName,
@@ -201,7 +201,7 @@ internal fun SemesterScheduleGrid(
 
     val isDark = isAppDarkTheme()
     val gridLine = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
-    val headerText = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val headerText = NexioTheme.colorScheme.onSurfaceVariantSummary
 
     // (day, startSection) -> 该格课程列表
     val slotMap = remember(courses) {
@@ -392,10 +392,10 @@ internal fun SaveScheduleImageButton(
     var showConfirm by remember { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
 
-    LiquidTopBarButton(
+    IconButton(
         onClick = { showConfirm = true },
         backdrop = backdrop,
-        icon = MiuixIcons.Download,
+        icon = NexioIcons.Download,
         contentDescription = SwitchStr.saveAsImage(),
         iconSize = 26.dp,
         backdropAlpha = backdropAlpha,
@@ -416,12 +416,12 @@ internal fun SaveScheduleImageButton(
                 .padding(top = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            TextButton(
+            FlatTextButton(
                 text = CommonStr.cancel(),
                 onClick = { showConfirm = false },
                 modifier = Modifier.weight(1f),
             )
-            TextButton(
+            FlatTextButton(
                 text = CommonStr.ok(),
                 onClick = {
                     showConfirm = false
@@ -482,19 +482,19 @@ private fun SchedulePosterExporter(
                 Column(
                     modifier = Modifier
                         .requiredWidth(PosterWidth)
-                        .background(MiuixTheme.colorScheme.surface)
+                        .background(NexioTheme.colorScheme.surface)
                         .padding(20.dp),
                 ) {
                     Text(
                         text = scheduleName,
                         fontSize = 22.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = MiuixTheme.colorScheme.onSurface,
+                        color = NexioTheme.colorScheme.onSurface,
                     )
                     Text(
                         text = SwitchStr.semesterPreview(),
                         fontSize = 14.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
                     )
                     SemesterScheduleGrid(

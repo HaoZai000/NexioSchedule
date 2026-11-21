@@ -3,7 +3,7 @@ package com.haooz.chedule.ui.activities.weather
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import com.haooz.chedule.ui.effects.background.BgEffectConfig
+import com.haooz.nexioui.background.BgEffectConfig
 import com.haooz.chedule.weather.WeatherSnapshot
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -255,8 +255,8 @@ private fun phaseColor(color: Color, light: SkyLight): Color {
     return lerp(base, warm, light.glow * GLOW_COLOR_MIX)
 }
 
-/** 霞的染色峰值；比原来的固定 0.4 更重，避免只在窗口中心一闪而过。 */
-private const val GLOW_COLOR_MIX = 0.74f
+/** 霞的染色峰值：整页流光只带一点暖调，真正的霞色交给头部天光，避免满屏发橙。 */
+private const val GLOW_COLOR_MIX = 0.48f
 
 private fun phaseAlpha(light: SkyLight): Float {
     // 夜 0.74 → 昼 0.54 随 dayness 连续变化，霞峰值再抬一点，让橙更实

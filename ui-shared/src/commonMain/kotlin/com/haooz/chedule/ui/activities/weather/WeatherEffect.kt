@@ -76,8 +76,8 @@ private fun DrawScope.drawSunGlow(phase: SkyPhase, glow: Float, dayness: Float, 
         }
     }
     val (color, peak) = when (phase) {
-        SkyPhase.Dawn -> Color(0xFFFF8F3C) to 0.46f
-        SkyPhase.Dusk -> Color(0xFFFF6224) to 0.44f
+        SkyPhase.Dawn -> Color(0xFFFFB877) to 0.36f
+        SkyPhase.Dusk -> Color(0xFFF58A66) to 0.34f
         SkyPhase.Night -> Color(0xFFCBD8F5) to 0.18f
         else -> Color(0xFFFFF1D2) to 0.36f
     }

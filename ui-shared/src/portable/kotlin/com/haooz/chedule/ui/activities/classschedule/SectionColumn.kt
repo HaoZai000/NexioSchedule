@@ -22,7 +22,7 @@ import com.haooz.chedule.data.model.SpecialBlock
 import com.haooz.chedule.ui.components.text.LocalTextMotionInstant
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.scheduleAccentColor
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.theme.NexioTheme
 
 /** 左侧时间列宽度。横带需要留出同样宽度才能与 [DayColumn] 逐列对齐。 */
 @Composable
@@ -118,10 +118,10 @@ private fun SectionItem(
     val (startTime, endTime) = timePairs[section - 1]
     val isCurrent = section == currentSection
     val highlightColor = scheduleAccentColor()
-    val onSurfaceColor = MiuixTheme.colorScheme.onSurface
-    val onSurfaceVariantColor = MiuixTheme.colorScheme.onSurfaceVariantActions
-    val baseBody2 = MiuixTheme.textStyles.body2
-    val baseFootnote2 = MiuixTheme.textStyles.footnote2
+    val onSurfaceColor = NexioTheme.colorScheme.onSurface
+    val onSurfaceVariantColor = NexioTheme.colorScheme.onSurfaceVariantActions
+    val baseBody2 = NexioTheme.textStyles.body2
+    val baseFootnote2 = NexioTheme.textStyles.footnote2
 
     val customName = sectionNames[section]
     val sectionStyle = remember(isCurrent, baseBody2) {
@@ -172,9 +172,9 @@ private fun SpecialTimeLabel(
     height: Float,
     sectionWidth: Dp,
 ) {
-    val baseFootnote2 = MiuixTheme.textStyles.footnote2
+    val baseFootnote2 = NexioTheme.textStyles.footnote2
     val timeStyle = remember(baseFootnote2) { baseFootnote2.copy(fontSize = 10.sp) }
-    val timeColor = MiuixTheme.colorScheme.onSurfaceVariantActions
+    val timeColor = NexioTheme.colorScheme.onSurfaceVariantActions
     Box(
         modifier = Modifier
             .width(sectionWidth)

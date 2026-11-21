@@ -30,7 +30,7 @@ data class AppearanceConfig(
     val showWeekGridLines: Boolean = false,
     val cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
     val cardTextColor: CardTextColor = CardTextColor.COLORFUL,
-    /** 卡片文字缩放比例：作用于课程名称、教室、教师，0.5~2.0 */
+    /** 卡片文字缩放比例：作用于课程名称、教室、教师，80%~150%（按整数百分比调节） */
     val cardTextScale: Float = 1f,
     val showClassroom: Boolean = true,
     val showTeacher: Boolean = true,
@@ -161,7 +161,7 @@ data class AppearanceStyle(
     val safeRefraction: CardRefractionLevel get() = cardRefraction ?: CardRefractionLevel.DEFAULT
     val safeEdgeThickness: CardEdgeThickness get() = cardEdgeThickness ?: CardEdgeThickness.DEFAULT
 
-    /** 0 一律视为损坏并恢复默认（滑杆合法区间见上方的 0.5~2.0；0 会让网格整页静默空白） */
+    /** 0 一律视为损坏并恢复默认（滑杆合法区间见上方的 80%~150%；0 会让网格整页静默空白） */
     val safeCardTextScale: Float get() = if (cardTextScale > 0f) cardTextScale else 1f
 
     val safeCardSurfaceAlpha: Float

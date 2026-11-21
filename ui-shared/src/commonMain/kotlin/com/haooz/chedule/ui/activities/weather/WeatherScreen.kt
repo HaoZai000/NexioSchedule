@@ -71,7 +71,7 @@ import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.today.weatherIconRes
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text
-import com.haooz.chedule.ui.effects.background.BgEffectBackgroundWithPreset
+import com.haooz.nexioui.background.BgEffectBackgroundWithPreset
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.chedule.weather.LifeIndex
@@ -97,13 +97,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /**
  * 天气详情页。
@@ -238,7 +238,7 @@ fun WeatherScreen(
                                                                 text = cast.headline.ifBlank { cast.detail },
                                                                 fontSize = 15.sp,
                                                                 fontWeight = FontWeight.Medium,
-                                                                color = MiuixTheme.colorScheme.onSurface,
+                                                                color = NexioTheme.colorScheme.onSurface,
                                                             )
                                                             if (cast.detail.isNotBlank() && cast.detail != cast.headline) {
                                                                 Spacer(Modifier.height(5.dp))
@@ -246,7 +246,7 @@ fun WeatherScreen(
                                                                     text = cast.detail,
                                                                     fontSize = 13.sp,
                                                                     lineHeight = 19.sp,
-                                                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                                                    color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                                                                 )
                                                             }
                                                         }
@@ -343,7 +343,7 @@ private fun WeatherBackdropHost(
  */
 @Composable
 internal fun Modifier.weatherGlassSurface(shape: Shape, topSheen: Boolean = false): Modifier {
-    val isNight = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+    val isNight = NexioTheme.colorScheme.surface.luminance() < 0.5f
     val fill = if (isNight) Color(0xFF0B1220) else Color.White
     val fillAlpha = AppMaterialSettings.solidSurfaceAlpha(if (isNight) 0.46f else 0.42f)
     val rim = if (isNight) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.34f)
@@ -421,7 +421,7 @@ internal fun SectionCard(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.3.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(horizontal = CARD_H_PADDING),
             )
             Spacer(Modifier.height(12.dp))
@@ -451,7 +451,7 @@ private fun StatusCard(title: String, hint: String?, onTap: (() -> Unit)? = null
             Text(
                 text = title,
                 fontSize = 15.sp,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
             )
             if (!hint.isNullOrBlank()) {
@@ -459,7 +459,7 @@ private fun StatusCard(title: String, hint: String?, onTap: (() -> Unit)? = null
                 Text(
                     text = hint,
                     fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -480,7 +480,7 @@ private fun HeroCard(
     val today = snapshot.daily.firstOrNull()
     val tempText = now.tempC?.let { "${it.toInt()}°" } ?: "—"
     // 天光跟着"什么天气 + 什么时段"走：晴天暖、雨天冷、雷天发紫、夜里压成深蓝
-    val darkTheme = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+    val darkTheme = NexioTheme.colorScheme.surface.luminance() < 0.5f
     val (skyTop, skyBottom) = heroSky(snapshot, darkTheme)
 
     SkyCard(modifier = Modifier.fillMaxWidth(), topSheen = true, droplets = true) {
@@ -506,7 +506,7 @@ private fun HeroCard(
                         text = snapshot.placeName.ifBlank { WeatherStr.title() },
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface,
+                        color = NexioTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
@@ -516,7 +516,7 @@ private fun HeroCard(
                             now.observedAt.ifBlank { clock(snapshot) }
                         ),
                         fontSize = 12.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier
                             .clip(ContinuousRoundedRectangle(8.dp))
                             .clickable { onRefresh() }
@@ -532,7 +532,7 @@ private fun HeroCard(
                         fontSize = 72.sp,
                         lineHeight = 78.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface,
+                        color = NexioTheme.colorScheme.onSurface,
                     )
                     Spacer(Modifier.width(10.dp))
                     Column(modifier = Modifier.padding(bottom = 14.dp)) {
@@ -540,7 +540,7 @@ private fun HeroCard(
                             text = now.text,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface,
+                            color = NexioTheme.colorScheme.onSurface,
                         )
                         val feels = now.feelsLikeC
                         if (feels != null) {
@@ -548,7 +548,7 @@ private fun HeroCard(
                             Text(
                                 text = WeatherStr.feelsLike(feels.toInt().toString()),
                                 fontSize = 13.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                             )
                         }
                     }
@@ -563,7 +563,7 @@ private fun HeroCard(
                         Text(
                             text = WeatherStr.highLow(high.toInt().toString(), low.toInt().toString()),
                             fontSize = 13.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         )
                     }
                     val air = snapshot.air
@@ -613,13 +613,14 @@ private fun heroSky(snapshot: WeatherSnapshot, dark: Boolean): Pair<Color, Color
     var t = lerp(Color(0xFF2B3963), top, light.dayness)
     var b = lerp(Color(0xFF48527F), bottom, light.dayness)
     if (light.glow > 0f) {
+        // 霞色走珊瑚调而不是纯橙：黄昏偏粉橘，黎明偏浅杏
         val (warmTop, warmBottom) = if (light.phase == SkyPhase.Dawn) {
-            Color(0xFFFF8A2E) to Color(0xFFFFB86B)
+            Color(0xFFFFA25E) to Color(0xFFFFD2A0)
         } else {
-            Color(0xFFFF6326) to Color(0xFFFF8F4A)
+            Color(0xFFF57A5C) to Color(0xFFFFA882)
         }
-        t = lerp(t, warmTop, light.glow * 0.80f)
-        b = lerp(b, warmBottom, light.glow * 0.62f)
+        t = lerp(t, warmTop, light.glow * 0.58f)
+        b = lerp(b, warmBottom, light.glow * 0.46f)
     }
     return if (dark) {
         t to b
@@ -685,7 +686,7 @@ private fun nowcastRatio(v: Float): Float = when {
 
 @Composable
 private fun NowcastChartCard(cast: RainNowcast) {
-    val darkTheme = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+    val darkTheme = NexioTheme.colorScheme.surface.luminance() < 0.5f
     SkyCard(modifier = Modifier.fillMaxWidth(), droplets = true) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(
@@ -696,7 +697,7 @@ private fun NowcastChartCard(cast: RainNowcast) {
                 text = cast.detail.ifBlank { cast.headline },
                 fontSize = 13.sp,
                 lineHeight = 19.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
             )
             Spacer(Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -715,7 +716,7 @@ private fun NowcastChartCard(cast: RainNowcast) {
                         Text(
                             text = label,
                             fontSize = 11.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier.offset(y = y + 2.dp),
                         )
                     }
@@ -726,21 +727,21 @@ private fun NowcastChartCard(cast: RainNowcast) {
                 Text(
                     text = WeatherStr.now(),
                     fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
                     text = WeatherStr.rainIn1Hour(),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
                     text = WeatherStr.rainIn2Hours(),
                     fontSize = 12.sp,
                     textAlign = TextAlign.End,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -750,7 +751,7 @@ private fun NowcastChartCard(cast: RainNowcast) {
 
 @Composable
 private fun NowcastChart(values: List<Float>, darkTheme: Boolean, modifier: Modifier) {
-    val grid = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.34f)
+    val grid = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.34f)
     val bar = if (darkTheme) Color(0xFF9AB9E6) else Color(0xFF4A7FC1)
     Canvas(modifier = modifier) {
         val w = size.width
@@ -808,7 +809,7 @@ private fun DrawScope.dashedLine(color: Color, start: Offset, end: Offset, strok
 
 @Composable
 private fun AlertCard(alerts: List<WeatherAlert>) {
-    val darkTheme = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+    val darkTheme = NexioTheme.colorScheme.surface.luminance() < 0.5f
     val tone = alertColor(alerts.first())
     SkyCard(modifier = Modifier.fillMaxWidth(), droplets = true) {
         Box {
@@ -832,7 +833,7 @@ private fun AlertCard(alerts: List<WeatherAlert>) {
                         Box(
                             modifier = Modifier.fillMaxWidth()
                                 .height(0.5.dp)
-                                .background(MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.14f))
+                                .background(NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.14f))
                         )
                         Spacer(Modifier.height(14.dp))
                     }
@@ -856,7 +857,7 @@ private fun AlertRow(alert: WeatherAlert) {
                 text = alert.title,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
@@ -869,21 +870,21 @@ private fun AlertRow(alert: WeatherAlert) {
             Text(
                 text = WeatherStr.alertIssued(issued),
                 fontSize = 11.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
             )
         }
         if (body.isNotBlank()) {
             Spacer(Modifier.height(10.dp))
             Box(
                 modifier = Modifier.fillMaxWidth().height(0.5.dp)
-                    .background(MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.12f))
+                    .background(NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.12f))
             )
             Spacer(Modifier.height(10.dp))
             Text(
                 text = body,
                 fontSize = 13.sp,
                 lineHeight = 21.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                 maxLines = if (expanded) Int.MAX_VALUE else 4,
                 overflow = TextOverflow.Ellipsis,
                 onTextLayout = { if (overflowing != it.didOverflowHeight) overflowing = it.didOverflowHeight },
@@ -907,7 +908,7 @@ private fun AlertRow(alert: WeatherAlert) {
             Text(
                 text = WeatherStr.alertSource(source),
                 fontSize = 11.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
             )
         }
     }
@@ -1057,8 +1058,8 @@ private fun hourlyPoints(snapshot: WeatherSnapshot): List<HourPoint> {
 
 @Composable
 private fun HourlyStrip(points: List<HourPoint>) {
-    val accent = MiuixTheme.colorScheme.primary
-    val secondary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val accent = NexioTheme.colorScheme.primary
+    val secondary = NexioTheme.colorScheme.onSurfaceVariantSummary
     val temps = points.map { it.tempC }
     val valid = temps.filterNotNull()
     // 上下只各留 0.5℃ 余量：留太多会让整条曲线压成一条直线（幅度全被吃掉）
@@ -1185,8 +1186,8 @@ private fun HourlyStrip(points: List<HourPoint>) {
                             text = point.tempC?.let { "${it.toInt()}°" } ?: "—",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Medium,
-                            color = if (point.isNow) MiuixTheme.colorScheme.onSurface
-                            else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.86f),
+                            color = if (point.isNow) NexioTheme.colorScheme.onSurface
+                            else NexioTheme.colorScheme.onSurface.copy(alpha = 0.86f),
                             maxLines = 1,
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
@@ -1287,7 +1288,7 @@ private fun DailyCard(
                     .fillMaxWidth()
                     .padding(horizontal = CARD_H_PADDING)
                     .height(1.dp)
-                    .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                    .background(NexioTheme.colorScheme.onSurface.copy(alpha = 0.06f))
             )
             Box(
                 modifier = Modifier
@@ -1299,7 +1300,7 @@ private fun DailyCard(
                 Text(
                     text = WeatherStr.moreInfo(),
                     fontSize = 16.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 1,
                 )
             }
@@ -1325,7 +1326,7 @@ private fun DailyRow(
 ) {
     val label = dayLabel(index, day.date)
     val isToday = index == 0
-    val secondary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val secondary = NexioTheme.colorScheme.onSurfaceVariantSummary
     // 绝对比例定位：每列的起点/宽度直接写死成行宽的百分比，互不挤压。
     // 0f 是左边、1f 是右边、0.5f 就是正中心 —— 调某一列不会牵动旁边的列。
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -1337,7 +1338,7 @@ private fun DailyRow(
                 .width(w * DAY_LABEL_SPAN),
             fontSize = 15.sp,
             fontWeight = if (isToday) FontWeight.Medium else null,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -1348,7 +1349,7 @@ private fun DailyRow(
                 .offset(x = w * DAY_TEXT_START)
                 .width(w * DAY_TEXT_SPAN),
             fontSize = 15.sp,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             textAlign = TextAlign.Start,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -1391,7 +1392,7 @@ private fun DailyRow(
                 .width(w * DAY_HIGH_SPAN),
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             textAlign = TextAlign.End,
             maxLines = 1,
         )
@@ -1444,7 +1445,7 @@ internal fun TempRangeBar(
     maxTemp: Double,
     modifier: Modifier = Modifier,
 ) {
-    val track = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.14f)
+    val track = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.14f)
     val lowC = tempColor(low ?: high ?: 15.0)
     val highC = tempColor(high ?: low ?: 15.0)
     // 按**本周**温标铺满：最冷那天从左端起、最热那天到右端止，留白只表示"这天不是最冷/最热"
@@ -1473,10 +1474,10 @@ internal fun TempRangeBar(
 /** 指标小格：浅底 + 名称 + 数值（单位贴在同一行基线）。 */
 @Composable
 internal fun MetricTile(label: String, value: String, unit: String, modifier: Modifier = Modifier) {
-    val secondary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val secondary = NexioTheme.colorScheme.onSurfaceVariantSummary
     Column(
         modifier = modifier
-            .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.05f), ContinuousRoundedRectangle(12.dp))
+            .background(NexioTheme.colorScheme.onSurface.copy(alpha = 0.05f), ContinuousRoundedRectangle(12.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Text(text = label, fontSize = 12.sp, color = secondary, maxLines = 1)
@@ -1486,7 +1487,7 @@ internal fun MetricTile(label: String, value: String, unit: String, modifier: Mo
                 text = value,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 maxLines = 1,
             )
             if (unit.isNotBlank()) {
@@ -1579,11 +1580,11 @@ private fun IndexCard(snapshot: WeatherSnapshot) {
 
 @Composable
 private fun IndexTile(index: LifeIndex, modifier: Modifier = Modifier) {
-    val secondary = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val secondary = NexioTheme.colorScheme.onSurfaceVariantSummary
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.05f), ContinuousRoundedRectangle(14.dp))
+            .background(NexioTheme.colorScheme.onSurface.copy(alpha = 0.05f), ContinuousRoundedRectangle(14.dp))
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Text(text = index.name, fontSize = 12.sp, color = secondary, maxLines = 1)
@@ -1592,7 +1593,7 @@ private fun IndexTile(index: LifeIndex, modifier: Modifier = Modifier) {
             text = index.level.ifBlank { WeatherStr.noDataField() },
             fontSize = 17.sp,
             fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             maxLines = 1,
         )
         if (index.tip.isNotBlank()) {
@@ -1623,13 +1624,13 @@ private fun SourceFooter(snapshot: WeatherSnapshot) {
         Text(
             text = snapshot.sources.joinToString(" · "),
             fontSize = 11.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
         )
         Spacer(Modifier.height(3.dp))
         Text(
             text = if (snapshot.sources.size > 1) WeatherStr.multiSourceNote() else WeatherStr.singleSourceNote(),
             fontSize = 10.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f),
+            color = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f),
         )
     }
 }

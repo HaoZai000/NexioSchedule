@@ -66,13 +66,13 @@ import com.haooz.chedule.ui.theme.scheduleAccentColor
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Add
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.card.PressFeedbackType
 
 /** 一门课在本列的一帧渲染数据；包在 remember 里避免每次重组重跑分组。 */
 private data class CourseRenderData(
@@ -102,6 +102,7 @@ class DraggingSlotsState {
 }
 
 /** 课程卡在网格里的共享视觉参数，避免两层调用各传十几份。 */
+@Stable
 private data class ColumnCardStyle(
     val isDark: Boolean,
     val cardAlpha: Float,
@@ -621,7 +622,7 @@ internal fun PendingAddCard(
     onClick: () -> Unit,
 ) {
     val pendingColor =
-        (if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.primary else Color(0xFF9E9E9E))
+        (if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.primary else Color(0xFF9E9E9E))
             .copy(alpha = if (isDark) 0.13f else 0.15f)
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
@@ -635,8 +636,8 @@ internal fun PendingAddCard(
                 cornerRadius = cardCornerRadius,
                 origin = { origin[0] },
             )
-            val surfaceColor = if (MiuixTheme.isDynamicColor) {
-                MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (isDark) 0.64f else 0.5f)
+            val surfaceColor = if (NexioTheme.isDynamicColor) {
+                NexioTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (isDark) 0.64f else 0.5f)
             } else if (isDark) {
                 Color(0xFF242424).copy(alpha = 0.64f)
             } else {
@@ -679,8 +680,8 @@ internal fun PendingAddCard(
                 showIndication = true,
                 colors = CardDefaults.defaultColors(
                     color = pendingColor,
-                    contentColor = if (MiuixTheme.isDynamicColor) {
-                        MiuixTheme.colorScheme.onSurfaceVariantActions
+                    contentColor = if (NexioTheme.isDynamicColor) {
+                        NexioTheme.colorScheme.onSurfaceVariantActions
                     } else {
                         Color(0xFF9E9E9E).copy(alpha = 0.5f)
                     },
@@ -697,7 +698,7 @@ internal fun PendingAddCard(
 private fun AddIcon() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Icon(
-            imageVector = MiuixIcons.Add,
+            imageVector = NexioIcons.Add,
             contentDescription = CommonStr.add(),
             modifier = Modifier.size(22.dp),
         )
@@ -918,7 +919,7 @@ private fun SpecialBandBody(
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
                 text = name,
-                style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
+                style = NexioTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
                 color = if (isDark) Color.White.copy(alpha = 0.74f) else Color.Black.copy(alpha = 0.74f),
                 maxLines = 2,
                 textAlign = TextAlign.Center,
@@ -962,7 +963,7 @@ private fun SpecialBandBody(
                 ) {
                     Text(
                         text = item.name.ifBlank { SchedStr.unnamed() },
-                        style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
+                        style = NexioTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
                         color = itemTextColor,
                         maxLines = 2,
                         textAlign = TextAlign.Center,

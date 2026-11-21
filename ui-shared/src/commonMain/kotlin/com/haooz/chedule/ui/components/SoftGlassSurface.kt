@@ -5,6 +5,7 @@ package com.haooz.chedule.ui.components
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,11 +47,10 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * 玻璃控件的拖动手感常量。值统一定义在 miuix（玻璃档位），这里只做本模块别名；
- * 按钮 / 菜单 / 底栏都从 `com.haooz.chedule.ui.components` 引用，不能删。
+ * 玻璃控件的拖动手感常量。按钮 / 菜单 / 底栏都从 `com.haooz.chedule.ui.components` 引用，不能删。
  */
-internal const val GlassDragStretchRatio = top.yukonga.miuix.kmp.interactive.GlassDragStretchRatio
-internal const val GlassDragTranslationDamping = top.yukonga.miuix.kmp.interactive.GlassDragTranslationDamping
+internal const val GlassDragStretchRatio = 0.012f
+internal const val GlassDragTranslationDamping = 0.032f
 
 /**
  * 柔光玻璃的绘制能力，供 `commonMain` 的卡片调用。
@@ -58,6 +58,7 @@ internal const val GlassDragTranslationDamping = top.yukonga.miuix.kmp.interacti
  * 需要这层抽象：卡片背景由平台画（AGSL / SkSL + 纹理采样），`commonMain` 引不到 `GlassRuntimeShader`，
  * 所以这里只暴露「给我一个 Modifier」。shader 实例由 `SoftGlassProgramCache` 按尺寸 / 圆角共享。
  */
+@Stable
 interface SoftGlassSurface {
     /**
      * @param origin 面板左上角的**窗口坐标**，绘制期求值。
@@ -158,7 +159,7 @@ fun Modifier.softGlassBackdrop(
 
 
 /** 壁纸亮度的采样源重建延迟：亮度滑杆拖动中只跟手壁纸层，停手后卡片再补一帧。 */
-private const val WALLPAPER_BRIGHTNESS_SETTLE_MS = 120L
+internal const val WALLPAPER_BRIGHTNESS_SETTLE_MS = 120L
 
 /** 采样源最长边（与 `prepareSoftGlassBackdrop` 的 BASE_MAX_EDGE 一致），先缩小再调色省一次全尺寸拷贝。 */
 private const val GLASS_SOURCE_MAX_EDGE = 1024

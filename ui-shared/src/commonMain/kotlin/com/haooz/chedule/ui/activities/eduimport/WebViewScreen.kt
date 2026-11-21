@@ -94,17 +94,17 @@ import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.Surface
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Download
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
+import com.haooz.nexioui.button.ButtonDefaults
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.button.FlatIconButton
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.surface.Surface
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Download
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
 
 
 /** 网页页底部 dock 的柔光 shader 缓存键：尺寸与其他玻璃件不同，不能共用 uniform。 */
@@ -241,8 +241,8 @@ fun WebViewScreen(
     val isLightTheme = !isAppDarkTheme()
     // 底部胶囊底色：莫奈取色下跟随 surfaceContainer（与首页底栏、切换课表底栏同一套）；
     // 非莫奈保持原硬编码（亮 #FFFFFF/0.6、暗 #121212/0.54）；无材质档实色
-    val webDockSurfaceColor = if (MiuixTheme.isDynamicColor) {
-        MiuixTheme.colorScheme.surfaceContainer
+    val webDockSurfaceColor = if (NexioTheme.isDynamicColor) {
+        NexioTheme.colorScheme.surfaceContainer
             .copy(alpha = AppMaterialSettings.solidSurfaceAlpha(if (isLightTheme) 0.6f else 0.54f))
     } else if (isLightTheme) {
         Color(0xFFFFFFFF).copy(AppMaterialSettings.solidSurfaceAlpha(0.6f))
@@ -458,7 +458,7 @@ fun WebViewScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MiuixTheme.colorScheme.surface)
+                .background(NexioTheme.colorScheme.surface)
                 // 无材质档：底部胶囊玻璃全关，页面采样录屏层不挂
                 .then(
                     if (AppMaterialSettings.isNoneTier()) Modifier
@@ -508,7 +508,7 @@ fun WebViewScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(3.dp)
-                            .background(MiuixTheme.colorScheme.primary)
+                            .background(NexioTheme.colorScheme.primary)
                     )
                 }
             }
@@ -577,7 +577,7 @@ private fun WebImportDockContent(
                     text = title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
@@ -587,7 +587,7 @@ private fun WebImportDockContent(
                 Surface(
                     shape = ContinuousRoundedRectangle(4.dp),
                     color = if (isDesktopMode)
-                        MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        NexioTheme.colorScheme.primary.copy(alpha = 0.12f)
                     else
                         Color(0xFF66BB6A).copy(alpha = 0.15f)
                 ) {
@@ -595,7 +595,7 @@ private fun WebImportDockContent(
                         text = if (isDesktopMode) SchedStr.desktopMode() else SchedStr.mobileMode(),
                         fontSize = 12.sp,
                         color = if (isDesktopMode)
-                            MiuixTheme.colorScheme.primary
+                            NexioTheme.colorScheme.primary
                         else
                             Color(0xFF66BB6A),
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
@@ -608,7 +608,7 @@ private fun WebImportDockContent(
             Text(
                 text = subtitle,
                 fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -625,7 +625,7 @@ private fun WebImportDockContent(
                 color = if (isLightTheme) Color.Black.copy(alpha = 0.08f)
                 else Color.White.copy(alpha = 0.1f)
             ) {
-                IconButton(onClick = onToggleDesktopMode) {
+                FlatIconButton(onClick = onToggleDesktopMode) {
                     Icon(
                         painter = painterResource(Res.drawable.ic_phone_pc),
                         contentDescription = SchedStr.toggleDesktopMode(),
@@ -640,9 +640,9 @@ private fun WebImportDockContent(
                 Surface(
                     shape = ContinuousRoundedRectangle(22.dp),
                     color = if (importEnabled)
-                        MiuixTheme.colorScheme.primary
+                        NexioTheme.colorScheme.primary
                     else
-                        MiuixTheme.colorScheme.surfaceVariant
+                        NexioTheme.colorScheme.surfaceVariant
                 ) {
                     Box(
                         modifier = Modifier
@@ -655,9 +655,9 @@ private fun WebImportDockContent(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             color = if (importEnabled)
-                                MiuixTheme.colorScheme.onPrimary
+                                NexioTheme.colorScheme.onPrimary
                             else
-                                MiuixTheme.colorScheme.onSurfaceVariantActions
+                                NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                 }
@@ -666,22 +666,22 @@ private fun WebImportDockContent(
                     modifier = Modifier.size(44.dp),
                     shape = ContinuousRoundedRectangle(22.dp),
                     color = if (importEnabled)
-                        MiuixTheme.colorScheme.primary
+                        NexioTheme.colorScheme.primary
                     else
-                        MiuixTheme.colorScheme.surfaceVariant
+                        NexioTheme.colorScheme.surfaceVariant
                 ) {
-                    IconButton(
+                    FlatIconButton(
                         onClick = onExecuteImport,
                         enabled = importEnabled
                     ) {
                         Icon(
-                            MiuixIcons.Normal.Download,
+                            NexioIcons.Normal.Download,
                             contentDescription = SchedStr.runImport(),
                             modifier = Modifier.size(26.dp),
                             tint = if (importEnabled)
-                                MiuixTheme.colorScheme.onPrimary
+                                NexioTheme.colorScheme.onPrimary
                             else
-                                MiuixTheme.colorScheme.onSurfaceVariantActions
+                                NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                 }
@@ -709,7 +709,7 @@ private fun WebAlertDialog(
     ) {
         Surface(
             shape = ContinuousRoundedRectangle(28.dp),
-            color = MiuixTheme.colorScheme.background,
+            color = NexioTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -720,20 +720,20 @@ private fun WebAlertDialog(
                     text = title,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
                     text = content,
                     fontSize = 15.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                 )
                 Spacer(Modifier.height(24.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(
+                    FlatTextButton(
                         text = confirmText,
                         onClick = onConfirm,
                         colors = ButtonDefaults.textButtonColorsPrimary()
@@ -765,7 +765,7 @@ private fun WebPromptDialog(
     ) {
         Surface(
             shape = ContinuousRoundedRectangle(28.dp),
-            color = MiuixTheme.colorScheme.background,
+            color = NexioTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -776,20 +776,20 @@ private fun WebPromptDialog(
                     text = title,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = tip,
                     fontSize = 14.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                 )
                 Spacer(Modifier.height(16.dp))
                 Surface(
                     shape = ContinuousRoundedRectangle(12.dp),
-                    color = MiuixTheme.colorScheme.surfaceVariant
+                    color = NexioTheme.colorScheme.surfaceVariant
                 ) {
-                    NativeMiuixTextField(
+                    TextField(
                         value = textFieldValue,
                         onValueChange = { textFieldValue = it },
                         modifier = Modifier.fillMaxWidth(),
@@ -802,12 +802,12 @@ private fun WebPromptDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    TextButton(
+                    FlatTextButton(
                         text = CommonStr.cancel(),
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
                     )
-                    TextButton(
+                    FlatTextButton(
                         text = CommonStr.ok(),
                         onClick = { onConfirm(textFieldValue.text) },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -840,7 +840,7 @@ private fun WebSelectionDialog(
     ) {
         Surface(
             shape = ContinuousRoundedRectangle(28.dp),
-            color = MiuixTheme.colorScheme.background,
+            color = NexioTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -852,7 +852,7 @@ private fun WebSelectionDialog(
                     text = title,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.height(12.dp))
                 LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
@@ -861,7 +861,7 @@ private fun WebSelectionDialog(
                         Surface(
                             shape = ContinuousRoundedRectangle(12.dp),
                             color = if (isSelected)
-                                MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                NexioTheme.colorScheme.primary.copy(alpha = 0.12f)
                             else
                                 Color.Transparent,
                             modifier = Modifier
@@ -875,9 +875,9 @@ private fun WebSelectionDialog(
                                 text = item,
                                 fontSize = 16.sp,
                                 color = if (isSelected)
-                                    MiuixTheme.colorScheme.primary
+                                    NexioTheme.colorScheme.primary
                                 else
-                                    MiuixTheme.colorScheme.onSurface,
+                                    NexioTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                             )
                         }
@@ -888,12 +888,12 @@ private fun WebSelectionDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    TextButton(
+                    FlatTextButton(
                         text = CommonStr.cancel(),
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
                     )
-                    TextButton(
+                    FlatTextButton(
                         text = CommonStr.ok(),
                         onClick = { onSelect(selectedIndex) },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -925,7 +925,7 @@ private fun CourseTablePickerDialog(
     ) {
         Surface(
             shape = ContinuousRoundedRectangle(28.dp),
-            color = MiuixTheme.colorScheme.background,
+            color = NexioTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -937,13 +937,13 @@ private fun CourseTablePickerDialog(
                     text = SchedStr.selectScheduleToImport(),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = SchedStr.importTargetHint(),
                     fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                 )
                 Spacer(Modifier.height(16.dp))
                 LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
@@ -953,7 +953,7 @@ private fun CourseTablePickerDialog(
                         Surface(
                             shape = ContinuousRoundedRectangle(12.dp),
                             color = if (isSelected)
-                                MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                NexioTheme.colorScheme.primary.copy(alpha = 0.12f)
                             else
                                 Color.Transparent,
                             modifier = Modifier
@@ -972,16 +972,16 @@ private fun CourseTablePickerDialog(
                                     text = name,
                                     fontSize = 16.sp,
                                     color = if (isSelected)
-                                        MiuixTheme.colorScheme.primary
+                                        NexioTheme.colorScheme.primary
                                     else
-                                        MiuixTheme.colorScheme.onSurface,
+                                        NexioTheme.colorScheme.onSurface,
                                     modifier = Modifier.weight(1f)
                                 )
                                 if (isCurrent) {
                                     Text(
                                         text = SchedStr.currentTag(),
                                         fontSize = 12.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                         modifier = Modifier.padding(start = 8.dp)
                                     )
                                 }
@@ -994,12 +994,12 @@ private fun CourseTablePickerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    TextButton(
+                    FlatTextButton(
                         text = CommonStr.cancel(),
                         onClick = onDismissRequest,
                         modifier = Modifier.weight(1f)
                     )
-                    TextButton(
+                    FlatTextButton(
                         text = CommonStr.ok(),
                         onClick = { onTableSelected(selectedSchedule) },
                         colors = ButtonDefaults.textButtonColorsPrimary(),

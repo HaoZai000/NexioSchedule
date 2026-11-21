@@ -87,6 +87,11 @@ kotlin {
             getByName("commonMain").kotlin.srcDir(rootProject.file("../ui-shared/src/portable/kotlin"))
             getByName("commonMain").kotlin.srcDir(rootProject.file("../ui-shared/src/commonMain/kotlin"))
             getByName("commonMain").kotlin.srcDir(rootProject.file("../core/src/commonMain/kotlin"))
+            // 访问密钥：与 core/build.gradle.kts 同一套二选一规则
+            val accessKeySecret = rootProject.file("../core/src/accessKeySecret/kotlin")
+            getByName("commonMain").kotlin.srcDir(
+                if (accessKeySecret.exists()) accessKeySecret else rootProject.file("../core/src/accessKeyFallback/kotlin"),
+            )
             // 柔光玻璃的 Skiko 后端（与桌面 / iOS 同一份 actual），鸿蒙也走 Skia
             ohosMain.kotlin.srcDir(rootProject.file("../ui-shared/src/skikoMain/kotlin"))
             // 需要被共享代码看见的平台实现只能进 commonMain 源根
@@ -107,9 +112,8 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.1-1.1.0-02")
             implementation("app.cash.sqldelight:runtime:2.2.1-1.1.0-01")
             implementation("app.cash.sqldelight:native-driver:2.2.1-1.1.0-01")
-            // 液态玻璃与 miuix 的 ohos 变体（玻璃在鸿蒙上降级为纯色，API 面与 Android 一致）
+            // 液态玻璃的 ohos 变体（玻璃在鸿蒙上降级为纯色，API 面与 Android 一致）
             api(project(":sharedBackdrop"))
-            api(project(":sharedMiuix"))
         }
     }
 

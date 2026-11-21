@@ -34,13 +34,13 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.utils.ShiftModeRequest
 import com.haooz.chedule.i18n.SettingsStr
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouter
-import com.haooz.chedule.ui.screens.getDaysInMonth
-import com.haooz.chedule.ui.screens.parseDate
+import com.haooz.chedule.ui.activities.setting.getDaysInMonth
+import com.haooz.chedule.ui.activities.setting.parseDate
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.viewmodel.courseViewModel
@@ -51,22 +51,22 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.numberpicker.NumberPicker
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.arrowpreference.ArrowPreference
+import com.haooz.nexioui.switchpreference.SwitchPreference
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /** 课程表（二级页）。 */
 @Composable
@@ -166,7 +166,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                                     Text(
                                         text = classStartTime,
                                         fontSize = 14.5.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                         textAlign = TextAlign.End,
                                     )
                                 },
@@ -190,7 +190,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                                             else -> CommonStr.weekN(currentWeek)
                                         },
                                         fontSize = 14.5.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                         textAlign = TextAlign.End,
                                     )
                                 },
@@ -207,7 +207,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                                     Text(
                                         text = SettingsStr.totalWeeksValue(totalWeeks),
                                         fontSize = 14.5.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                         textAlign = TextAlign.End,
                                     )
                                 },
@@ -228,7 +228,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                                             timeConfig.eveningSections,
                                         ),
                                         fontSize = 14.5.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                         textAlign = TextAlign.End,
                                     )
                                 },
@@ -247,7 +247,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                                     Text(
                                         text = activeRoutineName,
                                         fontSize = 14.5.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                         textAlign = TextAlign.End,
                                     )
                                 },
@@ -344,8 +344,8 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             ) {
                                 Text(
                                     text = label,
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                    style = NexioTheme.textStyles.footnote1,
+                                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                     modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
                                     textAlign = TextAlign.Center,
                                 )
@@ -363,7 +363,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                     Text(
                         TimeCfgStr.sectionsNote(),
                         fontSize = 13.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         modifier = Modifier.padding(top = 16.dp),
                     )
 
@@ -373,7 +373,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             .padding(top = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -381,7 +381,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             },
                             modifier = Modifier.weight(1f),
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.ok(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -420,7 +420,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             .padding(top = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -428,7 +428,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             },
                             modifier = Modifier.weight(1f),
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.ok(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -460,7 +460,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    NativeMiuixTextField(
+                    TextField(
                         value = newSemesterName,
                         onValueChange = { newSemesterName = it },
                         label = SettingsStr.newScheduleNameLabel(),
@@ -473,7 +473,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             .padding(top = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -482,7 +482,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             },
                             modifier = Modifier.weight(1f),
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = SettingsStr.create(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -535,7 +535,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             range = minOf(2024, tempYearInit)..maxOf(2030, tempYearInit),
                             visibleItemCount = 3,
                             itemHeight = 60.dp,
-                            textStyle = MiuixTheme.textStyles.title2,
+                            textStyle = NexioTheme.textStyles.title2,
                             modifier = Modifier.weight(1f),
                         )
                         NumberPicker(
@@ -546,7 +546,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             itemHeight = 60.dp,
                             label = { SettingsStr.monthN(it) },
                             wrapAround = true,
-                            textStyle = MiuixTheme.textStyles.title2,
+                            textStyle = NexioTheme.textStyles.title2,
                             modifier = Modifier.weight(1f),
                         )
                         NumberPicker(
@@ -557,7 +557,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             itemHeight = 60.dp,
                             label = { CommonStr.dateN(it) },
                             wrapAround = true,
-                            textStyle = MiuixTheme.textStyles.title2,
+                            textStyle = NexioTheme.textStyles.title2,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -567,7 +567,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             .padding(top = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -575,7 +575,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             },
                             modifier = Modifier.weight(1f),
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.ok(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -616,7 +616,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -624,7 +624,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             },
                             modifier = Modifier.weight(1f),
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.ok(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -662,7 +662,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.cancel(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -670,7 +670,7 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                             },
                             modifier = Modifier.weight(1f),
                         )
-                        TextButton(
+                        FlatTextButton(
                             text = CommonStr.ok(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)

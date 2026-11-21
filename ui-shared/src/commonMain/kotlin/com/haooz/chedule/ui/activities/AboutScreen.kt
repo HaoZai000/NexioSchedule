@@ -72,10 +72,10 @@ import com.haooz.chedule.i18n.LanguagePref
 import com.haooz.chedule.i18n.LanguageStore
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.i18n.CommonStr
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.iconbutton.IconButton
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.effects.background.BgEffectBackground
+import com.haooz.nexioui.background.BgEffectBackground
 import com.haooz.chedule.ui.effects.miuix.rememberBlurBackdrop
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.utils.AppMaterialSettings
@@ -91,34 +91,34 @@ import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import com.haooz.nexioui.card.CardDefaults
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.button.FlatTextButton
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
-import top.yukonga.miuix.kmp.icon.extended.ChevronForward
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.basic.ArrowRight
+import com.haooz.nexioui.icon.extended.ChevronBackward
+import com.haooz.nexioui.icon.extended.ChevronForward
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBar
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
+import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.arrowpreference.ArrowPreference
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /** 顶部留白高度（图标/名称/版本号区域下方） */
 private val LogoSpacerHeight = 340.dp
@@ -155,7 +155,7 @@ fun AboutScreen(
     // Embedded panes keep their own chrome even when an ancestor has a native page.
     val nativeChrome = LocalNativeDocumentChrome.current.takeUnless { embedded }
     val nativeBarInset = (nativeChrome?.barInset ?: 0.0).dp
-    val tintArgb = MiuixTheme.colorScheme.primary.toArgb().toLong()
+    val tintArgb = NexioTheme.colorScheme.primary.toArgb().toLong()
     SideEffect {
         nativeChrome?.title = AboutStr.aboutApp()
         nativeChrome?.tintArgb = tintArgb
@@ -280,10 +280,10 @@ fun AboutScreen(
                     materialState = material,
                     contentPadding = {},
                     startAction = if (embedded || nativeChrome != null) null else { backdropAlpha, shadowAlpha ->
-                        LiquidTopBarButton(
+                        IconButton(
                             onClick = { onBack() },
                             backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.ChevronBackward,
+                            icon = NexioIcons.ChevronBackward,
                             contentDescription = CommonStr.back(),
                             performHapticFeedback = false,
                             iconSize = 24.dp,
@@ -299,7 +299,7 @@ fun AboutScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MiuixTheme.colorScheme.background)
+                .background(NexioTheme.colorScheme.background)
                 .then(
                     // 无材质档：玻璃全关，采样录屏层不挂
                     if (noneTier) Modifier
@@ -308,6 +308,7 @@ fun AboutScreen(
         ) {
             BgEffectBackground(
                 dynamicBackground = dynamicBackground,
+                isDark = isInDark,
                 isFullSize = true,
                 modifier = Modifier.fillMaxSize(),
                 // 背景特效采的是内容模糊录屏层，无材质档一并停录
@@ -349,7 +350,7 @@ fun AboutScreen(
                         } else {
                             Text(
                                 text = appName.take(1),
-                                color = MiuixTheme.colorScheme.onPrimary,
+                                color = NexioTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 42.sp,
                             )
@@ -379,7 +380,7 @@ fun AboutScreen(
                                 },
                             ),
                         text = appName,
-                        color = MiuixTheme.colorScheme.onBackground,
+                        color = NexioTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold,
                         fontSize = 35.sp,
                     )
@@ -393,7 +394,7 @@ fun AboutScreen(
                                 scaleX = 1 - (verProgress * 0.05f)
                                 scaleY = 1 - (verProgress * 0.05f)
                             },
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                         text = "v$appVersion",
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,
@@ -505,7 +506,7 @@ fun AboutScreen(
                                         Text(
                                             text = "AGPL-3.0",
                                             fontSize = 14.5.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                             textAlign = TextAlign.End,
                                         )
                                     },
@@ -590,17 +591,17 @@ fun AboutScreen(
                                             text = AboutStr.specialThanks(),
                                             fontSize = 17.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = MiuixTheme.colorScheme.onSurface
+                                            color = NexioTheme.colorScheme.onSurface
                                         )
                                         Icon(
-                                            imageVector = MiuixIcons.ChevronForward,
+                                            imageVector = NexioIcons.ChevronForward,
                                             contentDescription = null,
                                             modifier = Modifier
                                                 .size(16.dp)
                                                 .graphicsLayer {
                                                     rotationZ = rotation
                                                 },
-                                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            tint = NexioTheme.colorScheme.onSurfaceVariantActions
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
@@ -618,7 +619,7 @@ fun AboutScreen(
                                                     text = "Miuix",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.primary,
+                                                    color = NexioTheme.colorScheme.primary,
                                                     modifier = Modifier.clickable {
                                                         uriHandler.openUri("https://github.com/compose-miuix-ui/miuix")
                                                     }
@@ -627,7 +628,7 @@ fun AboutScreen(
                                                     text = "Yukonga",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                                                 )
                                             }
                                             Spacer(modifier = Modifier.height(12.dp))
@@ -642,7 +643,7 @@ fun AboutScreen(
                                                     text = "OkHttp",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.primary,
+                                                    color = NexioTheme.colorScheme.primary,
                                                     modifier = Modifier.clickable {
                                                         uriHandler.openUri("https://github.com/square/okhttp")
                                                     }
@@ -651,7 +652,7 @@ fun AboutScreen(
                                                     text = "Square",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                                                 )
                                             }
                                             Spacer(modifier = Modifier.height(12.dp))
@@ -666,7 +667,7 @@ fun AboutScreen(
                                                     text = "warehouse",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.primary,
+                                                    color = NexioTheme.colorScheme.primary,
                                                     modifier = Modifier.clickable {
                                                         uriHandler.openUri("https://github.com/XingHeYuZhuan/shiguang_warehouse")
                                                     }
@@ -675,7 +676,7 @@ fun AboutScreen(
                                                     text = "XingHeYuZhuan",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                                                 )
                                             }
                                             Spacer(modifier = Modifier.height(12.dp))
@@ -690,7 +691,7 @@ fun AboutScreen(
                                                     text = "Shizuku",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.primary,
+                                                    color = NexioTheme.colorScheme.primary,
                                                     modifier = Modifier.clickable {
                                                         uriHandler.openUri("https://github.com/RikkaApps/Shizuku")
                                                     }
@@ -699,7 +700,7 @@ fun AboutScreen(
                                                     text = "RikkaApps",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                                                 )
                                             }
                                             Spacer(modifier = Modifier.height(12.dp))
@@ -714,7 +715,7 @@ fun AboutScreen(
                                                     text = "SoftGlass",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.primary,
+                                                    color = NexioTheme.colorScheme.primary,
                                                     modifier = Modifier.clickable {
                                                         uriHandler.openUri("https://github.com/HaoZai000/softglass")
                                                     }
@@ -723,7 +724,7 @@ fun AboutScreen(
                                                     text = "HaoZai000",
                                                     fontSize = 15.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                                                 )
                                             }
                                         }
@@ -764,7 +765,7 @@ fun AboutScreen(
                                         text = AboutStr.diagRecording(),
                                         fontSize = 17.sp,
                                         fontWeight = FontWeight.Medium,
-                                        color = MiuixTheme.colorScheme.onSurface
+                                        color = NexioTheme.colorScheme.onSurface
                                     )
                                     val remainSec =
                                         ((diagnosticRecorder.maxRecordMs / 1000L) - recordingElapsedSec)
@@ -788,14 +789,14 @@ fun AboutScreen(
                                     Text(
                                         text = statusText,
                                         fontSize = 13.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                         modifier = Modifier.padding(top = 6.dp, bottom = 14.dp)
                                     )
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        TextButton(
+                                        FlatTextButton(
                                             text = if (recordingActive) AboutStr.diagStop() else AboutStr.diagStart(),
                                             onClick = {
                                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -829,10 +830,10 @@ fun AboutScreen(
                                                 ButtonDefaults.textButtonColors()
                                             }
                                         )
-                                        TextButton(
+                                        FlatTextButton(
                                             text = AboutStr.share(),
                                             onClick = {
-                                                if (!canShareRecording) return@TextButton
+                                                if (!canShareRecording) return@FlatTextButton
                                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                                 exportingCrashLog = true
                                                 uiScope.launch {
@@ -869,13 +870,13 @@ fun AboutScreen(
                                     Text(
                                         text = AboutStr.copyright().trimEnd(' ', '·'),
                                         fontSize = 13.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions
                                     )
                                     // APP 备案号：按工信部要求在「关于」页面显著位置展示
                                     Text(
                                         text = AboutStr.icpNumber(),
                                         fontSize = 13.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                                         modifier = Modifier.padding(top = 6.dp)
                                     )
                                 }
@@ -918,13 +919,13 @@ fun AboutScreen(
                             modifier = Modifier.size(48.dp),
                             painter = painterResource(Res.drawable.ic_github),
                             contentDescription = "GitHub",
-                            colorFilter = ColorFilter.tint(MiuixTheme.colorScheme.onSurface)
+                            colorFilter = ColorFilter.tint(NexioTheme.colorScheme.onSurface)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "GitHub",
                             fontSize = 14.sp,
-                            color = MiuixTheme.colorScheme.onSurface
+                            color = NexioTheme.colorScheme.onSurface
                         )
                     }
                     Column(
@@ -946,12 +947,12 @@ fun AboutScreen(
                         Text(
                             text = "Gitee",
                             fontSize = 14.sp,
-                            color = MiuixTheme.colorScheme.onSurface
+                            color = NexioTheme.colorScheme.onSurface
                         )
                     }
                 }
                 Spacer(modifier = Modifier.height(20.dp))
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.done(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -976,7 +977,7 @@ fun AboutScreen(
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -984,7 +985,7 @@ fun AboutScreen(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = AboutStr.revokeAndExit(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)

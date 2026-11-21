@@ -16,7 +16,9 @@ class BootCompletedReceiver : BroadcastReceiver() {
             Intent.ACTION_TIMEZONE_CHANGED -> {
                 ClassDndHelper.reconcileAfterSystemEvent(context)
                 // 重置全部闹钟（含 widget 刷新链），覆盖「只用小组件、不开提醒」的用户。
-                CourseReminderHelper.startReminderService(context)
+                // 用 rescheduleNow 而不是 startReminderService：这些时点必须当场生效，
+                // 一旦被 400ms 合并窗口挡下，接收器返回后进程被回收就再没人补跑。
+                CourseReminderHelper.rescheduleNow(context)
             }
         }
     }

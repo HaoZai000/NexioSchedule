@@ -31,6 +31,10 @@ Thumbs.db
 keystore/
 keystore.properties
 
+# --- App 访问密钥（敏感！真实值只留在本地/发布流水线） ---
+# 缺这个目录时用 core/src/accessKeyFallback/ 的空值兜底，构建照常成功
+core/src/accessKeySecret/
+
 # --- 部署相关（敏感：SSH 私钥） ---
 .deploy/
 

@@ -40,7 +40,7 @@ import com.haooz.chedule.ui.theme.rememberCourseColors
 import com.haooz.softglass.shape.ContinuousCapsule
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.theme.NexioTheme
 
 /** 今日页时间轴的刻度列宽：与课表页手机端一致，两页观感对齐。 */
 private val TodayTimelineAxisWidth = 36.dp
@@ -193,7 +193,7 @@ private fun TodayTimelineCard(
                     fontSize = 15.sp,
                     lineHeight = 18.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     maxLines = if (heightDp >= 72f) 3 else if (heightDp >= 44f) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -203,7 +203,7 @@ private fun TodayTimelineCard(
                         text = timeText,
                         fontSize = 12.5.sp,
                         lineHeight = 15.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -214,7 +214,7 @@ private fun TodayTimelineCard(
                         text = infoText,
                         fontSize = 12.5.sp,
                         lineHeight = 15.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

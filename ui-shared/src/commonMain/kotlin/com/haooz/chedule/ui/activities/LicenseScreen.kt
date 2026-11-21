@@ -37,13 +37,13 @@ import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.haooz.chedule.ui.utils.screenWidthDp
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 private const val LICENSE_ASSET = "LICENSE"
 
@@ -358,13 +358,13 @@ fun LicenseScreen(
                             text = LICENSE_HEADER_TITLE(),
                             fontSize = 24.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MiuixTheme.colorScheme.onSurface
+                            color = NexioTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = LICENSE_HEADER_SUBTITLE(),
                             fontSize = 13.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                 }
@@ -381,7 +381,7 @@ fun LicenseScreen(
                         Text(
                             text = LICENSE_FOOTER(),
                             fontSize = 12.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         )
                     }
                 }

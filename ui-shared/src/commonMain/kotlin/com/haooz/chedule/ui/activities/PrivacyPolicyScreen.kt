@@ -31,14 +31,14 @@ import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 // 权限表第三列的「必需 / 可选」标签：数据与 PolicyTable 的着色判断复用同一实例
 private val TAG_REQUIRED = L("必需", "Required")
@@ -536,13 +536,13 @@ fun PrivacyPolicyScreen(
                             text = L("Nexio 课程表 隐私政策", "Nexio Schedule Privacy Policy")(),
                             fontSize = 24.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MiuixTheme.colorScheme.onSurface
+                            color = NexioTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = L("生效日期：2026 年 10 月 2 日\n更新日期：2026 年 11 月 16 日", "Effective date: October 2, 2026\nLast updated: November 16, 2026")(),
                             fontSize = 13.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                 }
@@ -560,7 +560,7 @@ fun PrivacyPolicyScreen(
                         Text(
                             text = L("本政策自 2026 年 10 月 2 日起生效，最近更新于 2026 年 11 月 15 日 · Nexio 课程表", "This policy is effective as of October 2, 2026 and was last updated on November 15, 2026 · Nexio Schedule")(),
                             fontSize = 12.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                         )
                     }
                 }
@@ -580,7 +580,7 @@ internal fun PolicySectionCard(section: PolicySection) {
                 text = section.title(),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = MiuixTheme.colorScheme.onSurface
+                color = NexioTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(17.dp))
             section.blocks.forEach { block ->
@@ -598,7 +598,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                 text = block.text(),
                 fontSize = 14.sp,
                 lineHeight = 23.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                color = NexioTheme.colorScheme.onSurfaceVariantActions
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -609,7 +609,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                 text = block.text(),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface
+                color = NexioTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -623,7 +623,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                             .width(5.dp)
                             .height(5.dp)
                             .background(
-                                MiuixTheme.colorScheme.primary,
+                                NexioTheme.colorScheme.primary,
                                 ContinuousRoundedRectangle(2.5f.dp)
                             )
                     )
@@ -632,7 +632,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                         text = item(),
                         fontSize = 14.sp,
                         lineHeight = 23.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions
                     )
                 }
             }
@@ -644,7 +644,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        MiuixTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        NexioTheme.colorScheme.primary.copy(alpha = 0.08f),
                         com.haooz.softglass.shape.ContinuousRoundedRectangle(12.dp)
                     )
                     .padding(16.dp)
@@ -653,7 +653,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                     text = block.text(),
                     fontSize = 13.sp,
                     lineHeight = 22.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -669,11 +669,11 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                 fontSize = 12.sp,
                 lineHeight = 20.sp,
                 fontFamily = FontFamily.Monospace,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        MiuixTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        NexioTheme.colorScheme.primary.copy(alpha = 0.08f),
                         com.haooz.softglass.shape.ContinuousRoundedRectangle(12.dp)
                     )
                     .padding(14.dp)
@@ -686,7 +686,7 @@ internal fun PolicyBlockView(block: PolicyBlock) {
                 text = block.text,
                 fontSize = 14.sp,
                 lineHeight = 23.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                color = NexioTheme.colorScheme.onSurfaceVariantActions
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -708,7 +708,7 @@ private fun PolicyTable(headers: List<L10n>, rows: List<List<L10n>>) {
                     text = row.getOrNull(0)?.invoke() ?: "",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = NexioTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 // 第二列：用途说明
@@ -716,7 +716,7 @@ private fun PolicyTable(headers: List<L10n>, rows: List<List<L10n>>) {
                     text = row.getOrNull(1)?.invoke() ?: "",
                     fontSize = 13.sp,
                     lineHeight = 21.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions
                 )
                 // 第三列：必需 / 可选（权限表）
                 val third = row.getOrNull(2)
@@ -726,8 +726,8 @@ private fun PolicyTable(headers: List<L10n>, rows: List<List<L10n>>) {
                         text = third?.invoke() ?: "",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = if (third === TAG_REQUIRED) MiuixTheme.colorScheme.primary
-                        else MiuixTheme.colorScheme.onSurfaceVariantActions
+                        color = if (third === TAG_REQUIRED) NexioTheme.colorScheme.primary
+                        else NexioTheme.colorScheme.onSurfaceVariantActions
                     )
                 }
             }
@@ -737,7 +737,7 @@ private fun PolicyTable(headers: List<L10n>, rows: List<List<L10n>>) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.12f))
+                        .background(NexioTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.12f))
                 )
             }
         }

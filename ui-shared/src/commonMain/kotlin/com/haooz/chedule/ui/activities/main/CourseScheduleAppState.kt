@@ -51,9 +51,9 @@ import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
 import com.haooz.chedule.ui.activities.today.TodayAssistantCardData
 import com.haooz.chedule.ui.components.PageSwitchState
 import com.haooz.chedule.ui.components.SharedFileIntent
-import com.haooz.chedule.ui.effects.motion.MORPH_BACKGROUND_SHRINK
-import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
-import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.nexioui.motion.MORPH_BACKGROUND_SHRINK
+import com.haooz.nexioui.motion.OobeCubicOutEasing
+import com.haooz.nexioui.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.HostNavigationState
@@ -85,8 +85,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.utils.OverScrollState
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.overscroll.OverScrollState
 
 /**
  * 课表主界面的状态与交互逻辑，由 [CourseScheduleApp] 用 `remember` 持有。

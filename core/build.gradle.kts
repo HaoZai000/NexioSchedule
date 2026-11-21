@@ -47,6 +47,19 @@ kotlin {
     }
 
     sourceSets {
+        // 访问密钥：有 src/accessKeySecret/（gitignore）用它，否则用仓库的空值兜底。
+        // 用 fileContents 而非 exists()，密钥文件增删才能失效配置缓存。
+        val secretKey = layout.projectDirectory.file(
+            "src/accessKeySecret/kotlin/com/haooz/chedule/data/platform/AccessKey.kt",
+        )
+        commonMain {
+            kotlin.srcDir(
+                providers.fileContents(secretKey).asText.map { true }.orElse(false).map { exists ->
+                    if (exists) "src/accessKeySecret/kotlin" else "src/accessKeyFallback/kotlin"
+                },
+            )
+        }
+
         // Android 与 JVM 桌面共用的实现（java.io.File 系），用 srcDir 共享同一份源码
         androidMain {
             kotlin.srcDir("src/jvmShared/kotlin")

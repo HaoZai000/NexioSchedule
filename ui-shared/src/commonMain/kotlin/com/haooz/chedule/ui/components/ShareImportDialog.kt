@@ -17,10 +17,6 @@ import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 
-// ⚠ 本文件 2026-10-11 自 :androidApp 迁入 :ui-shared（第二十七批）。
-// 迁移动机：整页只碰 Android 三样 —— Intent.ACTION_VIEW/SEND 常量、contentResolver.openInputStream、
-// MainActivity 三个分享 Intent 字段；抽成「宿主投递 [SharedFileIntent] + 提供读文本回调」后即纯 UI。
-// ⚠ 本文件不应再出现任何 `android.*`；要读别的平台数据就再加注入回调。
 
 /**
  * 宿主投递进来的「外部分享」请求。

@@ -25,7 +25,7 @@ import kotlin.experimental.ExperimentalNativeApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.ArkTS.ArkTS_Napi_NativeModule.napi_env
 import platform.ArkTS.ArkTS_Napi_NativeModule.napi_value
-import top.yukonga.miuix.kmp.utils.BackDispatcher
+import com.haooz.nexioui.navigationback.BackDispatcher
 
 /**
  * 鸿蒙侧唯一的 Compose 实例 —— 结构逐字对应安卓的 `MainActivity.setContent`。

@@ -512,13 +512,13 @@ fun applyThirdPartySharePayload(
             val morningTimes = mutableMapOf<Int, String>()
             val afternoonTimes = mutableMapOf<Int, String>()
             val eveningTimes = mutableMapOf<Int, String>()
-            for (slot in payload.timeSlots) {
-                val timeStr = "${slot.startTime}-${slot.endTime}"
+            for ((number, startTime, endTime) in payload.timeSlots) {
+                val timeStr = "$startTime-$endTime"
                 when {
-                    slot.number <= morningSections -> morningTimes[slot.number] = timeStr
-                    slot.number <= morningSections + afternoonSections ->
-                        afternoonTimes[slot.number - morningSections] = timeStr
-                    else -> eveningTimes[slot.number - morningSections - afternoonSections] = timeStr
+                    number <= morningSections -> morningTimes[number] = timeStr
+                    number <= morningSections + afternoonSections ->
+                        afternoonTimes[number - morningSections] = timeStr
+                    else -> eveningTimes[number - morningSections - afternoonSections] = timeStr
                 }
             }
             repository.applyTimeImportToSchedule(

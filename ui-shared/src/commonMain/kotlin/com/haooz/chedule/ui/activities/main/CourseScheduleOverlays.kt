@@ -44,12 +44,12 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.TransitionLayerImage
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
-import com.haooz.chedule.ui.utils.toShape
+import com.haooz.nexioui.window.toShape
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.progressindicator.InfiniteProgressIndicator
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 课表主界面上的整屏过渡浮层：排班切换 loading、切换课表的卡片形变。
@@ -81,7 +81,7 @@ internal fun ShiftLoadingOverlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MiuixTheme.colorScheme.surface),
+                .background(NexioTheme.colorScheme.surface),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -93,11 +93,11 @@ internal fun ShiftLoadingOverlay(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = ChromeStr.switching(),
-                    style = MiuixTheme.textStyles.body1.copy(
+                    style = NexioTheme.textStyles.body1.copy(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     ),
-                    color = MiuixTheme.colorScheme.onSurfaceSecondary
+                    color = NexioTheme.colorScheme.onSurfaceSecondary
                 )
             }
         }
@@ -185,7 +185,7 @@ internal fun SwitchMorphOverlay(
                     1f
                 }
             }
-            .background(MiuixTheme.colorScheme.background)
+            .background(NexioTheme.colorScheme.background)
     ) {
         if (cardBitmap != null) {
             // 进入方向：画退出那一帧固化下来的卡片位图。

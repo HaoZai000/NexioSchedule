@@ -57,19 +57,19 @@ import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.progressindicator.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /** 捐赠页主色：暖金，只用于名次与点缀，不铺大面积背景 */
 private val WarmGold = Color(0xFFE8C26A)
@@ -239,7 +239,7 @@ private fun SectionHeader(title: String, trailing: String) {
             Text(
                 text = trailing,
                 fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions,
                 modifier = Modifier.padding(end = 12.dp)
             )
         }
@@ -315,7 +315,7 @@ private fun HeroCopy(textAlign: TextAlign, modifier: Modifier = Modifier) {
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
             lineHeight = 24.sp,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             textAlign = textAlign,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -324,7 +324,7 @@ private fun HeroCopy(textAlign: TextAlign, modifier: Modifier = Modifier) {
             text = AboutStr.donateHeroSubtitle(),
             fontSize = 14.sp,
             lineHeight = 21.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            color = NexioTheme.colorScheme.onSurfaceVariantActions,
             textAlign = textAlign,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -361,7 +361,7 @@ private fun DonationQrBlock(size: Dp) {
             text = AboutStr.donateScanAction(),
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(4.dp))
@@ -369,7 +369,7 @@ private fun DonationQrBlock(size: Dp) {
             text = AboutStr.donateScanHint(),
             fontSize = 11.5.sp,
             lineHeight = 16.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            color = NexioTheme.colorScheme.onSurfaceVariantActions,
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 250.dp),
         )
@@ -520,7 +520,7 @@ private fun PodiumSlot(
                 modifier = Modifier
                     .size(avatarSize)
                     .clip(ContinuousCapsule())
-                    .background(MiuixTheme.colorScheme.surfaceContainerHigh)
+                    .background(NexioTheme.colorScheme.surfaceContainerHigh)
                     .border(
                         width = if (champion) 2.dp else 1.5.dp,
                         color = accent,
@@ -540,7 +540,7 @@ private fun PodiumSlot(
             text = item?.let { donorName(it.nickname) } ?: AboutStr.supportOpenSlot(),
             fontSize = if (champion) 13.5.sp else 12.5.sp,
             fontWeight = if (champion) FontWeight.SemiBold else FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface.copy(
+            color = NexioTheme.colorScheme.onSurface.copy(
                 alpha = if (item == null) 0.35f else 1f
             ),
             maxLines = 2,
@@ -654,7 +654,7 @@ private fun RecentSupportSection(
                                     .fillMaxWidth()
                                     .padding(start = 68.dp, end = 16.dp)
                                     .height(0.5.dp)
-                                    .background(MiuixTheme.colorScheme.surfaceVariant)
+                                    .background(NexioTheme.colorScheme.surfaceVariant)
                             )
                         }
                     }
@@ -676,7 +676,7 @@ private fun SupporterRow(item: AppreciationItem) {
             modifier = Modifier
                 .size(40.dp)
                 .clip(ContinuousCapsule())
-                .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.13f)),
+                .background(NexioTheme.colorScheme.primary.copy(alpha = 0.13f)),
             contentAlignment = Alignment.Center
         ) {
             if (isAnonymousNickname(item.nickname)) {
@@ -693,7 +693,7 @@ private fun SupporterRow(item: AppreciationItem) {
                     text = donorInitial(item.nickname),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.primary
+                    color = NexioTheme.colorScheme.primary
                 )
             }
         }
@@ -707,7 +707,7 @@ private fun SupporterRow(item: AppreciationItem) {
                 text = donorName(item.nickname),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -717,7 +717,7 @@ private fun SupporterRow(item: AppreciationItem) {
                     text = item.remark,
                     fontSize = 12.5.sp,
                     lineHeight = 17.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -732,7 +732,7 @@ private fun SupporterRow(item: AppreciationItem) {
                 text = item.amount,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = MiuixTheme.colorScheme.primary,
+                color = NexioTheme.colorScheme.primary,
                 maxLines = 1,
                 textAlign = TextAlign.End,
             )
@@ -741,7 +741,7 @@ private fun SupporterRow(item: AppreciationItem) {
                 Text(
                     text = item.time,
                     fontSize = 11.5.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
                     textAlign = TextAlign.End,
                 )
             }
@@ -772,12 +772,12 @@ private fun DonationPlaceholder(
         Text(
             text = text,
             fontSize = 12.5.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            color = NexioTheme.colorScheme.onSurfaceVariantActions,
             textAlign = TextAlign.Center,
         )
         if (onRetry != null) {
             Spacer(modifier = Modifier.height(12.dp))
-            TextButton(
+            FlatTextButton(
                 text = CommonStr.retry(),
                 onClick = onRetry,
                 modifier = Modifier.width(160.dp),
@@ -804,11 +804,11 @@ private fun LoadMoreFooter(loading: Boolean, failed: Boolean, onRetry: () -> Uni
                 Text(
                     text = CommonStr.loading(),
                     fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
                 )
             }
         } else {
-            TextButton(
+            FlatTextButton(
                 text = CommonStr.retry(),
                 onClick = onRetry,
                 modifier = Modifier.width(160.dp),
@@ -842,7 +842,7 @@ private fun DonorAvatar(item: AppreciationItem, size: Dp) {
         modifier = Modifier
             .size(size)
             .clip(ContinuousCapsule())
-            .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
+            .background(NexioTheme.colorScheme.primary.copy(alpha = 0.12f)),
         contentAlignment = Alignment.Center
     ) {
         if (isAnonymousNickname(item.nickname)) {
@@ -859,7 +859,7 @@ private fun DonorAvatar(item: AppreciationItem, size: Dp) {
                 text = donorInitial(item.nickname),
                 fontSize = (size.value * 0.36f).sp,
                 fontWeight = FontWeight.SemiBold,
-                color = MiuixTheme.colorScheme.primary
+                color = NexioTheme.colorScheme.primary
             )
         }
     }

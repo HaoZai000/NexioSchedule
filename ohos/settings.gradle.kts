@@ -21,6 +21,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Nexio-ohos"
 include(":ohosApp")
-// :backdrop / :miuix 的 ohosArm64 变体，源码仍是主仓库那一份
+// :backdrop 的 ohosArm64 变体，源码仍是主仓库那一份
 include(":sharedBackdrop")
-include(":sharedMiuix")

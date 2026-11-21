@@ -26,8 +26,8 @@ import com.haooz.chedule.ui.web.WebHostEvents
 import com.haooz.chedule.viewmodel.courseViewModel
 import com.haooz.chedule.viewmodel.scheduleViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.utils.NavigationBackHandlerFor
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
 
 /**
  * 鸿蒙的网页导入页（纯 ArkUI 界面）。

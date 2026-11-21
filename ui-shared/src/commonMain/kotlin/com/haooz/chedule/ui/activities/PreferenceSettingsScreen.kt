@@ -42,7 +42,7 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.PreferenceStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.theme.KEY_MONET_COLOR
@@ -59,22 +59,22 @@ import com.haooz.chedule.uishared.resources.theme_preview_night
 import com.haooz.chedule.viewmodel.settingsViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.preference.SwitchPreference
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.switchpreference.SwitchPreference
 import com.haooz.softglass.shape.continuousBorder
 import com.haooz.softglass.shape.continuousClip
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 @Composable
 fun PreferenceSettingsScreen(
@@ -586,7 +586,7 @@ private fun ThemeSelectionBox(
                 .fillMaxWidth()
                 .continuousBorder(
                     width = 3.dp,
-                    color = if (selected) MiuixTheme.colorScheme.primary else Color.Transparent,
+                    color = if (selected) NexioTheme.colorScheme.primary else Color.Transparent,
                     cornerRadius = 26.dp
                 )
                 .padding(6.dp)
@@ -607,8 +607,8 @@ private fun ThemeSelectionBox(
         Spacer(Modifier.height(8.dp))
         Text(
             text = label,
-            color = if (selected) MiuixTheme.colorScheme.primary
-            else MiuixTheme.colorScheme.onSurfaceSecondary,
+            color = if (selected) NexioTheme.colorScheme.primary
+            else NexioTheme.colorScheme.onSurfaceSecondary,
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center

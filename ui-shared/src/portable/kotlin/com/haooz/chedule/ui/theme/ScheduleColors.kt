@@ -11,7 +11,7 @@ import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.util.hsvToRgb
 import com.haooz.chedule.data.util.rgbToHsv
 import com.materialkolor.hct.Hct
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.theme.NexioTheme
 
 @Immutable
 internal data class CourseColors(val tint: Color, val onTint: Color)
@@ -31,13 +31,13 @@ internal fun readableCourseTextColor(preferred: Color, background: Color): Color
 /** 同名课程稳定映射到系统的主、次、第三色系；只影响显示，不改写课程自定义颜色。 */
 @Composable
 internal fun rememberCourseColors(course: Course, isDark: Boolean): CourseColors {
-    if (!MiuixTheme.isDynamicColor) {
+    if (!NexioTheme.isDynamicColor) {
         return remember(course.colorRes) {
             val color = Color(course.colorRes)
             CourseColors(color, color)
         }
     }
-    val colors = MiuixTheme.colorScheme
+    val colors = NexioTheme.colorScheme
     val (seed, foreground) = when (((course.name.hashCode() % 3) + 3) % 3) {
         0 -> colors.primary to colors.onPrimaryContainer
         1 -> colors.secondaryContainer to colors.onSecondaryContainer
@@ -67,7 +67,7 @@ private fun cachedCourseTint(seed: Color, isDark: Boolean): Color {
 
 @Composable
 internal fun scheduleAccentColor(): Color =
-    if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.primary else Color(0xFF3482FF)
+    if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.primary else Color(0xFF3482FF)
 
 /**
  * 课卡文字色。

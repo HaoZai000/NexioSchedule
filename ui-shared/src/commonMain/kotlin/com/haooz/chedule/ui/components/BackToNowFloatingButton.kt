@@ -35,7 +35,8 @@ import androidx.compose.ui.zIndex
 import com.haooz.chedule.ui.components.GlassDragStretchRatio
 import com.haooz.chedule.ui.components.GlassDragTranslationDamping
 import com.haooz.chedule.ui.components.text.material.Text as Text
-import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.nexioui.interaction.InteractiveHighlight
+import com.haooz.softglass.GlassEnvironment
 import com.haooz.softglass.glass.BrightTone
 import com.haooz.softglass.glass.CustomizeFill
 import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
@@ -49,9 +50,9 @@ import com.haooz.softglass.backdrop.effects.runtimeShaderEffect
 import com.haooz.softglass.shape.ContinuousCapsule
 import kotlin.math.roundToInt
 import kotlin.math.tanh
-import top.yukonga.miuix.kmp.interactive.computeDragTransform
-import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.dropdown.computeDragTransform
+import com.haooz.nexioui.internal.drawBlurredPathShadow
+import com.haooz.nexioui.theme.NexioTheme
 
 /** 「回到今天/本周」悬浮按钮的柔光 shader 缓存键：尺寸与其他玻璃件不同，不能共用 uniform。 */
 private const val LIVE_BACK_TO_NOW_GLASS_KEY = "NexioSoftGlassLiveBackToNow"
@@ -79,16 +80,19 @@ fun BackToNowFloatingButton(
     val isLightTheme = !isAppDarkTheme()
     // 主题色半透明叠在玻璃上；无材质档改实色
     val resolvedContainerColor = if (isLightTheme) {
-        MiuixTheme.colorScheme.primary.copy(alpha = com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.72f))
+        NexioTheme.colorScheme.primary.copy(alpha = com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.72f))
     } else {
-        MiuixTheme.colorScheme.primary.copy(alpha = com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.62f))
+        NexioTheme.colorScheme.primary.copy(alpha = com.haooz.chedule.ui.utils.AppMaterialSettings.solidSurfaceAlpha(0.62f))
     }
 
     val interactiveHighlight = remember(animationScope) {
-        InteractiveHighlight(animationScope = animationScope)
+        InteractiveHighlight(
+            animationScope = animationScope,
+            isDark = { GlassEnvironment.isDark },
+        )
     }
 
-    val shadowColor = MiuixTheme.colorScheme.primary
+    val shadowColor = NexioTheme.colorScheme.primary
     val shadowAlpha = 0.4f
     val interactionSource = remember { MutableInteractionSource() }
     val buttonShape: Shape = ContinuousCapsule()
@@ -100,7 +104,7 @@ fun BackToNowFloatingButton(
     val buttonGlassStyle = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeGlassStyle(
         base = ScheduleSoftGlassStyle,
         isDark = !isLightTheme,
-        fill = CustomizeFill(MiuixTheme.colorScheme.primary),
+        fill = CustomizeFill(NexioTheme.colorScheme.primary),
         tone = BrightTone,
     )
     // drawBackdrop 按引用比较 shape / effects / onDrawSurface，lambda 每帧新建会重录采样层。
@@ -197,7 +201,7 @@ fun BackToNowFloatingButton(
                     shape = buttonShapeBlock,
                     effects = buttonEffects,
                     layerBlock = {
-                        // 与 LiquidGlassTextButton 同一套玻璃档手感
+                        // 与 TextButton 同一套玻璃档手感
                         val drag = computeDragTransform(
                             width = size.width,
                             height = size.height,

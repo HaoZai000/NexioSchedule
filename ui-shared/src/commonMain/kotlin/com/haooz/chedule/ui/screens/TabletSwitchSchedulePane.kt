@@ -49,7 +49,7 @@ import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SwitchStr
 import com.haooz.chedule.ui.activities.SwitchScheduleScreen
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.LocalPageStartPadding
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -61,17 +61,17 @@ import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.backdrop.backdrops.layerBackdrop
 import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.AddFolder
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
-import top.yukonga.miuix.kmp.overlay.LocalOverlayDialogBackdrop
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Add
+import com.haooz.nexioui.icon.extended.AddFolder
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
+import com.haooz.nexioui.overlaydialog.LocalOverlayDialogBackdrop
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /**
  * 平板切换课表：左右分栏。
@@ -126,7 +126,7 @@ fun TabletSwitchSchedulePane(
     }
 
     // 页面底色铺到屏幕边缘（含侧栏下），内容整体避让 —— background 在 padding 之前。
-    val paneSurface = MiuixTheme.colorScheme.surface
+    val paneSurface = NexioTheme.colorScheme.surface
     // 浮层采样层：页级 backdrop 只录一栏，跨栏浮层会一半采样到空层
     val overlayDialogBackdrop = rememberLayerBackdrop {
         drawRect(paneSurface)
@@ -151,7 +151,7 @@ fun TabletSwitchSchedulePane(
         // 内容自「状态栏 + 折叠标题」下方开始，与设置页 chromeTop 一致
         val chromeTop = topInset + collapsedH + 24.dp
         val maskHeight = topInset + 80.dp
-        val surfaceColor = MiuixTheme.colorScheme.surface
+        val surfaceColor = NexioTheme.colorScheme.surface
         val dividerColor =
             if (isAppDarkTheme()) Color.White.copy(alpha = 0.1f)
             else Color.Black.copy(alpha = 0.06f)
@@ -217,13 +217,13 @@ fun TabletSwitchSchedulePane(
                         .height(collapsedH),
                 ) {
                     if (isEditMode.value) {
-                        LiquidTopBarButton(
+                        IconButton(
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 isEditMode.value = false
                             },
                             backdrop = leftBackdrop,
-                            icon = MiuixIcons.Normal.Close,
+                            icon = NexioIcons.Normal.Close,
                             contentDescription = CommonStr.close(),
                             iconSize = 24.dp,
                             modifier = Modifier
@@ -237,7 +237,7 @@ fun TabletSwitchSchedulePane(
                         text = if (isEditMode.value) SwitchStr.editSchedule() else SwitchStr.switchSchedule(),
                         fontSize = 19.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface,
+                        color = NexioTheme.colorScheme.onSurface,
                         modifier = Modifier.align(Alignment.Center),
                         // 标题由 Box 的 align(Center) 居中摆位，落位也按中心收放
                         textAlign = TextAlign.Center,
@@ -250,25 +250,25 @@ fun TabletSwitchSchedulePane(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        LiquidTopBarButton(
+                        IconButton(
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 showAddDialog.value = true
                             },
                             backdrop = leftBackdrop,
-                            icon = MiuixIcons.Add,
+                            icon = NexioIcons.Add,
                             contentDescription = CommonStr.add(),
                             iconSize = 24.dp,
                             backdropAlpha = maskAlpha(),
                             shadowAlpha = maskAlpha(),
                         )
-                        LiquidTopBarButton(
+                        IconButton(
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 showAddFolderDialog.value = true
                             },
                             backdrop = leftBackdrop,
-                            icon = MiuixIcons.AddFolder,
+                            icon = NexioIcons.AddFolder,
                             contentDescription = SwitchStr.newFolder(),
                             iconSize = 26.dp,
                             backdropAlpha = maskAlpha(),
@@ -382,14 +382,14 @@ private fun SemesterSchedulePreview(
     modifier: Modifier = Modifier,
 ) {
     val hasCourses = courses.isNotEmpty()
-    val headerText = MiuixTheme.colorScheme.onSurfaceVariantSummary
-    val emptyHint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    val headerText = NexioTheme.colorScheme.onSurfaceVariantSummary
+    val emptyHint = NexioTheme.colorScheme.onSurface.copy(alpha = 0.45f)
     val scrollState = rememberScrollState()
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MiuixTheme.colorScheme.surface)
+            .background(NexioTheme.colorScheme.surface)
             .overScrollVertical()
             .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
             .verticalScroll(scrollState)
@@ -399,7 +399,7 @@ private fun SemesterSchedulePreview(
             text = scheduleName,
             fontSize = 22.sp,
             fontWeight = FontWeight.SemiBold,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

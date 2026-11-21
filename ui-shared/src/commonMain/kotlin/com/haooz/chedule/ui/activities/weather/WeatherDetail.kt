@@ -43,10 +43,10 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.time.Clock
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.card.PressFeedbackType
 
 /**
  * 「详细数据」：一张一张独立的正方形卡，一行两张
@@ -245,7 +245,7 @@ private fun Tile(
         insideMargin = PaddingValues(CARD_PAD),
         colors = CardDefaults.defaultColors(
             color = Color.Transparent,
-            contentColor = MiuixTheme.colorScheme.onSurface,
+            contentColor = NexioTheme.colorScheme.onSurface,
         ),
         // 缩放反馈在玻璃卡上会让四周透出底色、看起来像"压暗"，只保留点击的水波纹
         pressFeedbackType = PressFeedbackType.None,
@@ -256,7 +256,7 @@ private fun Tile(
             text = title,
             fontSize = TITLE_SP,
             lineHeight = 17.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -288,7 +288,7 @@ private fun ValueTile(
                         fontSize = VALUE_SP,
                         lineHeight = 35.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface,
+                        color = NexioTheme.colorScheme.onSurface,
                         maxLines = 1,
                     )
                     if (reading.unit.isNotBlank()) {
@@ -296,7 +296,7 @@ private fun ValueTile(
                         Text(
                             text = reading.unit,
                             fontSize = if (degree) 17.sp else UNIT_SP,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                             maxLines = 1,
                             modifier = Modifier.padding(top = if (degree) 5.dp else 0.dp, bottom = if (degree) 0.dp else 4.dp),
                         )
@@ -308,7 +308,7 @@ private fun ValueTile(
                         text = reading.caption,
                         fontSize = CAPTION_SP,
                         lineHeight = 18.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -366,7 +366,7 @@ private fun feelsColors(): List<Color> =
 
 @Composable
 private fun FillBar(frac: Float, color: Color) {
-    val track = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.16f)
+    val track = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.16f)
     // 画布比轨道高：圆角端点 + 高光才有地方画，也不会被父布局裁掉
     Canvas(Modifier.fillMaxWidth().height(14.dp)) {
         val barH = 6.dp.toPx()
@@ -421,7 +421,7 @@ private fun WindTile(
                 text = reading.value,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface,
+                color = NexioTheme.colorScheme.onSurface,
                 maxLines = 1,
             )
         }
@@ -437,11 +437,11 @@ private fun WindTile(
  */
 @Composable
 private fun WindDial(deg: Int?) {
-    val track = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.30f)
-    val ink = MiuixTheme.colorScheme.onSurface
+    val track = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.30f)
+    val ink = NexioTheme.colorScheme.onSurface
     // 中心圆是半透明玻璃，比卡片本身略亮一点，数字才有底可落。
     // 不能再取实心白/深灰：卡片已经是半透明的，实心圆会像贴上去的一块补丁。
-    val darkScheme = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+    val darkScheme = NexioTheme.colorScheme.surface.luminance() < 0.5f
     val hubFill = if (darkScheme) {
         Color.White.copy(alpha = 0.07f)
     } else {
@@ -553,10 +553,10 @@ private fun PressureTile(
     modifier: Modifier,
 ) {
     val pressure = snapshot.now.pressureHpa?.toDouble()
-    val accent = MiuixTheme.colorScheme.primary
+    val accent = NexioTheme.colorScheme.primary
     // 主题色必须在组合期取好：Canvas 的 draw lambda 里不能读 @Composable 属性
-    val base = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.22f)
-    val hint = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val base = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.22f)
+    val hint = NexioTheme.colorScheme.onSurfaceVariantSummary
     Tile(reading.label, onClick, modifier) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
             // 表盘直径 = 内容区的短边（标题吃掉 19dp 之后剩下的整块地）。
@@ -598,7 +598,7 @@ private fun PressureTile(
                     fontSize = 28.sp,
                     lineHeight = 30.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     maxLines = 1,
                 )
                 Text(
@@ -698,7 +698,7 @@ private fun SunTile(
                     text = reading.value,
                     fontSize = 19.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     maxLines = 1,
                 )
                 if (reading.caption.isNotBlank()) {
@@ -706,7 +706,7 @@ private fun SunTile(
                     Text(
                         text = reading.caption,
                         fontSize = 12.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                         maxLines = 1,
                     )
                 }
@@ -726,14 +726,14 @@ private fun SunClock(label: String, clock: String) {
         Text(
             text = label,
             fontSize = 11.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            color = NexioTheme.colorScheme.onSurfaceVariantSummary,
             maxLines = 1,
         )
         Spacer(Modifier.width(3.dp))
         Text(
             text = clock.ifBlank { "—" },
             fontSize = 12.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.9f),
+            color = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.9f),
             maxLines = 1,
         )
     }
@@ -747,9 +747,9 @@ private fun SunClock(label: String, clock: String) {
  */
 @Composable
 private fun SunArc(progress: Float?, modifier: Modifier) {
-    val track = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.22f)
+    val track = NexioTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.22f)
     val warm = Color(0xFFF6BE5C)
-    val surface = MiuixTheme.colorScheme.surface
+    val surface = NexioTheme.colorScheme.surface
     Canvas(modifier) {
         val baseY = size.height - 1.dp.toPx()
         val amp = size.height * 0.72f

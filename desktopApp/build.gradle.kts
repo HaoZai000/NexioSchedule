@@ -19,7 +19,6 @@ kotlin {
         jvmMain.dependencies {
             implementation(project(":ui-shared"))
             implementation(project(":core"))
-            implementation(project(":miuix"))
             implementation("com.github.HaoZai000.softglass:softglass:0.1.2")
             // Window / application
             implementation(compose.desktop.currentOs)

@@ -11,6 +11,22 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
+        version = "v1.7.3-1120",
+        date = "2026-11-20",
+        changes = listOf(
+            L("新增液态玻璃材质档位，底栏与滑块同步换新","Add a Liquid Glass material tier with a matching bottom bar and sliders"),
+            L("新增对话式 AI 教务导入，导入脚本可保存到云端复用","Add conversational AI academic import with cloud-saved, reusable scripts"),
+            L("新增本地 MCP 服务，可接入超级小爱","Add a local MCP service that plugs into Super Xiao Ai"),
+            L("AI 支持自带模型服务商与 API key，按会话计算次数","Support your own model provider and API key, with per-session quota"),
+            L("重写课表外观页，壁纸与玻璃调节更跟手","Rewrite the timetable appearance page for more responsive wallpaper and glass tuning"),
+            L("优化切页与转场性能，降低每帧开销","Improve page-turn and transition performance with lower per-frame cost"),
+            L("优化课中岛：固定状态、倒计时，地点精简覆盖展开态","Improve the in-class island with pinned state, countdown and shortened locations"),
+            L("优化天气页雨雪霜效果与整页流光","Improve rain, snow and frost effects plus the flowing background on the weather page"),
+            L("教务索引接入 edu-ai-dock，与拾光索引合并展示","Integrate edu-ai-dock and merge it with the Shiguang academic index"),
+            L("修复 AI 导入网页采色崩溃等问题","Fix crashes when sampling colors from pages during AI import"),
+        )
+    ),
+    ChangelogEntry(
         version = "v1.7.2-1116",
         date = "2026-11-16",
         changes = listOf(

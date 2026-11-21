@@ -34,13 +34,13 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.softglass.backdrop.GlassBackdrop
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Edit
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Edit
+import com.haooz.nexioui.overlaydialog.OverlayDialog
+import com.haooz.nexioui.theme.NexioTheme
 
 /** 弹窗里周一–周日的格子标签（按当前语言取值，勿缓存） */
 val SPECIAL_WEEK_LABELS: Array<String>
@@ -129,9 +129,9 @@ fun WeekDayRangeSelector(
                     .clip(ContinuousRoundedRectangle(10.dp))
                     .background(
                         when {
-                            selected -> MiuixTheme.colorScheme.primary
-                            occupied -> MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f)
-                            else -> MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                            selected -> NexioTheme.colorScheme.primary
+                            occupied -> NexioTheme.colorScheme.onSurface.copy(alpha = 0.04f)
+                            else -> NexioTheme.colorScheme.onSurface.copy(alpha = 0.08f)
                         }
                     )
                     .clickable(enabled = !occupied) { onDayToggle(day) },
@@ -139,11 +139,11 @@ fun WeekDayRangeSelector(
             ) {
                 Text(
                     text = SPECIAL_WEEK_LABELS[day - 1],
-                    style = MiuixTheme.textStyles.body2,
+                    style = NexioTheme.textStyles.body2,
                     color = when {
                         selected -> Color.White
-                        occupied -> MiuixTheme.colorScheme.onSurface.copy(alpha = 0.25f)
-                        else -> MiuixTheme.colorScheme.onSurface
+                        occupied -> NexioTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+                        else -> NexioTheme.colorScheme.onSurface
                     },
                     textAlign = TextAlign.Center,
                 )
@@ -182,7 +182,7 @@ fun SpecialItemEditDialog(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            NativeMiuixTextField(
+            TextField(
                 value = name,
                 onValueChange = onNameChange,
                 label = CourseEditStr.name(),
@@ -194,8 +194,8 @@ fun SpecialItemEditDialog(
             // 按连续区间分组显示：{1,3,4} → "周一 / 周三–周四"
             Text(
                 text = describeSpecialDays(selectedDays),
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                style = NexioTheme.textStyles.body2,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions
             )
             WeekDayRangeSelector(
                 selectedDays = selectedDays,
@@ -206,12 +206,12 @@ fun SpecialItemEditDialog(
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = onDismiss,
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.save(),
                     onClick = onSave,
                     colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -219,7 +219,7 @@ fun SpecialItemEditDialog(
                 )
             }
             if (isEditing) {
-                TextButton(
+                FlatTextButton(
                     text = CourseEditStr.deleteSpecialItem(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -239,13 +239,13 @@ private fun SpecialItemIconButton(
     icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
-    tint: Color = MiuixTheme.colorScheme.onBackground,
+    tint: Color = NexioTheme.colorScheme.onBackground,
 ) {
     Box(
         modifier = Modifier
             .size(38.dp)
             .clip(ContinuousCapsule())
-            .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+            .background(NexioTheme.colorScheme.onSurface.copy(alpha = 0.08f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -283,7 +283,7 @@ fun SpecialItemsEditorSection(
     var selectedDays by remember { mutableStateOf(setOf<Int>()) }
 
     Column(modifier = modifier.fillMaxWidth()) {
-        TextButton(
+        FlatTextButton(
             text = if (items.isEmpty()) CourseEditStr.noSpecialItems() else CourseEditStr.addSpecialItem(),
             onClick = {
                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -300,28 +300,28 @@ fun SpecialItemsEditorSection(
                     .fillMaxWidth()
                     .padding(top = 6.dp)
                     .clip(ContinuousRoundedRectangle(16.dp))
-                    .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f))
+                    .background(NexioTheme.colorScheme.onSurface.copy(alpha = 0.04f))
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = item.name.ifBlank { CourseEditStr.unnamed() },
-                        style = MiuixTheme.textStyles.body1,
-                        color = MiuixTheme.colorScheme.onSurface
+                        style = NexioTheme.textStyles.body1,
+                        color = NexioTheme.colorScheme.onSurface
                     )
                     Text(
                         text = describeSpecialItemDays(item),
                         // 与名称同字号：星期范围是这行真正要读的信息，
                         // 用 footnote2 太小，「周一–周五」在手机上几乎看不清
-                        style = MiuixTheme.textStyles.body1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        style = NexioTheme.textStyles.body1,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions
                     )
                 }
                 // 圆形图标按钮而不是「编辑 / 删除」文字按钮：文字按钮在窄屏弹窗里
                 // 会把名称那行挤到换行，改成两个等大的圆形按钮后名称有整行宽度
                 SpecialItemIconButton(
-                    icon = MiuixIcons.Edit,
+                    icon = NexioIcons.Edit,
                     contentDescription = CommonStr.edit(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)

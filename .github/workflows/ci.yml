@@ -3,7 +3,7 @@ name: CI
 # 门禁全部来自 docs/NAVIGATION_MIGRATION_HANDOFF.md 的「2. 门禁（每次改完必跑）」，
 # 这里只是把它自动化：
 #   1. checkKmpPurity                    已知 JVM 专有 API 静态扫描
-#   2. :core:check :miuix:check          默认态红线
+#   2. :core:check :ui-shared:check     默认态红线
 #   3. :core:jvmTest --rerun-tasks       单测（不许吃缓存）
 #   4. :androidApp:assembleDebug         Android 零回归
 #   5. :androidApp:minifyReleaseWithR8   release 混淆（缺类 / 缺 keep 规则只在这一步暴露）
@@ -66,8 +66,9 @@ jobs:
       - name: KMP purity
         run: ./gradlew checkKmpPurity
 
-      - name: Core gate (:core :miuix check)
-        run: ./gradlew :core:check :miuix:check
+      # miuix fork 已移除（控件迁到 NexioUI / SoftGlass），改成扫共享 UI 模块
+      - name: Core & UI gate (:core :ui-shared check)
+        run: ./gradlew :core:check :ui-shared:check
 
       - name: Core JVM tests
         run: ./gradlew :core:jvmTest --rerun-tasks

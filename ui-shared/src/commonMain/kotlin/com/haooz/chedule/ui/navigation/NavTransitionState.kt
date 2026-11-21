@@ -15,6 +15,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
+import com.haooz.chedule.ui.utils.skipDrawWhen
 import kotlin.math.roundToInt
 
 /**
@@ -100,14 +101,17 @@ fun rememberNavTransitionState(initialValue: Float = 0f): NavTransitionState =
     remember { NavTransitionState(initialValue) }
 
 /**
- * 主界面外层容器：按 [NavTransitionState] 施加视差，把子页之间的转场观感补到 main ↔ 首层子页这一段。压暗不在这里做 —— 统一由 `AppNavHost` 的全屏黑幕负责，否则首层会 42% 叠 42%。
+ * 主界面外层容器：按 [NavTransitionState] 施加视差，把子页之间的转场观感补到 main ↔ 首层子页这一段。压暗不在这里做
  *
- * ⚠ 位移用 `Modifier.layout` 自己 place：`offset` 把位移写进 constraints 导致整棵主界面树每帧 re-measure（pager / 玻璃采样跟着重测必掉帧）；`graphicsLayer { translationX }` 不重测但套离屏 layer，可能干扰页内 `layerBackdrop` 采样。
+ * 位移用 `Modifier.layout` 自己 place
+ *
+ * @param paused 主界面整层是否暂停绘制。默认「完全被推走即停画」
  */
 @Composable
 fun MainLayerTransition(
     state: NavTransitionState,
     modifier: Modifier = Modifier,
+    paused: () -> Boolean = { state.value >= 0.999f },
     content: @Composable () -> Unit,
 ) {
     // 只在「转场结束、主界面回到 0」时递增一次。draw 期订阅的是这个离散值：
@@ -132,6 +136,7 @@ fun MainLayerTransition(
         Box(
             modifier = modifier
                 .fillMaxSize()
+                .skipDrawWhen(paused)
                 .layout { measurable, constraints ->
                     // 原样 measure：不把位移写进 constraints，子节点才不会被迫重测
                     val placeable = measurable.measure(constraints)

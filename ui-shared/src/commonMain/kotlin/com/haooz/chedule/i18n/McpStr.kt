@@ -6,8 +6,8 @@ object McpStr {
     val entry = L("MCP 服务", "MCP Service")
     val localSection = L("手机本地 MCP", "On-device MCP")
     val entrySummary = L(
-        "本地课表服务与可选的云端连接",
-        "On-device schedule tools and optional cloud connection",
+        "让 AI 助手直接查询或修改 Nexio 课程表，支持可选的云端同步",
+        "Let AI assistants read or edit the Nexio schedule, with optional cloud sync",
     )
     val title = entry
 

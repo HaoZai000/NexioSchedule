@@ -1,8 +1,6 @@
 package com.haooz.chedule.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -45,31 +43,32 @@ import com.haooz.chedule.data.platform.createHttpService
 import com.haooz.chedule.i18n.AiStr
 import com.haooz.chedule.i18n.McpStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
-import com.haooz.chedule.ui.components.CardExpand
+import com.haooz.nexioui.cardexpand.CardExpand
+import com.haooz.nexioui.progressbar.ProgressBar
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.backdrop.GlassBackdrop
-import com.haooz.softglass.shape.ContinuousCapsule
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.NativeTextField
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.dropdown.DropdownDefaults
+import com.haooz.nexioui.dropdown.DropdownEntry
+import com.haooz.nexioui.dropdown.DropdownItem
+import androidx.compose.material3.Icon
+import com.haooz.nexioui.nativetextfield.NativeTextField
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.basic.ArrowRight
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /**
  * 「AI 功能」页：免费额度 + 自己的服务商（BYOK）+ 各功能入口。
@@ -93,7 +92,7 @@ fun AiFeaturesScreen(
     val isTablet = isTabletWidth()
     val horizontalPadding = if (isTablet) 20.dp else 16.dp
     val haptic = LocalHapticFeedback.current
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
 
     val http = remember { createHttpService(HttpTimeouts(connectSeconds = 10, readSeconds = 20)) }
     var capabilities by remember { mutableStateOf<AiCapabilities?>(null) }
@@ -205,7 +204,7 @@ fun AiFeaturesScreen(
                     end = horizontalPadding,
                     top = paddingValues.calculateTopPadding() +
                         CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        pageTopExtra(isTablet, hasSmallTitle = true),
+                        pageTopExtra(isTablet, hasSmallTitle = false),
                     bottom = 120.dp,
                 ),
         ) {
@@ -220,7 +219,8 @@ fun AiFeaturesScreen(
                     when {
                         loading -> Text(
                             text = AiStr.quotaLoading(),
-                            style = MiuixTheme.textStyles.body2,
+                            style = NexioTheme.textStyles.body2,
+                            fontSize = 14.sp,
                             color = theme.onSurfaceVariantSummary,
                         )
 
@@ -245,18 +245,20 @@ fun AiFeaturesScreen(
                         else -> Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = if (quotaError != null) AiStr.quotaUnavailable() else AiStr.serverDisabled(),
-                                style = MiuixTheme.textStyles.body1,
+                                style = NexioTheme.textStyles.body1,
+                                fontSize = 14.sp,
                                 color = theme.onSurface,
                             )
                             quotaError?.let { message ->
                                 Text(
                                     text = message,
-                                    style = MiuixTheme.textStyles.footnote2,
+                                    style = NexioTheme.textStyles.footnote2,
+                                    fontSize = 14.sp,
                                     color = theme.onSurfaceVariantSummary,
                                     modifier = Modifier.padding(top = 4.dp),
                                 )
                             }
-                            TextButton(
+                            FlatTextButton(
                                 text = AiStr.retry(),
                                 onClick = { reloadKey++ },
                                 modifier = Modifier
@@ -267,7 +269,7 @@ fun AiFeaturesScreen(
                     }
                     Text(
                         text = AiStr.quotaNote(),
-                        style = MiuixTheme.textStyles.footnote2,
+                        style = NexioTheme.textStyles.footnote2,
                         fontSize = 14.sp,
                         color = theme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(top = 14.dp),
@@ -323,9 +325,12 @@ fun AiFeaturesScreen(
 
                     // 免费额度与自填配置互斥：切换服务商时高度做展开/收起动画
                     CardExpand(visible = isFreeProvider) {
+                        // 显示名在服务端预设里填，没填就退回模型 ID
+                        val serverModel = capabilities?.modelDisplay?.takeIf { it.isNotBlank() }
+                            ?: capabilities?.model.orEmpty()
                         Text(
-                            text = AiStr.providerFreeNote(),
-                            fontSize = 13.sp,
+                            text = AiStr.providerFreeModel(serverModel),
+                            fontSize = 14.sp,
                             color = theme.onSurfaceVariantSummary,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
                         )
@@ -413,7 +418,7 @@ fun AiFeaturesScreen(
 
                             Text(
                                 text = AiStr.byokPrivacy(),
-                                style = MiuixTheme.textStyles.footnote2,
+                                style = NexioTheme.textStyles.footnote2,
                                 fontSize = 14.sp,
                                 color = theme.onSurfaceVariantSummary,
                                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 14.dp),
@@ -442,7 +447,7 @@ fun AiFeaturesScreen(
                                 ?: AiStr.testServerOk()
                             is AiTestState.Failed -> AiStr.testConnectionFailed(status.message)
                         },
-                        fontSize = if (status is AiTestState.Failed) 13.sp else 14.sp,
+                        fontSize = 17.sp,
                         color = when (status) {
                             is AiTestState.Ok -> theme.primary
                             is AiTestState.Failed -> theme.error
@@ -452,7 +457,7 @@ fun AiFeaturesScreen(
                             .weight(1f)
                             .padding(end = 12.dp),
                     )
-                    TextButton(
+                    FlatTextButton(
                         text = AiStr.testConnection(),
                         enabled = testState != AiTestState.Running,
                         onClick = { runConnectionTest() },
@@ -496,7 +501,7 @@ private sealed interface AiTestState {
 
 /**
  * 行内输入：左边标签、右边无边框输入区（与「添加课程」弹窗同一种写法）。
- * 不用带底框的 NativeMiuixTextField，避免卡片里再套一层卡片。
+ * 不用带底框的 TextField，避免卡片里再套一层卡片。
  */
 @Composable
 private fun InlineInputRow(
@@ -505,7 +510,7 @@ private fun InlineInputRow(
     onValueChange: (String) -> Unit,
     hint: String,
 ) {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -537,43 +542,35 @@ private fun InlineInputRow(
 
 @Composable
 private fun QuotaLine(label: String, used: Int, limit: Int) {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     val fraction = if (limit > 0) (used.toFloat() / limit).coerceIn(0f, 1f) else 0f
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = label,
-                fontSize = 16.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
                 color = theme.onSurface,
             )
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = AiStr.quotaRemaining((limit - used).coerceAtLeast(0)),
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 color = theme.primary,
             )
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .height(4.dp)
-                .background(theme.onSurfaceVariantActions.copy(alpha = 0.12f), ContinuousCapsule()),
-        ) {
-            if (fraction > 0f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction)
-                        .height(4.dp)
-                        .background(theme.primary, ContinuousCapsule()),
-                )
-            }
-        }
+        ProgressBar(
+            progress = fraction,
+            color = theme.primary,
+            foreground = theme.onSurfaceVariantActions,
+            darkSurface = isAppDarkTheme(),
+            modifier = Modifier.padding(top = 8.dp),
+        )
         Text(
             text = AiStr.quotaUsed(used, limit),
-            style = MiuixTheme.textStyles.footnote2,
+            style = NexioTheme.textStyles.footnote2,
+            fontSize = 14.sp,
             color = theme.onSurfaceVariantSummary,
             modifier = Modifier.padding(top = 6.dp),
         )
@@ -582,7 +579,7 @@ private fun QuotaLine(label: String, used: Int, limit: Int) {
 
 @Composable
 private fun FeatureRow(title: String, summary: String, onClick: () -> Unit) {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -599,14 +596,14 @@ private fun FeatureRow(title: String, summary: String, onClick: () -> Unit) {
             )
             Text(
                 text = summary,
-                fontSize = 13.sp,
+                fontSize = 14.sp,
                 color = theme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
         Spacer(modifier = Modifier.size(12.dp))
         Icon(
-            imageVector = MiuixIcons.Basic.ArrowRight,
+            imageVector = NexioIcons.Basic.ArrowRight,
             contentDescription = null,
             modifier = Modifier.size(16.dp),
             tint = theme.onSurfaceVariantActions,

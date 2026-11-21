@@ -101,7 +101,7 @@ import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.activities.main.MorePopupMenus
 import com.haooz.chedule.ui.activities.main.PageLockedTopBarTheme
 import com.haooz.chedule.ui.activities.main.PagerJumpNeighbor
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.CourseDetailSheet
 import com.haooz.chedule.ui.components.HorizontalPageSwitch
 import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
@@ -138,17 +138,17 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
-import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.LocalOverScrollState
-import top.yukonga.miuix.kmp.utils.OverScrollState
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Add
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.blurbottomsheet.LocalSheetContentBackdrop
+import com.haooz.nexioui.blurbottomsheet.LocalSheetTopBarMaterial
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.LocalOverScrollState
+import com.haooz.nexioui.overscroll.OverScrollState
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /**
  * 一页课表的几何快照，供长按浮层、落点检测与写库换算。
@@ -783,7 +783,7 @@ fun MainScheduleScreen(
             endAction = {
                 val scope = rememberCoroutineScope()
                 val material = LocalSheetTopBarMaterial.current
-                LiquidTopBarButton(
+                IconButton(
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         val course = selection.course.value ?: selection.courses.value.firstOrNull()
@@ -798,12 +798,12 @@ fun MainScheduleScreen(
                         }
                     },
                     backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
-                    icon = MiuixIcons.Add,
+                    icon = NexioIcons.Add,
                     contentDescription = SchedStr.addCourse(),
                     modifier = Modifier.padding(end = if (isTablet) 16.dp else 18.dp),
                     iconSize = 24.dp,
-                    containerColor = if (MiuixTheme.isDynamicColor) {
-                        MiuixTheme.colorScheme.surfaceContainerHigh
+                    containerColor = if (NexioTheme.isDynamicColor) {
+                        NexioTheme.colorScheme.surfaceContainerHigh
                             .copy(alpha = if (scheduleIsDark) 0.4f else 0.6f)
                     } else if (scheduleIsDark) {
                         Color(0xFF363636).copy(0.4f)
@@ -1588,7 +1588,7 @@ private fun WeekGridPage(
             )
 
             val gridReveal = rememberScheduleRevealState(config.showWeekGridLines)
-            val lineColor = MiuixTheme.colorScheme.onSurface.copy(
+            val lineColor = NexioTheme.colorScheme.onSurface.copy(
                 alpha = if (config.isDark) 0.09f else 0.05f
             )
             val sectionWidthDp = scheduleSectionColumnWidth(config.isTablet)
@@ -1943,7 +1943,7 @@ private fun BreakDivider(offsetY: Int, text: String, config: WeekPageConfig) {
     val density = LocalDensity.current
     val baseColor = when {
         config.hasWallpaper -> Color.Transparent
-        MiuixTheme.isDynamicColor -> MiuixTheme.colorScheme.surfaceContainerHigh
+        NexioTheme.isDynamicColor -> NexioTheme.colorScheme.surfaceContainerHigh
         config.isDark -> Color(0xFF121212)
         else -> Color(0xFFF0F0F0)
     }
@@ -1956,8 +1956,8 @@ private fun BreakDivider(offsetY: Int, text: String, config: WeekPageConfig) {
         surfaceAlphaAt12 + ((progress - 0.12f) / 0.88f) * (1f - surfaceAlphaAt12)
     }
     // 无壁纸底色保持实色，不随「卡片不透明度」变化
-    val surfaceColor = if (MiuixTheme.isDynamicColor) {
-        MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = surfaceAlpha)
+    val surfaceColor = if (NexioTheme.isDynamicColor) {
+        NexioTheme.colorScheme.surfaceContainerHigh.copy(alpha = surfaceAlpha)
     } else if (config.isDark) {
         Color(0xFF323232).copy(alpha = surfaceAlpha)
     } else {
@@ -1991,8 +1991,8 @@ private fun BreakDivider(offsetY: Int, text: String, config: WeekPageConfig) {
     ) {
         Text(
             text = text,
-            style = MiuixTheme.textStyles.footnote2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            style = NexioTheme.textStyles.footnote2,
+            color = NexioTheme.colorScheme.onSurfaceVariantActions,
             textAlign = TextAlign.Center,
         )
     }
@@ -2122,10 +2122,10 @@ private fun AnimatedDropTargetMask(
         }
 
         val solidColor =
-            (if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.primary else Color(0xFF9E9E9E))
+            (if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.primary else Color(0xFF9E9E9E))
                 .copy(alpha = if (isDark) 0.13f else 0.15f)
-        val glassSurface = if (MiuixTheme.isDynamicColor) {
-            MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (isDark) 0.64f else 0.5f)
+        val glassSurface = if (NexioTheme.isDynamicColor) {
+            NexioTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (isDark) 0.64f else 0.5f)
         } else if (isDark) {
             Color(0xFF242424).copy(alpha = 0.64f)
         } else {

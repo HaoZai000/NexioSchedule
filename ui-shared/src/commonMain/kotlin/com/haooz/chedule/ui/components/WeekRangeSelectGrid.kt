@@ -39,7 +39,7 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import kotlin.math.max
 import kotlin.math.min
 import com.haooz.softglass.shape.continuousClip
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 周次选择网格。
@@ -69,9 +69,9 @@ fun WeekRangeSelectGrid(
     val cellHeight = 32.dp
     val rows = (totalWeeks + columns - 1) / columns
 
-    val primaryColor = MiuixTheme.colorScheme.primary
-    val outlineColor = MiuixTheme.colorScheme.outline
-    val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val primaryColor = NexioTheme.colorScheme.primary
+    val outlineColor = NexioTheme.colorScheme.outline
+    val onSurfaceSummaryColor = NexioTheme.colorScheme.onSurfaceVariantSummary
     val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
     val defaultCardColor = if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
 

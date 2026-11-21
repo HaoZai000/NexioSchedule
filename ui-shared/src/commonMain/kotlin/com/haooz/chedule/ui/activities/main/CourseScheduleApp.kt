@@ -62,14 +62,14 @@ import com.haooz.chedule.ui.components.SharedFileIntent
 import com.haooz.chedule.ui.components.TabletNavSamplingTracker
 import com.haooz.chedule.ui.components.TabletNavSideState
 import com.haooz.chedule.ui.components.rememberPageSwitchState
-import com.haooz.chedule.ui.effects.motion.CUSTOMIZE_COVER_FADE_MILLIS
-import com.haooz.chedule.ui.effects.motion.CUSTOMIZE_COVER_SCALE_MILLIS
-import com.haooz.chedule.ui.effects.motion.CustomizePageEasing
-import com.haooz.chedule.ui.effects.motion.OOBE_HOME_ENTER_MILLIS
-import com.haooz.chedule.ui.effects.motion.OOBE_HOME_FADE_DELAY_MILLIS
-import com.haooz.chedule.ui.effects.motion.OOBE_HOME_FADE_MILLIS
-import com.haooz.chedule.ui.effects.motion.OobeHomeSpringEasing
-import com.haooz.chedule.ui.effects.motion.OobeSinOutEasing
+import com.haooz.nexioui.motion.CUSTOMIZE_COVER_FADE_MILLIS
+import com.haooz.nexioui.motion.CUSTOMIZE_COVER_SCALE_MILLIS
+import com.haooz.nexioui.motion.CustomizePageEasing
+import com.haooz.nexioui.motion.OOBE_HOME_ENTER_MILLIS
+import com.haooz.nexioui.motion.OOBE_HOME_FADE_DELAY_MILLIS
+import com.haooz.nexioui.motion.OOBE_HOME_FADE_MILLIS
+import com.haooz.nexioui.motion.OobeHomeSpringEasing
+import com.haooz.nexioui.motion.OobeSinOutEasing
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.utils.AppMaterialSettings
@@ -83,7 +83,7 @@ import com.haooz.chedule.ui.utils.rememberScheduleThemeMode
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.screenHeightDp
 import com.haooz.chedule.ui.utils.screenWidthDp
-import com.haooz.chedule.ui.utils.toShape
+import com.haooz.nexioui.window.toShape
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -107,9 +107,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
+import com.haooz.nexioui.theme.NexioTheme
 
 /**
  * 宿主注入的位图回收实现（Android = `asAndroidBitmap().recycle()`；其余平台留 `null` 交给 GC）。
@@ -754,7 +754,7 @@ fun CourseScheduleApp(
     // ── 11. 界面 ──────────────────────────────────────────────────────────────
     with(state) {
         // 开洞编辑器必须画在不透明的深底上：它自己要露出下面那一层真实主内容。
-        val shellBackground = if (showCustomizePage) Color(0xFF1A1A1A) else MiuixTheme.colorScheme.surface
+        val shellBackground = if (showCustomizePage) Color(0xFF1A1A1A) else NexioTheme.colorScheme.surface
         Box(modifier = Modifier.fillMaxSize().background(shellBackground)) {
             // 材质档位必须进 remember key：切档时这里要当场重算，否则卡片模糊 / 折射要等下次重启。
             val materialLevel = AppMaterialSettings.level
@@ -786,8 +786,8 @@ fun CourseScheduleApp(
             // 液态玻璃重录的跳帧指纹：结构量变了才 update → markNeedsRecord。
             // 必须 remember 出稳定 List，否则 equals 失败会强制重录（颜色 getter 是组合期的，
             // 先读到局部变量再进 remember）。
-            val dynamicColor = MiuixTheme.isDynamicColor
-            val scheme = MiuixTheme.colorScheme
+            val dynamicColor = NexioTheme.isDynamicColor
+            val scheme = NexioTheme.colorScheme
             val themeBackdropKey = remember(
                 dynamicColor,
                 scheme.background,
@@ -823,6 +823,11 @@ fun CourseScheduleApp(
                 scheduleShowCourseDetail.value,
                 weekPageState.settledPage,
                 themeBackdropKey,
+                // 编辑期外观/壁纸编辑值：它们变化时宿主本来就在重组（combinations/state 驱动），
+                // 进 recordKey 让各 layerBackdrop 节点各自独立补录一帧，取代编辑期 mustRecord 恒 true。
+                displayAppearance,
+                wallpaperOffset,
+                wallpaperScale,
             ) {
                 listOf(
                     mainTabPosition.currentPage, isShiftMode, showDetail, showCustomizePage,
@@ -831,6 +836,7 @@ fun CourseScheduleApp(
                     currentCombinationIndex, effectiveIsDark, wallpaperBitmap,
                     TabletNavSideState.expanded, scheduleShowCourseDetail.value,
                     weekPageState.settledPage, themeBackdropKey,
+                    displayAppearance, wallpaperOffset, wallpaperScale,
                 )
             }
 
@@ -838,7 +844,6 @@ fun CourseScheduleApp(
             //   `Animatable.value`，长按菜单模糊 / 开洞缩放 / 面板位移期间外壳会逐帧重组
             //   （实测长按后每 11~14ms 一次，整张课表跟着重跑）。lambda 里直接读即可，
             //   它只在 draw 阶段执行，订阅落在 draw 上。
-            val latestIsWindowCutout by rememberUpdatedState(isWindowCutoutActive)
             val latestShowCustomize by rememberUpdatedState(showCustomizePage)
             val latestIsCustomizeExiting by rememberUpdatedState(isCustomizeExiting)
 
@@ -876,8 +881,9 @@ fun CourseScheduleApp(
                             navSampling.moved() ||
                             forceRail ||
                             epochBumped ||
-                            // 开洞编辑时主内容持续缩放，绝不能停录
-                            latestIsWindowCutout ||
+                            // 开洞退出时主内容从 0.75 弹回 1，每帧录；进入的中间态由下面 cutoutMainScale 判断。
+                            // 外观/壁纸编辑期的值变化由 liquidGlassRecordKey 各节点独立补录，不走这里
+                            // （本闭包被 3 个节点共用，比较上次值会导致只有第一个节点看到变化）。
                             (latestShowCustomize && latestIsCustomizeExiting) ||
                             shortcutMenuBlurRadius.value > 0.01f ||
                             managePageBlurRadius.value > 0.01f ||

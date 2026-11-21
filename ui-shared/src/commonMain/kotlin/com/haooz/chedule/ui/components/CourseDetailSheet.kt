@@ -61,25 +61,24 @@ import com.haooz.chedule.data.model.truncateNote
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.NoteStr
 import com.haooz.chedule.i18n.SchedStr
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
-import com.haooz.chedule.ui.components.sheetContentBottomInset
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
-import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
-import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.extended.Close
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
+import com.haooz.nexioui.blurbottomsheet.LocalBlurBottomSheetContentExpanded
+import com.haooz.nexioui.blurbottomsheet.LocalSheetContentBackdrop
+import com.haooz.nexioui.blurbottomsheet.LocalSheetTopBarMaterial
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.card.PressFeedbackType
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /**
  * 课程详情底部弹窗（今日页与课程表页共用）。
@@ -121,10 +120,10 @@ fun CourseDetailSheet(
 ) {
     val startAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
-        LiquidTopBarButton(
+        IconButton(
             onClick = onDismiss,
             backdrop = LocalSheetContentBackdrop.current!!,
-            icon = MiuixIcons.Normal.Close,
+            icon = NexioIcons.Normal.Close,
             contentDescription = CommonStr.cancel(),
             modifier = Modifier.padding(start = if (isTablet) 16.dp else 18.dp),
             iconSize = 24.dp,
@@ -263,7 +262,7 @@ private fun CourseDetailCard(
 ) {
     val isCurrentWeek = course.isActiveInWeek(viewingWeek)
     // 时间染色、地点/教师走次要色：一条信息行里区分「几点上课」和「在哪、谁上」
-    val primaryColor = MiuixTheme.colorScheme.primary
+    val primaryColor = NexioTheme.colorScheme.primary
     val infoText = remember(course, isCurrentWeek, primaryColor) {
         buildAnnotatedString {
             withStyle(
@@ -323,14 +322,14 @@ private fun CourseDetailCard(
             pressFeedbackType = PressFeedbackType.None,
             showIndication = true,
             colors = CardDefaults.defaultColors(
-                color = if (MiuixTheme.isDynamicColor) {
-                    MiuixTheme.colorScheme.surfaceContainerHigh
+                color = if (NexioTheme.isDynamicColor) {
+                    NexioTheme.colorScheme.surfaceContainerHigh
                 } else if (isAppDarkTheme()) {
                     Color(0xFF303030)
                 } else {
                     Color(0xFFFFFFFF)
                 },
-                contentColor = MiuixTheme.colorScheme.onSurface,
+                contentColor = NexioTheme.colorScheme.onSurface,
             ),
             onClick = {
                 val coursesForDetail = allCourses.filter { it.name == course.name }
@@ -370,9 +369,9 @@ private fun CourseDetailCard(
                                 Text(
                                     text = course.name,
                                     modifier = Modifier.weight(1f),
-                                    style = MiuixTheme.textStyles.body1.copy(fontSize = 17.sp),
+                                    style = NexioTheme.textStyles.body1.copy(fontSize = 17.sp),
                                     fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface,
+                                    color = NexioTheme.colorScheme.onSurface,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
@@ -389,8 +388,8 @@ private fun CourseDetailCard(
                             Text(
                                 text = infoText,
                                 modifier = Modifier.weight(1f),
-                                style = MiuixTheme.textStyles.body2.copy(fontSize = 14.sp),
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                style = NexioTheme.textStyles.body2.copy(fontSize = 14.sp),
+                                color = NexioTheme.colorScheme.onSurfaceVariantSummary,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -398,9 +397,9 @@ private fun CourseDetailCard(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
                                     text = CommonStr.edit(),
-                                    style = MiuixTheme.textStyles.body2.copy(fontSize = 14.sp),
+                                    style = NexioTheme.textStyles.body2.copy(fontSize = 14.sp),
                                     fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.primary,
+                                    color = NexioTheme.colorScheme.primary,
                                     modifier = Modifier
                                         .clip(ContinuousRoundedRectangle(8.dp))
                                         .clickable { onEdit(course) }
@@ -429,8 +428,8 @@ private fun WeekBadge(
     modifier: Modifier = Modifier,
 ) {
     if (text.isBlank()) return
-    val accent = MiuixTheme.colorScheme.primary
-    val idle = MiuixTheme.colorScheme.onSurfaceVariantActions
+    val accent = NexioTheme.colorScheme.primary
+    val idle = NexioTheme.colorScheme.onSurfaceVariantActions
     Box(
         modifier = modifier
             .clip(ContinuousRoundedRectangle(7.dp))
@@ -509,7 +508,7 @@ private fun CourseNoteBlock(
     }
 
     // 备注做成卡片里的一块浅底便签：与主信息分开，又不用再加一条分隔线
-    val accent = MiuixTheme.colorScheme.primary
+    val accent = NexioTheme.colorScheme.primary
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -520,7 +519,7 @@ private fun CourseNoteBlock(
                 when {
                     editing -> accent.copy(alpha = 0.06f)
                     shown.isNotBlank() -> accent.copy(alpha = 0.06f)
-                    else -> MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.05f)
+                    else -> NexioTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.05f)
                 }
             )
             .pointerInput(editing) {
@@ -565,7 +564,7 @@ private fun CourseNoteBlock(
             Text(
                 text = NoteStr.addNote(),
                 fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                color = NexioTheme.colorScheme.onSurfaceVariantActions,
             )
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -579,7 +578,7 @@ private fun CourseNoteBlock(
                 Text(
                     text = shown,
                     fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = NexioTheme.colorScheme.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -613,12 +612,12 @@ private fun NoteDraftField(
             .onFocusChanged { state ->
                 if (state.isFocused) hadFocus = true else if (hadFocus) onFocusLost()
             },
-        textStyle = MiuixTheme.textStyles.body2.copy(
+        textStyle = NexioTheme.textStyles.body2.copy(
             fontSize = 14.sp,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = NexioTheme.colorScheme.onSurface,
         ),
         singleLine = true,
-        cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
+        cursorBrush = SolidColor(NexioTheme.colorScheme.primary),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { onDone() }),
         decorationBox = { inner ->
@@ -627,7 +626,7 @@ private fun NoteDraftField(
                     Text(
                         text = NoteStr.notePlaceholder(),
                         fontSize = 14.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
                     )
                 }
                 inner()
@@ -642,13 +641,13 @@ private fun NoteScopeChip(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val accent = MiuixTheme.colorScheme.primary
+    val accent = NexioTheme.colorScheme.primary
     Box(
         modifier = Modifier
             .clip(ContinuousRoundedRectangle(9.dp))
             .background(
                 if (selected) accent.copy(alpha = 0.14f)
-                else MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.06f)
+                else NexioTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.06f)
             )
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp),
@@ -658,7 +657,7 @@ private fun NoteScopeChip(
             text = text,
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-            color = if (selected) accent else MiuixTheme.colorScheme.onSurfaceVariantActions,
+            color = if (selected) accent else NexioTheme.colorScheme.onSurfaceVariantActions,
         )
     }
 }

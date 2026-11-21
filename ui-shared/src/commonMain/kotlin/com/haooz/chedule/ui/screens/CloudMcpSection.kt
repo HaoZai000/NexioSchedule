@@ -33,7 +33,7 @@ import com.haooz.chedule.data.mcp.CloudMcpUploadPreview
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.McpStr
 import com.haooz.chedule.ui.components.PrivateSettingField
-import com.haooz.chedule.ui.components.text.miuix.Text
+import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.screens.applyScheduleData
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -41,12 +41,12 @@ import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.switchpreference.SwitchPreference
+import com.haooz.nexioui.theme.NexioTheme
 
 /** 独立可选扩展；打开页面不会联网或上传，所有外发由明确按钮触发。 */
 @Composable
@@ -59,7 +59,7 @@ fun CloudMcpSection(
     val controller = CloudMcpBridge.controller
     if (!controller.supported) return
 
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     val scope = rememberCoroutineScope()
     var url by remember { mutableStateOf("") }
     var token by remember { mutableStateOf("") }
@@ -161,7 +161,7 @@ fun CloudMcpSection(
                     }
                     else -> McpStr.cloudIdle()
                 },
-                style = MiuixTheme.textStyles.footnote2,
+                style = NexioTheme.textStyles.footnote2,
                 fontSize = 13.sp,
                 color = theme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
@@ -173,7 +173,7 @@ fun CloudMcpSection(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(
+                FlatTextButton(
                     text = McpStr.save(),
                     enabled = !loading && !busy,
                     onClick = {
@@ -192,7 +192,7 @@ fun CloudMcpSection(
                     cornerRadius = 100.dp,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                TextButton(
+                FlatTextButton(
                     text = if (busy) McpStr.working() else McpStr.test(),
                     enabled = enabled && !loading && !busy && !dirty && url.isNotBlank() && token.isNotBlank(),
                     onClick = {
@@ -211,7 +211,7 @@ fun CloudMcpSection(
             }
             Text(
                 text = McpStr.cloudPrivacy(),
-                style = MiuixTheme.textStyles.footnote2,
+                style = NexioTheme.textStyles.footnote2,
                 fontSize = 13.sp,
                 color = theme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
@@ -232,14 +232,14 @@ fun CloudMcpSection(
                     )
                     Text(
                         text = McpStr.uploadHint(),
-                        style = MiuixTheme.textStyles.footnote2,
+                        style = NexioTheme.textStyles.footnote2,
                         fontSize = 13.sp,
                         color = theme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                TextButton(
+                FlatTextButton(
                     text = if (busy) McpStr.working() else McpStr.uploadAction(),
                     enabled = enabled && !dirty && !busy && !loading && url.isNotBlank() && token.isNotBlank(),
                     onClick = {
@@ -280,7 +280,7 @@ fun CloudMcpSection(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    TextButton(
+                    FlatTextButton(
                         text = McpStr.cancel(),
                         onClick = { preview = null; uploadConfig = null },
                         enabled = !busy,
@@ -290,11 +290,11 @@ fun CloudMcpSection(
                         cornerRadius = 100.dp,
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(
+                    FlatTextButton(
                         text = McpStr.confirmUpload(),
                         enabled = !busy,
                         onClick = {
-                            val config = uploadConfig ?: return@TextButton
+                            val config = uploadConfig ?: return@FlatTextButton
                             runAction {
                                 status = controller.confirmUpload(config, pending)
                                 preview = null
@@ -333,14 +333,14 @@ fun CloudMcpSection(
                     )
                     Text(
                         text = McpStr.downloadHint(),
-                        style = MiuixTheme.textStyles.footnote2,
+                        style = NexioTheme.textStyles.footnote2,
                         fontSize = 13.sp,
                         color = theme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                TextButton(
+                FlatTextButton(
                     text = if (busy) McpStr.working() else McpStr.downloadAction(),
                     enabled = enabled && !busy && !loading && url.isNotBlank() && token.isNotBlank(),
                     onClick = {
@@ -374,7 +374,7 @@ fun CloudMcpSection(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    TextButton(
+                    FlatTextButton(
                         text = McpStr.cancel(),
                         onClick = { download = null; downloadConfig = null },
                         enabled = !busy,
@@ -384,11 +384,11 @@ fun CloudMcpSection(
                         cornerRadius = 100.dp,
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(
+                    FlatTextButton(
                         text = McpStr.downloadConfirm(),
                         enabled = !busy,
                         onClick = {
-                            val config = downloadConfig ?: return@TextButton
+                            val config = downloadConfig ?: return@FlatTextButton
                             runAction {
                                 val targetName = uniqueScheduleName(pending.scheduleName) {
                                     scheduleViewModel.scheduleNames.value
@@ -423,7 +423,7 @@ fun CloudMcpSection(
 
 @Composable
 private fun CloudDivider() {
-    val theme = MiuixTheme.colorScheme
+    val theme = NexioTheme.colorScheme
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 16.dp),
         thickness = 0.5.dp,

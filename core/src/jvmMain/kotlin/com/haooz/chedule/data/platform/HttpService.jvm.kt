@@ -10,7 +10,7 @@ import kotlinx.coroutines.withContext
  * JVM / 桌面实现：`HttpURLConnection`（纯 JDK）。仅用于验证 commonMain 可编译。
  * 与 Android 的差异：`PROPFIND`/`MKCOL` 等方法可能抛 `ProtocolException`，4xx/5xx 走 `errorStream`。
  */
-actual fun createHttpService(timeouts: HttpTimeouts): HttpService = UrlConnectionHttpService(timeouts)
+actual fun createPlatformHttpService(timeouts: HttpTimeouts): HttpService = UrlConnectionHttpService(timeouts)
 
 private class UrlConnectionHttpService(private val timeouts: HttpTimeouts) : HttpService {
 

@@ -19,7 +19,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.utils.OverscrollMath
+import com.haooz.nexioui.overscroll.OverscrollMath
 
 /** 横向切页位置来源：页间位置与越界量，单位均为页。 */
 @Stable

@@ -1,13 +1,5 @@
 /**
  * 「导入课表」确认弹窗 —— 口令取回 / 文件导入 / 外部分享三处共用一份。
- *
- * 为什么抽出来：撞名以前只有一条死路。[applyScheduleData] 撞名直接返回「课表已存在」，
- * 于是「手机改名后往平板同步同一张表」必定失败：平板提示已存在，课程一条都进不来，
- * 用户只能干看着（见 2026-10-28 反馈）。现在按输入的名字**实时**判冲突：
- * 撞名时说明改成「覆盖」口径、主按钮改文案，由用户决定覆盖还是改个名字另存。
- *
- * ⚠ 名字是**上提状态**（[scheduleName] + [onScheduleNameChange]），不在本组件里 remember：
- * 内部持有就得在 show 翻转时同步一次，会先闪一帧旧名字（退出动画期间又不能清，见 CardExpand 的老坑）。
  */
 package com.haooz.chedule.ui.components
 
@@ -24,10 +16,10 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.CommonStr
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import com.haooz.nexioui.button.ButtonDefaults
+import com.haooz.nexioui.textfield.TextField
+import com.haooz.nexioui.button.FlatTextButton
+import com.haooz.nexioui.overlaydialog.OverlayDialog
 
 /**
  * @param show 是否呈现；组件本身始终挂载（靠它驱动进出场动画，别用 `if` 包）
@@ -67,7 +59,7 @@ fun ScheduleImportConfirmDialog(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            NativeMiuixTextField(
+            TextField(
                 value = scheduleName,
                 onValueChange = onScheduleNameChange,
                 label = BackupStr.scheduleNameLabel(),
@@ -78,7 +70,7 @@ fun ScheduleImportConfirmDialog(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
+                FlatTextButton(
                     text = CommonStr.cancel(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -86,10 +78,10 @@ fun ScheduleImportConfirmDialog(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
+                FlatTextButton(
                     text = if (conflict) BackupStr.overwriteImport() else BackupStr.confirmImport(),
                     onClick = {
-                        if (trimmedName.isEmpty()) return@TextButton
+                        if (trimmedName.isEmpty()) return@FlatTextButton
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         onConfirm(trimmedName, conflict)
                     },

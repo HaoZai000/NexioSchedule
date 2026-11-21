@@ -53,18 +53,18 @@ import com.haooz.chedule.viewmodel.scheduleViewModel
 import com.haooz.chedule.viewmodel.settingsViewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.NativeTextField
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.collapsibleTopInset
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.nativetextfield.NativeTextField
+import com.haooz.nexioui.scaffold.Scaffold
+import com.haooz.nexioui.smalltitle.SmallTitle
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 /**
  * WebDAV 页底部「立即恢复」按钮状态：页面写入，路由 overlay 绘制。
@@ -317,7 +317,7 @@ fun WebDavSettingsScreen(
                                     modifier = Modifier.weight(1f),
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                    color = NexioTheme.colorScheme.onSurface
                                 )
                                 NativeTextField(
                                     value = serverUrl,
@@ -344,7 +344,7 @@ fun WebDavSettingsScreen(
                                     modifier = Modifier.weight(1f),
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                    color = NexioTheme.colorScheme.onSurface
                                 )
                                 NativeTextField(
                                     value = remotePath,
@@ -370,7 +370,7 @@ fun WebDavSettingsScreen(
                                     modifier = Modifier.weight(1f),
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                    color = NexioTheme.colorScheme.onSurface
                                 )
                                 NativeTextField(
                                     value = username,
@@ -397,7 +397,7 @@ fun WebDavSettingsScreen(
                                     modifier = Modifier.weight(1f),
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                    color = NexioTheme.colorScheme.onSurface
                                 )
                                 NativeTextField(
                                     value = password,
@@ -428,14 +428,14 @@ fun WebDavSettingsScreen(
                             else statusText.ifBlank { MiscStr.noOperationRecord() },
                             fontSize = 14.sp,
                             color = if (statusText.isNotBlank() && statusIsError)
-                                ComposeColor(0xFFF44336) else MiuixTheme.colorScheme.onSurfaceVariantActions
+                                ComposeColor(0xFFF44336) else NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = if (!isConfigured) MiscStr.cloudBackupAfterConfig()
                             else lastSyncText.ifBlank { MiscStr.neverOperated() },
                             fontSize = 12.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                 }
@@ -445,21 +445,21 @@ fun WebDavSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                        colors = CardDefaults.defaultColors(color = NexioTheme.colorScheme.surface),
                     ) {
                         Column {
                             Text(
                                 text = MiscStr.nutstoreStepsTitle(),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface
+                                color = NexioTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = MiscStr.nutstoreStepsDetail(),
                                 fontSize = 13.sp,
                                 lineHeight = 20.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions
                             )
                         }
                     }
@@ -470,21 +470,21 @@ fun WebDavSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                        colors = CardDefaults.defaultColors(color = NexioTheme.colorScheme.surface),
                     ) {
                         Column {
                             Text(
                                 text = MiscStr.backupRestoreNotesTitle(),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface
+                                color = NexioTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = MiscStr.backupRestoreNotesDetail(),
                                 fontSize = 13.sp,
                                 lineHeight = 20.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                color = NexioTheme.colorScheme.onSurfaceVariantActions
                             )
                         }
                     }

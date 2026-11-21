@@ -551,6 +551,7 @@ internal class EduAgentSession {
                         courseCount = run.courseCount,
                         script = script,
                         pageUrl = entryUrl,
+                        sessionId = sessionId,
                     )
                 } else null
                 payload to draft

@@ -70,7 +70,8 @@ import com.haooz.softglass.glass.ThemeFill
 import com.haooz.softglass.glass.SOFT_GLASS_LIVE_SHADER
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.softglass.glass.applySoftGlass
-import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.nexioui.interaction.InteractiveHighlight
+import com.haooz.softglass.GlassEnvironment
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -84,16 +85,16 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.interactive.DropdownMaskMode
-import top.yukonga.miuix.kmp.interactive.DropdownPanelDragSelectState
-import top.yukonga.miuix.kmp.interactive.LocalDropdownPanelDragSelect
-import top.yukonga.miuix.kmp.interactive.computeDragTransform
-import top.yukonga.miuix.kmp.interactive.dropdownPanelDragSelect
-import top.yukonga.miuix.kmp.interactive.dropdownPanelEntry
-import top.yukonga.miuix.kmp.interactive.dropdownPanelSlidingMask
-import top.yukonga.miuix.kmp.internal.drawBlurredPathShadow
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.rememberNavigationBack
+import com.haooz.nexioui.dropdown.DropdownMaskMode
+import com.haooz.nexioui.dropdown.DropdownPanelDragSelectState
+import com.haooz.nexioui.dropdown.LocalDropdownPanelDragSelect
+import com.haooz.nexioui.dropdown.computeDragTransform
+import com.haooz.nexioui.dropdown.dropdownPanelDragSelect
+import com.haooz.nexioui.dropdown.dropdownPanelEntry
+import com.haooz.nexioui.dropdown.dropdownPanelSlidingMask
+import com.haooz.nexioui.internal.drawBlurredPathShadow
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.navigationback.rememberNavigationBack
 
 /** 外层为阴影预留的内缩；外部按占位槽真实位置摆放本控件时需减掉它。跨模块须 public。 */
 val LiquidGlassDropdownShadowPadding = 24.dp
@@ -159,7 +160,7 @@ fun LiquidGlassDropdownMenu(
 ) {
     val isLightTheme = !isAppDarkTheme()
     // 与顶栏液态玻璃按钮同色（同一个 alpha 来源；浅深各一档）：收起态即那颗按钮，形变过程中玻璃不突变
-    val containerColor = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainer
+    val containerColor = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainer
         .copy(alpha = AppMaterialSettings.glassSurfaceAlpha(if (isLightTheme) 0.76f else 0.84f, isLightTheme))
     else if (isLightTheme) Color(0xFFFAFAFA).copy(AppMaterialSettings.glassSurfaceAlpha(0.76f, isLight = true))
         else Color(0xFF242424).copy(AppMaterialSettings.glassSurfaceAlpha(0.84f, isLight = false))
@@ -207,13 +208,14 @@ fun LiquidGlassDropdownMenu(
     val interactiveHighlight = remember(coroutineScope) {
         InteractiveHighlight(
             animationScope = coroutineScope,
-            radiusScale = { 1f - 0.6f * fraction.value.coerceIn(0f, 1f) },
-            // 半径上限 150dp：不用 minDimension，否则菜单项越多面板越高、光晕越大。
-            // 收起态是 42dp 小圆，min 会自动退回自身尺寸，光晕不会漫出圆外。
+            radiusScale = { 1f - 0.3f * fraction.value.coerceIn(0f, 1f) },
+            // 固定 150dp 基准：不用 minDimension，否则菜单项越多面板越高、光晕越大。
+            // 展开时再乘 0.7 的 scale，光斑约 157dp；收起态按完整基准画，被自身边界裁住。
             radiusBaseDp = 150.dp,
+            isDark = { GlassEnvironment.isDark },
         )
     }
-    // 与 LiquidGlassTextButton 同一套：拉伸交给 drawBackdrop 的 layerBlock，源库采样时自动逆缩放
+    // 与 TextButton 同一套：拉伸交给 drawBackdrop 的 layerBlock，源库采样时自动逆缩放
     val glassLayerBlock: GraphicsLayerScope.() -> Unit = remember(interactiveHighlight, fraction) {
         {
             val drag = computeDragTransform(

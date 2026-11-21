@@ -46,6 +46,7 @@ import com.haooz.chedule.ui.navigation.AppreciateAuthorRoute
 import com.haooz.chedule.ui.navigation.BackupAndMigrationRoute
 import com.haooz.chedule.ui.navigation.BackupCenterRoute
 import com.haooz.chedule.ui.navigation.ChangelogRoute
+import com.haooz.chedule.ui.navigation.McpServiceRoute
 import com.haooz.chedule.ui.navigation.WeatherRoute
 import com.haooz.chedule.ui.navigation.CommunicationRoute
 import com.haooz.chedule.ui.navigation.CourseManageRoute
@@ -344,6 +345,12 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
         AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
         AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
         AppRoute.AiFeatures -> AiFeaturesRoute(router)
+        AppRoute.McpService -> McpServiceRoute(
+            router = router,
+            onCopyToClipboard = { text ->
+                UIPasteboard.generalPasteboard.string = text
+            },
+        )
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
         // 带注入的文档壳：iOS 用默认 Noop 能力，剪贴板注入 UIPasteboard
         AppRoute.PreferenceSettings -> PreferenceSettingsRoute(router)

@@ -63,17 +63,17 @@ import com.haooz.chedule.ui.utils.schedulePageBackgroundColor
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import com.haooz.chedule.ui.components.sheetContentBottomInset
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.isTabletWidth
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.nexioui.card.Card
+import com.haooz.nexioui.card.CardDefaults
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.window.isTabletWidth
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheet
+import com.haooz.nexioui.blurbottomsheet.BlurBottomSheetTablet
+import com.haooz.nexioui.blurbottomsheet.LocalBlurBottomSheetContentExpanded
+import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.card.PressFeedbackType
+import com.haooz.nexioui.overscroll.overScrollVertical
+import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 internal data class ShiftSchedulePageDayRangeKey(
     val week: Int,
@@ -271,7 +271,7 @@ fun ShiftScheduleScreen(
 
                 val dividerShape = ContinuousRoundedRectangle(12.dp)
                 val dividerHorizontalPadding = if (isTablet) 24.dp else 4.dp
-                val dividerBaseColor = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh
+                val dividerBaseColor = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh
                     else if (isDark) Color(0xFF121212) else Color(0xFFF0F0F0)
 
                 @Composable
@@ -286,8 +286,8 @@ fun ShiftScheduleScreen(
                     ) {
                         Text(
                             text = text,
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            style = NexioTheme.textStyles.footnote2,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
                             textAlign = TextAlign.Center,
                         )
                     }
@@ -327,8 +327,8 @@ fun ShiftScheduleScreen(
                     pressFeedbackType = PressFeedbackType.None,
                     showIndication = true,
                     colors = CardDefaults.defaultColors(
-                        color = if (MiuixTheme.isDynamicColor) MiuixTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
-                        contentColor = MiuixTheme.colorScheme.onSurface
+                        color = if (NexioTheme.isDynamicColor) NexioTheme.colorScheme.surfaceContainerHigh else if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
+                        contentColor = NexioTheme.colorScheme.onSurface
                     )
                 ) {
                     Column(
@@ -338,15 +338,15 @@ fun ShiftScheduleScreen(
                     ) {
                         Text(
                             text = scheduleName,
-                            style = MiuixTheme.textStyles.body1.copy(fontSize = 17.sp),
+                            style = NexioTheme.textStyles.body1.copy(fontSize = 17.sp),
                             fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface
+                            color = NexioTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "${course.name}  ${course.timeDisplayTextLocalized()}",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            style = NexioTheme.textStyles.footnote1,
+                            color = NexioTheme.colorScheme.onSurfaceVariantActions
                         )
                     }
                 }

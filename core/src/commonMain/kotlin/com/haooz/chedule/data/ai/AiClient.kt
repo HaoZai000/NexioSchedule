@@ -21,6 +21,10 @@ data class AiCapabilities(
     val tasks: List<String>,
     /** 该设备今天的免费额度；没带 device_id 或服务端没给时为 null */
     val quota: AiQuota? = null,
+    /** 服务端当前模型 ID，仅兜底展示；客户端不拿它做判断，调用只发任务名 */
+    val model: String = "",
+    /** App 上显示的名字（服务端预设的别名，如 `hy4` → `Hy4`），优先用它 */
+    val modelDisplay: String = "",
 )
 
 /** 免费额度的今日用量（按设备）。 */
@@ -162,6 +166,8 @@ class AiClient(
                 enabled = obj.optString("enabled").toBoolean(),
                 tasks = tasks,
                 quota = quota,
+                model = obj.optString("model").trim(),
+                modelDisplay = obj.optString("model_display").trim(),
             )
         )
     }

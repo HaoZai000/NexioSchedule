@@ -42,7 +42,7 @@ import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SchedStr
 import com.haooz.chedule.ui.activities.main.PageMoreMenuState
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.nexioui.iconbutton.IconButton
 import com.haooz.chedule.ui.components.LocalChromeStartInset
 import com.haooz.chedule.ui.components.tabletNavRailStartPadding
 import com.haooz.chedule.ui.components.text.LocalTextMotionInstant
@@ -56,17 +56,17 @@ import com.haooz.softglass.backdrop.backdrops.LayerBackdrop
 import com.haooz.softglass.platform.isRenderEffectSupported
 import kotlin.math.roundToInt
 import kotlinx.datetime.LocalDate
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.FastForward
-import top.yukonga.miuix.kmp.icon.extended.Background
-import top.yukonga.miuix.kmp.icon.extended.ConvertFile
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
-import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight
-import top.yukonga.miuix.kmp.layout.NoStatusBarBlurReduction
-import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
-import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
-import top.yukonga.miuix.kmp.layout.rememberTopBarMaterialState
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.nexioui.icon.NexioIcons
+import com.haooz.nexioui.icon.basic.FastForward
+import com.haooz.nexioui.icon.extended.Background
+import com.haooz.nexioui.icon.extended.ConvertFile
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBar
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults.CollapsedHeight
+import com.haooz.nexioui.progressiveblurtopbar.NoStatusBarBlurReduction
+import com.haooz.nexioui.progressiveblurtopbar.ProgressiveBlurTopBar
+import com.haooz.nexioui.topappbar.SharedScrollBehavior
+import com.haooz.nexioui.topbarmaterial.rememberTopBarMaterialState
+import com.haooz.nexioui.theme.NexioTheme
 
 private val DAY_NAMES = listOf(
     CommonStr.weekdayMon, CommonStr.weekdayTue, CommonStr.weekdayWed, CommonStr.weekdayThu,
@@ -230,19 +230,19 @@ fun ScheduleTopBar(
                         ) {
                             if (isTablet) {
                                 // 平板的切换课表/课程管理已在侧栏，右上角放跳转周数 + 课表外观
-                                LiquidTopBarButton(
+                                IconButton(
                                     onClick = onJumpWeek,
                                     backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Basic.FastForward,
+                                    icon = NexioIcons.Basic.FastForward,
                                     contentDescription = SchedStr.jumpToWeek(),
                                     iconSize = 23.dp,
                                     backdropAlpha = backdropAlpha,
                                     shadowAlpha = shadowAlpha,
                                 )
-                                LiquidTopBarButton(
+                                IconButton(
                                     onClick = onEnterCustomize,
                                     backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Background,
+                                    icon = NexioIcons.Background,
                                     contentDescription = SchedStr.scheduleAppearance(),
                                     iconSize = 23.dp,
                                     backdropAlpha = backdropAlpha,
@@ -250,10 +250,10 @@ fun ScheduleTopBar(
                                 )
                             } else {
                                 if (!isShiftMode && !hostOwnsTopRight) {
-                                    LiquidTopBarButton(
+                                    IconButton(
                                         onClick = onOpenSwitchSchedule,
                                         backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.Normal.ConvertFile,
+                                        icon = NexioIcons.Normal.ConvertFile,
                                         contentDescription = SchedStr.switchSchedule(),
                                         iconSize = 27.dp,
                                         backdropAlpha = backdropAlpha,
@@ -382,10 +382,10 @@ private fun DayOfWeekRow(
                 ) {
                     Text(
                         text = DAY_NAMES[cell.dayOfWeek - 1](),
-                        style = MiuixTheme.textStyles.footnote1.copy(
+                        style = NexioTheme.textStyles.footnote1.copy(
                             fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
                         ),
-                        color = if (isToday) todayHighlightColor else MiuixTheme.colorScheme.onSurface,
+                        color = if (isToday) todayHighlightColor else NexioTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center,
                     )
                     if (dateText != null) {
@@ -393,9 +393,9 @@ private fun DayOfWeekRow(
                         CompositionLocalProvider(LocalTextMotionInstant provides true) {
                             Text(
                                 text = dateText,
-                                style = MiuixTheme.textStyles.footnote2,
+                                style = NexioTheme.textStyles.footnote2,
                                 color = if (isToday) todayHighlightColor
-                                else MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                else NexioTheme.colorScheme.onSurfaceVariantActions,
                                 textAlign = TextAlign.Center,
                             )
                         }
