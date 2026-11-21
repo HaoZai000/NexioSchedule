@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -29,7 +30,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -127,27 +127,6 @@ fun LiquidGlassBottomBar(
                 }
             }
         }
-    // 隐藏录制层要和底栏用同一套材质，滑块采样到的才是「底栏的玻璃」
-    val tabsEffects: GlassEffectScope.() -> Unit =
-        remember(glassBlur, glassEffectsOn, barGlassStyle) {
-            {
-                if (glassEffectsOn) {
-                    blur(glassBlur.dp.toPx(), TileMode.Mirror)
-                    padding = 0f
-                    runtimeShaderEffect(
-                        key = LIQUID_TABS_GLASS_KEY,
-                        shaderString = SOFT_GLASS_LIVE_SHADER,
-                        uniformShaderName = "content",
-                    ) {
-                        applySoftGlass(
-                            style = barGlassStyle,
-                            width = size.width,
-                            height = size.height,
-                        )
-                    }
-                }
-            }
-        }
     // 无材质档才需要实色底；玻璃档由材质自己画
     val surface: DrawScope.() -> Unit = remember(containerColor) { { drawRect(containerColor) } }
 
@@ -232,6 +211,53 @@ fun LiquidGlassBottomBar(
             )
         }
 
+        // ① 录制副本：与可见底栏同一位置，`tabsBackdrop` 只给他用。
+        // 玻璃四边各减 [CAPTURE_GLASS_INSET_X] / [CAPTURE_GLASS_INSET_Y] 画小一圈
+        // （减高减宽，不是缩放——缩放会把两端胶囊拉成椭圆）；图标几何不动，只放大。
+        // ⚠ 必须真画，不能 alpha(0) 蒙掉：图层录制依赖「这一帧真的画过」。
+        Box(
+            Modifier
+                .clearAndSetSemantics {}
+                // 拖动位移留在录制层外面，否则内容会在录制缓冲里被自己截掉一条边
+                .graphicsLayer { translationX = panelOffset }
+                .layerBackdrop(tabsBackdrop)
+                .height(barHeight)
+                .fillMaxWidth()
+        ) {
+            // 玻璃：只画进收进来一圈的那块，按压高光跟着画在裁剪内
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(
+                        horizontal = CAPTURE_GLASS_INSET_X,
+                        vertical = CAPTURE_GLASS_INSET_Y,
+                    )
+                    .drawBackdrop(
+                        backdrop = backdrop,
+                        shape = shape,
+                        effects = barEffects,
+                        onDrawSurface = if (glassEffectsOn) null else surface,
+                    )
+                    .then(interactiveHighlight.modifier)
+            )
+            // 图标：列宽与位置跟可见底栏逐项一致，只差缩放
+            Row(
+                Modifier
+                    .fillMaxSize()
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CompositionLocalProvider(
+                    LocalLiquidBottomTabScale provides {
+                        lerp(1f, 1.2f, dampedDragAnimation.pressProgress)
+                    }
+                ) {
+                    content()
+                }
+            }
+        }
+
+        // ② 可见底栏：玻璃按压时微微放大，图标保持原尺寸（放大交给滑块里那份）
         Row(
             Modifier
                 .graphicsLayer { translationX = panelOffset }
@@ -254,32 +280,6 @@ fun LiquidGlassBottomBar(
             verticalAlignment = Alignment.CenterVertically,
             content = content,
         )
-
-        CompositionLocalProvider(
-            LocalLiquidBottomTabScale provides { lerp(1f, 1.2f, dampedDragAnimation.pressProgress) }
-        ) {
-            // 隐藏副本：把「底栏玻璃 + 图标」录进 tabsBackdrop，只给滑块当采样源
-            Row(
-                Modifier
-                    .clearAndSetSemantics {}
-                    .alpha(0f)
-                    .layerBackdrop(tabsBackdrop)
-                    .graphicsLayer { translationX = panelOffset }
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = shape,
-                        effects = tabsEffects,
-                        onDrawSurface = if (glassEffectsOn) null else surface,
-                    )
-                    // 按压高光必须画在录制层里面，滑块才能采到它
-                    .then(interactiveHighlight.modifier)
-                    .height(barHeight)
-                    .fillMaxWidth()
-                    .padding(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                content = content,
-            )
-        }
 
         // 选中滑块：采样 combined(page, tabs)，按按压进度做透镜 + 色散
         val sliderModifier = Modifier
@@ -393,8 +393,13 @@ private fun Modifier.sliderBorder(
 }
 
 private const val LIQUID_BAR_GLASS_KEY = "NexioLiquidBottomBarGlass"
-private const val LIQUID_TABS_GLASS_KEY = "NexioLiquidBottomBarTabsGlass"
 private const val LIQUID_SLIDER_LENS_KEY = "NexioLiquidBottomBarSliderLens"
+
+/**
+ * 录制副本的玻璃四边内缩：按「减高减宽」画小一圈
+ */
+private val CAPTURE_GLASS_INSET_X = 2.5.dp
+private val CAPTURE_GLASS_INSET_Y = 2.5.dp
 
 /**
  * 底栏 / 滑块共用的 lens（移植自 AndroidLiquidGlass 的 `RoundedRectRefractionShaderString`）。
