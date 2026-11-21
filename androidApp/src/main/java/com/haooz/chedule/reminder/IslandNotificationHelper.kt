@@ -1,14 +1,18 @@
 package com.haooz.chedule.reminder
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
+import android.os.Build
 import android.os.Bundle
 import com.haooz.chedule.R
+import com.haooz.chedule.data.platform.IslandAuthorizationState
 import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.KeyValueStore
@@ -295,8 +299,42 @@ object IslandNotificationHelper {
         notificationId == ISLAND_IN_CLASS_NOTIFICATION_ID ||
             notificationId == ISLAND_IN_CLASS_TEST_NOTIFICATION_ID
 
-    fun requestShizukuPermission(callback: (Boolean) -> Unit) {
-        ShizukuManager.requestPermission(callback)
+    fun requestShizukuPermission(callback: (Boolean) -> Unit): () -> Unit =
+        ShizukuManager.requestPermission { granted ->
+            android.os.Handler(android.os.Looper.getMainLooper()).post { callback(granted) }
+        }
+
+    /** 页面离开时取消等待中的 Shizuku 授权请求，避免返回后弹出。 */
+    fun cancelShizukuPermissionRequest() {
+        ShizukuManager.cancelPermissionRequest()
+    }
+
+    /** 只读授权快照：不绑定特权服务、不发通知、不触网络；发送链与设置页共用这套判定。 */
+    fun authorizationState(context: Context): IslandAuthorizationState {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationsAllowed = IslandAuthorizationState.notificationsAllowed(
+            apiLevel = Build.VERSION.SDK_INT,
+            runtimePermissionGranted = try {
+                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                    PackageManager.PERMISSION_GRANTED
+            } catch (_: Exception) {
+                false
+            },
+            appNotificationsEnabled = manager.areNotificationsEnabled(),
+        )
+        val channelEnabled = try {
+            val channel = manager.getNotificationChannel(CHANNEL_ID)
+            channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE
+        } catch (_: Exception) {
+            true
+        }
+        return IslandAuthorizationState.evaluate(
+            supported = isIslandSupported(context),
+            notificationsAllowed = notificationsAllowed,
+            channelEnabled = channelEnabled,
+            shizukuRunning = ShizukuManager.isShizukuRunning(),
+            shizukuAuthorized = ShizukuManager.checkSelfPermission(),
+        )
     }
 
     private fun ensureChannel(context: Context) {
@@ -887,6 +925,14 @@ object IslandNotificationHelper {
     fun sendTestIslandNotification(context: Context) {
         if (!isIslandSupported(context)) {
             NexioLog.w(TAG, "Island not supported on this device")
+            return
+        }
+        // 测试前授权快照：通知没开/通道被关时告知用户，而不是装作已发送
+        val authorization = authorizationState(context)
+        if (!authorization.canPostNotification) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(context, AndroidNotifStr.shizukuNotAuthorized(), android.widget.Toast.LENGTH_LONG).show()
+            }
             return
         }
 

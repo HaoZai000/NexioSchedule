@@ -41,6 +41,7 @@ import com.haooz.chedule.ui.navigation.FeedbackRoadmapRoute
 import com.haooz.chedule.ui.navigation.FeedbackRoute
 import com.haooz.chedule.ui.navigation.HolidaySettingsRoute
 import com.haooz.chedule.ui.navigation.LicenseRoute
+import com.haooz.chedule.ui.navigation.McpServiceRoute
 import com.haooz.chedule.ui.navigation.PreferenceSettingsRoute
 import com.haooz.chedule.ui.navigation.PrivacyPolicyRoute
 import com.haooz.chedule.ui.navigation.ScheduleSettingsRoute

@@ -32,7 +32,7 @@ interface ReminderController {
     /** 能否发布「实况通知」（API 36+ 的 promoted notifications） */
     fun canPostPromotedNotifications(): Boolean
 
-    /** 是否已授予 POST_NOTIFICATIONS 通知权限 */
+    /** 是否允许发通知（包含运行时权限与应用通知总开关） */
     fun hasNotificationPermission(): Boolean
 
     /** 是否已授予「免打扰访问权限」（自动开勿扰的前提） */
@@ -68,8 +68,19 @@ interface ReminderController {
     /** Shizuku 是否已授权本应用 */
     fun isShizukuAuthorized(): Boolean
 
-    /** 请求 Shizuku 授权，结果回调 true=已授权 */
+    /** 请求 Shizuku 授权，结果回调 true=当前仍已授权，不代表能显示超级岛。 */
     fun requestShizukuPermission(onResult: (Boolean) -> Unit)
+
+    /** 只读检查，不绑定特权服务、不发通知、不改网络；默认不支持，避免普通平台误报。 */
+    fun getIslandAuthorizationState(): IslandAuthorizationState = IslandAuthorizationState.Unsupported
+
+    /** 页面恢复、Binder 连接/断开后通知重新读取权限；返回注销函数，离开页面必须调用。 */
+    fun observePermissionChanges(onChanged: () -> Unit): () -> Unit = {}
+
+    fun cancelShizukuPermissionRequest() {}
+
+    /** 用户主动触发，对账真实课表的闹钟、通知及勿扰状态。 */
+    fun forceExecuteReminders(onResult: (String) -> Unit) = onResult("Unsupported")
 
     // —— 系统能力探测（不发起跳转）——
 

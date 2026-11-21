@@ -698,6 +698,7 @@ internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     AppRoute.AiImport -> ChromeStr.aiImport()
     AppRoute.WidgetIntro -> ChromeStr.widgetsTitle()
     AppRoute.AiFeatures -> SettingsStr.aiFeatures()
+    AppRoute.McpService -> McpStr.title()
     AppRoute.CourseReminder -> ChromeStr.courseReminders()
     AppRoute.HolidaySettings -> ChromeStr.holidaysTitle()
     AppRoute.WebDavSettings -> ChromeStr.webdavBackup()

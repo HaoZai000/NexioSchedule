@@ -89,6 +89,22 @@ object ReminderStr {
     val installShizuku = L("请安装并启动 Shizuku 应用", "Install and start the Shizuku app")
     val authorizeShizuku = L("授权 Shizuku", "Authorize Shizuku")
     val shizukuAuthFailed = L("Shizuku 授权失败", "Shizuku authorization failed")
+    val islandAuthorization = L("超级岛授权状态", "Super Island access")
+    val islandUnsupported = L("系统不支持", "Not supported by this system")
+    val islandNotificationRequired = L("通知未授权", "Notifications not granted")
+    val islandChannelBlocked = L("通知类别已关闭", "Notification channel disabled")
+    val islandReadyHint = L("授权已就绪，实际显示以系统通知结果为准", "Access is ready. The system determines how the notification is displayed")
+    val islandChannelHint = L("请在应用通知设置中开启「课程提醒超级岛」类别", "Enable the Super Island notification channel in app notification settings")
+    val islandShizukuHint = L("Shizuku 未就绪时仍可发送普通通知；超级岛辅助需要授权", "Regular notifications remain available. Super Island assistance requires Shizuku access")
+    val authorizing = L("正在授权…", "Authorizing…")
+
+    // 提醒执行
+    val forceExecute = L("强制执行", "Apply reminders now")
+    val forceExecuteSummary = L("立即重排课表闹钟、刷新提醒，并重新应用当前课堂的静音或勿扰", "Reschedule alarms, refresh reminders and reapply the current class's silent or Do Not Disturb mode")
+    val forceExecuting = L("正在执行…", "Applying…")
+    val maintenanceResult = L("执行结果", "Result")
+    val maintenanceFailed = L("执行失败，请检查权限后重试", "Could not complete the action. Check access and try again")
+    val forceEnableReminderFirst = L("请先开启课程提醒", "Enable course reminders first")
 
     // 通知精简（缩略态 + 展开态的地点，缩略态的课程名）
     val thumbAbbreviation = L("通知精简", "Notification Abbreviation")

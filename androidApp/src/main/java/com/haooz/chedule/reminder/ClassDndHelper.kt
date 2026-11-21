@@ -176,7 +176,9 @@ object ClassDndHelper {
                         .setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY)
                 }
             }
-            true
+            // 写后回读：写完立刻等于目标值才算成功，否则按失败处理（系统拒绝、
+            // 权限被回收等），调用方不会误判「已接管」。
+            (readCurrentState(context, mode) ?: targetState(mode)) == targetState(mode)
         } catch (e: Exception) {
             NexioLog.e(TAG, "Failed to write system state for mode=$mode", e)
             false
@@ -489,8 +491,35 @@ object ClassDndHelper {
         return prefs(context).getLong(KEY_CLASS_END_AT, 0L) > now
     }
 
-    fun applyCurrentState(context: Context) {
+    /**
+     * 「强制执行」入口：清掉临时抑制，按当前课表立即对账（课堂上重新接管所选档位）。
+     * 返回真实结果摘要；不在课堂时不强行静音，只对账恢复。
+     */
+    fun forceApplyCurrentState(context: Context): Int {
         val p = prefs(context)
+        p.edit { remove(KEY_SUPPRESS_UNTIL) }
+        val repository = CourseRepository()
+        val enabled = repository.getClassDndEnabled() &&
+            (repository.getPreClassReminder() || repository.getNextDayReminder())
+        if (!enabled) {
+            handBack(context, requireConsistency = false)
+            return 0
+        }
+        applyCurrentState(context)
+        scheduleClassDndAlarms(context, context.getSystemService(Context.ALARM_SERVICE) as AlarmManager)
+        val alarms = readRcSet(context).size
+        val inClassNow = isInClass(context)
+        val applied = isDndAppliedByApp(context)
+        when {
+            !inClassNow && !applied -> NexioLog.d(TAG, "force: not in class, nothing forced")
+            !inClassNow && applied -> NexioLog.d(TAG, "force: manual session active, left as-is")
+            inClassNow && applied -> NexioLog.d(TAG, "force: mode ${currentMode(context)} reapplied")
+            else -> NexioLog.w(TAG, "force: in class but apply failed (missing DND permission?)")
+        }
+        return alarms
+    }
+
+    fun applyCurrentState(context: Context) {        val p = prefs(context)
         if (p.getLong(KEY_SUPPRESS_UNTIL, 0L) > System.currentTimeMillis()) return
         if (!isTempSession(context) && !isFeatureAvailable(context)) {
             handBack(context, requireConsistency = false)
@@ -521,6 +550,9 @@ object ClassDndHelper {
                 commitSession(context, mode, classEndMillis(context))
                 if (wasTemp) prefs(context).edit { putBoolean(KEY_TEMP, true) }
                 NexioLog.d(TAG, "mode switched $appliedMode -> $mode")
+            } else {
+                // 写入被系统拒绝（如勿扰权限被回收）：保留旧会话等待恢复，不谎报已切换
+                NexioLog.w(TAG, "mode switch rejected $appliedMode -> $mode")
             }
             return
         }

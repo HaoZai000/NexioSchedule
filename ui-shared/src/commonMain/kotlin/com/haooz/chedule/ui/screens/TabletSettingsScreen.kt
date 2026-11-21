@@ -65,6 +65,7 @@ import com.haooz.chedule.ui.navigation.FeedbackHistoryRoute
 import com.haooz.chedule.ui.navigation.FeedbackRoadmapRoute
 import com.haooz.chedule.ui.navigation.FeedbackRoute
 import com.haooz.chedule.ui.navigation.HolidaySettingsRoute
+import com.haooz.chedule.ui.navigation.McpServiceRoute
 import com.haooz.chedule.ui.navigation.LicenseRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.navigation.NAV_BG_DIM
@@ -136,6 +137,7 @@ private fun DefaultTabletSettingsPaneRouteContent(router: AppRouter, route: AppR
         AppRoute.CourseManage -> CourseManageRoute(router)
         AppRoute.WidgetIntro -> WidgetIntroRoute(router)
         AppRoute.AiFeatures -> AiFeaturesRoute(router)
+        AppRoute.McpService -> McpServiceRoute(router)
         AppRoute.WebDavSettings -> WebDavSettingsRoute(router)
         AppRoute.AiImport -> AiImportRoute(router)
         AppRoute.EducationalImport -> EducationalImportRoute(router)

@@ -3,18 +3,25 @@ package com.haooz.chedule.ui.utils
 import android.Manifest
 import android.app.Activity
 import android.app.AlarmManager
+import android.app.NotificationManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContracts
+import com.haooz.chedule.data.platform.IslandAuthorizationState
 import com.haooz.chedule.data.platform.ReminderController
+import com.haooz.chedule.i18n.AndroidNotifStr
 import com.haooz.chedule.reminder.ClassDndHelper
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
@@ -23,6 +30,7 @@ import com.haooz.chedule.shizuku.ShizukuManager
 /** 实况通知管理页 action（原页面 `Intent("android.settings.MANAGE_APP_PROMOTED_NOTIFICATIONS")`） */
 private const val ACTION_MANAGE_APP_PROMOTED_NOTIFICATIONS =
     "android.settings.MANAGE_APP_PROMOTED_NOTIFICATIONS"
+
 
 /**
  * [ReminderController] 的 Android 实现 —— 包装 `CourseReminderHelper` / `ClassDndHelper` /
@@ -53,6 +61,7 @@ class AndroidReminderController(private val context: Context) : ReminderControll
     // —— 结果回调槽：每类请求一个固定 key 的 launcher，发起请求前更新槽内回调 ——
     private var settingsResult: (() -> Unit)? = null
     private var notificationPermissionResult: ((Boolean) -> Unit)? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     /** 设置页结果通道（五个 openXxxSettings 共用；同一时刻只会有一个设置页在前台） */
     private val settingsLauncher: ActivityResultLauncher<Intent>? by lazy {
@@ -89,9 +98,13 @@ class AndroidReminderController(private val context: Context) : ReminderControll
     override fun canPostPromotedNotifications(): Boolean =
         CourseReminderHelper.canPostPromotedNotifications(context)
 
-    override fun hasNotificationPermission(): Boolean =
-        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+    override fun hasNotificationPermission(): Boolean {
+        // 不走超级岛授权快照：非 HyperOS 设备返回 Unsupported，会把普通通知误判成未授权。
+        val runtime = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        return runtime && (manager?.areNotificationsEnabled() ?: false)
+    }
 
     override fun isDndPermissionGranted(): Boolean = ClassDndHelper.isDndPermissionGranted(context)
 
@@ -105,8 +118,43 @@ class AndroidReminderController(private val context: Context) : ReminderControll
 
     override fun isShizukuAuthorized(): Boolean = ShizukuManager.checkSelfPermission()
 
-    override fun requestShizukuPermission(onResult: (Boolean) -> Unit) =
-        IslandNotificationHelper.requestShizukuPermission(onResult)
+    override fun requestShizukuPermission(onResult: (Boolean) -> Unit) {
+        IslandNotificationHelper.requestShizukuPermission { granted ->
+            mainHandler.post { onResult(granted) }
+        }
+    }
+
+    override fun getIslandAuthorizationState(): IslandAuthorizationState =
+        IslandNotificationHelper.authorizationState(context)
+
+    override fun observePermissionChanges(onChanged: () -> Unit): () -> Unit {
+        val stopBinder = ShizukuManager.observeBinderChanges { mainHandler.post(onChanged) }
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) = onChanged()
+        }
+        // 权限/勿扰授权页返回等场景需要重读；注册到应用级，卸载时注销。
+        // ACTION_CLOSE_SYSTEM_DIALOGS 是系统广播；targetSdk 34+ 必须显式声明 NOT_EXPORTED。
+        if (Build.VERSION.SDK_INT >= 33) {
+            context.registerReceiver(
+                receiver,
+                IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS),
+                Context.RECEIVER_NOT_EXPORTED,
+            )
+        } else {
+            context.registerReceiver(receiver, IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
+        }
+        // 设置页返回不一定发 CLOSE_SYSTEM_DIALOGS；在 Activity 的 ON_RESUME 再补一次刷新。
+        val lifecycleOwner = context.findActivity() as? androidx.lifecycle.LifecycleOwner
+        val resumeObserver = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) onChanged()
+        }
+        lifecycleOwner?.lifecycle?.addObserver(resumeObserver)
+        return {
+            stopBinder()
+            runCatching { context.unregisterReceiver(receiver) }
+            lifecycleOwner?.lifecycle?.removeObserver(resumeObserver)
+        }
+    }
 
     // ————————————————————————— 系统能力探测 —————————————————————————
 
@@ -186,6 +234,11 @@ class AndroidReminderController(private val context: Context) : ReminderControll
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply { data = packageUri() },
             onResult
         )
+
+    override fun forceExecuteReminders(onResult: (String) -> Unit) {
+        val summary = CourseReminderHelper.forceRefresh(context)
+        mainHandler.post { onResult(summary) }
+    }
 
     // ————————————————————————— 内部工具 —————————————————————————
 

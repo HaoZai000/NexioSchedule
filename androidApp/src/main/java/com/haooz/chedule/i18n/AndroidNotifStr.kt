@@ -59,6 +59,13 @@ object AndroidNotifStr {
         "Shizuku not authorized. Super Island notifications may not show properly"
     )
 
+    // ---- 强制执行（逐项结果摘要） ----
+    val forceRescheduledN = L("已重排闹钟（课前 %d 个，勿扰 %d 个）", "Alarms rescheduled (pre-class %d, DND %d)")
+    val forceRescheduleFailed = L("闹钟重排失败", "Failed to reschedule alarms")
+    val forceDndResult = L("课堂状态：%s", "Class state: %s")
+    val forceNoActiveClass = L("当前不在课堂，未改动静音/勿扰", "Not in class; silent/DND untouched")
+    val forceReminderOff = L("课程提醒未开启，已清理旧闹钟", "Reminders off; stale alarms cleared")
+
     // ---- 上课勿扰(通知/超级岛按钮的 Toast 反馈) ----
     val dndNeedReminderOn = L("请先在「课程提醒」中开启课程提醒", "Turn on course reminders in Course reminders first")
     val dndDisabled = L("已关闭上课勿扰", "Class mute turned off")
