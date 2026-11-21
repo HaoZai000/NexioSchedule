@@ -21,6 +21,16 @@ data class CloudMcpUploadPreview(
     val replacesExisting: Boolean,
 )
 
+/** 下载的是固定版本快照；课程正文只保留在当前页面内，不进入日志。 */
+class CloudMcpDownloadPreview(
+    val revision: Long,
+    val scheduleName: String,
+    val recordCount: Int,
+    val content: String,
+) {
+    override fun toString(): String = "CloudMcpDownloadPreview(revision=$revision, recordCount=$recordCount)"
+}
+
 interface CloudMcpController {
     val supported: Boolean get() = false
     suspend fun load(): CloudMcpConfig = CloudMcpConfig()
@@ -30,6 +40,10 @@ interface CloudMcpController {
         error("Cloud MCP is unavailable")
     }
     suspend fun confirmUpload(config: CloudMcpConfig, preview: CloudMcpUploadPreview): CloudMcpStatus {
+        error("Cloud MCP is unavailable")
+    }
+    /** 拉取云端课表快照；返回的 content 只进内存，调用方确认后才落库。 */
+    suspend fun previewDownload(config: CloudMcpConfig): CloudMcpDownloadPreview {
         error("Cloud MCP is unavailable")
     }
 }

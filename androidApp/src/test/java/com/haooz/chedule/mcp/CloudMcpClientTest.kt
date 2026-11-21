@@ -30,6 +30,7 @@ class CloudMcpClientTest {
         var pendingBase = -1L
         var previewBase: Long? = null
         var commitCount = 0
+        var exportContent: String? = null
 
         val client = OkHttpClient.Builder().addInterceptor(Interceptor { chain ->
             val request = chain.request()
@@ -46,12 +47,18 @@ class CloudMcpClientTest {
                     add("serverInfo", JsonObject().apply { addProperty("name", "test-cloud") })
                 }
                 "notifications/initialized" -> JsonObject()
-                "tools/list" -> JsonParser.parseString("""{"tools":[{"name":"get_sync_status"},{"name":"import_schedule_file"},{"name":"update_schedule_file"}]}""").asJsonObject
+                "tools/list" -> JsonParser.parseString("""{"tools":[{"name":"get_sync_status"},{"name":"import_schedule_file"},{"name":"update_schedule_file"},{"name":"export_schedule_file"}]}""").asJsonObject
                 "tools/call" -> {
                     val args = params.getAsJsonObject("arguments")
                     val toolResult = when (params["name"].asString) {
                         "get_sync_status" -> JsonObject().apply {
                             addProperty("hasSchedule", hasSchedule); addProperty("revision", revision)
+                        }
+                        "export_schedule_file" -> JsonObject().apply {
+                            addProperty("hasSchedule", hasSchedule)
+                            addProperty("revision", revision)
+                            addProperty("format", "nexio")
+                            if (exportContent != null) addProperty("content", exportContent)
                         }
                         "import_schedule_file", "update_schedule_file" -> {
                             if (args.has("confirm")) {
@@ -117,7 +124,7 @@ class CloudMcpClientTest {
         val status = server.remote().inspect(config)
         assertFalse(status.hasSchedule)
         assertEquals(0L, status.revision)
-        assertEquals(3, status.toolCount)
+        assertEquals(4, status.toolCount)
         assertEquals(listOf("initialize", "notifications/initialized", "tools/list", "tools/call"), server.requests.map { it["method"].asString })
         assertEquals("get_sync_status", server.requests.last().getAsJsonObject("params")["name"].asString)
         assertTrue(server.headers.all { it.header("Authorization") == "Bearer ${config.token}" })
@@ -187,6 +194,32 @@ class CloudMcpClientTest {
     @Test fun tokenIsRedactedFromConfigurationToString() {
         assertFalse(config.toString().contains(config.token))
         assertFalse(config.toString().contains(config.url))
+    }
+
+    @Test fun downloadReadsSnapshotWithoutWrites() = runBlocking {
+        val server = FakeServer().apply {
+            hasSchedule = true
+            revision = 5
+            exportContent = """{"schedule_name":"云端课表","settings":{},"courses":[{"name":"t","dayOfWeek":2,"startSection":1,"endSection":2,"selectedWeeks":[1]}]}"""
+        }
+        val remote = server.remote()
+        val preview = remote.previewDownload(config)
+        assertEquals(5L, preview.revision)
+        assertEquals("云端课表", preview.scheduleName)
+        assertEquals(1, preview.recordCount)
+        assertTrue(preview.content.contains("云端课表"))
+        val writes = server.requests.filter { it["method"].asString == "tools/call" }
+            .map { it.getAsJsonObject("params")["name"].asString }
+        assertEquals(listOf("export_schedule_file"), writes)
+        // 导出只读：revision 不递增，没有 pending/confirm 帧
+        assertEquals(5L, server.revision)
+        assertEquals(0, server.commitCount)
+    }
+
+    @Test fun downloadRejectsEmptyCloudSchedule() = runBlocking {
+        val server = FakeServer().apply { hasSchedule = false; revision = 3 }
+        assertFails { server.remote().previewDownload(config) }
+        assertEquals(0, server.commitCount)
     }
 
     private suspend fun assertFails(action: suspend () -> Unit): Exception {

@@ -51,6 +51,18 @@ object McpStr {
     val replaces = L("并替换当前云端课表", " and replace the current cloud schedule")
     val confirmUpload = L("确认上传", "Confirm upload")
     val cancel = L("取消", "Cancel")
+    val download = L("从云端下载", "Download from cloud")
+    val downloadAction = L("下载", "Download")
+    val downloadHint = L(
+        "拉取云端课表快照，确认后导入为手机上的独立课表（不覆盖现有课表）",
+        "Fetches the cloud snapshot and imports it as a separate local schedule after confirmation; current schedules stay untouched",
+    )
+    val downloadPreview = L(
+        "将导入云端课表「%s」（%d 条排课记录，云端版本 %d）。",
+        "Imports cloud schedule \"%s\" (%d course records, cloud revision %d).",
+    )
+    val downloadConfirm = L("确认导入", "Import")
+    val downloadDone = L("已导入为独立课表「%s」，可在课表切换中查看", "Imported as a separate schedule \"%s\"; switch schedules to view it")
     val unsaved = L("配置已修改，请先保存后再操作", "Configuration changed. Save before continuing")
     val loadFailed = L("无法读取加密配置，请重新填写后保存", "Could not read encrypted configuration. Enter it again and save")
     val operationFailed = L("操作失败，请检查连接、Token 或云端版本后重试", "Operation failed. Check the connection, token or cloud revision")

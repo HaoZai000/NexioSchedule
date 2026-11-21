@@ -24,15 +24,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.backup.encodeBackupJson
+import com.haooz.chedule.data.backup.parseFullScheduleJson
 import com.haooz.chedule.data.mcp.CloudMcpBridge
 import com.haooz.chedule.data.mcp.CloudMcpConfig
+import com.haooz.chedule.data.mcp.CloudMcpDownloadPreview
 import com.haooz.chedule.data.mcp.CloudMcpStatus
 import com.haooz.chedule.data.mcp.CloudMcpUploadPreview
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.McpStr
 import com.haooz.chedule.ui.components.PrivateSettingField
 import com.haooz.chedule.ui.components.text.miuix.Text
+import com.haooz.chedule.ui.screens.applyScheduleData
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
+import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.ScheduleViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -44,7 +50,12 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 独立可选扩展；打开页面不会联网或上传，所有外发由明确按钮触发。 */
 @Composable
-fun CloudMcpSection(onCopyToClipboard: ((String) -> Unit)? = null) {
+fun CloudMcpSection(
+    onCopyToClipboard: ((String) -> Unit)? = null,
+    courseViewModel: CourseViewModel = CourseViewModel(),
+    scheduleViewModel: ScheduleViewModel = ScheduleViewModel(),
+    settingsViewModel: SettingsViewModel = SettingsViewModel(),
+) {
     val controller = CloudMcpBridge.controller
     if (!controller.supported) return
 
@@ -60,6 +71,8 @@ fun CloudMcpSection(onCopyToClipboard: ((String) -> Unit)? = null) {
     var status by remember { mutableStateOf<CloudMcpStatus?>(null) }
     var preview by remember { mutableStateOf<CloudMcpUploadPreview?>(null) }
     var uploadConfig by remember { mutableStateOf<CloudMcpConfig?>(null) }
+    var download by remember { mutableStateOf<CloudMcpDownloadPreview?>(null) }
+    var downloadConfig by remember { mutableStateOf<CloudMcpConfig?>(null) }
 
     LaunchedEffect(controller) {
         try {
@@ -81,6 +94,8 @@ fun CloudMcpSection(onCopyToClipboard: ((String) -> Unit)? = null) {
         status = null
         preview = null
         uploadConfig = null
+        download = null
+        downloadConfig = null
         message = null
     }
 
@@ -96,6 +111,8 @@ fun CloudMcpSection(onCopyToClipboard: ((String) -> Unit)? = null) {
             } catch (_: Exception) {
                 preview = null
                 uploadConfig = null
+                download = null
+                downloadConfig = null
                 message = McpStr.operationFailed()
             } finally {
                 busy = false
@@ -297,6 +314,111 @@ fun CloudMcpSection(onCopyToClipboard: ((String) -> Unit)? = null) {
             }
         }
     }
+
+    Spacer(modifier = Modifier.height(SECTION_GAP))
+    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = McpStr.download(),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = theme.onSurface,
+                    )
+                    Text(
+                        text = McpStr.downloadHint(),
+                        style = MiuixTheme.textStyles.footnote2,
+                        fontSize = 13.sp,
+                        color = theme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                TextButton(
+                    text = if (busy) McpStr.working() else McpStr.downloadAction(),
+                    enabled = enabled && !busy && !loading && url.isNotBlank() && token.isNotBlank(),
+                    onClick = {
+                        val config = CloudMcpConfig(url, token, enabled)
+                        runAction {
+                            downloadConfig = config
+                            download = controller.previewDownload(config)
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(
+                        color = Color(0xFF0A84FF),
+                        textColor = Color.White,
+                    ),
+                    cornerRadius = 100.dp,
+                    minWidth = 76.dp,
+                    minHeight = 36.dp,
+                    insideMargin = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+                )
+            }
+            download?.let { pending ->
+                CloudDivider()
+                Text(
+                    text = McpStr.downloadPreview(pending.scheduleName, pending.recordCount, pending.revision),
+                    fontSize = 14.sp,
+                    color = theme.onSurface,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(
+                        text = McpStr.cancel(),
+                        onClick = { download = null; downloadConfig = null },
+                        enabled = !busy,
+                        minWidth = 64.dp,
+                        minHeight = 36.dp,
+                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                        cornerRadius = 100.dp,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(
+                        text = McpStr.downloadConfirm(),
+                        enabled = !busy,
+                        onClick = {
+                            val config = downloadConfig ?: return@TextButton
+                            runAction {
+                                val targetName = uniqueScheduleName(pending.scheduleName) {
+                                    scheduleViewModel.scheduleNames.value
+                                }
+                                val (ok, resultMessage) = applyScheduleData(
+                                    viewModel = courseViewModel,
+                                    scheduleViewModel = scheduleViewModel,
+                                    settingsViewModel = settingsViewModel,
+                                    scheduleName = targetName,
+                                    data = parseCloudSchedule(pending.content),
+                                )
+                                check(ok) { resultMessage }
+                                download = null
+                                downloadConfig = null
+                                message = McpStr.downloadDone(targetName)
+                            }
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary(
+                            color = Color(0xFF0A84FF),
+                            textColor = Color.White,
+                        ),
+                        cornerRadius = 100.dp,
+                        minWidth = 76.dp,
+                        minHeight = 36.dp,
+                        insideMargin = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -308,3 +430,22 @@ private fun CloudDivider() {
         color = theme.onSurfaceVariantActions.copy(alpha = 0.1f),
     )
 }
+
+/** 解析云端导出的分享/导出同构 JSON；失败由调用方按操作失败统一提示。 */
+private fun parseCloudSchedule(content: String): Map<String, Any> {
+    val (ok, message, data) = parseFullScheduleJson(content)
+    check(ok) { message }
+    return data ?: error(message)
+}
+
+/** 预览里的课表名落库时不撞已有表：重名自动加「 · 2」「 · 3」后缀。 */
+private fun uniqueScheduleName(base: String, existing: () -> List<String>): String {
+    val taken = existing().toSet()
+    if (base !in taken) return base
+    var index = 2
+    while ("$base · $index" in taken) index++
+    return "$base · $index"
+}
+
+/** 卡片之间的间距 */
+private val SECTION_GAP = 12.dp

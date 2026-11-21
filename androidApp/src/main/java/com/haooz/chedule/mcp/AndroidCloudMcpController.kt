@@ -5,6 +5,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.haooz.chedule.data.mcp.CloudMcpConfig as PublicConfig
 import com.haooz.chedule.data.mcp.CloudMcpController
+import com.haooz.chedule.data.mcp.CloudMcpDownloadPreview
 import com.haooz.chedule.data.mcp.CloudMcpStatus
 import com.haooz.chedule.data.mcp.CloudMcpUploadPreview
 
@@ -30,6 +31,8 @@ class AndroidCloudMcpController(context: Context) : CloudMcpController {
         remote.previewUpload(config, content)
     override suspend fun confirmUpload(config: PublicConfig, preview: CloudMcpUploadPreview): CloudMcpStatus =
         remote.confirmUpload(config, preview)
+    override suspend fun previewDownload(config: PublicConfig): CloudMcpDownloadPreview =
+        remote.previewDownload(config)
 }
 
 /** 网络操作独立于 Android 存储，便于在宿主机检验请求与确认流程。 */
@@ -78,6 +81,30 @@ internal class CloudMcpRemoteOperations(
         })
         check(result.get("ok")?.asBoolean == true) { "云端没有确认保存结果，请刷新状态后再试" }
         return status(result, server, 0)
+    }
+
+    /** 拉取云端 nexio 格式快照；只读，不产生 revision 变化。 */
+    suspend fun previewDownload(config: PublicConfig): CloudMcpDownloadPreview {
+        require(config.enabled) { "云端连接已关闭" }
+        val client = newClient(config)
+        val server = client.initialize()
+        val tools = client.tools()
+        check("export_schedule_file" in tools) { "该服务器不提供课表导出工具" }
+        val export = client.tool("export_schedule_file")
+        check(export.get("hasSchedule")?.asBoolean == true) { "云端还没有课表，先在别处上传一份" }
+        val revision = export.get("revision")?.asLong?.takeIf { it >= 0 } ?: error("云端版本缺失")
+        val content = export.get("content")?.asString?.takeIf { it.isNotBlank() } ?: error("云端课表正文缺失")
+        check(content.toByteArray(Charsets.UTF_8).size <= 2 * 1024 * 1024) { "云端课表超过 2 MiB" }
+        val document = JsonParser.parseString(content).asJsonObject
+        val courses = document.getAsJsonArray("courses") ?: error("云端课表缺少课程数组")
+        val scheduleName = document.get("schedule_name")?.asString
+            ?.takeIf { it.isNotBlank() } ?: "云端课表"
+        return CloudMcpDownloadPreview(
+            revision = revision,
+            scheduleName = scheduleName,
+            recordCount = courses.size(),
+            content = content,
+        )
     }
 
     private fun status(json: JsonObject, server: String, count: Int): CloudMcpStatus = CloudMcpStatus(
