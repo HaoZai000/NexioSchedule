@@ -47,6 +47,7 @@ import com.haooz.chedule.data.appearance.CardContentAlignment
 import com.haooz.chedule.data.appearance.CardTextColor
 import com.haooz.chedule.data.holiday.HolidayCourseExclusion
 import com.haooz.chedule.data.model.Course
+import com.haooz.chedule.data.model.SpecialBlock
 import com.haooz.chedule.data.model.pickNonCurrentWeekCourse
 import com.haooz.chedule.data.util.nowLocalTime
 import com.haooz.chedule.ui.components.ScheduleReveal
@@ -225,7 +226,11 @@ private fun pickRepresentative(
  * 叠在同一时段的两张卡**整列宽上下叠压**，不拆左右分栏 —— 网格里自定义时间卡就是按时间插值
  * 压在节次卡上的（叠整齐时看着就是一张），时间轴拆成两列会与网格对不上。
  */
-internal fun buildTimelineWeek(days: List<TimelineDay>, sectionTimes: Map<Int, String>): TimelineWeek {
+internal fun buildTimelineWeek(
+    days: List<TimelineDay>,
+    sectionTimes: Map<Int, String>,
+    specialBlocks: List<SpecialBlock> = emptyList(),
+): TimelineWeek {
     var earliest = Int.MAX_VALUE
     var latest = Int.MIN_VALUE
     val byDay = HashMap<Int, List<TimelineSlot>>(days.size)
@@ -257,6 +262,15 @@ internal fun buildTimelineWeek(days: List<TimelineDay>, sectionTimes: Map<Int, S
                 hasMultiple = triple.third,
             )
         }
+    }
+
+    // 特殊时间块（早读/午自习等）也要占时间轴，否则它们落在窗口外画不出来。
+    specialBlocks.forEach { block ->
+        val s = parseHmMinutes(block.startTime) ?: return@forEach
+        val e = parseHmMinutes(block.endTime) ?: return@forEach
+        val end = if (e <= s) s else e
+        earliest = minOf(earliest, s)
+        latest = maxOf(latest, end)
     }
 
     // 整周没课也要有刻度，否则页面一片空白
@@ -314,6 +328,8 @@ internal fun TimelineWeekGrid(
     hiddenSlotsState: DraggingSlotsState? = null,
     /** 加号卡片被点：[TimelineDay] + 卡片实际起始分钟 + 时长 */
     onPendingAddClick: (TimelineDay, Int, Int) -> Unit = { _, _, _ -> },
+    /** 特殊时间块（早读/午自习等），按真实时间画成横带；默认空。 */
+    specialBlocks: List<SpecialBlock> = emptyList(),
     pendingAdd: TimelinePendingAdd? = null,
     modifier: Modifier = Modifier,
     /** 页级玻璃节点：插在「横线之下、卡片之上」，否则半透明卡片会透出横线 */
@@ -327,8 +343,14 @@ internal fun TimelineWeekGrid(
     val appMinuteClock = rememberAppMinuteClock()
 
     // 键取数据本身而不是 lambda：调用方的 lambda 每次重组都是新实例
-    val layout = remember(days, sectionTimes) { buildTimelineWeek(days, sectionTimes) }
+    val layout = remember(days, sectionTimes, specialBlocks) {
+        buildTimelineWeek(days, sectionTimes, specialBlocks)
+    }
     val gridHeight = MinuteHeight * layout.windowMinutes.toFloat()
+    // 横带与课程卡同处 TimelineAxis 的 fillMaxWidth 坐标系，外层 Column 已扣过屏边距，
+    // 这里只需跳过左侧时间列；SpecialBandOverlay 内部自己留了 2dp 横缝。
+    val dayRange = remember(days) { days.map { it.displayDay } }
+    val bandStartPadding = sectionColumnWidth
 
     // 进入本页时把「现在」带到顶部下方约一小时处：网格的滚动值按节次算，直接沿用会落在无意义的位置。
     // 等一帧再滚：测量前 maxValue 还是 0，scrollTo 会被钳回顶部。
@@ -375,6 +397,37 @@ internal fun TimelineWeekGrid(
             nowMinuteState = appMinuteClock.minute,
             isDark = style.isDark,
             glassBehindCards = glassBehindCards,
+            specialBands = {
+                specialBlocks.forEach { block ->
+                    val start = parseHmMinutes(block.startTime) ?: return@forEach
+                    val end = parseHmMinutes(block.endTime) ?: return@forEach
+                    val top = MinuteHeight * ((start - layout.windowStart).toFloat())
+                    val height = (MinuteHeight * ((maxOf(end, start) - start).toFloat()))
+                        .value.coerceAtLeast(MIN_CARD_HEIGHT_DP).dp
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(height)
+                            .offset(y = top)
+                            .padding(start = bandStartPadding)
+                    ) {
+                        SpecialBandOverlay(
+                            name = block.name,
+                            startTime = block.startTime,
+                            endTime = block.endTime,
+                            hasBlur = style.softGlassSurface != null,
+                            isDark = style.isDark,
+                            cardCornerRadius = style.cardCornerRadius,
+                            cardAlpha = style.cardAlpha,
+                            cardSurfaceAlpha = style.cardSurfaceAlpha,
+                            isTablet = isTablet,
+                            softGlassSurface = style.softGlassSurface,
+                            items = block.safeItems,
+                            dayRange = dayRange,
+                        )
+                    }
+                }
+            },
         ) {
             days.forEach { day ->
                 TimelineDayLane(
@@ -414,6 +467,8 @@ internal fun TimelineAxis(
     isDark: Boolean,
     modifier: Modifier = Modifier,
     glassBehindCards: @Composable (Modifier) -> Unit = {},
+    /** 特殊时间块横带层（只读）；盖在横线之上、课程卡之下。默认空。 */
+    specialBands: @Composable () -> Unit = {},
     columns: @Composable RowScope.() -> Unit,
 ) {
     val accent = scheduleAccentColor()
@@ -472,6 +527,8 @@ internal fun TimelineAxis(
     ) {
         // 玻璃在横线之后、卡片之前：卡片表面是半透明的，玻璃若画在整页最底层，横线会透出来
         glassBehindCards(Modifier.fillMaxWidth().height(gridHeight))
+        // 特殊时间块横带：整段按时间定位，与课程卡同一尺度
+        specialBands()
         Row(modifier = Modifier.fillMaxWidth().height(gridHeight)) {
             Box(modifier = Modifier.width(sectionColumnWidth).fillMaxHeight()) {
                 var hour = layout.windowStart / 60

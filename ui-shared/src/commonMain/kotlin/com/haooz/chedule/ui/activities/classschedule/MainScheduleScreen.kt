@@ -1361,6 +1361,7 @@ private fun TimelineWeekPage(
     TimelineWeekGrid(
         days = timelineDays,
         sectionTimes = config.sectionTimes,
+        specialBlocks = config.specialBlocks,
         isTablet = config.isTablet,
         isCurrentWeekView = week == currentWeek,
         style = TimelineCardStyle(
