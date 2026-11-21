@@ -157,8 +157,6 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         }
                         Offset(glowCenterPx[0], glowCenterPx[1])
                     },
-                    radiusScale = { 1f / 3f },
-                    radiusBaseDp = 250.dp,
                     // 按压进度由 glowAlpha 驱动（150ms 淡变），不走组件自带手势
                     pressProgressOverride = { glowAlpha },
                     isDark = { GlassEnvironment.isDark },
