@@ -219,6 +219,7 @@ import com.haooz.nexioui.overlaydialog.OverlayDialog
 
 import com.haooz.nexioui.theme.NexioTheme
 import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
+import com.haooz.chedule.ui.utils.PredictiveBackAnimation
 
 /**
  * 路由宿主的跨平台部分：路由跳转、状态接线、Updater 订阅，平台能力一律参数注入。
@@ -911,6 +912,48 @@ fun UpdateSettingsRoute(
             changelogPageLaidOut = false
         }
     }
+
+    val changelogGestureBase = remember { floatArrayOf(1f, 1f, MORPH_BACKGROUND_SHRINK, 12f) }
+    PredictiveBackAnimation(
+        enabled = changelogMounted && changelogOpen,
+        initialProgress = { changelogFlip.value },
+        onGestureStart = {
+            // 入场没播完就滑返回时，从各动画当前值接着走，不跳回全开
+            changelogGestureBase[0] = changelogFlip.value.coerceIn(0f, 1f)
+            changelogGestureBase[1] = changelogGrow.value.coerceIn(0f, 1f)
+            changelogGestureBase[2] = changelogBackdropScale.value
+            changelogGestureBase[3] = changelogBackdropBlur.value
+        },
+        onProgress = { value ->
+            val remain = if (changelogGestureBase[0] > 0f) {
+                (value / changelogGestureBase[0]).coerceIn(0f, 1f)
+            } else 0f
+            changelogFlip.snapTo(value)
+            changelogGrow.snapTo(changelogGestureBase[1] * remain)
+            changelogBackdropScale.snapTo(1f + (changelogGestureBase[2] - 1f) * remain)
+            changelogBackdropBlur.snapTo(changelogGestureBase[3] * remain)
+        },
+        onDismissed = { changelogOpen = false },
+        onCancelled = {
+            // 手势中途取消：续播回全开，不是停在半路
+            routeScope.launch {
+                coroutineScope {
+                    launch { changelogFlip.animateTo(1f, tween(460, easing = OobeCubicOutEasing)) }
+                    launch { changelogGrow.animateTo(1f, tween(540, easing = OobeCubicOutEasing)) }
+                    launch {
+                        changelogBackdropScale.animateTo(
+                            MORPH_BACKGROUND_SHRINK, tween(460, easing = OobeCubicOutEasing)
+                        )
+                    }
+                    launch {
+                        changelogBackdropBlur.animateTo(
+                            12f, tween(460, easing = OobeCubicOutEasing)
+                        )
+                    }
+                }
+            }
+        },
+    )
     // 右上角「更多」+ 玻璃下拉。触发器由组件自己画（收起态那颗圆），这里只维护开合状态。
     var moreOpen by remember { mutableStateOf(false) }
     val moreFraction = remember { Animatable(0f) }

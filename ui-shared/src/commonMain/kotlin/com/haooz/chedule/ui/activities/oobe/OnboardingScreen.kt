@@ -429,10 +429,11 @@ internal fun OnboardingSetupScreen(
         }
     }
 
-    // 页内返回：先回上一页，第一页交回宿主反向翻转；完成页不允许返回
+    // 页内返回：先回上一页；第一页的系统返回交给外层翻转层跟手处理（见 OnboardingFlow），
+    // 顶栏返回按钮仍走 onBack()。完成页不允许返回。
     NavigationBackHandlerFor(
-        enabled = !policyOpen && current.kind != OobeKind.Finish,
-        onBackCompleted = { if (state.step == 0) onBack() else state.step-- },
+        enabled = !policyOpen && current.kind != OobeKind.Finish && state.step > 0,
+        onBackCompleted = { state.step-- },
         onBackCancelled = {},
     )
     NavigationBackHandlerFor(

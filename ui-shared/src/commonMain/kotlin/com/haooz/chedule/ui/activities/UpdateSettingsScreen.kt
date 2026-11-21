@@ -1075,24 +1075,12 @@ internal fun UpdateChangelogMorphLayer(
     val cardRect = origin.rect
     val densityScope = LocalDensity.current
     val screenCorners = rememberScreenCornerRadiiPx()
-    // 第二段的基准幅度（与引导页同值）；Vertical 轴下还要在 BoxWithConstraints 里
-    // 乘 screenWidth/screenHeight，补偿「分母从半高变半宽」带来的强度差异
     val maxCurvePx = with(densityScope) { HeroChangelogBackCurveDp.dp.toPx() }
-    // 展开到位后才补齐日志页剩余条目：点开那一刻只排首屏那几条，预加载才够快
     val settled by remember { derivedStateOf { heroGrowProgress(grow()) >= 0.999f } }
-    // 翻过 90° 正面那张卡已经看不见了，必须卸载：它压在日志页之上，
-    // 留着会吃掉那块区域的点击与滑动（点一下直接退出日志页）
     val frontCardGone by remember { derivedStateOf { flip() >= 0.5f } }
-    // 翻转期间背景压暗：与连贯动画同款（progress × 0.5，上限 0.5）
     val dimColor = ComposeColor.Black
     var originInRoot by remember { mutableStateOf<Offset?>(null) }
 
-    // 翻开的日志页先回它自己：返回键把页面翻回卡片，而不是退出更新页
-    NavigationBackHandlerFor(
-        enabled = true,
-        onBackCompleted = onClose,
-        onBackCancelled = {},
-    )
 
     BoxWithConstraints(
         modifier = Modifier
