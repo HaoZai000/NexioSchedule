@@ -17,6 +17,7 @@ import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.L
 import com.haooz.chedule.ui.activities.main.SettingsPaneArgs
+import com.haooz.chedule.ui.activities.setting.SettingsScreen
 import kotlinx.coroutines.withContext
 
 /**

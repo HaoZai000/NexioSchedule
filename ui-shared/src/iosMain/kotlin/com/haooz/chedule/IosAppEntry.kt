@@ -35,7 +35,7 @@ import com.haooz.chedule.i18n.L
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.main.CourseScheduleApp
 import com.haooz.chedule.ui.activities.today.TodayAssistantCard
-import com.haooz.chedule.ui.screens.LocalTabletSettingsPaneRouteContent
+import com.haooz.chedule.ui.activities.setting.LocalTabletSettingsPaneRouteContent
 import com.haooz.chedule.ui.navigation.AboutRoute
 import com.haooz.chedule.ui.navigation.AiFeaturesRoute
 import com.haooz.chedule.ui.navigation.AiImportRoute
