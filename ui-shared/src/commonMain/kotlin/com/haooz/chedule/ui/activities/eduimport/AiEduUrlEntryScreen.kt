@@ -2,6 +2,7 @@ package com.haooz.chedule.ui.activities.eduimport
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -28,14 +30,19 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.ui.ai.AiEduUrlHolder
 import com.haooz.chedule.ui.components.DocumentPageScaffold
+import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.web.EduImportSelection
 import com.haooz.nexioui.button.ButtonDefaults
 import com.haooz.nexioui.button.FlatTextButton
 import com.haooz.nexioui.material.NexioMaterial
 import com.haooz.nexioui.overlaydialog.LocalOverlayDialogBackdrop
+import com.haooz.nexioui.scaffold.Scaffold
 import com.haooz.nexioui.textfield.TextField
 import com.haooz.nexioui.text.NexioText as Text
 import com.haooz.nexioui.theme.NexioTheme
+import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
+import com.haooz.nexioui.topappbar.collapsibleTopInset
+import com.haooz.nexioui.window.isTabletWidth
 
 private const val PREFS_AI_EDU = "ai_edu_import_prefs"
 private const val KEY_LAST_URL = "last_url"
@@ -104,37 +111,51 @@ fun AiEduUrlEntryScreen(
                 performHapticFeedback = false,
             )
         },
-    ) { _, backdrop ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(NexioTheme.colorScheme.surface)
-                .padding(horizontal = 16.dp)
-                .padding(top = 120.dp),
-        ) {
-            Text(
-                text = ImportStr.aiEduUrlHint(),
-                style = NexioTheme.textStyles.body2,
-                color = NexioTheme.colorScheme.onSurfaceVariantActions,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-            TextField(
-                value = urlInput,
-                onValueChange = { urlInput = it },
-                minLines = 4,
-                maxLines = 4,
-                label = ImportStr.aiEduUrlLabel(),
-                useLabelAsPlaceholder = true,
-            )
-            Spacer(Modifier.height(12.dp))
-            FlatTextButton(
-                text = ImportStr.aiEduOpen(),
-                onClick = { onOpen() },
-                colors = ButtonDefaults.textButtonColorsPrimary(),
-                modifier = Modifier.fillMaxWidth(),
-            )
+    ) { scrollBehavior, backdrop ->
+        val isTablet = isTabletWidth()
+        val horizontalPadding = if (isTablet) 20.dp else 16.dp
+        val scrollBehaviorModifier = remember(scrollBehavior) {
+            Modifier
+                .collapsibleTopInset(scrollBehavior)
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
+        }
+        Scaffold(topBar = {}) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(NexioTheme.colorScheme.surface)
+                    .then(scrollBehaviorModifier)
+                    .padding(horizontal = horizontalPadding)
+                    .padding(
+                        top = paddingValues.calculateTopPadding() +
+                            CollapsibleTopAppBarDefaults.CollapsedHeight +
+                            pageTopExtra(isTablet, hasSmallTitle = false),
+                    ),
+            ) {
+                Text(
+                    text = ImportStr.aiEduUrlHint(),
+                    style = NexioTheme.textStyles.body2,
+                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                TextField(
+                    value = urlInput,
+                    onValueChange = { urlInput = it },
+                    minLines = 4,
+                    maxLines = 4,
+                    label = ImportStr.aiEduUrlLabel(),
+                    useLabelAsPlaceholder = true,
+                )
+                Spacer(Modifier.height(12.dp))
+                FlatTextButton(
+                    text = ImportStr.aiEduOpen(),
+                    onClick = { onOpen() },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
 
         AdapterSelectionBottomSheet(
