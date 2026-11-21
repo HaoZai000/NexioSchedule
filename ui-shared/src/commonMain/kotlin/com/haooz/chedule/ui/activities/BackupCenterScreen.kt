@@ -54,6 +54,7 @@ import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.components.pageTopExtra
+import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
@@ -390,7 +391,8 @@ private class BackupCenterState(
     val localAvailable: Boolean get() = files !is NoopBackupFileController
     val cloudReady: Boolean get() = webDav.isConfigured()
     val canChooseBackupDirectory: Boolean get() = files.canChooseBackupDirectory()
-    val visibleRecords: List<BackupRecord> get() = if (expanded) records else records.take(HISTORY_PREVIEW)
+    val visibleRecords: List<BackupRecord> get() = records.take(HISTORY_PREVIEW)
+    val moreRecords: List<BackupRecord> get() = records.drop(HISTORY_PREVIEW)
 
     fun refresh() {
         scope.launch {
@@ -822,6 +824,18 @@ fun BackupCenterScreen(
                                     onRestore = { state.requestRestore(record) },
                                     onDelete = { state.pendingDelete = record },
                                 )
+                            }
+                            // 超出预览的记录走卡片动画展开/收起，与课程提醒页同款 CardExpand
+                            CardExpand(visible = state.expanded && state.moreRecords.isNotEmpty()) {
+                                state.moreRecords.forEach { record ->
+                                    RecordRow(
+                                        record = record,
+                                        backdrop = liquidGlassBackdrop,
+                                        dropdownColors = dropdownColors,
+                                        onRestore = { state.requestRestore(record) },
+                                        onDelete = { state.pendingDelete = record },
+                                    )
+                                }
                             }
                         }
                         if (state.records.size > HISTORY_PREVIEW) {
