@@ -29,10 +29,11 @@ import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.i18n.McpStr
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.i18n.SwitchStr
 import com.haooz.chedule.i18n.WeatherStr
-import com.haooz.chedule.ui.activities.EduImportUpdater
+import com.haooz.chedule.ui.activities.eduimport.EduImportUpdater
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.navigation.LocalAppRouter
@@ -681,6 +682,7 @@ internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     AppRoute.AiImport -> ChromeStr.aiImport()
     AppRoute.WidgetIntro -> ChromeStr.widgetsTitle()
     AppRoute.AiFeatures -> SettingsStr.aiFeatures()
+    AppRoute.McpService -> McpStr.title()
     AppRoute.CourseReminder -> ChromeStr.courseReminders()
     AppRoute.HolidaySettings -> ChromeStr.holidaysTitle()
     AppRoute.WebDavSettings -> ChromeStr.webdavBackup()
