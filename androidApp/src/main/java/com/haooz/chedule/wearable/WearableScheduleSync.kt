@@ -1,6 +1,8 @@
 package com.haooz.chedule.wearable
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
@@ -22,12 +24,17 @@ import org.json.JSONObject
  * 通道：xms-wearable MessageApi ↔ 手表 @system.interconnect
  * 权限：必须先 requestPermission(DEVICE_MANAGER)，否则 bind/send 会 permission denied
  *
- * 注意：手表 rpk 与 APK 必须同包名（com.haooz.chedule）且同签名。
+ * 注意：手表 rpk 与 APK 必须同包名（com.haooz.chedule）且**同签名**。
+ * 签名不一致时 sendMessage 会失败且报错含糊（手环侧表现为一直连不上），
+ * 所以失败时要把可执行的原因说清楚，而不是只给一句"推送失败"。
  */
 object WearableScheduleSync {
 
     private const val TAG = "WearableScheduleSync"
     private const val PROTOCOL = "nexio.schedule"
+
+    /** 手环端的首页路由（拉起手环 App 用，与 rpk manifest 的 router.entry 一致） */
+    private const val WATCH_ROUTE = "pages/index"
 
     /** 上一包推送刚落地、期间又攒下变更，补推时用的归因名。 */
     private const val REASON_PUSH_DRAINED = "push-drained"
@@ -56,6 +63,31 @@ object WearableScheduleSync {
     private var nodeId: String? = null
 
     private var scheduler: ScheduledExecutorService? = null
+
+    /** 回调统一回主线程：推送链路大部分跑在 scheduler/回调线程上，见 [deliver] */
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
+
+    /**
+     * 把结果交回主线程再执行。
+     *
+     * ⚠ 这里踩过坑：SDK 的 Task 监听器在主线程回调，但"没有节点 / 通道不可用"这些
+     * 早退分支是在 scheduler 线程上直接回调的，而回调里会 showToast ——
+     * Android 在无 Looper 的线程上 Toast 会抛 "Can't toast on a thread that has not
+     * called Looper.prepare()"，异常顺着 lambda 抛出把整个推送任务带走。
+     * 用户侧看到的就是「点了导出，只有一句'正在推送'，然后再无下文」。
+     */
+    private fun deliver(
+        onResult: ((ok: Boolean, message: String) -> Unit)?,
+        ok: Boolean,
+        message: String,
+    ) {
+        if (onResult == null) return
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            onResult(ok, message)
+        } else {
+            mainHandler.post { onResult(ok, message) }
+        }
+    }
 
     private val messageListener = OnMessageReceivedListener { _, message ->
         try {
@@ -152,18 +184,15 @@ object WearableScheduleSync {
     ) {
         val exec = scheduler ?: Executors.newSingleThreadScheduledExecutor().also { scheduler = it }
         exec.execute {
-            var id = resolveNodeId()
+            val id = resolveNodeId()
             if (id == null) {
-                // 节点可能尚未就绪：再探一次，仍无则排队，等 node-ready 补推
-                tryResolveNode()
-                Thread.sleep(400)
-                id = resolveNodeId()
-            }
-            if (id == null) {
+                // 节点没就绪就只排队，不在这里 sleep 等：这条线程是单线程执行器，
+                // 睡一下会把「手环主动来要数据」的推送一起卡住；节点连上后
+                // tryResolveNode → "node-ready" 会立刻补推。
                 NexioLog.w(TAG, "push skip ($reason): no node, queued")
                 pendingPush.set(true)
                 pendingScheduleName = scheduleName
-                onResult?.invoke(false, "手环未连接，已排队等待重连后补推")
+                deliver(onResult, false, "手环未连接，已排队等待重连后补推")
                 return@execute
             }
             if (permissionGranted.get()) {
@@ -172,7 +201,7 @@ object WearableScheduleSync {
             }
             val auth = authApi ?: run {
                 NexioLog.w(TAG, "authApi null")
-                onResult?.invoke(false, "手环服务不可用，请确认已安装小米运动健康")
+                deliver(onResult, false, "手环服务不可用，请确认已安装小米运动健康")
                 return@execute
             }
             auth.checkPermissions(id, arrayOf(Permission.DEVICE_MANAGER))
@@ -198,18 +227,18 @@ object WearableScheduleSync {
                                     doPush(reason, scheduleName, id, onResult)
                                 } else {
                                     NexioLog.w(TAG, "push fail ($reason): permission not granted")
-                                    onResult?.invoke(false, "未获得手环授权，无法推送")
+                                    deliver(onResult, false, "未获得手环授权，无法推送")
                                 }
                             }
                             .addOnFailureListener { e ->
                                 NexioLog.w(TAG, "requestPermission fail: ${e.message}")
-                                onResult?.invoke(false, "申请手环授权失败：${e.message}")
+                                deliver(onResult, false, "申请手环授权失败：${e.message}")
                             }
                     }
                 }
                 .addOnFailureListener { e ->
                     NexioLog.w(TAG, "checkPermission fail: ${e.message}")
-                    onResult?.invoke(false, "查询手环授权失败：${e.message}")
+                    deliver(onResult, false, "查询手环授权失败：${e.message}")
                 }
         }
     }
@@ -235,7 +264,7 @@ object WearableScheduleSync {
             // 上一次还没发完就记账重排，等它落地再补一次，避免连点「推送到手环」连发多包
             pendingPush.set(true)
             pendingScheduleName = scheduleName
-            onResult?.invoke(false, "上一次推送还在进行，已排队，稍后自动补推")
+            deliver(onResult, false, "上一次推送还在进行，已排队，稍后自动补推")
             return
         }
         try {
@@ -247,7 +276,7 @@ object WearableScheduleSync {
             val payloadBytes = payload.toByteArray(Charsets.UTF_8).size
             val api = messageApi ?: run {
                 releasePushSlot()
-                onResult?.invoke(false, "手环消息通道不可用")
+                deliver(onResult, false, "手环消息通道不可用")
                 return
             }
             api.sendMessage(id, payload.toByteArray(Charsets.UTF_8))
@@ -257,18 +286,74 @@ object WearableScheduleSync {
                     //   放进 finally 的话会在 sendMessage 还没回调时就把标记清掉，
                     //   合帧形同虚设，连点「推送到手环」会连发多包。
                     releasePushSlot()
-                    onResult?.invoke(true, "已推送到手环（${payloadBytes / 1024} KB）")
+                    deliver(onResult, true, "已推送到手环（${payloadBytes / 1024} KB）")
                 }
                 .addOnFailureListener { e ->
-                    NexioLog.w(TAG, "push fail ($reason): ${e.message}")
+                    NexioLog.w(TAG, "push fail ($reason), node=$id, bytes=$payloadBytes: ${e.message}")
                     releasePushSlot()
-                    onResult?.invoke(false, "推送失败：${e.message}")
+                    // 不自动重试：失败多半是「手环 App 没在前台 / 没装」，
+                    // 反复重试只会反复弹授权、反复拉起手环。交给 explainFailure 给原因。
+                    explainFailure(payloadBytes, e.message ?: "", onResult)
                 }
         } catch (e: Exception) {
             NexioLog.w(TAG, "push error ($reason): ${e.message}")
             releasePushSlot()
-            onResult?.invoke(false, "推送异常：${e.message}")
+            deliver(onResult, false, "推送异常：${e.message}")
         }
+    }
+
+    /**
+     * 推送失败时给出**可执行**的原因，而不是一句"推送失败"。
+     *
+     * 手环侧收不到推送只有三类原因，用户能做的动作完全不同：
+     *  1. 手环上没装/装的是别的包 —— isWearAppInstalled 能直接判出来；
+     *  2. 装了但没在前台（interconnect 连接随页面建立）—— 拉起手环 App 即可自愈：
+     *     手环打开后会自己发 action=request，手机随即整包推送；
+     *  3. 签名/包名不一致 —— 这种 sendMessage 会直接失败且没有可读信息，
+     *     只能提示用户装配套版本（手环端同步诊断也会给出「连接异常」）。
+     */
+    private fun explainFailure(
+        bytes: Int,
+        detail: String,
+        onResult: ((ok: Boolean, message: String) -> Unit)? = null,
+    ) {
+        val pkg = appContext.packageName
+        val node = nodeApi
+        val suffix = if (detail.isBlank()) "" else "（$detail）"
+        // 先看是不是体积问题：这一条最确定（自己算出来的字节数），不用问系统
+        if (bytes > WatchPayload.MAX_PAYLOAD_BYTES) {
+            deliver(
+                onResult,
+                false,
+                "课表数据 ${bytes / 1024} KB 超过单包上限 " +
+                    "${WatchPayload.MAX_PAYLOAD_BYTES / 1024} KB，请精简课程或调休后再推",
+            )
+            return
+        }
+        if (node == null) {
+            deliver(onResult, false, "推送失败$suffix，请在手环上打开 Nexio 后重试")
+            return
+        }
+        node.isWearAppInstalled(pkg)
+            .addOnSuccessListener { installed ->
+                if (!installed) {
+                    NexioLog.w(TAG, "wear app not installed: $pkg")
+                    deliver(onResult, false, "手环上未安装 Nexio 手环版，请先用小米运动健康安装")
+                    return@addOnSuccessListener
+                }
+                val launched = runCatching { node.launchWearApp(pkg, WATCH_ROUTE) }.isSuccess
+                NexioLog.i(TAG, "wear app installed, launch=$launched")
+                deliver(
+                    onResult,
+                    false,
+                    if (launched) "推送失败，已尝试唤起手环端，请稍候再看手环"
+                    else "推送失败$suffix，请在手环上打开 Nexio 后重试",
+                )
+            }
+            .addOnFailureListener {
+                // 老版本小米运动健康没有这项查询：不阻断，退回通用文案
+                deliver(onResult, false, "推送失败$suffix，请在手环上打开 Nexio 后重试")
+            }
     }
 
     /** 释放推送槽；期间又攒下了变更就立刻补推一次。 */
