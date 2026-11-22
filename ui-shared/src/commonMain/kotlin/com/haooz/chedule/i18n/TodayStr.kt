@@ -421,4 +421,13 @@ object TodayStr {
         L("月亮上班了，你的正事还没上班", "The moon has clocked in; your real work never did"),
         L("这个点还不睡的自由，明天会连本带利收走", "The freedom of staying up now will be collected tomorrow with interest")
     )
+
+    // ── 时间轴视图2 / 系统日历合并 ──
+    val systemCalendar = L("系统日历", "Calendar")
+    val untitledEvent = L("未命名日程", "Untitled event")
+    val noSchedule = L("今天没有课", "No classes today")
+    val calendarPermissionTitle = L("读取系统日历", "Read system calendar")
+    val calendarPermissionSummary = L("把系统日程和课程合并显示，只在本机读取", "Merge calendar events with your classes (read locally)")
+    val calendarPermissionAction = L("授权", "Allow")
+    val calendarLoadFailed = L("读取系统日历失败", "Failed to read calendar")
 }

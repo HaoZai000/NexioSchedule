@@ -778,9 +778,11 @@ internal fun CourseScheduleAppMainContent(
                                                             // 今日助手卡留在 :androidApp（天气/定位/Geocoder），通过槽位注入
                                                             todayAssistantCard = todayAssistantCard,
                                                             // 今日页视图独立于课表页：周网格 / 时间轴
+                                                            todayViewMode = todayViewMode,
                                                             scheduleViewMode = when (todayViewMode) {
                                                                 TodayViewMode.WEEK -> ScheduleViewMode.WEEK
                                                                 TodayViewMode.TIMELINE -> ScheduleViewMode.TIMELINE
+                                                                TodayViewMode.TIMELINE_2 -> ScheduleViewMode.TIMELINE
                                                             },
                                                             // 顶栏与内容共用同一份越界状态（顶栏材质判据需要）
                                                             overScrollState = mainOverScrollState,

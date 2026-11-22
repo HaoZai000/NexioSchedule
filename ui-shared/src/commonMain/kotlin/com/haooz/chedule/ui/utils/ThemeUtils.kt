@@ -174,11 +174,14 @@ fun saveScheduleViewMode(mode: ScheduleViewMode) {
 private const val TODAY_VIEW_MODE_KEY = "today_view_mode"
 private const val TODAY_VIEW_WEEK = 0
 private const val TODAY_VIEW_TIMELINE = 1
+/** 时间轴视图2：自研单日时间轴（缩放 / 全天日程 / 系统日历合并） */
+private const val TODAY_VIEW_TIMELINE_2 = 2
 
 /** 今日页呈现方式：周网格 / 时间轴（不再提供「跟随课表页」档位）。 */
 enum class TodayViewMode(val prefsValue: Int) {
     WEEK(TODAY_VIEW_WEEK),
-    TIMELINE(TODAY_VIEW_TIMELINE);
+    TIMELINE(TODAY_VIEW_TIMELINE),
+    TIMELINE_2(TODAY_VIEW_TIMELINE_2);
 
     companion object {
         fun fromPrefs(value: Int): TodayViewMode? =

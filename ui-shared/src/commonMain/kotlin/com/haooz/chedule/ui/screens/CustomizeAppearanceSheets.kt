@@ -488,9 +488,14 @@ internal fun CustomizeSheetContent(
                         onClick = { onTodayViewModeChange(TodayViewMode.WEEK) }
                     ),
                     DropdownItem(
-                        text = SchedStr.viewAsTimeline(),
+                        text = SchedStr.viewAsTimeline1(),
                         selected = todayViewMode == TodayViewMode.TIMELINE,
                         onClick = { onTodayViewModeChange(TodayViewMode.TIMELINE) }
+                    ),
+                    DropdownItem(
+                        text = SchedStr.viewAsTimeline2(),
+                        selected = todayViewMode == TodayViewMode.TIMELINE_2,
+                        onClick = { onTodayViewModeChange(TodayViewMode.TIMELINE_2) }
                     ),
                 )
             )
