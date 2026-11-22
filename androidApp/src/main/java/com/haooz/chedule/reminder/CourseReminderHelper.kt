@@ -833,6 +833,28 @@ object CourseReminderHelper {
         }
     }
 
+    /**
+     * 「强制执行」入口：立即全量重排真实课表闹钟并重新对账课堂静音/勿扰。
+     * 返回真实结果摘要（闹钟数量 + 课堂状态），不谎报成功。
+     */
+    fun forceRefresh(context: Context): String {
+        val repository = CourseRepository()
+        val pre = repository.getPreClassReminder()
+        val next = repository.getNextDayReminder()
+        if (!pre && !next) {
+            stopReminderService(context)
+            return AndroidNotifStr.forceReminderOff()
+        }
+        // startReminderService 走全量重排 + 勿扰对账；合并窗口会推迟真正执行，
+        // 这里要立刻见效，所以直接调内部 doStart（清掉可能挂着的补发）。
+        cancelCoalescedStart()
+        doStartReminderService(context, repository)
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val dndCount = ClassDndHelper.forceApplyCurrentState(context)
+        val preCount = readRcSet(context, KEY_PRE_CLASS_RCS).size
+        return AndroidNotifStr.forceRescheduledN(preCount, dndCount)
+    }
+
     fun stopReminderService(context: Context) {
         com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("service_stop")
         cancelCoalescedStart()

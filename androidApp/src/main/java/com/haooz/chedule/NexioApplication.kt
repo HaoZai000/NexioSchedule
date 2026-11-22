@@ -99,7 +99,10 @@ class NexioApplication : Application() {
         warmUpStorage()
         cleanupTransientFiles()
         initWearableSync()
+        com.haooz.chedule.data.mcp.CloudMcpBridge.controller =
+            com.haooz.chedule.mcp.AndroidCloudMcpController(this)
         // 本地 MCP 服务：仅监听 127.0.0.1，供手机上的 AI 助手读取课表
+        com.haooz.chedule.data.mcp.McpServiceBridge.port = BuildConfig.MCP_LOCAL_PORT
         com.haooz.chedule.data.mcp.McpServiceBridge.supported = true
         com.haooz.chedule.data.mcp.McpServiceBridge.start = {
             com.haooz.chedule.mcp.McpForegroundService.start(this)

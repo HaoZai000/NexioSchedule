@@ -9,6 +9,12 @@ import kotlin.concurrent.Volatile
  */
 object McpServiceBridge {
 
+    /** 测试构建使用不同端口，可与正式版本地服务并存。 */
+    @Volatile
+    var port: Int = McpToolCatalog.PORT
+
+    val serverUrl: String get() = "http://127.0.0.1:$port/mcp"
+
     /** 当前平台是否提供本地 MCP 服务（目前仅 Android）。 */
     @Volatile
     var supported: Boolean = false

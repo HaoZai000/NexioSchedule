@@ -8,6 +8,7 @@ import android.database.MatrixCursor
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.net.Uri
+import com.haooz.chedule.BuildConfig
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.repo.CourseRepository
@@ -307,7 +308,7 @@ val subText = when {
     )
 
     companion object {
-        const val AUTHORITY = "com.haooz.chedule.courses"
+        const val AUTHORITY = BuildConfig.APPLICATION_ID + ".courses"
         // sx=1 设计基准字号，用于 App 端测量截断
         const val NAME_TEXT_SIZE = 14f
         const val SUB_TEXT_SIZE = 12f

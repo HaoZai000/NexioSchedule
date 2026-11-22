@@ -5,6 +5,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
+import android.os.PersistableBundle
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -88,18 +90,13 @@ fun AppRouteContent(
         AppRoute.Feedback -> FeedbackRoute(router)
         AppRoute.FeedbackHistory -> FeedbackHistoryRoute(router)
         AppRoute.FeedbackRoadmap -> FeedbackRoadmapRoute(router)
-        AppRoute.AiFeatures -> AiFeaturesRoute(router)
-
+        AppRoute.AiFeatures -> {
+            val context = LocalContext.current
+            AiFeaturesRoute(router, onCopyToClipboard = { copyPrivateSetting(context, it) })
+        }
         AppRoute.McpService -> {
             val context = LocalContext.current
-            McpServiceRoute(
-                router = router,
-                onCopyToClipboard = { text ->
-                    val clipboard =
-                        context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("MCP 服务", text))
-                },
-            )
+            McpServiceRoute(router, onCopyToClipboard = { copyPrivateSetting(context, it) })
         }
         AppRoute.AppreciateAuthor -> AppreciateAuthorRoute(router)
 
@@ -441,6 +438,16 @@ private fun AndroidWebImportRoute(router: AppRouter) {
         router = router,
         webHostFactory = { config, events -> rememberAndroidWebHost(config, events) },
     )
+}
+
+/** 设置页主动复制：标记敏感内容以抑制系统剪贴板预览，不记录内容。 */
+private fun copyPrivateSetting(context: Context, value: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clip = ClipData.newPlainText("Nexio 私密设置", value)
+    clip.description.extras = PersistableBundle().apply {
+        putBoolean("android.content.extra.IS_SENSITIVE", true)
+    }
+    clipboard.setPrimaryClip(clip)
 }
 
 /** AI 教务导入：与网页导入同一个宿主实现，区别只在脚本来源。 */

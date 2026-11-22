@@ -8,6 +8,7 @@ import com.google.gson.JsonParser
 import com.haooz.chedule.data.holiday.HolidayEntry
 import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.mcp.McpServicePrefs
+import com.haooz.chedule.data.mcp.McpServiceBridge
 import com.haooz.chedule.data.mcp.McpToolCatalog
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.model.truncateNote
@@ -61,7 +62,7 @@ object McpLocalServer {
         if (serverSocket != null) return
         try {
             val socket = ServerSocket(
-                McpToolCatalog.PORT,
+                McpServiceBridge.port,
                 8,
                 InetAddress.getByName("127.0.0.1"),
             )
@@ -70,7 +71,7 @@ object McpLocalServer {
                 isDaemon = true
                 start()
             }
-            Log.i(TAG, "MCP 服务已启动: ${McpToolCatalog.SERVER_URL}")
+            Log.i(TAG, "MCP 服务已启动: ${McpServiceBridge.serverUrl}")
         } catch (e: Exception) {
             Log.e(TAG, "MCP 服务启动失败", e)
         }

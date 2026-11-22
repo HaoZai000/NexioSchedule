@@ -30,11 +30,22 @@ android {
         targetSdk = 37
         versionCode = 173
         versionName = "1.7.3-1120"
+        buildConfigField("int", "MCP_LOCAL_PORT", "26611")
 
         ndk {
             abiFilters += listOf("arm64-v8a")
+            // 模拟器联调需要 x86_64；release 由 CI 过滤，不进正式包
+            if (gradle.startParameter.taskNames.any {
+                    it.contains("Debug", ignoreCase = true) || it.contains("McpTest", ignoreCase = true)
+                }) {
+                abiFilters += listOf("x86_64")
+            }
         }
     }
+
+    // 可选的本地共存测试构建：需要自备被 .gitignore 排除的 keystore/nexio-mcp-test.p12，
+    // 钥匙不存在时整个 buildType 不注册，不影响 debug/release 构建。
+    val hasMcpTestKey = rootProject.file("keystore/nexio-mcp-test.p12").exists()
 
     signingConfigs {
         // 只在钥匙存在时创建，否则 assembleRelease 会因 storeFile 为空失败
@@ -44,6 +55,16 @@ android {
                 storePassword = keyMaterial("RELEASE_STORE_PASSWORD")
                 keyAlias = keyMaterial("RELEASE_KEY_ALIAS")
                 keyPassword = keyMaterial("RELEASE_KEY_PASSWORD")
+            }
+        }
+        // 专用本地测试钥匙不进入版本控制；不继承正式版签名。
+        if (hasMcpTestKey) {
+            create("mcpTest") {
+                storeFile = rootProject.file("keystore/nexio-mcp-test.p12")
+                storeType = "PKCS12"
+                storePassword = "nexio-local-test"
+                keyAlias = "nexio-mcp-test"
+                keyPassword = "nexio-local-test"
             }
         }
     }
@@ -61,6 +82,16 @@ android {
         // 与 release 同签名，才能 adb install -r 覆盖安装、保留 data
         debug {
             if (hasSigningKey) signingConfig = signingConfigs.getByName("haooz")
+        }
+        if (hasMcpTestKey) {
+            create("mcpTest") {
+                initWith(getByName("debug"))
+                applicationIdSuffix = ".mcptest"
+                versionNameSuffix = "-mcp-test"
+                signingConfig = signingConfigs.getByName("mcpTest")
+                matchingFallbacks += listOf("debug")
+                buildConfigField("int", "MCP_LOCAL_PORT", "26612")
+            }
         }
     }
     packaging {
@@ -135,6 +166,7 @@ dependencies {
     implementation(libs.shizuku.provider)
 
     implementation(libs.okhttp)
+    testImplementation("junit:junit:4.13.2")
 
     // Layout Inspector
     debugImplementation(libs.androidx.compose.ui.tooling)

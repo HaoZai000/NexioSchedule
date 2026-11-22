@@ -1441,7 +1441,7 @@ fun WidgetIntroRoute(
  * AI 功能路由：免费额度、自带服务商设置与各功能入口。
  */
 @Composable
-fun AiFeaturesRoute(router: AppRouter) {
+fun AiFeaturesRoute(router: AppRouter, onCopyToClipboard: ((String) -> Unit)? = null) {
     DocumentPageScaffold(
         title = SettingsStr.aiFeatures(),
         onBack = { router.popBack() },
@@ -1450,6 +1450,7 @@ fun AiFeaturesRoute(router: AppRouter) {
             scrollBehavior = scrollBehavior,
             liquidGlassBackdrop = backdrop,
             onOpenMcp = { router.navigate(AppRoute.McpService) },
+            onCopyToClipboard = onCopyToClipboard,
             onOpenReminder = { router.navigate(AppRoute.CourseReminder) },
             onOpenEduImport = { router.navigate(AppRoute.AiEduUrlEntry) },
             onOpenTextImport = { router.navigate(AppRoute.AiImport) },

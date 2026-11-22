@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,6 +56,7 @@ import com.haooz.chedule.data.ai.AiResult
 import com.haooz.chedule.data.model.ClassroomLabel
 import com.haooz.chedule.data.model.ClassroomLabelRule
 import com.haooz.chedule.data.platform.HttpTimeouts
+import com.haooz.chedule.data.platform.IslandAuthorizationState
 import com.haooz.chedule.data.platform.NoopReminderController
 import com.haooz.chedule.data.platform.ReminderController
 import com.haooz.chedule.data.platform.createHttpService
@@ -242,6 +244,8 @@ enum class ReminderPermissionRow {
     AUTOSTART,
 }
 
+private enum class NotificationReminderTarget { Master, PreClass, NextDay }
+
 @Composable
 fun CourseReminderScreen(
     settingsViewModel: SettingsViewModel = settingsViewModel(),
@@ -286,6 +290,10 @@ fun CourseReminderScreen(
 
     var shizukuRunning by remember { mutableStateOf(false) }
     var shizukuAuthorized by remember { mutableStateOf(false) }
+    var shizukuRequesting by remember { mutableStateOf(false) }
+    var islandAuthorization by remember { mutableStateOf(IslandAuthorizationState.Unsupported) }
+    var forceExecutionBusy by remember { mutableStateOf(false) }
+    var forceExecutionResult by remember { mutableStateOf<String?>(null) }
     var isIslandSupported by remember { mutableStateOf(false) }
     //
     // Live container gate: Android HyperOS super island OR iOS Live Activity.
@@ -408,10 +416,6 @@ fun CourseReminderScreen(
     var canScheduleExactAlarms by remember { mutableStateOf(true) }
     var dndPermissionGranted by remember { mutableStateOf(false) }
     var notificationGranted by remember { mutableStateOf(false) }
-    // 勿扰授权页返回：重读勿扰权限 → 触发权限刷新 → 已授权且总开关开着则重启提醒服务。
-    // rememberUpdatedState：回调在从系统设置返回时才触发，保证拿到最新组合的 masterEnabled
-    // （对齐原 rememberLauncherForActivityResult 的 rememberUpdatedState 回调语义；
-    //  调用点必须传 { onDndPermissionResult() }，让读取发生在结果返回时）
     val onDndPermissionResult by rememberUpdatedState<() -> Unit> {
         dndPermissionGranted = reminderController.isDndPermissionGranted()
         rlog("permission_dnd_result", "granted=$dndPermissionGranted")
@@ -425,81 +429,74 @@ fun CourseReminderScreen(
     val onPromotedSettingsResult: () -> Unit = {
         canPostPromoted = reminderController.canPostPromotedNotifications()
     }
-    // 精确闹钟授权页返回：重读精确闹钟权限 → 已授权且总开关开着则重启提醒服务（同上 rememberUpdatedState）
     val onExactAlarmResult by rememberUpdatedState<() -> Unit> {
         canScheduleExactAlarms = reminderController.canScheduleExactAlarms()
         rlog("permission_exact_alarm_result", "granted=$canScheduleExactAlarms")
+        permissionRefreshKey++
         if (canScheduleExactAlarms && masterEnabled) {
             reminderController.startReminderService()
             rlog("reminder_service", "start_after_exact_alarm_grant")
         }
     }
 
-    LaunchedEffect(masterEnabled) {
+    DisposableEffect(reminderController) {
+        val stopObserving = reminderController.observePermissionChanges { permissionRefreshKey++ }
+        onDispose {
+            stopObserving()
+            reminderController.cancelShizukuPermissionRequest()
+        }
+    }
+
+    LaunchedEffect(masterEnabled, permissionRefreshKey) {
+        val before = listOf(notificationGranted, canScheduleExactAlarms, dndPermissionGranted, shizukuAuthorized)
+        isIgnoringBattery = reminderController.isIgnoringBatteryOptimizations()
+        canPostPromoted = reminderController.canPostPromotedNotifications()
+        canScheduleExactAlarms = reminderController.canScheduleExactAlarms()
+        shizukuRunning = reminderController.isShizukuRunning()
+        shizukuAuthorized = reminderController.isShizukuAuthorized()
+        isIslandSupported = reminderController.isIslandSupported()
+        islandAuthorization = reminderController.getIslandAuthorizationState()
+        showIslandCard = isIslandSupported || reminderController.supportsLiveActivity()
+        dndPermissionGranted = reminderController.isDndPermissionGranted()
+        notificationGranted = reminderController.hasNotificationPermission()
+        if (!showIslandCard && islandNotification) settingsViewModel.setIslandNotification(false)
+        val after = listOf(notificationGranted, canScheduleExactAlarms, dndPermissionGranted, shizukuAuthorized)
+        if (permissionRefreshKey > 0 && before != after && !forceExecutionBusy) {
+            reminderController.startReminderService()
+        }
         rlog("page_state_snapshot") {
             "master=$masterEnabled pre=$preClassReminder next=$nextDayReminder " +
                 "inClass=$inClassEnabled dnd=$classDndEnabled dndMode=$classDndMode " +
-                "island=$islandNotification preMin=$preClassReminderMinutes " +
-                "nextTime=${pad2(nextDayReminderHour, nextDayReminderMinute)}"
-        }
-        if (masterEnabled) {
-            isIgnoringBattery = reminderController.isIgnoringBatteryOptimizations()
-            canPostPromoted = reminderController.canPostPromotedNotifications()
-            canScheduleExactAlarms = reminderController.canScheduleExactAlarms()
-            shizukuRunning = reminderController.isShizukuRunning()
-            shizukuAuthorized = reminderController.isShizukuAuthorized()
-            isIslandSupported = reminderController.isIslandSupported()
-            showIslandCard = isIslandSupported || reminderController.supportsLiveActivity()
-            dndPermissionGranted = reminderController.isDndPermissionGranted()
-            notificationGranted = reminderController.hasNotificationPermission()
-            // Clear leftover state on devices without any live-container capability.
-            // iOS retains the switch through supportsLiveActivity.
-            if (!isIslandSupported && !reminderController.supportsLiveActivity() && islandNotification) {
-                settingsViewModel.setIslandNotification(false)
-            }
+                "island=$islandNotification access=$islandAuthorization"
         }
     }
 
-    LaunchedEffect(permissionRefreshKey) {
-        if (permissionRefreshKey > 0) {
-            isIgnoringBattery = reminderController.isIgnoringBatteryOptimizations()
-            canPostPromoted = reminderController.canPostPromotedNotifications()
-            canScheduleExactAlarms = reminderController.canScheduleExactAlarms()
-            dndPermissionGranted = reminderController.isDndPermissionGranted()
-            notificationGranted = reminderController.hasNotificationPermission()
-            // 授权状态变化后重新对账，保证开关与系统勿扰状态一致
-            reminderController.startReminderService()
-        }
-    }
-
-    var pendingPermissionAction by remember { mutableStateOf<Boolean?>(null) }
-    // 通知权限弹窗返回（body 只读状态持有者，逐字保留原 launcher 回调逻辑）
-    val onNotificationPermissionResult: (Boolean) -> Unit = { granted ->
-        rlog("permission_notification_result", "granted=$granted pending=$pendingPermissionAction")
-        notificationGranted = granted
+    var pendingPermissionAction by remember { mutableStateOf<NotificationReminderTarget?>(null) }
+    // 通知权限弹窗的常规结果处理
+    fun applyNotificationPermissionResult(granted: Boolean) {
         if (granted) {
-            reminderController.startReminderService()
-            pendingPermissionAction?.let { enable ->
-                rlog("permission_notification_apply_pending", "enable=$enable")
-                settingsViewModel.setPreClassReminder(enable)
-                settingsViewModel.setNextDayReminder(enable)
-                if (!enable) {
-                    disableMasterDependentSwitches()
+            when (pendingPermissionAction) {
+                NotificationReminderTarget.Master -> {
+                    settingsViewModel.setPreClassReminder(true)
+                    settingsViewModel.setNextDayReminder(true)
                 }
-                if (enable) {
-                    reminderController.startReminderService()
-                    rlog("reminder_service", "start_after_notif_grant")
-                } else {
-                    reminderController.stopReminderService()
-                    rlog("reminder_service", "stop_after_notif_grant")
-                }
+                NotificationReminderTarget.PreClass -> settingsViewModel.setPreClassReminder(true)
+                NotificationReminderTarget.NextDay -> settingsViewModel.setNextDayReminder(true)
+                null -> Unit
             }
             pendingPermissionAction = null
+            reminderController.startReminderService()
         } else {
             pendingPermissionAction = null
             rlog("permission_notification_denied")
             showToast(ReminderStr.notificationPermissionRequired())
         }
+    }
+    val onNotificationPermissionResult: (Boolean) -> Unit = { granted ->
+        rlog("permission_notification_result", "granted=$granted pending=$pendingPermissionAction")
+        notificationGranted = granted && reminderController.hasNotificationPermission()
+        permissionRefreshKey++
+        applyNotificationPermissionResult(granted)
     }
 
     val backgroundColor = NexioTheme.colorScheme.surface
@@ -553,9 +550,9 @@ fun CourseReminderScreen(
                                 checked = masterEnabled,
                                 onCheckedChange = {
                                     val hasPermission = reminderController.hasNotificationPermission()
-                                    if (!hasPermission) {
+                                    if (it && !hasPermission) {
                                         rlog("master_switch_permission_blocked", "want=$it")
-                                        pendingPermissionAction = it
+                                        pendingPermissionAction = NotificationReminderTarget.Master
                                         reminderController.requestNotificationPermission(onNotificationPermissionResult)
                                         return@SwitchPreference
                                     }
@@ -577,6 +574,55 @@ fun CourseReminderScreen(
                         }
                     }
 
+                    item(key = "reminder_force_execute") {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                ArrowPreference(
+                                    title = if (forceExecutionBusy) ReminderStr.forceExecuting() else ReminderStr.forceExecute(),
+                                    summary = if (masterEnabled) ReminderStr.forceExecuteSummary() else ReminderStr.forceEnableReminderFirst(),
+                                    enabled = masterEnabled && !forceExecutionBusy && !shizukuRequesting,
+                                    onClick = {
+                                        forceExecutionBusy = true
+                                        forceExecutionResult = null
+                                        try {
+                                            reminderController.forceExecuteReminders { result ->
+                                                forceExecutionResult = result
+                                                forceExecutionBusy = false
+                                                permissionRefreshKey++
+                                            }
+                                        } catch (_: Exception) {
+                                            forceExecutionBusy = false
+                                            forceExecutionResult = ReminderStr.maintenanceFailed()
+                                        }
+                                    }
+                                )
+                                forceExecutionResult?.let { result ->
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp)
+                                            .padding(bottom = 16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = ReminderStr.maintenanceResult(),
+                                            style = NexioTheme.textStyles.body2,
+                                            color = NexioTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = result,
+                                            style = NexioTheme.textStyles.body2,
+                                            color = NexioTheme.colorScheme.onSurfaceVariantSummary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // 提醒详情
                     item(key = "reminder_timing") {
                         val masterEnabled = preClassReminder || nextDayReminder
@@ -591,9 +637,9 @@ fun CourseReminderScreen(
                                 enabled = masterEnabled,
                                 onCheckedChange = {
                                     val hasPermission = reminderController.hasNotificationPermission()
-                                    if (!hasPermission) {
+                                    if (it && !hasPermission) {
                                         rlog("preclass_permission_blocked", "want=$it")
-                                        pendingPermissionAction = it
+                                        pendingPermissionAction = NotificationReminderTarget.PreClass
                                         reminderController.requestNotificationPermission(onNotificationPermissionResult)
                                         return@SwitchPreference
                                     }
@@ -670,9 +716,9 @@ fun CourseReminderScreen(
                                 enabled = masterEnabled,
                                 onCheckedChange = {
                                     val hasPermission = reminderController.hasNotificationPermission()
-                                    if (!hasPermission) {
+                                    if (it && !hasPermission) {
                                         rlog("nextday_permission_blocked", "want=$it")
-                                        pendingPermissionAction = it
+                                        pendingPermissionAction = NotificationReminderTarget.NextDay
                                         reminderController.requestNotificationPermission(onNotificationPermissionResult)
                                         return@SwitchPreference
                                     }
@@ -853,29 +899,41 @@ fun CourseReminderScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = ReminderStr.shizukuStatus(),
+                                                text = ReminderStr.islandAuthorization(),
                                                 fontSize = 14.sp,
                                                 color = NexioTheme.colorScheme.onSurfaceVariantSummary
                                             )
                                             Spacer(modifier = Modifier.weight(1f))
                                             Text(
-                                                text = when {
-                                                    !shizukuRunning -> ReminderStr.notRunning()
-                                                    !shizukuAuthorized -> ReminderStr.notAuthorized()
-                                                    else -> ReminderStr.ready()
+                                                text = when (islandAuthorization) {
+                                                    IslandAuthorizationState.Unsupported -> ReminderStr.islandUnsupported()
+                                                    IslandAuthorizationState.NotificationPermissionRequired -> ReminderStr.islandNotificationRequired()
+                                                    IslandAuthorizationState.ChannelBlocked -> ReminderStr.islandChannelBlocked()
+                                                    IslandAuthorizationState.ShizukuNotRunning -> "Shizuku · ${ReminderStr.notRunning()}"
+                                                    IslandAuthorizationState.ShizukuPermissionRequired -> "Shizuku · ${ReminderStr.notAuthorized()}"
+                                                    IslandAuthorizationState.Ready -> ReminderStr.ready()
                                                 },
                                                 fontSize = 14.sp,
-                                                color = when {
-                                                    !shizukuRunning -> ComposeColor(0xFFFF6B6B)
-                                                    !shizukuAuthorized -> ComposeColor(
-                                                        0xFFFFB347
-                                                    )
-
-                                                    else -> ComposeColor(0xFF4CAF50)
+                                                color = if (islandAuthorization == IslandAuthorizationState.Ready) {
+                                                    ComposeColor(0xFF4CAF50)
+                                                } else {
+                                                    NexioTheme.colorScheme.onSurfaceVariantSummary
                                                 },
+                                                modifier = Modifier.weight(1f),
                                                 textAlign = TextAlign.End,
                                             )
                                         }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = when (islandAuthorization) {
+                                                IslandAuthorizationState.Ready -> ReminderStr.islandReadyHint()
+                                                IslandAuthorizationState.ChannelBlocked -> ReminderStr.islandChannelHint()
+                                                IslandAuthorizationState.NotificationPermissionRequired -> ReminderStr.notificationPermissionRequired()
+                                                else -> ReminderStr.islandShizukuHint()
+                                            },
+                                            style = NexioTheme.textStyles.body2,
+                                            color = NexioTheme.colorScheme.onSurfaceVariantSummary
+                                        )
                                         CardExpand(visible = !shizukuRunning) {
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Text(
@@ -887,15 +945,16 @@ fun CourseReminderScreen(
                                         CardExpand(visible = shizukuRunning && !shizukuAuthorized) {
                                             Spacer(modifier = Modifier.height(12.dp))
                                             FlatTextButton(
-                                                text = ReminderStr.authorizeShizuku(),
+                                                text = if (shizukuRequesting) ReminderStr.authorizing() else ReminderStr.authorizeShizuku(),
+                                                enabled = !shizukuRequesting && !forceExecutionBusy,
                                                 onClick = {
                                                     rlog("shizuku_authorize_request")
+                                                    shizukuRequesting = true
                                                     reminderController.requestShizukuPermission { granted ->
                                                         rlog("shizuku_authorize_result", "granted=$granted")
-                                                        shizukuAuthorized = granted
-                                                        if (!granted) {
-                                                            showToast(ReminderStr.shizukuAuthFailed())
-                                                        }
+                                                        shizukuRequesting = false
+                                                        permissionRefreshKey++
+                                                        if (!granted) showToast(ReminderStr.shizukuAuthFailed())
                                                     }
                                                 },
                                                 modifier = Modifier.fillMaxWidth()

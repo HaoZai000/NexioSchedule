@@ -5,8 +5,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import com.haooz.chedule.data.platform.NexioLog
+import com.haooz.chedule.data.platform.PermissionRequestSession
 import com.haooz.chedule.i18n.AndroidMiscStr
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -21,37 +24,55 @@ object ShizukuManager {
     private const val XMSF_PACKAGE = "com.xiaomi.xmsf"
     private const val FIREWALL_CHAIN_OEM_DENY = 9
 
-    private var privilegedService: IPrivilegedService? = null
-    private var serviceConnected = false
-    private var shizukuAvailable = false
-    private var bindLatch = CountDownLatch(1)
+    @Volatile private var privilegedService: IPrivilegedService? = null
+    @Volatile private var serviceConnected = false
+    @Volatile private var bindLatch = CountDownLatch(1)
+    private val bindLock = Any()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var initialized = false
+    private var applicationPackage = ""
+    private const val PERMISSION_TIMEOUT_MS = 30_000L
+
+    private fun clearPrivilegedService() {
+        privilegedService = null
+        serviceConnected = false
+        bindLatch.countDown()
+    }
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            if (binder != null && binder.pingBinder()) {
+            if (binder != null && binder.pingBinder() && checkSelfPermission()) {
                 privilegedService = IPrivilegedService.Stub.asInterface(binder)
                 serviceConnected = true
                 bindLatch.countDown()
                 NexioLog.d(TAG, "Privileged service connected")
+            } else {
+                clearPrivilegedService()
             }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
-            privilegedService = null
-            serviceConnected = false
-            bindLatch = CountDownLatch(1)
+            clearPrivilegedService()
             NexioLog.d(TAG, "Privileged service disconnected")
         }
+
+        override fun onBindingDied(name: ComponentName?) = onServiceDisconnected(name)
+        override fun onNullBinding(name: ComponentName?) = onServiceDisconnected(name)
     }
 
+    @Synchronized
     fun init(context: Context) {
+        if (initialized) return
         try {
-            Sui.init(context.packageName)
-            shizukuAvailable = Shizuku.pingBinder()
-            NexioLog.d(TAG, "Shizuku initialized, available: $shizukuAvailable")
+            applicationPackage = context.applicationContext.packageName
+            Sui.init(applicationPackage)
+            // 进程级监听不持有 Activity；页面监听另行注册/注销。
+            Shizuku.addBinderDeadListener { clearPrivilegedService() }
+            Shizuku.addBinderReceivedListener { clearPrivilegedService() }
+            initialized = true
+            NexioLog.d(TAG, "Shizuku initialized, available: ${isShizukuRunning()}")
         } catch (e: Exception) {
             NexioLog.e(TAG, "Failed to initialize Shizuku", e)
-            shizukuAvailable = false
         }
     }
 
@@ -65,36 +86,81 @@ object ShizukuManager {
 
     fun checkSelfPermission(): Boolean {
         return try {
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            isShizukuRunning() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
         } catch (e: Exception) {
             false
         }
     }
 
-    fun requestPermission(callback: (Boolean) -> Unit) {
-        if (!isShizukuRunning()) {
+    /** 返回取消函数；所有会话事件在主线程串行，清理先于回调。 */
+    fun requestPermission(callback: (Boolean) -> Unit): () -> Unit {
+        check(Looper.myLooper() == Looper.getMainLooper())
+        if (!isShizukuRunning() || checkSelfPermission()) {
+            callback(checkSelfPermission())
+            return {}
+        }
+        val id = permissionSession.begin(callback)
+        if (id == null) {
             callback(false)
-            return
+            return {}
         }
-
-        if (checkSelfPermission()) {
-            callback(true)
-            return
-        }
-
-        val listener = object : Shizuku.OnRequestPermissionResultListener {
-            override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
-                Shizuku.removeRequestPermissionResultListener(this)
-                callback(grantResult == PackageManager.PERMISSION_GRANTED)
+        // 每轮独立 requestCode，忽略其它请求以及超时后的迟到结果。
+        val requestCode = 1000 + id
+        permissionListener = Shizuku.OnRequestPermissionResultListener { code, grant ->
+            if (code == requestCode) mainHandler.post {
+                permissionSession.complete(id, grant == PackageManager.PERMISSION_GRANTED && checkSelfPermission())
             }
         }
-
-        Shizuku.addRequestPermissionResultListener(listener)
+        permissionDeadListener = Shizuku.OnBinderDeadListener {
+            mainHandler.post { permissionSession.complete(id, false) }
+        }
+        permissionTimeout = Runnable { permissionSession.complete(id, false) }
+        pendingCancel = { permissionSession.cancel(id) }
         try {
-            Shizuku.requestPermission(1001)
+            Shizuku.addRequestPermissionResultListener(permissionListener!!)
+            Shizuku.addBinderDeadListener(permissionDeadListener!!)
+            mainHandler.postDelayed(permissionTimeout!!, PERMISSION_TIMEOUT_MS)
+            if (!isShizukuRunning()) permissionSession.complete(id, false)
+            else Shizuku.requestPermission(requestCode)
         } catch (e: Exception) {
-            Shizuku.removeRequestPermissionResultListener(listener)
-            callback(false)
+            NexioLog.w(TAG, "Shizuku permission request failed: ${e.message}")
+            permissionSession.complete(id, false)
+        }
+        return { permissionSession.cancel(id) }
+    }
+
+    /** 取消挂起的授权请求（页面离开时调用）；无挂起会话时静默。 */
+    fun cancelPermissionRequest() {
+        val cancel = pendingCancel ?: return
+        cancel()
+    }
+
+    private var pendingCancel: (() -> Unit)? = null
+
+    private var permissionListener: Shizuku.OnRequestPermissionResultListener? = null
+    private var permissionDeadListener: Shizuku.OnBinderDeadListener? = null
+    private var permissionTimeout: Runnable? = null
+    private val permissionSession = PermissionRequestSession {
+        pendingCancel = null
+        permissionListener?.let { runCatching { Shizuku.removeRequestPermissionResultListener(it) } }
+        permissionDeadListener?.let { runCatching { Shizuku.removeBinderDeadListener(it) } }
+        permissionTimeout?.let { mainHandler.removeCallbacks(it) }
+        permissionListener = null
+        permissionDeadListener = null
+        permissionTimeout = null
+    }
+
+    /** 只观察连接变化，不绑定特权服务，也不触发任何网络操作。 */    fun observeBinderChanges(onChanged: () -> Unit): () -> Unit {
+        val received = Shizuku.OnBinderReceivedListener { onChanged() }
+        val dead = Shizuku.OnBinderDeadListener {
+            clearPrivilegedService()
+            onChanged()
+        }
+        Shizuku.addBinderReceivedListener(received)
+        Shizuku.addBinderDeadListener(dead)
+        return {
+            Shizuku.removeBinderReceivedListener(received)
+            Shizuku.removeBinderDeadListener(dead)
         }
     }
 
@@ -104,19 +170,21 @@ object ShizukuManager {
             return false
         }
 
-        return try {
-            val xmsfUid = context.packageManager.getPackageUid(XMSF_PACKAGE, 0)
+        val xmsfUid = try {
+            context.packageManager.getPackageUid(XMSF_PACKAGE, 0)
+        } catch (e: Exception) {
+            NexioLog.e(TAG, "Failed to resolve XMSF uid", e)
+            return false
+        }
+        val serviceSucceeded = try {
             setPackageNetworkingEnabledViaService(xmsfUid, enabled)
         } catch (e: Exception) {
+            clearPrivilegedService()
             NexioLog.e(TAG, "Failed to set networking via service, trying fallback", e)
-            try {
-                val xmsfUid = context.packageManager.getPackageUid(XMSF_PACKAGE, 0)
-                setPackageNetworkingEnabledViaBinder(xmsfUid, enabled)
-            } catch (e2: Exception) {
-                NexioLog.e(TAG, "Failed to set networking via binder fallback", e2)
-                false
-            }
+            false
         }
+        // 未连上、服务返回 false 与抛异常都应尝试 Binder 通道。
+        return serviceSucceeded || setPackageNetworkingEnabledViaBinder(xmsfUid, enabled)
     }
 
     private fun setPackageNetworkingEnabledViaService(uid: Int, enabled: Boolean): Boolean {
@@ -124,34 +192,31 @@ object ShizukuManager {
         return service.setPackageNetworkingEnabled(uid, enabled)
     }
 
-    private fun getPrivilegedService(): IPrivilegedService? {
-        if (privilegedService != null && serviceConnected) {
-            return privilegedService
-        }
+    private fun getPrivilegedService(): IPrivilegedService? = synchronized(bindLock) {
+        if (!checkSelfPermission() || applicationPackage.isBlank()) return@synchronized null
+        privilegedService?.takeIf { serviceConnected && it.asBinder().pingBinder() }
+            ?.let { return@synchronized it }
+        clearPrivilegedService()
+        // 主线程等待会阻塞 ServiceConnection；直接交给 Binder fallback。
+        if (Looper.myLooper() == Looper.getMainLooper()) return@synchronized null
 
-        return try {
-            bindLatch = CountDownLatch(1)
-
+        try {
+            val latch = CountDownLatch(1)
+            bindLatch = latch
             val args = Shizuku.UserServiceArgs(
-                ComponentName("com.haooz.chedule", PrivilegedServiceImpl::class.java.name)
+                ComponentName(applicationPackage, PrivilegedServiceImpl::class.java.name)
             )
                 .daemon(false)
                 .processNameSuffix("privileged")
                 .debuggable(false)
                 .version(1)
-
             Shizuku.bindUserService(args, serviceConnection)
-
-            val connected = bindLatch.await(3, TimeUnit.SECONDS)
-            if (connected) {
-                NexioLog.d(TAG, "Privileged service bound successfully")
-            } else {
-                NexioLog.w(TAG, "Privileged service bind timed out")
-            }
-
-            privilegedService
+            latch.await(3, TimeUnit.SECONDS)
+            privilegedService?.takeIf { serviceConnected && it.asBinder().pingBinder() && checkSelfPermission() }
         } catch (e: Exception) {
+            if (e is InterruptedException) Thread.currentThread().interrupt()
             NexioLog.e(TAG, "Failed to bind privileged service", e)
+            clearPrivilegedService()
             null
         }
     }
