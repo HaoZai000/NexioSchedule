@@ -53,6 +53,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -69,6 +70,8 @@ import com.haooz.chedule.data.util.nowLocalTime
 import com.haooz.chedule.data.util.parseHourMinute
 import com.haooz.chedule.i18n.TodayStr
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.components.LocalGlassRedrawSignal
+import com.haooz.chedule.ui.components.LocalSoftGlassSurface
 import com.haooz.chedule.ui.theme.rememberCourseColors
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -488,6 +491,19 @@ private fun TimelineEntryCard(
     val outlineColor = remember(fillColor, isDark) {
         if (isDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.07f)
     }
+    // 与课表页共用同一份柔光材质（折射/模糊/边缘厚度都来自外观设置）
+    val softGlass = LocalSoftGlassSurface.current
+    val glassRedraw = LocalGlassRedrawSignal.current
+    val glassOrigin = remember { arrayOf(Offset.Zero) }
+    val glassRadiusPx = with(density) { CARD_CORNER_DP.dp.toPx() }
+    val glassModifier = remember(softGlass, glassRadiusPx, density, glassRedraw) {
+        softGlass?.modifier(
+            density = density,
+            origin = { glassOrigin[0] },
+            radiusPx = glassRadiusPx,
+            redraw = glassRedraw,
+        )
+    }
 
     val contentBlock = remember(geometry) {
         geometry.blocks.firstOrNull { it.height >= with(density) { 42.dp.toPx() } }
@@ -509,11 +525,15 @@ private fun TimelineEntryCard(
                 width = with(density) { geometry.bounds.width.toDp() },
                 height = with(density) { geometry.bounds.height.toDp() },
             )
-            .onGloballyPositioned { coordinates[0] = it },
+            .onGloballyPositioned {
+                coordinates[0] = it
+                glassOrigin[0] = it.positionInWindow()
+            },
     ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
+                .then(glassModifier ?: Modifier)
                 .background(fillColor, shape)
                 .drawWithContent {
                     drawContent()
