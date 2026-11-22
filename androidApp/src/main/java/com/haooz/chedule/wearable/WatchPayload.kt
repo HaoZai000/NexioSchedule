@@ -25,7 +25,8 @@ import org.json.JSONObject
  *
  * 一次下发完整学期，手表端自行推算任意日期，不再依赖「当前周快照 + 按日期窗口」。
  * 协议与手表 `src/common/sync.js` 的整表分支对齐，跨端字段改动必须两边同步：
- * - 顶层：protocol=nexio.schedule / version=4 / action=replace / sentAt / schedule_name
+ * - 顶层：protocol=nexio.schedule / version=4.1 / action=replace / sentAt / schedule_name
+ *   （手环对 version 只做诊断，4.0 只能读它认识的字段，4.1 多出的 overrides 会被忽略）
  * - settings：class_start_time 开学日、current_week 实时教学周（手表据此校准调休合并周
  *   偏移）、total_weeks、morning|afternoon|evening_sections、
  *   pre_class_reminder_minutes 课前提醒提前量（手表「快上课了」判定用，缺省手表端取 15）
@@ -83,13 +84,14 @@ object WatchPayload {
     private const val MAX_OVERRIDE_DAYS = 90
 
     /**
-     * 单包字节硬上限。
+     * 单包字节硬上限（公开给 WearableScheduleSync 做失败归因用）。
      *
      * 手环端 interconnect 的具体上限没有公开契约，这里取一个保守值：正常课表
      * （20 门课 + 假期）大约 20–30 KB，留够余量。超了不是「发失败」而是
-     * `sendMessage` 静默失败 —— 所以必须自己裁。
+     * `sendMessage` 静默失败 —— 所以必须自己裁（见 [fitOverridesWithinBudget]）；
+     * 裁完仍超限说明主数据本身就太大，只能由 UI 明确告诉用户。
      */
-    private const val MAX_PAYLOAD_BYTES = 48 * 1024
+    const val MAX_PAYLOAD_BYTES = 48 * 1024
 
     /** `,"overrides":[]` 这层信封本身的字节余量。 */
     private const val OVERRIDES_ENVELOPE_BYTES = 64
@@ -199,11 +201,20 @@ object WatchPayload {
         val fittedOverrides = fitOverridesWithinBudget(payload, overridesArr)
         payload.put("overrides", fittedOverrides)
         val json = payload.toString()
+        val bytes = json.toByteArray(Charsets.UTF_8).size
         NexioLog.i(
             "WatchPayload",
-            "payload bytes=${json.toByteArray(Charsets.UTF_8).size} " +
-                "overrides=${fittedOverrides.length()}/${overridesArr.length()}"
+            "payload bytes=$bytes overrides=${fittedOverrides.length()}/${overridesArr.length()}"
         )
+        // 裁完 overrides 还超限 = 课程/假期主数据本身太大，sendMessage 大概率静默失败。
+        // 不在这里抛异常（真正上限没有公开契约，宁可让发送链路自己去试并如实报错），
+        // 但要留一条可检索的警告，方便按用户日志定位。
+        if (bytes > MAX_PAYLOAD_BYTES) {
+            NexioLog.w(
+                "WatchPayload",
+                "payload ${bytes}B over budget ${MAX_PAYLOAD_BYTES}B: sendMessage may fail silently"
+            )
+        }
         return json
     }
 
