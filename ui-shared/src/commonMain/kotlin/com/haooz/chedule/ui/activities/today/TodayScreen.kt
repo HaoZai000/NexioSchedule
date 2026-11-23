@@ -847,7 +847,35 @@ fun TodayScreen(
 
                 val dateText = remember(pageDate) { pageDate.formatChineseDate() }
 
-                if (isTablet) {         } else if (isTablet) {
+                if (todayViewMode == TodayViewMode.TIMELINE_2) {
+                    // 时间轴视图2：24 小时时间轴自带内部滚动，不能塞进外层 LazyColumn
+                    // （纵向可滚动组件拿到无限高度约束会崩），所以这里整页渲染。
+                    TodayUserTimelinePage(
+                        date = pageDate,
+                        isToday = isPageToday,
+                        courses = pageCourses,
+                        allCourses = courses,
+                        hiddenCourseIds = hiddenCourseIds,
+                        sectionTimes = sectionTimes,
+                        pageWeek = displayWeek,
+                        isTablet = isTablet,
+                        showClassroom = showClassroom,
+                        showTeacher = showTeacher,
+                        surfaceOpacity = courseCardOpacity,
+                        scrollBehavior = settingsScrollBehavior,
+                        onCourseClick = { course -> openTodayCourse(course, displayWeek, openDetailSheet) },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .collapsibleTopInset(settingsScrollBehavior)
+                            .padding(
+                                start = tabletHorizontalPadding,
+                                end = tabletHorizontalPadding,
+                                top = paddingValues.calculateTopPadding() +
+                                    CollapsibleTopAppBarDefaults.CollapsedHeight,
+                                bottom = nativeChromeInset?.plus(8.dp) ?: 60.dp,
+                            ),
+                    )
+                } else if (isTablet) {         } else if (isTablet) {
                     Row(
                         modifier = Modifier
                             .fillMaxSize()

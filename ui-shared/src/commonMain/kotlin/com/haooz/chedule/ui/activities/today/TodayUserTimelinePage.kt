@@ -119,7 +119,8 @@ internal fun TodayUserTimelinePage(
             onCourseClick = { courseList, _, _, _, _, _, _, _ ->
                 courseList.firstOrNull()?.let(onCourseClick)
             },
-            modifier = Modifier.fillMaxWidth(),
+            // 占满页面剩余高度：时间轴内部才有确定视口去滚动 / 双指缩放
+            modifier = Modifier.fillMaxWidth().weight(1f),
         )
     }
 }
