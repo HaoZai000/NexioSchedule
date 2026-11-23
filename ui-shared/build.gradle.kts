@@ -60,6 +60,10 @@ kotlin {
         jvmTest.dependencies {
             implementation(compose.desktop.currentOs)
         }
+        androidMain.dependencies {
+            // 系统日历权限请求（时间轴视图2）
+            implementation(libs.androidx.activity.compose)
+        }
         commonMain.dependencies {
             implementation(compose.foundation)
             implementation(compose.ui)

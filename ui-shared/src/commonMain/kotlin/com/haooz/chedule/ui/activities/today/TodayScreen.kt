@@ -98,6 +98,7 @@ import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
+import com.haooz.chedule.ui.utils.TodayViewMode
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -416,6 +417,8 @@ fun TodayScreen(
     todayAssistantCard: (@Composable (TodayAssistantCardData) -> Unit)? = null,
     /** 本页实际呈现方式：由宿主按「今日页视图」设置解析好（可独立于课表页） */
     scheduleViewMode: ScheduleViewMode = ScheduleViewMode.WEEK,
+    /** 今日页独立视图：周视图 / 时间轴视图1（上游）/ 时间轴视图2（自研） */
+    todayViewMode: TodayViewMode = TodayViewMode.WEEK,
     /**
      * 越界状态：主界面注入同一实例，顶栏（Scaffold topBar 槽）与内容才读得到同一份越界量。
      * 独立使用时默认自建一份。
@@ -844,7 +847,35 @@ fun TodayScreen(
 
                 val dateText = remember(pageDate) { pageDate.formatChineseDate() }
 
-                if (isTablet) {
+                if (todayViewMode == TodayViewMode.TIMELINE_2) {
+                    // 时间轴视图2：24 小时时间轴自带内部滚动，不能塞进外层 LazyColumn
+                    // （纵向可滚动组件拿到无限高度约束会崩），所以这里整页渲染。
+                    TodayUserTimelinePage(
+                        date = pageDate,
+                        isToday = isPageToday,
+                        courses = pageCourses,
+                        allCourses = courses,
+                        hiddenCourseIds = hiddenCourseIds,
+                        sectionTimes = sectionTimes,
+                        pageWeek = displayWeek,
+                        isTablet = isTablet,
+                        showClassroom = showClassroom,
+                        showTeacher = showTeacher,
+                        surfaceOpacity = courseCardOpacity,
+                        scrollBehavior = settingsScrollBehavior,
+                        onCourseClick = { course -> openTodayCourse(course, displayWeek, openDetailSheet) },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .collapsibleTopInset(settingsScrollBehavior)
+                            .padding(
+                                start = tabletHorizontalPadding,
+                                end = tabletHorizontalPadding,
+                                top = paddingValues.calculateTopPadding() +
+                                    CollapsibleTopAppBarDefaults.CollapsedHeight,
+                                bottom = nativeChromeInset?.plus(8.dp) ?: 60.dp,
+                            ),
+                    )
+                } else if (isTablet) {         } else if (isTablet) {
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
@@ -925,7 +956,12 @@ fun TodayScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            if (scheduleViewMode == ScheduleViewMode.TIMELINE && pageCourses.isNotEmpty()) {
+                            if (todayViewMode == TodayViewMode.TIMELINE_2 && pageCourses.isNotEmpty()) {
+                                addUserTimeline(
+                                    pageDate, pageCourses, courses, hiddenCourseIds, sectionTimes, displayWeek, isPageToday,
+                                    isTablet, showClassroom, showTeacher, courseCardOpacity, settingsScrollBehavior,
+                                ) { course -> openTodayCourse(course, displayWeek, openDetailSheet) }
+                            } else if (scheduleViewMode == ScheduleViewMode.TIMELINE && pageCourses.isNotEmpty()) {
                                 addTodayTimeline(
                                     pageCourses, sectionTimes, displayWeek, isPageToday, todayIsDark,
                                     courseCardOpacity,
@@ -1006,7 +1042,12 @@ fun TodayScreen(
                                 )
                             }
                         }
-                        if (scheduleViewMode == ScheduleViewMode.TIMELINE && pageCourses.isNotEmpty()) {
+                        if (todayViewMode == TodayViewMode.TIMELINE_2 && pageCourses.isNotEmpty()) {
+                            addUserTimeline(
+                                pageDate, pageCourses, courses, hiddenCourseIds, sectionTimes, displayWeek, isPageToday,
+                                isTablet, showClassroom, showTeacher, courseCardOpacity, settingsScrollBehavior,
+                            ) { course -> openTodayCourse(course, displayWeek, openDetailSheet) }
+                        } else if (scheduleViewMode == ScheduleViewMode.TIMELINE && pageCourses.isNotEmpty()) {
                             addTodayTimeline(
                                 pageCourses, sectionTimes, displayWeek, isPageToday, todayIsDark,
                                 courseCardOpacity,
@@ -1574,6 +1615,40 @@ private fun CourseDetailSectionCard(
 }
 
 /** 时间轴版课程区：整页一条时间轴（今日页单列），与列表版二选一 */
+private fun LazyListScope.addUserTimeline(
+    pageDate: LocalDate,
+    courses: List<Course>,
+    allCourses: List<Course>,
+    hiddenCourseIds: Set<String>,
+    sectionTimes: Map<Int, String>,
+    pageWeek: Int,
+    isPageToday: Boolean,
+    isTablet: Boolean,
+    showClassroom: Boolean,
+    showTeacher: Boolean,
+    surfaceOpacity: Float,
+    scrollBehavior: SharedScrollBehavior?,
+    onCourseClick: (Course) -> Unit,
+) {
+    item {
+        TodayUserTimelinePage(
+            date = pageDate,
+            isToday = isPageToday,
+            courses = courses,
+            allCourses = allCourses,
+            hiddenCourseIds = hiddenCourseIds,
+            sectionTimes = sectionTimes,
+            pageWeek = pageWeek,
+            isTablet = isTablet,
+            showClassroom = showClassroom,
+            showTeacher = showTeacher,
+            surfaceOpacity = surfaceOpacity,
+            scrollBehavior = scrollBehavior,
+            onCourseClick = onCourseClick,
+        )
+    }
+}
+
 private fun LazyListScope.addTodayTimeline(
     pageCourses: List<Course>,
     sectionTimes: Map<Int, String>,

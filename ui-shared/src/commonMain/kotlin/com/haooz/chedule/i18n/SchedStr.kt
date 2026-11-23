@@ -16,6 +16,8 @@ object SchedStr {
 
     // ── 时间轴视图 ──
     val viewAsTimeline = L("时间轴视图", "Timeline view")
+    val viewAsTimeline1 = L("时间轴视图1", "Timeline 1")
+    val viewAsTimeline2 = L("时间轴视图2", "Timeline 2")
     val viewAsWeek = L("周视图", "Week view")
     val viewAs = L("课表视图", "Schedule view")
     val todayViewAs = L("今日页视图", "Today view")
