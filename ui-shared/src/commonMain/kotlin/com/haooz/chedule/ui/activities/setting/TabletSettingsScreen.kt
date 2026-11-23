@@ -50,6 +50,7 @@ import com.haooz.chedule.ui.components.tabletNavExpandedWidthDp
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.navigation.AboutRoute
 import com.haooz.chedule.ui.navigation.AiEduImportHistoryRoute
+import com.haooz.chedule.ui.navigation.AiEduUrlEntryRoute
 import com.haooz.chedule.ui.navigation.AiEduPreviewRoute
 import com.haooz.chedule.ui.navigation.AiFeaturesRoute
 import com.haooz.chedule.ui.navigation.AiImportRoute
@@ -158,7 +159,9 @@ private fun DefaultTabletSettingsPaneRouteContent(router: AppRouter, route: AppR
         AppRoute.ScheduleBackup -> BackupCenterRoute(router = router)
         AppRoute.AiEduImportHistory -> AiEduImportHistoryRoute(router)
         AppRoute.AiEduPreview -> AiEduPreviewRoute(router)
-        // Settings 会套娃；Weather / WebImport / AiEduImport 无兜底实现
+        // 输入网址这步内嵌右栏；确定后才跳全屏网页
+        AppRoute.AiEduUrlEntry -> AiEduUrlEntryRoute(router)
+        // Settings 会套娃；Weather / WebImport / AiEduImport 走全局全屏路由，右栏无兜底实现
         AppRoute.Settings,
         AppRoute.Weather,
         AppRoute.WebImport,
@@ -361,9 +364,10 @@ fun TabletSettingsScreen(
     val paneRouter = remember(globalRouter) {
         AppRouter().also {
             it.navigate(AppRoute.ScheduleSettings)
-            // 全屏页：Web 导入、开源协议、隐私政策，不塞进右栏
+            // 全屏页：Web 导入、AI 教务导入（网页宿主）、开源协议、隐私政策，不塞进右栏
             it.nativeRouteHandler = { route ->
                 if (route == AppRoute.WebImport ||
+                    route == AppRoute.AiEduImport ||
                     route == AppRoute.License ||
                     route == AppRoute.PrivacyPolicy
                 ) {

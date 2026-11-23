@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,7 +38,6 @@ import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.data.changelogData
-import com.haooz.chedule.ui.utils.screenWidthDp
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import com.haooz.softglass.shape.continuousBackground
 import com.haooz.nexioui.card.CardDefaults
@@ -51,6 +51,7 @@ import com.haooz.nexioui.topappbar.collapsibleTopInset
 import com.haooz.nexioui.theme.NexioTheme
 import com.haooz.nexioui.overscroll.overScrollVertical
 import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
+import com.haooz.nexioui.window.isTabletWidth
 
 /** 预加载时先排的条目数：够铺满首屏，剩下的等展开到位再补齐。 */
 private const val ChangelogInitialRows = 4
@@ -62,166 +63,166 @@ fun ChangelogScreen(
     /** 页面已落定（不是翻转中的预加载）：为 false 时只排首屏条目，避免拖慢预加载。 */
     settled: Boolean = true,
 ) {
+    // 内嵌在平板右栏时容器比整屏窄，边距按容器宽度算，避免用整屏宽算出过宽的留白。
+    BoxWithConstraints {
+        val contentWidth = maxWidth.value
+        val isTablet = isTabletWidth()
+        val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
-    val isTablet = screenWidthDp() >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val widthDp = screenWidthDp()
-        ((widthDp - 600).coerceIn(0, 600) / 600f * 108 + 20).dp
-    } else 16.dp
-
-    val expandedStates = remember {
-        mutableStateListOf<Boolean>().apply {
-            repeat(changelogData.size) { index ->
-                add(index < initialExpandCount)
+        val expandedStates = remember {
+            mutableStateListOf<Boolean>().apply {
+                repeat(changelogData.size) { index ->
+                    add(index < initialExpandCount)
+                }
             }
         }
-    }
 
-    // 展开到位后再补齐（补齐发生在页面已经静止的时候，看不见）。
-    var renderCount by remember {
-        mutableIntStateOf(if (settled) changelogData.size else ChangelogInitialRows)
-    }
-    LaunchedEffect(settled) {
-        if (settled) renderCount = changelogData.size
-    }
+        // 展开到位后再补齐（补齐发生在页面已经静止的时候，看不见）。
+        var renderCount by remember {
+            mutableIntStateOf(if (settled) changelogData.size else ChangelogInitialRows)
+        }
+        LaunchedEffect(settled) {
+            if (settled) renderCount = changelogData.size
+        }
 
-    // 首尾两行的按下态/水波纹要跟着卡片的圆角走，否则点按时会从圆角处露出直角
-    val cardRadius = CardDefaults.CornerRadius
-    val topRowShape = remember(cardRadius) {
-        ContinuousRoundedRectangle(
-            topStart = cardRadius,
-            topEnd = cardRadius,
-            bottomEnd = 0.dp,
-            bottomStart = 0.dp,
-        )
-    }
-    val bottomRowShape = remember(cardRadius) {
-        ContinuousRoundedRectangle(
-            topStart = 0.dp,
-            topEnd = 0.dp,
-            bottomEnd = cardRadius,
-            bottomStart = cardRadius,
-        )
-    }
+        // 首尾两行的按下态/水波纹要跟着卡片的圆角走，否则点按时会从圆角处露出直角
+        val cardRadius = CardDefaults.CornerRadius
+        val topRowShape = remember(cardRadius) {
+            ContinuousRoundedRectangle(
+                topStart = cardRadius,
+                topEnd = cardRadius,
+                bottomEnd = 0.dp,
+                bottomStart = 0.dp,
+            )
+        }
+        val bottomRowShape = remember(cardRadius) {
+            ContinuousRoundedRectangle(
+                topStart = 0.dp,
+                topEnd = 0.dp,
+                bottomEnd = cardRadius,
+                bottomStart = cardRadius,
+            )
+        }
 
-    Scaffold(
-        topBar = {}
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .overScrollVertical()
-                .scrollEndHaptic(
-                    hapticFeedbackType = HapticFeedbackType.TextHandleMove
-                )
-                .collapsibleTopInset(scrollBehavior)
-                .then(
-                    scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
-                )
-                .verticalScroll(rememberScrollState())
-                .padding(
-                    start = tabletHorizontalPadding,
-                    end = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
-                        pageTopExtra(isTablet, hasSmallTitle = false),
-                    bottom = 60.dp
-                )
-        ) {
-            // 整页日志叠成一张卡片会超过 layer 高度上限（约 8192px）导致下方触摸失效，
-            // 这里只画圆角底色、不裁剪子节点。
+        Scaffold(
+            topBar = {}
+        ) { paddingValues ->
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .continuousBackground(CardDefaults.defaultColors().color, CardDefaults.CornerRadius)
-            ) {
-                changelogData.take(renderCount).forEachIndexed { index, entry ->
-                    // 只为当前可见条目建旋转动画。预加载期只排首屏 4 条，别为全部 42 条
-                    // 各建一份 Animatable + State + 协程；补齐发生在落定后的静止帧。
-                    val rotation by animateFloatAsState(
-                        targetValue = if (expandedStates[index]) 90f else -90f,
-                        animationSpec = tween(durationMillis = 200),
-                        label = "changelogRotation$index",
+                    .fillMaxSize()
+                    .overScrollVertical()
+                    .scrollEndHaptic(
+                        hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(
-                                when (index) {
-                                    0 -> Modifier.clip(topRowShape)
-                                    renderCount - 1 -> Modifier.clip(bottomRowShape)
-                                    else -> Modifier
-                                }
-                            )
-                            .clickable { expandedStates[index] = !expandedStates[index] }
-                    ) {
-                        Row(
+                    .collapsibleTopInset(scrollBehavior)
+                    .then(
+                        scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
+                    )
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        start = tabletHorizontalPadding,
+                        end = tabletHorizontalPadding,
+                        top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight +
+                            pageTopExtra(isTablet, hasSmallTitle = false),
+                        bottom = 60.dp
+                    )
+            ) {
+                // 整页日志叠成一张卡片会超过 layer 高度上限（约 8192px）导致下方触摸失效，
+                // 这里只画圆角底色、不裁剪子节点。
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .continuousBackground(CardDefaults.defaultColors().color, CardDefaults.CornerRadius)
+                ) {
+                    changelogData.take(renderCount).forEachIndexed { index, entry ->
+                        // 只为当前可见条目建旋转动画。预加载期只排首屏 4 条，别为全部 42 条
+                        // 各建一份 Animatable + State + 协程；补齐发生在落定后的静止帧。
+                        val rotation by animateFloatAsState(
+                            targetValue = if (expandedStates[index]) 90f else -90f,
+                            animationSpec = tween(durationMillis = 200),
+                            label = "changelogRotation$index",
+                        )
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(
-                                    start = 20.dp,
-                                    end = 18.dp,
-                                    top = if (index == 0) 20.dp else 17.dp,
-                                    bottom = if (index == changelogData.lastIndex) 20.dp else 17.dp
-                                ),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .then(
+                                    when (index) {
+                                        0 -> Modifier.clip(topRowShape)
+                                        renderCount - 1 -> Modifier.clip(bottomRowShape)
+                                        else -> Modifier
+                                    }
+                                )
+                                .clickable { expandedStates[index] = !expandedStates[index] }
                         ) {
-                            Text(
-                                text = entry.version,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = NexioTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = entry.date,
-                                fontSize = 14.sp,
-                                color = NexioTheme.colorScheme.onSurfaceVariantActions
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(
-                                imageVector = NexioIcons.ChevronForward,
-                                contentDescription = null,
+                            Row(
                                 modifier = Modifier
-                                    .size(16.dp)
-                                    .graphicsLayer { rotationZ = rotation },
-                                tint = NexioTheme.colorScheme.onSurfaceVariantActions
-                            )
-                        }
-                        CardExpand(visible = expandedStates[index]) {
-                            Column(
-                                modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 14.dp)
+                                    .fillMaxWidth()
+                                    .padding(
+                                        start = 20.dp,
+                                        end = 18.dp,
+                                        top = if (index == 0) 20.dp else 17.dp,
+                                        bottom = if (index == changelogData.lastIndex) 20.dp else 17.dp
+                                    ),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                entry.changes.forEach { change ->
-                                    Row(modifier = Modifier.padding(bottom = 2.dp)) {
-                                        Text(
-                                            text = "• ",
-                                            fontSize = 14.sp,
-                                            lineHeight = 22.sp,
-                                            color = NexioTheme.colorScheme.onSurfaceVariantActions
-                                        )
-                                        Text(
-                                            text = change(),
-                                            fontSize = 14.sp,
-                                            lineHeight = 22.sp,
-                                            color = NexioTheme.colorScheme.onSurfaceVariantActions,
-                                            modifier = Modifier.weight(1f)
-                                        )
+                                Text(
+                                    text = entry.version,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = NexioTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = entry.date,
+                                    fontSize = 14.sp,
+                                    color = NexioTheme.colorScheme.onSurfaceVariantActions
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    imageVector = NexioIcons.ChevronForward,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .graphicsLayer { rotationZ = rotation },
+                                    tint = NexioTheme.colorScheme.onSurfaceVariantActions
+                                )
+                            }
+                            CardExpand(visible = expandedStates[index]) {
+                                Column(
+                                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 14.dp)
+                                ) {
+                                    entry.changes.forEach { change ->
+                                        Row(modifier = Modifier.padding(bottom = 2.dp)) {
+                                            Text(
+                                                text = "• ",
+                                                fontSize = 14.sp,
+                                                lineHeight = 22.sp,
+                                                color = NexioTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                            Text(
+                                                text = change(),
+                                                fontSize = 14.sp,
+                                                lineHeight = 22.sp,
+                                                color = NexioTheme.colorScheme.onSurfaceVariantActions,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    // 分割线（当前渲染的最后一条不显示）
-                    if (index < renderCount - 1) {
-                        Spacer(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 18.dp)
-                                .height(0.5.dp)
-                                .background(NexioTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.07f))
-                        )
+                        // 分割线（当前渲染的最后一条不显示）
+                        if (index < renderCount - 1) {
+                            Spacer(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 18.dp)
+                                    .height(0.5.dp)
+                                    .background(NexioTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.07f))
+                            )
+                        }
                     }
                 }
             }

@@ -17,7 +17,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -34,8 +36,12 @@ import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.ui.components.FeedbackKindLabel
 import com.haooz.chedule.ui.components.FeedbackReplyBlock
 import com.haooz.chedule.ui.components.FeedbackStageBar
+import com.haooz.chedule.ui.components.LoadMoreFooter
+import com.haooz.chedule.ui.components.awaitLoadMoreMinVisible
+import com.haooz.chedule.ui.components.markLoadMoreStart
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import kotlinx.coroutines.launch
 import com.haooz.nexioui.card.Card
 import com.haooz.nexioui.scaffold.Scaffold
 import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
@@ -59,20 +65,49 @@ fun FeedbackRoadmapScreen(
 
     var records by remember { mutableStateOf<List<RoadmapRecord>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var loadingMore by remember { mutableStateOf(false) }
+    var hasMore by remember { mutableStateOf(false) }
+    var loadMoreFailed by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
     var reloadKey by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(reloadKey) {
+    suspend fun loadFirstPage() {
         loading = true
         errorText = null
-        FeedbackClient.fetchRoadmap().fold(
-            onSuccess = {
-                records = it
+        loadingMore = false
+        loadMoreFailed = false
+        records = emptyList()
+        hasMore = false
+        FeedbackClient.fetchRoadmap(offset = 0, kind = filter).fold(
+            onSuccess = { page ->
+                records = page.records
+                hasMore = page.hasMore
                 errorText = null
             },
             onFailure = { errorText = it.message ?: FeedbackStr.loadFailed() },
         )
         loading = false
+    }
+
+    suspend fun loadMore() {
+        if (loadingMore || !hasMore || loadMoreFailed) return
+        loadingMore = true
+        val startedAt = markLoadMoreStart()
+        FeedbackClient.fetchRoadmap(offset = records.size, kind = filter).fold(
+            onSuccess = { page ->
+                records = records + page.records
+                hasMore = page.hasMore
+            },
+            onFailure = { loadMoreFailed = true },
+        )
+        // 数据先落到列表，圆环随后补足最短展示时长再收起
+        awaitLoadMoreMinVisible(startedAt)
+        loadingMore = false
+    }
+
+    LaunchedEffect(reloadKey, filter) {
+        loadFirstPage()
     }
 
     // 排序：**待发版钉在最上**（马上就到手，最该被看到）→ 进行中/已排期等（同档按更新时间倒序）
@@ -90,6 +125,13 @@ fun FeedbackRoadmapScreen(
     // 所以大标题的折叠状态不会被这次跳转改回来 —— 收着就继续收着。
     LaunchedEffect(filter) {
         listState.scrollToItem(0)
+    }
+    // 滑动到底自动追加下一页（每页 10 条）
+    LaunchedEffect(listState, filter) {
+        snapshotFlow { listState.canScrollForward to records.size }
+            .collect { (canScroll, _) ->
+                if (records.isNotEmpty() && !canScroll) loadMore()
+            }
     }
 
     Scaffold(topBar = {}) { paddingValues ->
@@ -139,8 +181,24 @@ fun FeedbackRoadmapScreen(
                     }
                 }
 
-                else -> items(visible, key = { it.id }) { record ->
-                    RoadmapCard(record)
+                else -> {
+                    items(visible, key = { it.id }) { record ->
+                        RoadmapCard(record)
+                    }
+                    if (loadingMore || loadMoreFailed) {
+                        item(key = "load_more") {
+                            LoadMoreFooter(
+                                loading = loadingMore,
+                                failed = loadMoreFailed,
+                                onRetry = {
+                                    scope.launch {
+                                        loadMoreFailed = false
+                                        loadMore()
+                                    }
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }

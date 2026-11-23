@@ -16,6 +16,7 @@ import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.rememberSoftGlassSurface
 import com.haooz.softglass.glass.LiquidLens
 import com.haooz.softglass.glass.SoftGlassStyle
+import com.haooz.softglass.liquidClear
 import com.haooz.chedule.ui.glass.ScheduleSoftGlassStyle
 import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.softglass.glass.untransformGlassOrigin
@@ -51,12 +52,12 @@ internal fun rememberScheduleGlassStyle(displayAppearance: AppearanceConfig): So
     val glassBlurPx = displayAppearance.cardBlurRadius
     val glassEdgePx = ScheduleSoftGlassStyle.edgeWidth * displayAppearance.cardEdgeThickness.scale
     val glassEdgeHighlight = displayAppearance.cardRim
-    // 液态玻璃档只换折射的绘制方式（shader 里换成液态位移场），其余口径与柔光玻璃逐项一致
+    // 液态档：折射换成位移场，调色换成清透口径
     val liquidRefraction = AppMaterialSettings.isLiquidTier()
     return remember(
         glassRefractionScale, glassBlurPx, glassEdgePx, glassEdgeHighlight, liquidRefraction,
     ) {
-        ScheduleSoftGlassStyle.copy(
+        val style = ScheduleSoftGlassStyle.copy(
             refractionScale = glassRefractionScale,
             liquidRefraction = liquidRefraction,
             liquidLens = CardLiquidLens,
@@ -68,6 +69,7 @@ internal fun rememberScheduleGlassStyle(displayAppearance: AppearanceConfig): So
             lightAngleRange = CARD_LIGHT_ANGLE_RANGE,
             edgeLightFalloff = CARD_LIGHT_FALLOFF,
         )
+        if (liquidRefraction) style.liquidClear() else style
     }
 }
 

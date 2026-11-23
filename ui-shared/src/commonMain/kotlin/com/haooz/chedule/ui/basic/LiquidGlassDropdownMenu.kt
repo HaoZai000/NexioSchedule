@@ -208,10 +208,6 @@ fun LiquidGlassDropdownMenu(
     val interactiveHighlight = remember(coroutineScope) {
         InteractiveHighlight(
             animationScope = coroutineScope,
-            radiusScale = { 1f - 0.3f * fraction.value.coerceIn(0f, 1f) },
-            // 固定 150dp 基准：不用 minDimension，否则菜单项越多面板越高、光晕越大。
-            // 展开时再乘 0.7 的 scale，光斑约 157dp；收起态按完整基准画，被自身边界裁住。
-            radiusBaseDp = 150.dp,
             isDark = { GlassEnvironment.isDark },
         )
     }

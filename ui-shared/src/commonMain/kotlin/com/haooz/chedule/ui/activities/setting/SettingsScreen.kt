@@ -47,6 +47,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -72,6 +74,7 @@ import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.LocalAppRouter
+import com.haooz.chedule.ui.theme.LocalMonetColorEnabled
 import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -154,9 +157,6 @@ private fun SettingsEntryRow(
         label = "settingsEntryRotation",
     )
     val interactionSource = remember { MutableInteractionSource() }
-    // 按住不放：MiuixIndication 只认 PressInteraction，位置不参与绘制。
-    // 选中行自己也是可点的：真实点击的 Release 会把按压态清掉，而 selected 没变、
-    // 本 effect 不会重启 —— 所以松手后要补一次按下，否则点一下当前项高亮就没了。
     LaunchedEffect(selected) {
         if (!selected) return@LaunchedEffect
         var press = PressInteraction.Press(Offset.Zero)
@@ -228,7 +228,7 @@ private fun SettingsEntryRow(
     }
 }
 
-/** 设置入口图标底板：28dp 方块 + 8dp 连续圆角，底色取色板（莫奈取色时统一 primary）。 */
+/** 设置入口图标底板 */
 @Composable
 internal fun SettingsEntryIcon(accent: Color, content: @Composable (Color) -> Unit) {
     val resolver = rememberSettingsAccentResolver()
@@ -244,7 +244,7 @@ internal fun SettingsEntryIcon(accent: Color, content: @Composable (Color) -> Un
     }
 }
 
-/** 矢量图标。 */
+/** 矢量图标 */
 @Composable
 internal fun VectorEntryIcon(imageVector: ImageVector, accent: Color) {
     SettingsEntryIcon(accent) { tint ->
@@ -257,7 +257,7 @@ internal fun VectorEntryIcon(imageVector: ImageVector, accent: Color) {
     }
 }
 
-/** composeResources 里的自定义图标。 */
+/** composeResources 里的自定义图标 */
 @Composable
 internal fun DrawableEntryIcon(resource: DrawableResource, accent: Color) {
     SettingsEntryIcon(accent) { tint ->
@@ -270,35 +270,46 @@ internal fun DrawableEntryIcon(resource: DrawableResource, accent: Color) {
     }
 }
 
-/** 课程表图标。 */
+/** 课程表图标 */
 @Composable
 internal fun ScheduleSettingsIcon() {
     VectorEntryIcon(NexioIcons.Months, SettingsAccents.Blue)
 }
 
-/** 课程提醒图标。 */
+/** 课程提醒图标 */
 @Composable
 internal fun CourseReminderIcon() {
     DrawableEntryIcon(Res.drawable.ic_settings_reminders, SettingsAccents.Red)
 }
 
-/** 桌面小部件图标。 */
+/** 桌面小部件图标 */
 @Composable
 internal fun HomeScreenWidgetIcon() {
     VectorEntryIcon(NexioIcons.All, SettingsAccents.Green)
 }
 
-/** AI 功能图标：白底 + 灰色描边 + 彩色渐变图形。 */
+/** AI 功能图标 */
 @Composable
 internal fun AiFeaturesIcon() {
+    val iconPath = remember { PathParser().parsePathString(AiIconPathData).toPath() }
+    if (LocalMonetColorEnabled.current) {
+        SettingsEntryIcon(SettingsAccents.Orange) { tint ->
+            AiGlyph(iconPath) { path -> drawPath(path, color = tint) }
+        }
+    } else {
+        BrandAiTile(iconPath)
+    }
+}
+
+/** 关掉莫奈时的品牌版：白底 + 灰色描边 + 橙蓝渐变。 */
+@Composable
+private fun BrandAiTile(iconPath: Path) {
     val shape = remember { ContinuousRoundedRectangle(8.dp) }
     val outline = if (isAppDarkTheme()) {
         Color.White.copy(alpha = 0.16f)
     } else {
         NexioTheme.colorScheme.onSurface.copy(alpha = 0.10f)
     }
-    // 渐变坐标按 1024 视口路径空间给出（对齐圆形轮廓 bounds）：Canvas 做了 scale，
-    // 若用默认 size 取终点，渐变只覆盖左上角极小区域，整枚图标会渲染成最后一种颜色
     val gradient = Brush.linearGradient(
         colors = listOf(
             Color(0xFFFF6A00),
@@ -309,8 +320,6 @@ internal fun AiFeaturesIcon() {
         start = Offset(97f, 97f),
         end = Offset(926f, 926f),
     )
-    // 渐变着色不支持直接套在 painter 上，按原始 1024 视口路径手绘
-    val iconPath = remember { PathParser().parsePathString(AiIconPathData).toPath() }
     Box(
         modifier = Modifier
             .size(28.dp)
@@ -318,12 +327,16 @@ internal fun AiFeaturesIcon() {
             .border(0.5.dp, outline, shape),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(modifier = Modifier.size(24.dp)) {
-            val factor = size.width / 1024f
-            scale(scaleX = factor, scaleY = factor, pivot = Offset.Zero) {
-                drawPath(iconPath, brush = gradient)
-            }
-        }
+        AiGlyph(iconPath) { path -> drawPath(path, brush = gradient) }
+    }
+}
+
+/** 按原始 1024 视口绘制 AI 图形；着色方式由调用方决定（单色 / 渐变）。 */
+@Composable
+private fun AiGlyph(path: Path, draw: DrawScope.(Path) -> Unit) {
+    Canvas(modifier = Modifier.size(24.dp)) {
+        val factor = size.width / 1024f
+        scale(scaleX = factor, scaleY = factor, pivot = Offset.Zero) { draw(path) }
     }
 }
 

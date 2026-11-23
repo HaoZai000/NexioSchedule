@@ -3,7 +3,6 @@ package com.haooz.chedule.ui.basic
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -154,20 +153,15 @@ fun ShortcutMenu(
             maskMode = DropdownMaskMode.Sliding,
         )
     }
-    // 点按高光与形变共用一个实例：gestureModifier 驱动，modifier 画光，
-    // pressProgress / offset 喂给 computeDragTransform 做按压缩放与跟手位移
     val dragScope = rememberCoroutineScope()
     val interactiveHighlight = remember(dragScope) {
         InteractiveHighlight(
             animationScope = dragScope,
-            radiusScale = { 0.5f / 1.5f },
-            radiusBaseDp = 150.dp,
             isDark = { GlassEnvironment.isDark },
         )
     }
 
     // 默认向右展开；可见右边缘超出屏幕安全边距时向左平移，右边缘对齐卡片右边缘
-    // 菜单 layout 宽含左右 ShortcutMenuShadowPadding，可见右边缘 = menuPositionX + menuWidth - ShortcutMenuShadowPadding
     var menuPositionX by remember { mutableStateOf(0f) }
     var menuWidth by remember { mutableStateOf(0) }
     val safetyPaddingPx = with(density) { 4.dp.toPx() }
@@ -281,7 +275,7 @@ fun ShortcutMenu(
                     fraction = { 1f },
                     hapticFeedback = hapticFeedback,
                 )
-                // 按压/拖动位移源：纯视觉观察者，不消费事件（与下拉菜单同一挂法）；
+                // 按压/拖动位移源：纯视觉观察者，不消费事件
                 // 光跟手、位移喂给上面的 computeDragTransform 做形变
                 .then(interactiveHighlight.gestureModifier)
                 .drawBackdrop(

@@ -65,6 +65,7 @@ import com.haooz.nexioui.ripple.supportsWaterRipple
 import com.haooz.chedule.ui.theme.AppNexioTheme
 import com.haooz.chedule.ui.theme.rememberAppThemeColors
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
+import com.haooz.chedule.ui.utils.PredictiveBackAnimation
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
@@ -206,6 +207,17 @@ private fun OnboardingFlowContent(
     // 设置页自己的状态（协议 / 基础设置 / 位置 / 完成）
     val setupState = remember { OobeSetupState() }
     val scope = rememberCoroutineScope()
+
+    // 设置页第一页的系统返回：翻转层跟手收回语言页（顶栏按钮的 onBack 也走这里）。
+    // 交互层的 step-- 返回在 OnboardingScreen 内处理，两者按 step 互斥。
+    fun closeFlip() {
+        scope.launch {
+            flipProgress.animateTo(0f, tween(OobeFlipMotionMs, easing = FastOutSlowInEasing))
+            page = OobePage.Language
+            flipLanguage = null
+            flipCardRect = null
+        }
+    }
 
     // 收尾：缩放走弹簧曲线缩到 0.8，淡出走 SinOut，另叠一层模糊
     var finishing by remember { mutableStateOf(false) }
@@ -386,6 +398,21 @@ private fun OnboardingFlowContent(
             val flipPref = flipLanguage
             if (page == OobePage.Setup && flipRect != null && flipPref != null) {
                 key(flipSession) {
+                    // 第一页的系统返回由翻转层跟手收回语言页。注册在 morph handler 之后、
+                    // page handler 之前：step>0 由 page handler 消费 step--，step==0 才轮到这里。
+                    PredictiveBackAnimation(
+                        enabled = setupState.step == 0 && !finishing,
+                        initialProgress = { flipProgress.value },
+                        onProgress = { flipProgress.snapTo(it) },
+                        onDismissed = { closeFlip() },
+                        onCancelled = {
+                            scope.launch {
+                                flipProgress.animateTo(
+                                    1f, tween(OobeFlipMotionMs, easing = FastOutSlowInEasing)
+                                )
+                            }
+                        },
+                    )
                     OobeFlipLayer(
                         progress = { flipProgress.value },
                         cardRect = flipRect,
@@ -394,19 +421,7 @@ private fun OnboardingFlowContent(
                     ) {
                         OnboardingSetupScreen(
                             state = setupState,
-                            onBack = {
-                                scope.launch {
-                                    flipProgress.animateTo(
-                                        0f,
-                                        tween(
-                                            OobeFlipMotionMs,
-                                            easing = FastOutSlowInEasing
-                                        ),
-                                    )
-                                    page = OobePage.Language
-                                    flipLanguage = null
-                                }
-                            },
+                            onBack = { closeFlip() },
                             onFinishRequest = {
                                 finishing = true
                                 onFinishStart()

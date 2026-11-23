@@ -95,6 +95,7 @@ import com.haooz.chedule.ui.components.LocalSoftGlassSurface
 import com.haooz.chedule.ui.components.SoftGlassSurface
 import com.haooz.chedule.ui.components.text.LocalTextMotionInstant
 import com.haooz.chedule.ui.components.text.material.Text as Text
+import com.haooz.chedule.ui.utils.AppMaterialSettings
 import com.haooz.chedule.ui.utils.LocalHostNavigation
 import com.haooz.chedule.ui.utils.TransitionLayerSnapshot
 import com.haooz.chedule.ui.utils.TodayViewMode
@@ -556,7 +557,9 @@ fun TodayScreen(
     // 今日页课程卡 = 基准值；高亮卡（摘要 / 格言）比它再亮 15pp。
     // 课表页相反，用基准值 −15pp，见 AppearanceConfig.scheduleSurfaceAlpha。
     val surfaceDark = isAppDarkTheme()
-    val p = (cardSurfaceAlpha * if (surfaceDark) CombinationDefaults.DARK_SURFACE_ALPHA_FACTOR else 1f)
+    // 液态档白膜降 4pp：与课表页同一口径，两页在液态档下不能一浓一淡
+    val p = AppMaterialSettings.cardSurfaceAlpha(cardSurfaceAlpha)
+        .let { if (surfaceDark) it * CombinationDefaults.DARK_SURFACE_ALPHA_FACTOR else it }
         .coerceIn(0f, 1f)
     val courseCardOpacity = p
     val highlightCardOpacity = (p + CombinationDefaults.HIGHLIGHT_SURFACE_ALPHA_BONUS)
@@ -844,7 +847,7 @@ fun TodayScreen(
 
                 val dateText = remember(pageDate) { pageDate.formatChineseDate() }
 
-                if (isTablet) {
+                if (isTablet) {         } else if (isTablet) {
                     Row(
                         modifier = Modifier
                             .fillMaxSize()

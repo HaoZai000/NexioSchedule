@@ -11,6 +11,7 @@ import com.haooz.softglass.glass.GlassTone
 import com.haooz.softglass.glass.SoftGlassStyle
 import com.haooz.softglass.glass.ThemeFill
 import com.haooz.softglass.GlassMaterialLevel
+import com.haooz.softglass.liquidClear
 import com.haooz.softglass.surfaceAlpha
 import com.haooz.softglass.tuning
 import com.haooz.softglass.platform.isRenderEffectSupported
@@ -19,8 +20,9 @@ import com.haooz.softglass.platform.isRenderEffectSupported
  * 应用材质质量档（柔光玻璃 / 液态玻璃 / 清透磨砂 / 无材质），玻璃模糊、折射、边光都读它；默认柔光玻璃。
  * 顶栏「真·渐进模糊」是独立开关 [trueProgressiveBlur]，不占用档位。
  *
- * 液态玻璃与柔光共用底色 / 边光 / 调色，只把折射换成液态位移场；模糊压低一档
- * （小控件 4dp、面板与对话框 8dp），见 [GlassMaterialLevel.LIQUID]。
+ * 液态玻璃与柔光共用几何 / 边光 / 底色，折射换成液态位移场、调色换成清透口径
+ * （见 `SoftGlassStyle.liquidClear`）；模糊压低一档（小控件 4dp、面板与对话框 8dp），
+ * 见 [GlassMaterialLevel.LIQUID]。
  *
  * 统一限制：RenderEffect 不可用（Android API < 31）的设备锁死无材质档（见 [normalize]），
  * 模糊相关的按能力降级分支不在这里出现——能力不足时档位本身就是无材质。
@@ -36,6 +38,9 @@ object AppMaterialSettings {
     const val LIQUID = "liquid"
     const val BALANCED = "balanced"
     const val NONE = "none"
+
+    /** 液态档课卡白膜的额外降幅（pp）。 */
+    private const val LIQUID_CARD_SURFACE_ALPHA_DROP = 0.04f
 
     private fun materialLevel(): GlassMaterialLevel = when (level) {
         BEST -> GlassMaterialLevel.SOFT
@@ -86,13 +91,13 @@ object AppMaterialSettings {
     /** 是否柔光玻璃档（折射 + 低模糊那一档）。 */
     fun isBestTier(): Boolean = level == BEST
 
-    /** 是否液态玻璃档：只换折射的绘制方式，模糊比柔光档低一档。 */
+    /** 是否液态玻璃档：折射换位移场，调色走清透口径，模糊比柔光档低一档。 */
     fun isLiquidTier(): Boolean = level == LIQUID
 
     /**
      * 悬浮控件（顶栏按钮、胶囊这类）的玻璃样式：基准样式套上基调与填充，再按材质档位
-     * 决定折射与高光 —— 磨砂档没有折射，方向光也关掉（纯磨砂面）；柔光玻璃 / 液态玻璃档
-     * 两者都留，液态玻璃只额外把折射切成液态位移场。
+     * 决定折射、调色与高光 —— 磨砂档没有折射，方向光也关掉（纯磨砂面）；
+     * 柔光 / 液态档两者都留，液态档再把折射换成位移场、调色换成 [liquidClear]。
      *
      * 控件的材质就这一处定义，调用方只传「用哪个基调 / 哪个填充」。
      */
@@ -103,7 +108,12 @@ object AppMaterialSettings {
         tone: GlassTone = BrightTone,
     ): SoftGlassStyle {
         val resolved = base.copy(fill = fill, tone = tone).filled(isDark)
-        val glass = resolved.copy(liquidRefraction = isLiquidTier())
+        // liquidClear 必须排在 filled 之后：基调会把调色字段写回柔光档的值
+        val glass = if (isLiquidTier()) {
+            resolved.copy(liquidRefraction = true).liquidClear()
+        } else {
+            resolved
+        }
         return if (isBestTier() || isLiquidTier()) {
             glass
         } else {
@@ -132,6 +142,15 @@ object AppMaterialSettings {
 
     /** 无材质档玻璃面实色化：半透明底色换成不透明（[baseAlpha] 其余档原样返回）。 */
     fun solidSurfaceAlpha(baseAlpha: Float): Float = if (level == NONE) 1f else baseAlpha
+
+    /**
+     * 课卡表面白膜：液态档再降一档，让折射位移透出来。
+     *
+     * 白膜盖在玻璃之上，是「雾感」最直接的来源；液态档靠位移场立通透，
+     * 白膜不降下来就又把位移压平了。
+     */
+    fun cardSurfaceAlpha(base: Float): Float =
+        if (isLiquidTier()) (base - LIQUID_CARD_SURFACE_ALPHA_DROP).coerceAtLeast(0f) else base
 
     /** 柔光玻璃档的底色 alpha 降幅，[glassSurfaceAlpha] 与 :miuix 下发都用它。 */
     fun glassSurfaceAlphaDrop(isLight: Boolean): Float {

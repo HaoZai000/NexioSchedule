@@ -99,6 +99,7 @@ import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.i18n.WeatherStr
 import com.haooz.chedule.ui.activities.AboutScreen
 import com.haooz.chedule.ui.activities.eduimport.AiEduImportScreen
+import com.haooz.chedule.ui.activities.eduimport.AiEduUrlEntryScreen
 import com.haooz.chedule.ui.activities.eduimport.AiEduImportHistoryScreen
 import com.haooz.chedule.ui.activities.eduimport.AiEduPreviewScreen
 import com.haooz.chedule.ui.activities.AiImportScreen
@@ -160,6 +161,7 @@ import com.haooz.chedule.ui.screens.AiFeaturesScreen
 import com.haooz.chedule.ui.screens.CourseEditScreen
 import com.haooz.chedule.ui.screens.McpServiceScreen
 import com.haooz.chedule.ui.screens.ScheduleSettingsScreen
+import com.haooz.chedule.ui.activities.setting.LocalTabletSettingsPaneChrome
 import com.haooz.chedule.ui.activities.setting.SettingsSearchHeader
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
 import com.haooz.chedule.ui.activities.setting.rememberSettingsSearchState
@@ -217,6 +219,7 @@ import com.haooz.nexioui.overlaydialog.OverlayDialog
 
 import com.haooz.nexioui.theme.NexioTheme
 import com.haooz.nexioui.navigationback.NavigationBackHandlerFor
+import com.haooz.chedule.ui.utils.PredictiveBackAnimation
 
 /**
  * 路由宿主的跨平台部分：路由跳转、状态接线、Updater 订阅，平台能力一律参数注入。
@@ -339,7 +342,7 @@ fun EducationalImportRoute(
         onFinish = { router.popBack() },
         // 用路由自己的 router（不用 LocalAppRouter：iOS 原生文档页容器不 provide 它）
         onOpenWebImport = { router.navigate(AppRoute.WebImport) },
-        onOpenAiImport = { router.navigate(AppRoute.AiEduImport) },
+        onOpenAiImport = { router.navigate(AppRoute.AiEduUrlEntry) },
     )
 }
 
@@ -357,10 +360,23 @@ fun AiEduImportRoute(
     AiEduImportScreen(
         webHostFactory = webHostFactory,
         onBack = { router.popBack() },
-        onOpenHistory = { router.navigate(AppRoute.AiEduImportHistory) },
         onOpenPreview = { router.navigate(AppRoute.AiEduPreview) },
-        // 选中项已由 AI 页写入 EduImportSelection，这里只负责推入现有适配器导入页
+    )
+}
+
+/**
+ * AI 教务导入第一步：输入教务网址（平板内嵌右栏，不走全屏）。
+ *
+ * 确定地址后经 `AiEduUrlHolder` 交给全屏的 [AiEduImportRoute]；
+ * 命中本地适配则走现成适配器导入页。
+ */
+@Composable
+fun AiEduUrlEntryRoute(router: AppRouter) {
+    AiEduUrlEntryScreen(
+        onBack = { router.popBack() },
+        onOpenHistory = { router.navigate(AppRoute.AiEduImportHistory) },
         onOpenAdapterImport = { router.navigate(AppRoute.WebImport) },
+        onOpenWeb = { router.navigate(AppRoute.AiEduImport) },
     )
 }
 
@@ -425,8 +441,12 @@ fun AboutRoute(
     diagnosticRecorder: DiagnosticRecorder = NoopDiagnosticRecorder,
     appIconShape: Shape = RectangleShape,
 ) {
+    // 平板设置右栏是左栏导航切换的页，不需要自己的返回按钮；手机独立路由才要。
+    // 右栏栈会 provide paneChrome（hostHandlesHorizontalInsets=true），全局路由用默认值。
+    val inTabletPane = LocalTabletSettingsPaneChrome.current.hostHandlesHorizontalInsets
     AboutScreen(
         onBack = { router.popBack() },
+        embedded = inTabletPane,
         liquidGlassBackdrop = rememberLayerBackdrop(),
         onNavigate = { router.navigate(it) },
         appVersion = appVersion,
@@ -441,8 +461,15 @@ fun AboutRoute(
 /** 更新日志路由。 */
 @Composable
 fun ChangelogRoute(router: AppRouter) {
-    DocumentRoute(title = ChromeStr.changelog(), router = router) { scrollBehavior ->
-        ChangelogScreen(scrollBehavior = scrollBehavior)
+    // 更新日志常从设置搜索直接跳进来，在 pad 右栏局部栈里是栈底二级页，
+    // 按栈深判断的 showBackButton 此时为 false。它必须始终留返回按钮才能退回设置。
+    val paneChrome = LocalTabletSettingsPaneChrome.current
+    CompositionLocalProvider(
+        LocalTabletSettingsPaneChrome provides paneChrome.copy(showBackButton = true),
+    ) {
+        DocumentRoute(title = ChromeStr.changelog(), router = router) { scrollBehavior ->
+            ChangelogScreen(scrollBehavior = scrollBehavior)
+        }
     }
 }
 
@@ -885,6 +912,48 @@ fun UpdateSettingsRoute(
             changelogPageLaidOut = false
         }
     }
+
+    val changelogGestureBase = remember { floatArrayOf(1f, 1f, MORPH_BACKGROUND_SHRINK, 12f) }
+    PredictiveBackAnimation(
+        enabled = changelogMounted && changelogOpen,
+        initialProgress = { changelogFlip.value },
+        onGestureStart = {
+            // 入场没播完就滑返回时，从各动画当前值接着走，不跳回全开
+            changelogGestureBase[0] = changelogFlip.value.coerceIn(0f, 1f)
+            changelogGestureBase[1] = changelogGrow.value.coerceIn(0f, 1f)
+            changelogGestureBase[2] = changelogBackdropScale.value
+            changelogGestureBase[3] = changelogBackdropBlur.value
+        },
+        onProgress = { value ->
+            val remain = if (changelogGestureBase[0] > 0f) {
+                (value / changelogGestureBase[0]).coerceIn(0f, 1f)
+            } else 0f
+            changelogFlip.snapTo(value)
+            changelogGrow.snapTo(changelogGestureBase[1] * remain)
+            changelogBackdropScale.snapTo(1f + (changelogGestureBase[2] - 1f) * remain)
+            changelogBackdropBlur.snapTo(changelogGestureBase[3] * remain)
+        },
+        onDismissed = { changelogOpen = false },
+        onCancelled = {
+            // 手势中途取消：续播回全开，不是停在半路
+            routeScope.launch {
+                coroutineScope {
+                    launch { changelogFlip.animateTo(1f, tween(460, easing = OobeCubicOutEasing)) }
+                    launch { changelogGrow.animateTo(1f, tween(540, easing = OobeCubicOutEasing)) }
+                    launch {
+                        changelogBackdropScale.animateTo(
+                            MORPH_BACKGROUND_SHRINK, tween(460, easing = OobeCubicOutEasing)
+                        )
+                    }
+                    launch {
+                        changelogBackdropBlur.animateTo(
+                            12f, tween(460, easing = OobeCubicOutEasing)
+                        )
+                    }
+                }
+            }
+        },
+    )
     // 右上角「更多」+ 玻璃下拉。触发器由组件自己画（收起态那颗圆），这里只维护开合状态。
     var moreOpen by remember { mutableStateOf(false) }
     val moreFraction = remember { Animatable(0f) }
@@ -1382,7 +1451,7 @@ fun AiFeaturesRoute(router: AppRouter) {
             liquidGlassBackdrop = backdrop,
             onOpenMcp = { router.navigate(AppRoute.McpService) },
             onOpenReminder = { router.navigate(AppRoute.CourseReminder) },
-            onOpenEduImport = { router.navigate(AppRoute.AiEduImport) },
+            onOpenEduImport = { router.navigate(AppRoute.AiEduUrlEntry) },
             onOpenTextImport = { router.navigate(AppRoute.AiImport) },
         )
     }

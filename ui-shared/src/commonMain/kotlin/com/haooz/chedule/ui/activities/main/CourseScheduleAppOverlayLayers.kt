@@ -157,8 +157,6 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                         }
                         Offset(glowCenterPx[0], glowCenterPx[1])
                     },
-                    radiusScale = { 1f / 3f },
-                    radiusBaseDp = 250.dp,
                     // 按压进度由 glowAlpha 驱动（150ms 淡变），不走组件自带手势
                     pressProgressOverride = { glowAlpha },
                     isDark = { GlassEnvironment.isDark },
@@ -1218,7 +1216,9 @@ private fun OverlayCourseCard(
         glassBackdrop = backdrop,
         glassStyle = style,
         cardAlpha = appearance.cardAlpha,
-        cardSurfaceAlpha = appearance.scheduleSurfaceAlpha(isAppDarkTheme()),
+        cardSurfaceAlpha = AppMaterialSettings.cardSurfaceAlpha(
+            appearance.scheduleSurfaceAlpha(isAppDarkTheme())
+        ),
         solidBackingColor = solidBacking,
         cardHeightPerSection = appearance.cardHeight,
         customCardHeightDp = customCardHeightDp,

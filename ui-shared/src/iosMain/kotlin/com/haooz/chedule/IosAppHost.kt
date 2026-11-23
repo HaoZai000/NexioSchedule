@@ -29,10 +29,11 @@ import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.FeedbackStr
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.i18n.McpStr
 import com.haooz.chedule.i18n.SettingsStr
 import com.haooz.chedule.i18n.SwitchStr
 import com.haooz.chedule.i18n.WeatherStr
-import com.haooz.chedule.ui.activities.EduImportUpdater
+import com.haooz.chedule.ui.activities.eduimport.EduImportUpdater
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouter
 import com.haooz.chedule.ui.navigation.LocalAppRouter
@@ -681,6 +682,7 @@ internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     AppRoute.AiImport -> ChromeStr.aiImport()
     AppRoute.WidgetIntro -> ChromeStr.widgetsTitle()
     AppRoute.AiFeatures -> SettingsStr.aiFeatures()
+    AppRoute.McpService -> McpStr.title()
     AppRoute.CourseReminder -> ChromeStr.courseReminders()
     AppRoute.HolidaySettings -> ChromeStr.holidaysTitle()
     AppRoute.WebDavSettings -> ChromeStr.webdavBackup()
@@ -691,6 +693,7 @@ internal fun AppRoute.nativeDocumentTitle(): String? = when (this) {
     // 网页导入页与选择页同级：必须是原生文档（走 Compose 栈会被原生文档挡住）
     AppRoute.WebImport -> ChromeStr.webImport()
     // AI 教务导入同样是原生文档页（内含 WKWebView）
+    AppRoute.AiEduUrlEntry -> ChromeStr.aiEduImport()
     AppRoute.AiEduImport -> ChromeStr.aiEduImport()
     AppRoute.AiEduImportHistory -> ImportStr.aiEduHistoryTitle()
     AppRoute.AiEduPreview -> ImportStr.aiEduPreviewTitle()

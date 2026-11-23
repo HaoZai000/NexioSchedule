@@ -149,10 +149,7 @@ fun ScheduleBottomBar(
                     .offset(x = nodeLeft + pillWidth + BOTTOM_BAR_GAP)
                     .size(BOTTOM_BAR_CIRCLE),
                 buttonHeight = BOTTOM_BAR_CIRCLE,
-                // 与柔光档 BottomBar 的设置图标对齐：那边是 iconSize + 4.dp = 28.dp
                 iconSize = 28.dp,
-                // 设置按钮的最小，高光按默认半径略放大一点，避免看着比旁边两个弱
-                highlightRadiusScale = 1.25f,
                 iconTint = iconTint,
             )
         } else {

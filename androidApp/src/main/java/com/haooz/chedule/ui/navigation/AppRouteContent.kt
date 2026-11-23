@@ -280,7 +280,9 @@ fun AppRouteContent(
         )
         AppRoute.EducationalImport -> AndroidEducationalImportRoute(router)
         AppRoute.WebImport -> AndroidWebImportRoute(router)
-        // AI 教务导入：同一个网页宿主，只是脚本由模型现场写（沙箱接住，课程走本地预览）
+        // AI 教务导入：第一步输入网址（内嵌），第二步全屏网页
+        AppRoute.AiEduUrlEntry -> AiEduUrlEntryRoute(router)
+        // 同一个网页宿主，只是脚本由模型现场写（沙箱接住，课程走本地预览）
         AppRoute.AiEduImport -> AndroidAiEduImportRoute(router)
         AppRoute.AiEduImportHistory -> AiEduImportHistoryRoute(router)
         AppRoute.AiEduPreview -> AiEduPreviewRoute(router)

@@ -73,6 +73,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -114,6 +115,8 @@ import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.ScreenCornerRadiiPx
 import com.haooz.chedule.ui.utils.clipDuringTransition
 import com.haooz.chedule.ui.utils.rememberScreenCornerRadiiPx
+import com.haooz.chedule.ui.utils.screenWidthDp
+import com.haooz.nexioui.window.isTabletWidth
 import com.haooz.nexioui.window.toShape
 import com.haooz.chedule.uishared.resources.Res
 import com.haooz.softglass.backdrop.GlassBackdrop
@@ -168,6 +171,19 @@ internal val OobeBackgroundBrush = Brush.verticalGradient(
  * 下面还得垫一层不透明的实色，否则玻璃采到的是透明。
  */
 private val OobeBackgroundBase = Color(0xFFEFF6FF)
+
+/**
+ * OOBE 左右留白：手机沿用各元素的原值，平板按屏宽渐进加大。
+ *
+ * 与课程详情等内容页同一口径（600dp 起 20dp，每多 600dp 加 108dp），
+ * 只取增量部分叠加到各元素原有的基础上，避免宽屏上卡片和按钮被拉得过散。
+ */
+@Composable
+internal fun oobeHorizontalPadding(base: Dp): Dp {
+    if (!isTabletWidth()) return base
+    val extra = ((screenWidthDp() - 600).coerceIn(0, 600) / 600f * 108).dp
+    return base + extra
+}
 
 // 引导的展示条件与隐私政策同意状态完全等价：未同意「当前版本」就先走引导。
 // 递增 PrivacyConsent.CURRENT_VERSION 即让全部用户重新经历一次引导，
@@ -413,10 +429,11 @@ internal fun OnboardingSetupScreen(
         }
     }
 
-    // 页内返回：先回上一页，第一页交回宿主反向翻转；完成页不允许返回
+    // 页内返回：先回上一页；第一页的系统返回交给外层翻转层跟手处理（见 OnboardingFlow），
+    // 顶栏返回按钮仍走 onBack()。完成页不允许返回。
     NavigationBackHandlerFor(
-        enabled = !policyOpen && current.kind != OobeKind.Finish,
-        onBackCompleted = { if (state.step == 0) onBack() else state.step-- },
+        enabled = !policyOpen && current.kind != OobeKind.Finish && state.step > 0,
+        onBackCompleted = { state.step-- },
         onBackCancelled = {},
     )
     NavigationBackHandlerFor(
@@ -854,8 +871,11 @@ private fun BasicSettingsCard(
 /** 翻转角：整张卡绕自身竖轴翻 180°。 */
 private const val OobeFlipDegrees = 180f
 
-/** 相机距离（乘 density）：越小透视越猛。 */
-private const val OobeFlipCamera = 40f
+/**
+ * 相机距离按屏宽取比例：固定 40dp 在手机上约为屏宽 1/10，pad 上却近了数倍，
+ * 翻到 90° 时透视会把正反两面各自撑成宽梯形，两面同时露出。按比例可跨屏宽保持同一透视强度。
+ */
+private const val OobeFlipCameraWidthRatio = 0.1f
 
 /** 翻转动效时长（毫秒）。 */
 internal const val OobeFlipMotionMs = 520
@@ -1025,7 +1045,7 @@ internal fun OobeFlipLayer(
                     frame.update(
                         p, cardLeft, cardTop, cardWidth, cardHeight, screenWidth, screenHeight,
                     )
-                    cameraDistance = OobeFlipCamera * density
+                    cameraDistance = screenWidth * OobeFlipCameraWidthRatio
                     // 轴心跟着可见窗口走，翻转始终绕卡片自身中心
                     transformOrigin = TransformOrigin(
                         frame.visibleWidth / 2f / screenWidth,
@@ -1061,7 +1081,7 @@ internal fun OobeFlipLayer(
                     frame.update(
                         p, cardLeft, cardTop, cardWidth, cardHeight, screenWidth, screenHeight,
                     )
-                    cameraDistance = OobeFlipCamera * density
+                    cameraDistance = screenWidth * OobeFlipCameraWidthRatio
                     transformOrigin = TransformOrigin(0.5f, 0.5f)
                     // 左边往后压、右边翘起来
                     rotationY = -OobeFlipDegrees * p
@@ -1069,7 +1089,7 @@ internal fun OobeFlipLayer(
                     scaleX = frame.width / cardWidth
                     scaleY = frame.height / cardHeight
                     translationX = frame.dip
-                    alpha = if (p < 0.5f) 1f else 0f
+                    alpha = if (p <= 0.5f) 1f else 0f
                 }
                 // 第一段独立曲线：左内凹、右鼓起，动画里随 oobeFlipCurve 逐渐展开。
                 // 不再按卡片高度限幅，也不再与背面共用曲线。
@@ -1223,7 +1243,7 @@ private fun OobeActionBar(
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = oobeHorizontalPadding(12.dp)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 44dp 热区裁成圆形，按压反馈也是圆的
@@ -1264,7 +1284,7 @@ private fun OobePrimaryButton(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 18.dp)
+            .padding(horizontal = oobeHorizontalPadding(18.dp))
             .padding(bottom = 38.dp),
     )
 }
@@ -1286,7 +1306,10 @@ private fun StandardPage(step: OobeStep, content: @Composable () -> Unit) {
         Spacer(Modifier.height(10.dp))
 
         Column(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 72.dp)
+                .padding(horizontal = oobeHorizontalPadding(12.dp)),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (step.kind == OobeKind.Language) {
@@ -1314,7 +1337,9 @@ private fun StandardPage(step: OobeStep, content: @Composable () -> Unit) {
         }
 
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = oobeHorizontalPadding(16.dp)),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(20.dp))
@@ -1478,7 +1503,7 @@ private fun TermsAgreeRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = oobeHorizontalPadding(18.dp)),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {

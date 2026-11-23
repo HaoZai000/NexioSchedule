@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -47,6 +46,9 @@ import com.haooz.chedule.data.platform.AppreciationFetcher
 import com.haooz.chedule.data.platform.AppreciationItem
 import com.haooz.chedule.i18n.AboutStr
 import com.haooz.chedule.i18n.CommonStr
+import com.haooz.chedule.ui.components.LoadMoreFooter
+import com.haooz.chedule.ui.components.awaitLoadMoreMinVisible
+import com.haooz.chedule.ui.components.markLoadMoreStart
 import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -62,7 +64,6 @@ import com.haooz.nexioui.progressindicator.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import com.haooz.nexioui.scaffold.Scaffold
 import com.haooz.nexioui.smalltitle.SmallTitle
-import com.haooz.nexioui.button.FlatTextButton
 import com.haooz.nexioui.topappbar.CollapsibleTopAppBarDefaults
 import com.haooz.nexioui.topappbar.SharedScrollBehavior
 import com.haooz.nexioui.topappbar.collapsibleTopInset
@@ -111,6 +112,7 @@ fun AppreciateAuthorScreen(
     suspend fun loadMore() {
         if (loadingMore || !hasMore || loadMoreFailed) return
         loadingMore = true
+        val startedAt = markLoadMoreStart()
         val page = AppreciationFetcher.fetch(offset = donations.size)
         if (page.failed) {
             loadMoreFailed = true
@@ -118,6 +120,8 @@ fun AppreciateAuthorScreen(
             donations = donations + page.items
             hasMore = page.hasMore
         }
+        // 数据先落到列表，圆环随后补足最短展示时长再收起
+        awaitLoadMoreMinVisible(startedAt)
         loadingMore = false
     }
 
@@ -629,33 +633,38 @@ private fun RecentSupportSection(
             title = AboutStr.recentSupport(),
             trailing = AboutStr.supportUpdated(),
         )
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            insideMargin = PaddingValues(0.dp)
-        ) {
-            when {
-                loadState == DonationLoadState.Loading -> DonationPlaceholder(
-                    text = CommonStr.loading(),
-                    showProgress = true,
-                )
-                loadState == DonationLoadState.Failed -> DonationPlaceholder(
-                    text = AboutStr.donationLoadFailed(),
-                    onRetry = onRetry,
-                )
-                donations.isEmpty() -> DonationPlaceholder(
-                    text = AboutStr.donationEmpty(),
-                )
-                else -> Column(modifier = Modifier.fillMaxWidth()) {
-                    donations.forEachIndexed { index, item ->
-                        SupporterRow(item = item)
-                        if (index < donations.lastIndex) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 68.dp, end = 16.dp)
-                                    .height(0.5.dp)
-                                    .background(NexioTheme.colorScheme.surfaceVariant)
-                            )
+        if (loadState == DonationLoadState.Failed) {
+            // 失败重试卡片与反馈进度页保持同一套占位样式
+            FeedbackPlaceholder(
+                text = AboutStr.donationLoadFailed(),
+                actionText = CommonStr.retry(),
+                onAction = onRetry,
+            )
+        } else {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                insideMargin = PaddingValues(0.dp)
+            ) {
+                when {
+                    loadState == DonationLoadState.Loading -> DonationPlaceholder(
+                        text = CommonStr.loading(),
+                        showProgress = true,
+                    )
+                    donations.isEmpty() -> DonationPlaceholder(
+                        text = AboutStr.donationEmpty(),
+                    )
+                    else -> Column(modifier = Modifier.fillMaxWidth()) {
+                        donations.forEachIndexed { index, item ->
+                            SupporterRow(item = item)
+                            if (index < donations.lastIndex) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 68.dp, end = 16.dp)
+                                        .height(0.5.dp)
+                                        .background(NexioTheme.colorScheme.surfaceVariant)
+                                )
+                            }
                         }
                     }
                 }
@@ -749,12 +758,11 @@ private fun SupporterRow(item: AppreciationItem) {
     }
 }
 
-/** 名单占位：加载中 / 失败重试 / 暂无记录 */
+/** 名单占位：加载中 / 暂无记录 */
 @Composable
 private fun DonationPlaceholder(
     text: String,
     showProgress: Boolean = false,
-    onRetry: (() -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -764,7 +772,7 @@ private fun DonationPlaceholder(
     ) {
         if (showProgress) {
             CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
+                size = 18.dp,
                 strokeWidth = 2.dp,
             )
             Spacer(modifier = Modifier.height(10.dp))
@@ -775,45 +783,6 @@ private fun DonationPlaceholder(
             color = NexioTheme.colorScheme.onSurfaceVariantActions,
             textAlign = TextAlign.Center,
         )
-        if (onRetry != null) {
-            Spacer(modifier = Modifier.height(12.dp))
-            FlatTextButton(
-                text = CommonStr.retry(),
-                onClick = onRetry,
-                modifier = Modifier.width(160.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun LoadMoreFooter(loading: Boolean, failed: Boolean, onRetry: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (loading && !failed) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = CommonStr.loading(),
-                    fontSize = 12.sp,
-                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
-                )
-            }
-        } else {
-            FlatTextButton(
-                text = CommonStr.retry(),
-                onClick = onRetry,
-                modifier = Modifier.width(160.dp),
-            )
-        }
     }
 }
 

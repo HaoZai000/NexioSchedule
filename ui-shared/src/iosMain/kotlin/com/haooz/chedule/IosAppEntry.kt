@@ -35,7 +35,7 @@ import com.haooz.chedule.i18n.L
 import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.main.CourseScheduleApp
 import com.haooz.chedule.ui.activities.today.TodayAssistantCard
-import com.haooz.chedule.ui.screens.LocalTabletSettingsPaneRouteContent
+import com.haooz.chedule.ui.activities.setting.LocalTabletSettingsPaneRouteContent
 import com.haooz.chedule.ui.navigation.AboutRoute
 import com.haooz.chedule.ui.navigation.AiFeaturesRoute
 import com.haooz.chedule.ui.navigation.AiImportRoute
@@ -67,6 +67,7 @@ import com.haooz.chedule.ui.navigation.UpdatePreferencesRoute
 import com.haooz.chedule.ui.navigation.UpdateSettingsRoute
 import com.haooz.chedule.ui.navigation.WebDavSettingsRoute
 import com.haooz.chedule.ui.navigation.AiEduImportRoute
+import com.haooz.chedule.ui.navigation.AiEduUrlEntryRoute
 import com.haooz.chedule.ui.navigation.AiEduImportHistoryRoute
 import com.haooz.chedule.ui.navigation.AiEduPreviewRoute
 import com.haooz.chedule.ui.navigation.WebImportRoute
@@ -424,7 +425,9 @@ internal fun NexioIosRouteContent(router: AppRouter, route: AppRoute) {
             router = router,
             webHostFactory = { config, events -> rememberIosWebHost(config, events) },
         )
-        // AI 教务导入：同一套 WKWebView 宿主，脚本由模型现场写
+        // AI 教务导入：第一步输入网址（内嵌），第二步全屏网页
+        AppRoute.AiEduUrlEntry -> AiEduUrlEntryRoute(router = router)
+        // 同一套 WKWebView 宿主，脚本由模型现场写
         AppRoute.AiEduImport -> AiEduImportRoute(
             router = router,
             webHostFactory = { config, events -> rememberIosWebHost(config, events) },
