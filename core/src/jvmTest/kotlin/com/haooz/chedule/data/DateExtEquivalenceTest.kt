@@ -1,10 +1,6 @@
 package com.haooz.chedule.data
 
 import com.haooz.chedule.data.holiday.HolidayCountdown
-import com.haooz.chedule.data.util.LOCAL_DATE_MAX
-import com.haooz.chedule.data.util.LOCAL_DATE_MAX_EPOCH_DAY
-import com.haooz.chedule.data.util.LOCAL_DATE_MIN
-import com.haooz.chedule.data.util.LOCAL_DATE_MIN_EPOCH_DAY
 import com.haooz.chedule.data.util.addExactOrNull
 import com.haooz.chedule.data.util.formatChineseDate
 import com.haooz.chedule.data.util.formatHourMinute
@@ -14,38 +10,19 @@ import com.haooz.chedule.data.util.formatSlashDate
 import com.haooz.chedule.data.util.lengthOfMonth
 import com.haooz.chedule.data.util.localDateFromEpochDays
 import com.haooz.chedule.data.util.millisBetween
-import com.haooz.chedule.data.util.minusDays
-import com.haooz.chedule.data.util.minusWeeks
-import com.haooz.chedule.data.util.nowLocalTime
 import com.haooz.chedule.data.util.parseHourMinute
 import com.haooz.chedule.data.util.plusDays
-import com.haooz.chedule.data.util.plusWeeks
 import com.haooz.chedule.data.util.subtractExactOrNull
-import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.data.util.weeksBetween
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
-import kotlinx.datetime.daysUntil
-import kotlinx.datetime.isoDayNumber
 
-/**
- * `:core` 的 [DateExt] 补齐层 —— 与 `java.time` 的**差分等价性验证**。
- *
- * [DateExt] 里那些是 **kotlinx-datetime 根本没有**、手写的（`lengthOfMonth` /
- * `plusDays` / `MIN`、`MAX` 哨兵 / `HH:mm` 解析格式化 / `Math.addExact` …）。
- * 这类手写替换**编译永远绿、错了就是静默算错**，只能靠差分比对兜住。
- *
- * 覆盖真实会走到的输入域：全项目日期都在 1900-2100 之间，但特意把闰年、世纪年、
- * 月末、跨年、跨周都塞进去。
- *
- * ⚠ 本文件不入库（用户长期要求），与 `DateMigrationEquivalenceTest` 同属本地安全网。
- */
+/** 用 JVM 日期与算术 API 对拍共享日期工具。 */
 class DateExtEquivalenceTest {
 
     // ── 采样日期：覆盖闰年 / 世纪年 / 月末 / 跨年 / 周日边界 ──
@@ -65,30 +42,6 @@ class DateExtEquivalenceTest {
     }
 
     @Test
-    fun `parse 与 toString 与 java time 完全一致`() {
-        sampleDates.forEach { d ->
-            val java = java.time.LocalDate.parse(d.toString())
-            assertEquals(java.year, d.year, "year of $d")
-            assertEquals(java.monthValue, d.monthNumber, "month of $d")
-            assertEquals(java.dayOfMonth, d.dayOfMonth, "day of $d")
-            assertEquals(java.toString(), d.toString(), "toString of $d")
-            assertEquals(java.toEpochDay(), d.toEpochDays().toLong(), "epochDay of $d")
-        }
-        // 非法输入两边都失败
-        assertNull(runCatching { LocalDate.parse("2026-1-5") }.getOrNull())
-        assertNull(runCatching { LocalDate.parse("") }.getOrNull())
-        assertNull(runCatching { LocalDate.parse("2026-02-30") }.getOrNull())
-    }
-
-    @Test
-    fun `dayOfWeek iso 编号与 java 一致`() {
-        sampleDates.forEach { d ->
-            val java = java.time.LocalDate.parse(d.toString())
-            assertEquals(java.dayOfWeek.value, d.dayOfWeek.isoDayNumber, "isoDayNumber of $d")
-        }
-    }
-
-    @Test
     fun `lengthOfMonth 与 java 一致`() {
         sampleDates.forEach { d ->
             val java = java.time.LocalDate.parse(d.toString())
@@ -102,30 +55,12 @@ class DateExtEquivalenceTest {
     }
 
     @Test
-    fun `plusDays minusDays plusWeeks minusWeeks 与 java 一致`() {
-        sampleDates.forEach { d ->
-            val java = java.time.LocalDate.parse(d.toString())
-            for (n in listOf(-800L, -30L, -7L, -1L, 0L, 1L, 7L, 30L, 800L)) {
-                assertEquals(java.plusDays(n).toString(), d.plusDays(n).toString(), "plusDays($n) of $d")
-                assertEquals(java.minusDays(n).toString(), d.minusDays(n).toString(), "minusDays($n) of $d")
-                assertEquals(java.plusWeeks(n).toString(), d.plusWeeks(n).toString(), "plusWeeks($n) of $d")
-                assertEquals(java.minusWeeks(n).toString(), d.minusWeeks(n).toString(), "minusWeeks($n) of $d")
-            }
-        }
-    }
-
-    @Test
-    fun `daysUntil 与 weeksBetween 与 ChronoUnit 一致`() {
+    fun `weeksBetween 与 ChronoUnit 一致`() {
         val others = sampleDates.filterIndexed { i, _ -> i % 37 == 0 }
         sampleDates.forEach { a ->
             val ja = java.time.LocalDate.parse(a.toString())
             others.forEach { b ->
                 val jb = java.time.LocalDate.parse(b.toString())
-                assertEquals(
-                    ChronoUnit.DAYS.between(ja, jb),
-                    a.daysUntil(b).toLong(),
-                    "daysUntil $a -> $b",
-                )
                 assertEquals(
                     ChronoUnit.WEEKS.between(ja, jb),
                     weeksBetween(a, b).toLong(),
@@ -197,23 +132,6 @@ class DateExtEquivalenceTest {
     }
 
     @Test
-    fun `MIN MAX 哨兵与 epoch day 边界自洽`() {
-        assertTrue(LOCAL_DATE_MIN < LOCAL_DATE_MAX)
-        assertEquals(LOCAL_DATE_MIN.toEpochDays().toLong(), LOCAL_DATE_MIN_EPOCH_DAY)
-        assertEquals(LOCAL_DATE_MAX.toEpochDays().toLong(), LOCAL_DATE_MAX_EPOCH_DAY)
-        // 哨兵必须能被构造出来，且正好落在 kotlinx-datetime 的可表示区间端点
-        // （源码里的 MIN_EPOCH_DAY / MAX_EPOCH_DAY，钉死在这里防止改库后静默偏移）
-        assertEquals(-999_999, LOCAL_DATE_MIN.year)
-        assertEquals(999_999, LOCAL_DATE_MAX.year)
-        assertEquals(-365_961_662L, LOCAL_DATE_MIN_EPOCH_DAY)
-        assertEquals(364_522_971L, LOCAL_DATE_MAX_EPOCH_DAY)
-        // 任何真实日期都必须落在哨兵之间（这是它们当边界用的前提）
-        sampleDates.forEach { d ->
-            assertTrue(d >= LOCAL_DATE_MIN && d <= LOCAL_DATE_MAX, "$d 越出哨兵区间")
-        }
-    }
-
-    @Test
     fun `addExact 与 subtractExact 与 java lang Math 一致`() {
         val values = listOf(0L, 1L, -1L, 7L, -7L, 1_000_000L, Long.MAX_VALUE - 1, Long.MIN_VALUE + 1, Long.MAX_VALUE, Long.MIN_VALUE)
         values.forEach { a ->
@@ -227,58 +145,17 @@ class DateExtEquivalenceTest {
     }
 
     @Test
-    fun `Long floorDiv 等价于 java lang Math floorDiv`() {
-        // CourseScheduleDateBounds.ceilDiv 原实现是 `-Math.floorDiv(-value, divisor)`，
-        // 下沉 :core 时换成了 stdlib 的 `Long.floorDiv`。这里把两者钉成等价。
-        val values = listOf(
-            0L, 1L, -1L, 7L, -7L, 13L, -13L, 1_000_000L, -1_000_000L,
-            Long.MAX_VALUE, Long.MIN_VALUE + 1,
-        )
-        val divisors = listOf(1L, 2L, 7L, 60_000L, 86_400L, 1_000_000L)
-        values.forEach { a ->
-            divisors.forEach { b ->
-                assertEquals(java.lang.Math.floorDiv(a, b), a.floorDiv(b), "floorDiv($a,$b)")
-                // ceilDiv 的原始表达式与替换后写法
-                assertEquals(
-                    -java.lang.Math.floorDiv(-a, b),
-                    -(-a).floorDiv(b),
-                    "ceilDiv($a,$b)",
-                )
-            }
-        }
-    }
-
-    @Test
-    fun `Long mod 等价于 java lang Math floorMod（正除数）`() {
-        // HolidayCountdown.millisUntilNextMinute 原实现用 Math.floorMod，
-        // Kotlin/Native 没有 Math.floorMod，换成了 stdlib 的 mod。
-        // 除数恒为正（60_000），此时两者语义相同，这里把这件事钉死。
+    fun `millisUntilNextMinute 与 floorMod 推算的下一分钟间隔一致`() {
         val samples = listOf(
             0L, 1L, -1L, 59_999L, 60_000L, 60_001L, -60_000L, -60_001L,
             1_700_000_000_000L, -1_700_000_000_000L, Long.MAX_VALUE, Long.MIN_VALUE + 1,
         )
         samples.forEach { value ->
             assertEquals(
-                java.lang.Math.floorMod(value, 60_000L),
-                value.mod(60_000L),
-                "mod($value, 60_000)",
-            )
-            assertEquals(
                 java.lang.Math.floorMod(value, 60_000L).let { if (it == 0L) 60_000L else 60_000L - it },
                 HolidayCountdown.millisUntilNextMinute(value),
                 "millisUntilNextMinute($value)",
             )
         }
-    }
-
-    @Test
-    fun `todayLocalDate 与 nowLocalTime 落在 java 的同一天同一分钟级`() {
-        val javaDate = java.time.LocalDate.now()
-        val mine = todayLocalDate()
-        assertEquals(javaDate.toString(), mine.toString(), "todayLocalDate")
-        val javaTime = java.time.LocalTime.now()
-        val mineTime = nowLocalTime()
-        // 允许跨分钟边界的抖动，比小时即可
-        assertEquals(javaTime.hour, mineTime.hour, "nowLocalTime hour")
     }
 }

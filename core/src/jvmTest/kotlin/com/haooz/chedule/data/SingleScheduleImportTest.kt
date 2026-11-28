@@ -1,6 +1,8 @@
 package com.haooz.chedule.data
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import com.haooz.chedule.data.backup.BackupPayload
+import com.haooz.chedule.data.backup.parseBackupPayload
 import com.haooz.chedule.data.db.NexioDatabase
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.storage.CourseStorage
@@ -110,6 +112,48 @@ class SingleScheduleImportTest {
             repository.getTimeConfig(otherConfigBefore).morningSections,
             repository.getScheduleTimeConfigId(other).let { repository.getTimeConfig(it).morningSections },
             "另一张课表的作息不能被改",
+        )
+    }
+
+    @Test
+    fun `真实备份恢复后 23 门课都在且分实验室的同名课不互相覆盖`() {
+        val json = requireNotNull(javaClass.getResource("/backup_single_schedule.json")).readText()
+        val payload = parseBackupPayload(json)
+        assertTrue(payload is BackupPayload.Single, "夹具应识别为单课表备份，实际：$payload")
+        val name = schedule("数字经济3")
+
+        repository.importSingleSchedule(
+            scheduleName = name,
+            coursesData = payload.courses,
+            timeConfigData = payload.timeConfig,
+            classStartTime = payload.semesterSettings?.classStartTime,
+            currentWeek = payload.semesterSettings?.currentWeek,
+            totalWeeks = payload.semesterSettings?.totalWeeks,
+            teachingWeekReorganizations = payload.teachingWeekReorganizations,
+            smartWeekend = payload.semesterSettings?.smartWeekend,
+            showNonCurrentWeek = payload.semesterSettings?.showNonCurrentWeek,
+        )
+
+        val restored = store.load(name)
+        assertEquals(
+            23,
+            restored.size,
+            "恢复的课程数必须与备份一致 —— 撞 id 时这里会少 2 门并整单回滚",
+        )
+        assertEquals(
+            restored.size,
+            restored.map { it.id }.toSet().size,
+            "课程 id 必须唯一",
+        )
+
+        val teaCourses = restored.filter { it.name == "三茶统筹专题" }
+        assertTrue(
+            teaCourses.size >= 4,
+            "「三茶统筹专题」应完整保留（day3 第6节 + 第8节，各两个实验室），实际 ${teaCourses.size} 条",
+        )
+        assertTrue(
+            teaCourses.map { it.classroom }.toSet().size >= 2,
+            "两个实验室的课都要在，不能被互相覆盖",
         )
     }
 

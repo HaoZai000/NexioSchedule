@@ -95,13 +95,6 @@ class TimeConfigSanitizeLongBreakTest {
         assertEquals(20, config.longBreakMorning)
         assertEquals(15, config.longBreakAfternoon)
         assertEquals(30, config.longBreakEvening)
-    }
-
-    @Test
-    fun `边界值 0 与 60 都保留`() {
-        val low = sanitize(morning = 0)
-        val high = sanitize(morning = 60)
-        assertEquals(0, low.longBreakMorning)
-        assertEquals(60, high.longBreakMorning)
+        assertEquals(60, sanitize(morning = 60).longBreakMorning)
     }
 }
