@@ -461,7 +461,7 @@ object McpLocalServer {
             // 快照必须在执行前取：撤销要回到「这次修改之前」的状态
             val snapshot = ScheduleSnapshot(
                 courses = courseList(repository),
-                holidays = runCatching { HolidayManager.loadAllByYear() }.getOrDefault(emptyMap()),
+                holidays = HolidayManager.loadAllByYear(),
             )
             val result = pending.action()
             lastUndo = pending.summary to {
@@ -580,7 +580,7 @@ object McpLocalServer {
                 customEndTime = if (custom) customEnd else null,
                 note = note,
             )
-            repository.addCourse(course)
+            repository.saveCourses(courses + course, notify = false)
             okJson(summary)
         }
     }
@@ -1045,11 +1045,10 @@ object McpLocalServer {
         "mcp_${Clock.System.now().toEpochMilliseconds()}_${Random.nextInt(1000, 9999)}"
 
     private fun sectionTimes(repository: CourseRepository): Map<Int, String> =
-        runCatching { repository.getCurrentSectionTimes() }.getOrDefault(emptyMap())
+        repository.getCurrentSectionTimes()
 
     private fun courseList(repository: CourseRepository): List<Course> =
-        runCatching { repository.getCoursesForSchedule(repository.getCurrentScheduleId()) }
-            .getOrDefault(emptyList())
+        repository.readCourseSnapshot()
 
     private fun courseJson(course: Course, week: Int, sectionTimes: Map<Int, String>): JsonObject =
         JsonObject().apply {

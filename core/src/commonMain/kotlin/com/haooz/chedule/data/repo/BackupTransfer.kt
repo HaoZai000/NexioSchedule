@@ -335,7 +335,7 @@ internal class BackupTransfer(private val host: RepoHost) {
         // 而镜像里如果还留着旧值，上面的遍历已经带进来了。
         names.forEach { name ->
             val prefix = host.getScheduleKeyPrefix(name)
-            val display = runCatching { rows?.displaySettingsOf(name) }.getOrNull()
+            val display = rows?.displaySettingsOf(name)
             if (display == null) {
                 result.remove("${prefix}$KEY_SMART_WEEKEND")
                 result.remove("${prefix}$KEY_SHOW_NON_CURRENT_WEEK")
@@ -433,10 +433,7 @@ internal class BackupTransfer(private val host: RepoHost) {
             }
         }
         // 行表是真相，会整体作废：不删的话恢复完读到的还是恢复前的课表
-        host.rowStore()?.let { rows ->
-            runCatching { rows.invalidateAll() }
-                .onFailure { NexioLog.e(TAG, "恢复备份后作废课程行表失败，可能读到恢复前的课表", it) }
-        }
+        host.rowStore()?.invalidateAll()
         host.invalidateAllCaches()
         HolidayManager.restoreAllSchedulesBackupData(holidayBackup, host.getScheduleNames())
         if (!preserveFolderMembership) host.migrateIntoDefaultFolder()

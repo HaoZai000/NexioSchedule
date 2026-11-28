@@ -408,7 +408,7 @@ internal class ScheduleCatalog(private val host: Host) {
                 // 表里多出来的行（用户删掉的文件夹）一起清掉
                 rows.folders().map { it.id }.filter { it !in folders.map { f -> f.id } }
                     .forEach { rows.deleteFolder(it) }
-            }.onFailure { NexioLog.e(TAG, "文件夹写表失败", it) }
+            }.onFailure { NexioLog.e(TAG, "文件夹写表失败", it) }.getOrThrow()
         }
         foldersCache = folders
     }

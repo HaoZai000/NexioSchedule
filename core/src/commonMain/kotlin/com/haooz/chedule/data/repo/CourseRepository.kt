@@ -514,6 +514,23 @@ class CourseRepository private constructor() : PeriodTimeSource {
         return courses
     }
 
+    /** 写操作与撤销的基准必须重新读，不能使用 UI 读失败时缓存的空表。 */
+    fun readCourseSnapshot(scheduleId: String = getCurrentScheduleId()): List<Course> {
+        val rows = CourseStorage.rows ?: error("课程快照失败：课程行表没有接线")
+        if (!rows.isImported(scheduleId)) {
+            // 未迁移时 blob 才是真相；区别新课表缺键和有键却读不出。
+            val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_COURSES"
+            if (!prefs.contains(key)) return emptyList()
+            return checkNotNull(readCoursesFromBlob(scheduleId)) { "课程快照失败：$scheduleId 的课程 JSON 无法解析" }
+        }
+        val courses = rows.load(scheduleId)
+        // saveCourses 也要用这份真实快照做差分，而不是之前 UI 读失败留下的缓存。
+        synchronizedOn(cacheLock) {
+            courseCache = courseCache + (scheduleId to courses)
+        }
+        return courses
+    }
+
     /**
      * 读一个课表的课程。行表是真相，JSON blob 只作「待导入源」。
      *
@@ -1363,7 +1380,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         if (TeachingWeekReorganization.validationError(rules, Int.MAX_VALUE) != null) return false
         val raw = runCatching { TeachingWeekReorganization.encode(rules, Int.MAX_VALUE) }
             .getOrNull() ?: return false
-        writeTeachingWeekReorganizationsRaw(scheduleId, raw)
+        if (!writeTeachingWeekReorganizationsRaw(scheduleId, raw)) return false
         markScheduleSettingsChanged(scheduleId, "teaching_week_reorganizations")
         return true
     }
@@ -1459,6 +1476,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         ensureScheduleRow(rows, scheduleId)
         runCatching { rows.writeSmartWeekend(scheduleId, smart) }
             .onFailure { NexioLog.e(TAG, "智能周末写行失败：$scheduleId", it) }
+            .getOrThrow()
     }
 
     /** 调休补班日也视为有课，智能周末据此决定是否显示该天 */
@@ -1554,6 +1572,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         ensureScheduleRow(rows, scheduleId)
         runCatching { rows.writeShowNonCurrentWeek(scheduleId, show) }
             .onFailure { NexioLog.e(TAG, "显示非本周课程写行失败：$scheduleId", it) }
+            .getOrThrow()
     }
 
     override fun getMorningSections(): Int = getMorningSections(getCurrentScheduleId())
@@ -2150,14 +2169,10 @@ class CourseRepository private constructor() : PeriodTimeSource {
     private fun hydrateTimeConfigs() {
         if (timeConfigsHydrated) return
         val rows = CourseStorage.rows ?: return
-        val all = runCatching { rows.timeConfigs() }.getOrNull().orEmpty()
+        val all = rows.timeConfigs()
         if (all.isNotEmpty()) {
             val parsed = all.mapNotNull { row ->
-                runCatching {
-                    parseTimeConfigSnapshotOrNull(
-                        row.payload
-                    )
-                }.getOrNull()
+                parseTimeConfigSnapshotOrNull(row.payload)
                     ?.let { TimeConfig.sanitize(row.id, it) }
                     ?.let { it.id to it }
             }.toMap()
@@ -2218,6 +2233,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         } else {
             runCatching { rows.upsertTimeConfig(StoredTimeConfig(config.id, config.name, json)) }
                 .onFailure { NexioLog.e(TAG, "作息写表失败：id=${config.id}", it) }
+                .getOrThrow()
         }
         synchronizedOn(cacheLock) {
             timeConfigCache = timeConfigCache + (config.id to config)
@@ -2231,12 +2247,12 @@ class CourseRepository private constructor() : PeriodTimeSource {
     fun addTimeConfig(config: TimeConfig): Long {
         // id 必须按**表**里的最大值算：缓存可能落后于表（迁移 / 恢复备份后重建），
         // 撞号会 upsert 掉别人的作息 —— 表现是「改一张表的作息，另一张表跟着变」。
-        val ids = runCatching { CourseStorage.rows?.timeConfigs()?.map { it.id } }.getOrNull()
-            ?: getTimeConfigIds()
+        // 只有未接行表的宿主使用内存 id；有表却查询失败时不能走这条路。
+        val ids = CourseStorage.rows?.timeConfigs()?.map { it.id } ?: getTimeConfigIds()
         val newId = (ids.maxOrNull() ?: 0L) + 1L
         val newConfig = config.ensureRoutine().copy(id = newId)
-        saveTimeConfigIds(ids + newId)
         saveTimeConfig(newConfig)
+        saveTimeConfigIds(ids + newId)
         return newId
     }
 
