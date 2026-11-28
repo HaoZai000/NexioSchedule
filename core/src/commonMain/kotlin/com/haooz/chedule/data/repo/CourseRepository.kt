@@ -833,8 +833,9 @@ class CourseRepository private constructor() : PeriodTimeSource {
      * 而且它和真正的迁移源长得一模一样（读路径无法分辨「待迁移」和「抢救副本」）。
      * 现在库写不进去就说明库坏了，让调用方看见异常，比「界面显示已保存、重启全丢」诚实。
      */
-    fun saveCourses(courses: List<Course>, notify: Boolean = true) {
+    fun saveCourses(courses: List<Course>, notify: Boolean = true, expectedScheduleId: String? = null) {
         val scheduleId = getCurrentScheduleId()
+        check(expectedScheduleId == null || scheduleId == expectedScheduleId) { "当前课表已切换，未保存课程" }
         val normalized = courses.normalizeScheduleId(scheduleId)
         val rows = CourseStorage.rows
             ?: error("课程保存失败：课程行表没有接线 schedule=$scheduleId")
