@@ -1,11 +1,6 @@
 package com.haooz.chedule.data.platform
 
-/**
- * 课程提醒控制器 —— 平台能力抽象（注入模式，同 [DiagnosticRecorder]）。真实实现包装 AlarmManager、
- * 权限与系统设置页跳转等 Android 专有能力，桌面/iOS 用 [NoopReminderController]。
- *
- * ⚠ companion 里的 KEY_ / IN_CLASS_TIMING_ / MODE_ 常量与 Android 侧实现**保持同值**，不要单方面改。
- */
+/** 由宿主提供提醒调度、权限状态和设置页入口。偏好键与档位值也是平台实现的持久化契约。 */
 interface ReminderController {
 
     // —— 提醒服务（幂等对账）——
@@ -13,7 +8,6 @@ interface ReminderController {
     /** 启动/刷新课程提醒服务（内部会按当前开关状态对账，多余提醒会被清掉） */
     fun startReminderService()
 
-    /** 停止课程提醒服务 */
     fun stopReminderService()
 
     // —— 课中提醒（读 course_reminder_prefs）——
@@ -32,7 +26,6 @@ interface ReminderController {
     /** 能否发布「实况通知」（API 36+ 的 promoted notifications） */
     fun canPostPromotedNotifications(): Boolean
 
-    /** 是否已授予 POST_NOTIFICATIONS 通知权限 */
     fun hasNotificationPermission(): Boolean
 
     /** 是否已授予「免打扰访问权限」（自动开勿扰的前提） */
@@ -46,29 +39,13 @@ interface ReminderController {
     /** 设备是否支持超级岛（非 HyperOS 返回 false） */
     fun isIslandSupported(): Boolean
 
-    /**
-     * Whether this platform has a Live Activity container (iOS Dynamic Island /
-     * lock screen).
-     *
-     * Kept separate from [isIslandSupported] on purpose: that one probes for HyperOS
-     * super island, which enables Xiaomi-specific controls (Shizuku, left/right
-     * slot, AOD). This method only reports whether a live container exists at all.
-     * iOS 26+ is always true, but skips the Xiaomi-specific sub-options.
-     *
-     * The shared screen computes:
-     * `showIslandCard = isIslandSupported() || supportsLiveActivity()`.
-     *
-     * Defaults to false so desktops never need to implement it.
-     */
+    /** 是否提供实时活动容器。与 [isIslandSupported] 分开探测，以免显示 HyperOS 专有设置。 */
     fun supportsLiveActivity(): Boolean = false
 
-    /** Shizuku 服务是否在运行 */
     fun isShizukuRunning(): Boolean
 
-    /** Shizuku 是否已授权本应用 */
     fun isShizukuAuthorized(): Boolean
 
-    /** 请求 Shizuku 授权，结果回调 true=已授权 */
     fun requestShizukuPermission(onResult: (Boolean) -> Unit)
 
     // —— 系统能力探测（不发起跳转）——
@@ -76,7 +53,6 @@ interface ReminderController {
     /** 是否允许设置精确闹钟（API 31+ canScheduleExactAlarms；更低版本恒 true） */
     fun canScheduleExactAlarms(): Boolean
 
-    /** 本应用是否已被电池优化白名单忽略 */
     fun isIgnoringBatteryOptimizations(): Boolean
 
     /** 当前系统版本是否有「实况通知」相关设置入口（Android = SDK_INT >= 36） */
@@ -104,11 +80,8 @@ interface ReminderController {
 
     companion object {
         // —— course_reminder_prefs 键（与 Android 侧 CourseReminderHelper.KEY_* 同值）——
-        /** 课中提醒统一开关 */
         const val KEY_IN_CLASS = "in_class_reminder_enabled"
-        /** 提醒时机档位（0=全程，1=距下课） */
         const val KEY_IN_CLASS_TIMING_MODE = "in_class_timing_mode"
-        /** 距下课分钟数 */
         const val KEY_IN_CLASS_LEAD_MINUTES = "in_class_lead_minutes"
 
         // —— 提醒时机档位（与 CourseReminderHelper.IN_CLASS_TIMING_* 同值）——
@@ -122,10 +95,7 @@ interface ReminderController {
     }
 }
 
-/**
- * 桌面/iOS 的空实现：探测返回 false / 0，发起类方法不动作，权限类回调按「被拒绝」（granted=false），
- * 让页面走到原有的引导文案分支。
- */
+/** 未提供提醒能力时不执行调度或跳转；权限申请回调 false。 */
 object NoopReminderController : ReminderController {
     override fun startReminderService() {}
     override fun stopReminderService() {}

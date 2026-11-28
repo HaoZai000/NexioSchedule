@@ -29,27 +29,27 @@ object FeedbackStr {
      * 多行原样显示在空输入框里，开始输入即隐藏（不留浮动 label，否则 4 行字会糊在框顶）。
      */
     val contentPlaceholder = L(
-        "请详细描述您遇到的问题：\n" +
-            "1. 打开了某个页面或功能\n" +
-            "2. 执行某个操作遇到了什么问题\n" +
-            "3. 其他附加描述",
+        "请描述您遇到的问题：\n" +
+            "1. 所在页面或功能\n" +
+            "2. 触发步骤与异常表现\n" +
+            "3. 其他补充信息",
         "Please describe the issue:\n" +
-            "1. Which page or function you opened\n" +
-            "2. What you did and what went wrong\n" +
-            "3. Anything else worth mentioning",
+            "1. Page or feature\n" +
+            "2. Steps to reproduce and what happened\n" +
+            "3. Any additional details",
     )
     val contentCounter = L("%d / %d", "%d / %d")
 
     val emailLabel = L("邮箱（可选）", "Email (optional)")
-    val emailInvalid = L("邮箱格式看起来不对", "That email doesn't look right")
+    val emailInvalid = L("邮箱格式不正确", "Invalid email format")
 
     val submit = L("提交", "Submit")
     val submitting = L("提交中…", "Submitting…")
-    val submitTooShort = L("再多写几个字吧（至少 5 个字）", "Please write a bit more (at least 5 characters)")
+    val submitTooShort = L("请至少输入 5 个字", "Please enter at least 5 characters")
 
     val successTitle = L("已收到你的反馈", "Feedback received")
     val successBody = L("会尽快查看。单号 %s", "We'll take a look soon. ID %s")
-    val successHint = L("处理进展会同步到开发进度页", "Progress shows up on the roadmap page")
+    val successHint = L("处理进展会同步显示在开发进度页", "Progress will appear on the Development Progress page")
     val writeAnother = L("再写一条", "Write another")
     val viewMine = L("查看我的反馈", "My feedback")
     val viewRoadmap = L("查看开发进度", "Development progress")
@@ -58,7 +58,7 @@ object FeedbackStr {
 
     val delete = L("删除", "Delete")
     val deleteTitle = L("删除这条反馈？", "Delete this feedback?")
-    val deleteBody = L("删除后不可恢复，开发进度里的这条也会一起移除。", "This cannot be undone and the roadmap entry will be removed too.")
+    val deleteBody = L("删除后不可恢复，开发进度中的对应记录也将移除。", "This cannot be undone, and the Development Progress entry will also be removed.")
     val deleteFailed = L("删除失败", "Delete failed")
 
     // ---- 我的反馈 ----

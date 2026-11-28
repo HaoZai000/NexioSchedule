@@ -7,6 +7,7 @@ import com.haooz.chedule.data.util.optJsonArray
 import com.haooz.chedule.data.util.optJsonObject
 import com.haooz.chedule.data.util.optString
 import com.haooz.chedule.data.util.parseJsonObject
+import com.haooz.chedule.data.util.suspendRunCatching
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -54,7 +55,7 @@ object FeedbackClient {
         content: String,
         email: String = "",
     ): Result<String> = withContext(ioDispatcher) {
-        runCatching {
+        suspendRunCatching {
             val trimmedContent = content.trim()
             if (trimmedContent.length < 5) {
                 throw IllegalArgumentException(
@@ -96,7 +97,7 @@ object FeedbackClient {
      */
     suspend fun fetchMine(email: String = ""): Result<List<FeedbackRecord>> =
         withContext(ioDispatcher) {
-            runCatching {
+            suspendRunCatching {
                 val deviceId = StatsReporter.ensureDeviceId()
                 val url = buildString {
                     append(BASE_URL).append("/mine?device_id=").append(encodeQuery(deviceId))
@@ -116,7 +117,7 @@ object FeedbackClient {
 
     /** 删除自己提交的一条反馈：服务端按 `device_id` 校验归属，别人的删不掉 */
     suspend fun deleteMine(id: String): Result<Unit> = withContext(ioDispatcher) {
-        runCatching {
+        suspendRunCatching {
             if (id.isBlank()) {
                 throw IllegalArgumentException(displayText("缺少反馈编号", "Missing feedback id"))
             }
@@ -139,7 +140,7 @@ object FeedbackClient {
         limit: Int = ROADMAP_PAGE_SIZE,
         kind: FeedbackKind? = null,
     ): Result<RoadmapPage> = withContext(ioDispatcher) {
-        runCatching {
+        suspendRunCatching {
             NexioLog.i(TAG, "查询开发进度")
             val url = buildString {
                 append(BASE_URL).append("/roadmap?limit=").append(limit).append("&offset=").append(offset)
@@ -292,4 +293,4 @@ private fun encodeQuery(raw: String): String {
 
 /** kotlinx JsonElement → JsonObject，非对象返回 null（服务端字段缺失时不至于整条丢掉） */
 private fun kotlinx.serialization.json.JsonElement.asObjectOrNull(): JsonObject? =
-    runCatching { this as JsonObject }.getOrNull()
+    this as? JsonObject

@@ -18,9 +18,7 @@ internal actual fun platformMonetMaterialColors(dark: Boolean): ColorScheme {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return MaterialTheme.colorScheme
     // 壁纸配色变化会更新系统 Configuration，因此需重新取色而非复用旧缓存。
     val configuration = LocalConfiguration.current
-    // ⚠ 必须缓存：dynamicXxxColorScheme 每次调用都新建 40+ 个 Color（逐个 HCT 换算），且每次
-    //   重组都被 CourseScheduleTheme 调用；而 LocalColorScheme 用 neverEqualPolicy，新实例一律
-    //   触发整树重组并产生大量垃圾，加速 GC 进而回收上方弱引用监听器。修法与 :miuix platformDynamicColors 一致。
+    // 缓存动态色板：相同配置下重建颜色对象会导致整个主题树重新组合。
     return remember(context, configuration, dark) {
         if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     }

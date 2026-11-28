@@ -1,6 +1,7 @@
 package com.haooz.chedule.data.ai
 
 import com.haooz.chedule.data.platform.AppFiles
+import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.util.optBoolean
 import com.haooz.chedule.data.util.optInt
@@ -72,32 +73,39 @@ data class AiEduScriptRecord(
  */
 object AiEduScriptStore {
 
+    private const val TAG = "AiEduScriptStore"
     private const val FILE_NAME = "ai_edu_scripts.json"
     private const val MAX_RECORDS = 60
 
     /** 读全部记录（按写入顺序，旧的在前）。失败一律当空列表，不让历史页崩掉。 */
     suspend fun load(): List<AiEduScriptRecord> = withContext(ioDispatcher) {
-        readAll()
+        try {
+            readAll()
+        } catch (e: Exception) {
+            NexioLog.e(TAG, "读取脚本历史失败", e)
+            emptyList()
+        }
     }
 
     /** 追加一条；返回 false 表示没写进去（未初始化 / 磁盘异常）。 */
     suspend fun append(record: AiEduScriptRecord): Boolean = withContext(ioDispatcher) {
-        if (!AppFiles.isReady) return@withContext false
-        runCatching {
+        try {
             val updated = (readAll() + record).takeLast(MAX_RECORDS)
             val json = buildJsonArray { updated.forEach { add(it.toJson()) } }
             AppFiles.root.resolve(FILE_NAME).writeBytes(json.toString().encodeToByteArray())
             true
-        }.getOrDefault(false)
+        } catch (e: Exception) {
+            NexioLog.e(TAG, "追加脚本历史失败", e)
+            false
+        }
     }
 
     private fun readAll(): List<AiEduScriptRecord> {
-        if (!AppFiles.isReady) return emptyList()
-        return runCatching {
-            val file = AppFiles.root.resolve(FILE_NAME)
-            if (!file.exists()) return@runCatching emptyList()
-            parseJsonArray(file.readText()).mapNotNull { it.asRecord() }
-        }.getOrDefault(emptyList())
+        val file = AppFiles.root.resolve(FILE_NAME)
+        if (!file.exists()) return emptyList()
+        return parseJsonArray(file.readText()).mapIndexed { index, entry ->
+            requireNotNull(entry.asRecord()) { "无效的脚本历史记录：$index" }
+        }
     }
 
     private fun AiEduScriptRecord.toJson(): JsonObject = buildJsonObject {

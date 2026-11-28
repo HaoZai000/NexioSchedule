@@ -40,8 +40,10 @@ import com.haooz.chedule.data.ai.AiProviders
 import com.haooz.chedule.data.ai.AiResult
 import com.haooz.chedule.data.platform.HttpTimeouts
 import com.haooz.chedule.data.platform.createHttpService
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.i18n.AiStr
 import com.haooz.chedule.i18n.McpStr
+import com.haooz.chedule.i18n.ReminderStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.nexioui.cardexpand.CardExpand
 import com.haooz.nexioui.progressbar.ProgressBar
@@ -102,7 +104,7 @@ fun AiFeaturesScreen(
     LaunchedEffect(reloadKey) {
         loading = true
         quotaError = null
-        val result = runCatching { AiClient(http).capabilities() }
+        val result = suspendRunCatching { AiClient(http).capabilities() }
             .getOrElse { AiResult.Error(it.message ?: AiStr.quotaUnavailable()) }
         when (result) {
             is AiResult.Ok -> capabilities = result.value
@@ -166,8 +168,8 @@ fun AiFeaturesScreen(
         testState = AiTestState.Running
         scope.launch {
             testState = if (isFreeProvider) {
-                val outcome = runCatching { AiClient(http).capabilities() }
-                    .getOrElse { AiResult.Error(it.message ?: it::class.simpleName ?: "未知错误") }
+                val outcome = suspendRunCatching { AiClient(http).capabilities() }
+                    .getOrElse { AiResult.Error(it.message?.takeIf(String::isNotBlank) ?: ReminderStr.unknownError()) }
                 when (outcome) {
                     is AiResult.Ok -> if (outcome.value.enabled) {
                         AiTestState.Ok(elapsedMs = null)
@@ -177,8 +179,8 @@ fun AiFeaturesScreen(
                     is AiResult.Error -> AiTestState.Failed(outcome.message)
                 }
             } else {
-                val outcome = runCatching { AiClient(http).testByokConnection() }
-                    .getOrElse { AiResult.Error(it.message ?: it::class.simpleName ?: "未知错误") }
+                val outcome = suspendRunCatching { AiClient(http).testByokConnection() }
+                    .getOrElse { AiResult.Error(it.message?.takeIf(String::isNotBlank) ?: ReminderStr.unknownError()) }
                 when (outcome) {
                     is AiResult.Ok -> AiTestState.Ok(elapsedMs = outcome.value)
                     is AiResult.Error -> AiTestState.Failed(outcome.message)

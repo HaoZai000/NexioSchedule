@@ -133,11 +133,7 @@ import com.haooz.nexioui.overscroll.overScrollVertical
 import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 
-/**
- * [TodayScreen.todayAssistantCard] 槽位的数据载体（页面算好传给宿主渲染）。
- * 今日助手卡依赖 Android 天气栈（Gson / 定位 / Geocoder），留在 `:androidApp` 的 `TodayAssistant.kt`；
- * 本页只负责打包数据，渲染 lambda 由宿主注入。
- */
+/** 宿主渲染今日助手卡所需的课程与显示设置。 */
 class TodayAssistantCardData(
     val courses: List<Course>,
     val tomorrowCourses: List<Course>,
@@ -238,14 +234,6 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
         }
     }
 
-    fun parseTime(timeStr: String): LocalTime? {
-        return try {
-            parseHourMinute(timeStr)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     val timeRange = if (course.hasValidCustomTime()) {
         "${course.customStartTime} - ${course.customEndTime}"
     } else {
@@ -261,8 +249,8 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
     } else {
         sectionTimes[course.endSection]?.split("-")?.lastOrNull() ?: ""
     }
-    val startTime = parseTime(startTimeStr)
-    val endTime = parseTime(endTimeStr)
+    val startTime = parseHourMinute(startTimeStr)
+    val endTime = parseHourMinute(endTimeStr)
 
     val initialStatus = remember(pageDate, startTime, endTime) {
         val today = todayLocalDate()
@@ -812,10 +800,7 @@ fun TodayScreen(
                                     }
 
                                     effectiveCourses.mapNotNull { course ->
-                                        course.getEffectiveEndTime(sectionTimes)?.let { endTime ->
-                                            runCatching { parseHourMinute(endTime) }
-                                                .getOrNull()
-                                        }
+                                        course.getEffectiveEndTime(sectionTimes)?.let(::parseHourMinute)
                                     }.maxOrNull()
                                 }
                             },
@@ -1083,11 +1068,8 @@ fun TodayScreen(
                         textStyle = NexioTheme.textStyles.title2,
                         modifier = Modifier.weight(1f)
                     )
-                    val maxDay = try {
-                        LocalDate(datePickerYear, datePickerMonth + 1, 1).lengthOfMonth()
-                    } catch (_: Exception) {
-                        31
-                    }
+                    val month = datePickerMonth + 1
+                    val maxDay = if (month in 1..12) LocalDate(datePickerYear, month, 1).lengthOfMonth() else 31
                     val clampedDay = datePickerDay.coerceIn(1, maxDay)
                     if (clampedDay != datePickerDay) datePickerDay = clampedDay
                     NumberPicker(
@@ -1218,14 +1200,6 @@ private enum class QuoteScene {
     AFTER_ALL,
 }
 
-private fun parseQuoteTime(timeStr: String): LocalTime? {
-    return try {
-        parseHourMinute(timeStr)
-    } catch (_: Exception) {
-        null
-    }
-}
-
 private fun ceilQuoteMinutes(from: LocalTime, to: LocalTime): Int {
     // 跨午夜课（23:00-00:30）在课中时 to(00:30) < from(23:50)，按次日结束回卷
     val remain = millisBetween(from, to, allowRollover = true)
@@ -1243,8 +1217,8 @@ private fun buildQuoteRanges(
     sectionTimes: Map<Int, String>
 ): List<QuoteTimeRange> {
     return courses.mapNotNull { course ->
-        val start = parseQuoteTime(course.getEffectiveStartTime(sectionTimes) ?: return@mapNotNull null)
-        val end = parseQuoteTime(course.getEffectiveEndTime(sectionTimes) ?: return@mapNotNull null)
+        val start = parseHourMinute(course.getEffectiveStartTime(sectionTimes) ?: return@mapNotNull null)
+        val end = parseHourMinute(course.getEffectiveEndTime(sectionTimes) ?: return@mapNotNull null)
         if (start == null || end == null) return@mapNotNull null
         // 起止相同仍是脏数据；跨午夜课（end < start）保留，由 coursePeriodOngoing
         // 按「start→午夜」段判定，晚课时段的引言不再永远匹配不到
@@ -1729,10 +1703,7 @@ private fun CourseItemWithClick(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            // ⚠ 无壁纸时必须用 surfaceContainer，不能用 background：外层 BlurCard 此时退化成
-            //   miuix `Card()`，卡片色正是 surfaceContainer（Card.kt defaultColors）。内置方案下
-            //   两者恰好相等（#FFFFFF / #242424），莫奈下才分家：background 取 tone 98/6、
-            //   surfaceContainer 取 tone 94/12，差 4 个明度阶，写错会偏色。
+            // 无玻璃表面时跟随外层卡片的 surfaceContainer；动态配色下它与 background 不同。
             .then(if (hasGlass) Modifier else Modifier.background(NexioTheme.colorScheme.surfaceContainer))
             .clickable {
                 openTodayCourse(course, pageWeek, onCourseClick)

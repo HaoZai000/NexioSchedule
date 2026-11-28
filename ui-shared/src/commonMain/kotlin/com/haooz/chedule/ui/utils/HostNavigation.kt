@@ -135,11 +135,7 @@ class HostOverlayState {
 
 internal class HostOverlayEntry {
     var active by mutableStateOf(false)
-    /**
-     * 渲染层：false = 弹窗层（`MiuixPopupHost`）之下（默认），true = 之上。
-     * Android 的 overlay 就地渲染、天然在弹窗之上；iOS 两者是兄弟节点，得显式分层
-     * （例：课程详情页必须盖住弹出它的「课程详情」底部弹窗）。
-     */
+    /** 是否绘制在弹窗之上，例如从底部弹窗打开的课程详情。 */
     var abovePopups by mutableStateOf(false)
     var content by mutableStateOf<@Composable () -> Unit>({})
 }
@@ -212,10 +208,6 @@ fun HostOverlayContent(
     }
 }
 
-/**
- * 是否竖排 tab bar 形态（折叠屏 iPhone 折叠态，屏幕顶部没有状态栏）：糊带收窄
- * [top.yukonga.miuix.kmp.layout.NoStatusBarBlurReduction]、星期行不再补那 40dp。
- * 无宿主（Android/桌面）恒为 false，走常规几何。
- */
+/** 竖排导航栏时顶栏与星期行不预留顶部状态栏空间；未提供宿主状态时为 false。 */
 @Composable
 fun hostVerticalBarEdge(): Boolean = LocalHostNavigation.current?.verticalBarEdgeActive == true

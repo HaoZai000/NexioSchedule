@@ -95,11 +95,10 @@ internal class ScheduleCatalog(private val host: Host) {
             if (json.isNullOrBlank()) {
                 listOf(DEFAULT_SCHEDULE_NAME)
             } else {
-                runCatching { decodeStringList(json) }.getOrNull()
-                    ?.takeIf { it.isNotEmpty() }
-                    ?: listOf(DEFAULT_SCHEDULE_NAME)
+                decodeStringList(json).ifEmpty { listOf(DEFAULT_SCHEDULE_NAME) }
             }
-        } catch (_: Exception) {
+        } catch (e: IllegalArgumentException) {
+            NexioLog.e(TAG, "课表名称列表解析失败", e)
             listOf(DEFAULT_SCHEDULE_NAME)
         }
         namesCache = names
@@ -326,7 +325,8 @@ internal class ScheduleCatalog(private val host: Host) {
             // 旧 JSON 字段可能为 null，直接 copy() 会 NPE
             val courses = host.sanitizeCourses(decodeCourses(value))
             encodeCourses(courses.map { it.copy(scheduleId = newName) })
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "改名更新课程 JSON 失败，保留原始数据：schedule=$newName", e)
             value
         }
     }
@@ -341,7 +341,8 @@ internal class ScheduleCatalog(private val host: Host) {
         val json = host.prefs.getStringOrNull(KEY_SCHEDULE_FOLDERS) ?: return
         val folders = try {
             decodeScheduleFolders(json)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            NexioLog.e(TAG, "更新课表引用时文件夹 JSON 解析失败：schedule=$oldName", e)
             return
         }
         if (folders.none { oldName in it.schedules }) return
@@ -408,7 +409,7 @@ internal class ScheduleCatalog(private val host: Host) {
                 // 表里多出来的行（用户删掉的文件夹）一起清掉
                 rows.folders().map { it.id }.filter { it !in folders.map { f -> f.id } }
                     .forEach { rows.deleteFolder(it) }
-            }.onFailure { NexioLog.e(TAG, "文件夹写表失败", it) }
+            }.onFailure { NexioLog.e(TAG, "文件夹写表失败", it) }.getOrThrow()
         }
         foldersCache = folders
     }

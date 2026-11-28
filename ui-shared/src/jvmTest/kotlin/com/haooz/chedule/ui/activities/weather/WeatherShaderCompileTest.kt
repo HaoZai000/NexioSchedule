@@ -8,5 +8,6 @@ class WeatherShaderCompileTest {
     fun shadersCompile() {
         createGlassRuntimeShader(WEATHER_RAIN_SHADER)
         createGlassRuntimeShader(WEATHER_SNOW_SHADER)
+        createGlassRuntimeShader(WEATHER_FROST_SHADER)
     }
 }

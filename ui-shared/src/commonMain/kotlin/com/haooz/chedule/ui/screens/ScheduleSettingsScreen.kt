@@ -280,13 +280,19 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                                 title = SettingsStr.smartWeekend(),
                                 summary = SettingsStr.smartWeekendSummary(),
                                 checked = smartWeekend,
-                                onCheckedChange = { settingsViewModel.setSmartWeekend(it) },
+                                onCheckedChange = {
+                                    if (it == settingsViewModel.smartWeekend.value) return@SwitchPreference
+                                    settingsViewModel.setSmartWeekend(it)
+                                },
                             )
                             CardExpand(visible = !isShiftMode) {
                                 SwitchPreference(
                                     title = SettingsStr.showNonCurrentWeek(),
                                     checked = showNonCurrentWeek,
-                                    onCheckedChange = { settingsViewModel.setShowNonCurrentWeek(it) },
+                                    onCheckedChange = {
+                                        if (it == settingsViewModel.showNonCurrentWeek.value) return@SwitchPreference
+                                        settingsViewModel.setShowNonCurrentWeek(it)
+                                    },
                                 )
                             }
                         }

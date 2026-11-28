@@ -11,7 +11,7 @@ object ReminderStr {
     // 提醒详情
     val preClassReminder = L("下节课提醒", "Pre-class Reminder")
     val preClassReminderSummary =
-        L("提供下节上课时间、地点等信息，和上课勿扰等操作建议", "Shows next class time, location, and suggestions like in-class Do Not Disturb")
+        L("显示下节课时间与地点，并提供上课勿扰等快捷操作", "Shows next class time, location, and quick actions like in-class Do Not Disturb")
     val reminderLeadTime = L("提前提醒时间", "Reminder Lead Time")
     val minutesN = L("%d分钟", "%d min")
     val reminderSections = L("提醒节次", "Reminder periods")
@@ -24,12 +24,12 @@ object ReminderStr {
     val sectionN = L("第%d节", "P%d")
     val sectionRangeHint =
         L(
-            "只提醒上课时间在「起始节上课 ~ 结束节下课」之间的课程（含自定义时间的课）",
-            "Reminds only classes starting between the first period's start and the last period's end (custom-time classes included)"
+            "仅提醒上课时间在所选节次范围内的课程（含自定义时间）",
+            "Only notifies for classes starting within the selected period range (custom times included)"
         )
     val nextDayReminder = L("次日课程提醒", "Next-Day Class Reminder")
     val nextDayReminderSummary =
-        L("提供明天课程、首节时间、地点等信息，和定闹钟等操作建议", "Shows tomorrow's classes, first period time and location, with suggestions like setting an alarm")
+        L("显示明日课程、首节时间与地点，并提供设闹钟等快捷操作", "Shows tomorrow's classes, first class time and location, plus quick actions like setting an alarm")
     val reminderTime = L("提醒时间", "Reminder Time")
     val inClassReminder = L("课中提醒", "In-Class Reminder")
     val inClassReminderSummary =
@@ -50,11 +50,11 @@ object ReminderStr {
     val dndModeNeedsPermission =
         L("该档位需要勿扰权限，已为你打开授权页", "This level needs Do Not Disturb access; the permission page has been opened")
     val dndModeTitle = L("勿扰模式档位", "Do Not Disturb Level")
-    val dndModeTotalSilence = L("完全勿扰 (DND)", "Total Silence (DND)")
+    val dndModeTotalSilence = L("完全勿扰", "Total Silence")
     val dndModeTotalSilenceSummary = L("屏蔽全部通知与铃声", "Blocks all notifications and sounds")
-    val dndModeSilent = L("静音模式 (SILENT)", "Silent Mode (SILENT)")
+    val dndModeSilent = L("静音模式", "Silent Mode")
     val dndModeSilentSummary = L("关闭铃声与振动", "Mutes ringtones and vibration")
-    val dndModePriority = L("勿扰模式 (PRIORITY)", "Priority Mode (PRIORITY)")
+    val dndModePriority = L("优先勿扰", "Priority Only")
     val dndModePrioritySummary = L("只放行优先通知", "Allows priority notifications only")
 
     // 超级岛 / 灵动岛 / 实时活动
@@ -103,11 +103,11 @@ object ReminderStr {
     val methodAiSummary = L("一键按课表生成精简结果", "Generate abbreviations from the schedule in one tap")
     val viewAbbreviationPreview = L("查看精简预览", "Preview Abbreviations")
     val viewAbbreviationPreviewSummary =
-        L("预览精简后的课程地点", "Preview the abbreviated courses and classrooms")
+        L("预览精简后的课程名与地点", "Preview abbreviated course names and locations")
     val unknownError = L("未知错误", "Unknown error")
     val aiShrinkFailedS = L("AI 精简失败：%s", "AI abbreviation failed: %s")
     val alreadyShort =
-        L("这些地点已经很短了，没有可精简的", "These classroom names are already short, nothing to abbreviate")
+        L("课程名与地点已经足够简短，无需精简", "Course names and locations are already concise")
     val aiShrinkDoneRemaining = L("已精简 %d 条，今天还能用 %d 次", "Abbreviated %d entries, %d uses left today")
     val aiShrinkDone = L("已精简 %d 条", "Abbreviated %d entries")
     val oneTapAbbreviate = L("一键精简", "One-Tap Abbreviation")
@@ -117,7 +117,7 @@ object ReminderStr {
     val previewEditHint = L("点击右侧文字可手动修改", "Tap the text on the right to edit it")
     val currentMethod = L("当前方式", "Current method")
     val scheduleEmpty = L("课表没有内容", "Schedule is empty")
-    val willBeRewritten = L("个会被改写", "will be rewritten")
+    val willBeRewritten = L("项将被精简", "will be shortened")
     val scheduleNoCourseOrClassroom =
         L("课表里还没有课程名和地点", "No course names or classrooms in the schedule yet")
     val restoreAutoN = L("恢复自动（%d）", "Restore Auto (%d)")

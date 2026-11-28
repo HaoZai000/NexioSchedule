@@ -14,24 +14,9 @@ import kotlinx.coroutines.withContext
  * 脚本仓库管理 —— 用 HTTP 按需获取教务适配脚本（复用 shiguang_warehouse 的仓库结构）：
  *   索引: {repoUrl}/raw/{INDEX_BRANCH}/school_index.pb
  *   脚本: {repoUrl}/raw/main/resources/{resourceFolder}/{assetJsPath}
- *
- * ⚠ **与迁移前逐字对齐，勿顺手优化**：偏好文件名 `edu_import_prefs` 与键 `repo_url`
- *（改了等于用户的仓库地址丢失）、索引与脚本落盘路径、防盗链判定 / 签名链接提取 /
- * 版本比较 / `remoteBase` 的 `.git` 处理、**8MB 下载上限**（超限 `truncated = true`，
- * 按原语义视为下载失败）。
- *
- * 已知差异（独立核对确认，方向都偏「修复」）：异常捕获由 `IOException` 放宽为 `Exception`
- *（commonMain 没有 `java.io.IOException`）—— `ensureScript` 不再让非 IO 异常逃逸到三个
- * 没有 try/catch 的调用点；`updateAll` 改为返回 -1 而非抛出。`CancellationException`
- * 显式透传，避免吞掉协程取消。
  */
 class ScriptRepository(
     private val repoUrl: String? = null,
-    /**
-     * 可注入，供测试替换 —— 防盗链跟随、版本比较、协议版本校验这些分支
-     * 全靠它才能离线覆盖（与 [com.haooz.chedule.data.platform.NoticeFetcher] 等同一手法）。
-     * 默认按迁移前的超时（connect / read 各 30s）创建。
-     */
     private val http: HttpService = createHttpService(
         HttpTimeouts(connectSeconds = TIMEOUT_SECONDS, readSeconds = TIMEOUT_SECONDS)
     ),
@@ -53,7 +38,7 @@ class ScriptRepository(
         // 客户端支持的协议版本
         private const val CLIENT_PROTOCOL_VERSION = 2
 
-        // ⚠ 与迁移前逐字一致，别改
+        // 持久化的仓库地址由这对文件名和键名定位。
         private const val PREFS_NAME = "edu_import_prefs"
         private const val KEY_REPO_URL = "repo_url"
 
@@ -115,10 +100,6 @@ class ScriptRepository(
      * 一键更新：HTTP 拉取远端索引，校验并写入本地
      * onProgress: 0.0~0.5=下载索引, 0.5~1.0=校验写入
      * 返回 0=已是最新, 1=更新完成, -1=失败
-     *
-     * 迁移前这里是阻塞函数（OkHttp 同步调用）。跨平台后 HTTP 走
-     * `suspend` 的 [HttpService]，所以本函数也变成 `suspend`。
-     * 现有两个调用点本来就在 `updateScope.launch { }` 里，**无需改动**。
      */
     suspend fun updateAll(onLog: (String) -> Unit, onProgress: (Float) -> Unit = {}): Int {
         onLog("=== 开始检查更新 ===")
@@ -225,12 +206,7 @@ class ScriptRepository(
         }
     }
 
-    /**
-     * 下载并返回字节；失败、非 2xx 或超出 [MAX_DOWNLOAD_BYTES] 均返回 null。
-     *
-     * 上限通过 `maxBytes` 下推到 HTTP 层，**在读取过程中就中止**，
-     * 与原 `readLimitedBytes`（边读边计数、超限即返回 null）的意图一致。
-     */
+    /** 下载时限制响应体大小；非成功状态或响应被截断时返回 null。 */
     private suspend fun downloadBytes(url: String, onLog: ((String) -> Unit)? = null): ByteArray? {
         onLog?.invoke("正在下载: $url")
         var currentUrl = url

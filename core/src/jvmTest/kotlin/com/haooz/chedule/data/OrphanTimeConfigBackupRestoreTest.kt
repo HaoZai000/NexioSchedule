@@ -6,7 +6,6 @@ import com.haooz.chedule.data.backup.withValidatedFullScheduleBackup
 import com.haooz.chedule.data.holiday.HolidayManager
 import com.haooz.chedule.data.util.jsonToPlainValue
 import com.haooz.chedule.data.util.parseJsonObject
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -32,8 +31,7 @@ import kotlin.test.assertEquals
  * 修复点就在 [com.haooz.chedule.data.backup.validateFullScheduleBackupStructure] —— 把孤儿校验拿掉这里立刻红，
  * 覆盖完整。刻意**不碰 CourseRepository / AppStorage**：`CourseRepository()` 实为
  * `getInstance()` 单例，其 prefs 在 JVM 内首次构造时就钉死当时的 AppStorage store；
- * 本类若在别的测试类之前构造它，会污染它们的 store（实测：FullBackupRoundTripTest
- * 因此红过）。纯函数断言顺序无关。
+ * 本类若在别的测试类之前构造它，会污染它们的 store。纯函数断言顺序无关。
  */
 class OrphanTimeConfigBackupRestoreTest {
 
@@ -73,26 +71,5 @@ class OrphanTimeConfigBackupRestoreTest {
         withValidatedFullScheduleBackup(normalized) { holidayBackup ->
             assertEquals(setOf<String>(), holidayBackup.values.single().entries.keys, "样例无节假日条目")
         }
-    }
-
-    /**
-     * 真实报障文件的校验全链路（41 键，2026-10-10 报障的那份）。
-     * ⚠ 文件不在时**打印警告并跳过**（不静默通过）—— 与 RealBackupRoundTripTest 同惯例。
-     */
-    @Test
-    fun `真实备份_20261009_155910 结构校验与解码通过`() {
-        val backupFile = File("C:/Users/43908/Downloads/全部备份_20261009_155910.json")
-        if (!backupFile.exists()) {
-            println("⚠ 跳过：本机没有 ${backupFile.absolutePath}（这份用例依赖真实报障备份）")
-            return
-        }
-        val root = parse(backupFile.readText())
-        assertEquals(41, root.size, "报障备份应为 41 键（键数漂了说明样本换了，用例要跟）")
-
-        val names = validateFullScheduleBackupStructure(root)
-        assertEquals(listOf("大二上"), names)
-
-        val holiday = HolidayManager.decodeBackupData(root)
-        assertEquals(setOf("entries_2026"), holiday.entries.keys)
     }
 }

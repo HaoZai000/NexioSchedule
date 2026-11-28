@@ -115,12 +115,12 @@ internal class EduAgentTools(private val host: WebHost) {
     /** 执行模型写的脚本，等它真的跑完（沙箱记录回执）。 */
     suspend fun runScript(script: String): EduScriptRun {
         if (script.length > MAX_SCRIPT_CHARS) {
-            return failed("脚本太长了（${script.length} 字，上限 $MAX_SCRIPT_CHARS）")
+            return failed("脚本超出长度上限（${script.length}/$MAX_SCRIPT_CHARS）")
         }
         val wrapped = RUN_SCRIPT_JS.replace("__SCRIPT__", JsonPrimitive(script).toString())
         val started = host.evaluateJavascriptAwait(wrapped)?.let(::unwrapJsString)
         if (started != "started") {
-            return failed("脚本没有启动：${started ?: "平台不支持执行脚本"}")
+            return failed("脚本启动失败：${started ?: "当前平台不支持"}")
         }
         // evaluateJavascript 在 JS 返回时立刻回调，拿不到 async 的最终结果 —— 轮询沙箱状态
         val deadline = 90_000L
@@ -135,7 +135,7 @@ internal class EduAgentTools(private val host: WebHost) {
             if (!obj.optBoolean("done")) continue
             return obj.toRun()
         }
-        return failed("脚本超过 90 秒没有结束，可能卡在某个请求上")
+        return failed("脚本执行超时（超过 90 秒）")
     }
 
     /**

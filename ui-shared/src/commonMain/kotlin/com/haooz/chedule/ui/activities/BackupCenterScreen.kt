@@ -50,6 +50,7 @@ import com.haooz.chedule.data.util.formatDateTimeMinute
 import com.haooz.chedule.data.util.localDateTimeAt
 import com.haooz.chedule.data.util.nowLocalDateTime
 import com.haooz.chedule.data.util.parseCompactStamp
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
@@ -277,10 +278,12 @@ private suspend fun buildBackupData(scope: BackupScope, scheduleName: String): M
 
 private suspend fun writeBackup(
     controller: BackupFileController,
-    fileName: String,
-    data: Map<String, Any>,
+    scope: BackupScope,
+    scheduleName: String,
 ): Result<String> = withContext(ioDispatcher) {
-    runCatching {
+    suspendRunCatching {
+        val fileName = backupFileName(scope, scheduleName)
+        val data = buildBackupData(scope, scheduleName)
         if (!controller.saveBackupFile(fileName, encodeBackupJson(data))) {
             throw IllegalStateException(BackupStr.backupWriteFailed())
         }
@@ -307,7 +310,7 @@ private suspend fun applyPayload(
     settingsViewModel: SettingsViewModel,
     onHolidayDataChanged: () -> Unit,
 ): Result<Unit> = withContext(ioDispatcher) {
-    runCatching {
+    suspendRunCatching {
         val repository = CourseRepository()
         when (payload) {
             is BackupPayload.Single -> {
@@ -447,10 +450,7 @@ private class BackupCenterState(
         scope.launch {
             busy = BackupStr.backingUp()
             val localResult = if (toLocal) {
-                runCatching {
-                    writeBackup(files, backupFileName(backupScope, scheduleName), buildBackupData(backupScope, scheduleName))
-                        .getOrThrow()
-                }
+                writeBackup(files, backupScope, scheduleName)
             } else null
             val cloudResult = if (toCloud) webDav.backupAllData(CourseRepository()) else null
             busy = null
@@ -576,7 +576,7 @@ private class BackupCenterState(
                     BackupSource.Local ->
                         runCatching { files.deleteBackupFile(record.id) }.getOrDefault(false)
                     BackupSource.Cloud ->
-                        runCatching { webDav.deleteBackup(record.id) }.getOrNull()?.isSuccess == true
+                        webDav.deleteBackup(record.id).isSuccess
                 }
             }
             showToast(if (ok) CommonStr.deleteSuccess() else BackupStr.deleteFailedNotWritable())

@@ -21,11 +21,6 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
 
-/**
- * ⚠ 原继承 `AndroidViewModel(application)` 只为拿 `Context` 调提醒/小组件/手表，现三者全走 `:core` 的 [ScheduleEffects] 出口（由 `NexioApplication` 注入 `AndroidScheduleEffects`），不再需要 Application。
- *
- * 保持无参构造：调用点几乎都用 AndroidX `viewModel()`（默认工厂只认无参），改成带参就得给每个调用点写自定义 Factory。
- */
 class CourseViewModel : ViewModel() {
 
     private val repository = CourseRepository()
@@ -124,11 +119,7 @@ class CourseViewModel : ViewModel() {
         ScheduleEffects.rescheduleReminders()
     }
 
-    /**
-     * 只在「会影响课表渲染的数据」真的变了才返回 true。
-     *
-     * 不要无条件 `_dataVersion.value++`：MainScheduleScreen 的 weekendDaysByWeek / weekFilteredCourses 都以 dataVersion 为 key 预计算「全周次 × 全课程」两张表，无脑 bump 会让每次从二级页返回时在主线程整表重算，恰好落在 MainActivity 刚 resume 的那几帧上 → 返回时卡一下。
-     */
+    /** 仅渲染数据变化时返回 true，避免让课表按所有周次重新计算。 */
     private fun loadEssentialData(): Boolean {
         val currentScheduleId = repository.getCurrentScheduleId()
         val currentRules = repository.getTeachingWeekReorganizations(currentScheduleId)
@@ -291,22 +282,20 @@ class CourseViewModel : ViewModel() {
 
     // 周次 = (今天 - 开学周一) / 7 + 1；开学周一为开始上课日期所在周的周一
     private fun calculateCurrentWeekFromDate(startDate: String): Int {
-        return try {
-            val today = todayLocalDate()
-            val start = LocalDate.parse(startDate.replace("/", "-"))
-            val startMonday = start.minusDays((start.dayOfWeek.isoDayNumber - 1).toLong())
-            _isSemesterStarted.value = today >= startMonday
-            val week = TeachingWeekReorganization.mapDate(
-                semesterStartDate = start,
-                date = today,
-                rules = repository.getTeachingWeekReorganizations(),
-            ).week.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
-            // 刻意不 clamp：允许 0/负数（未开学）或 >totalWeeks（已结束）
-            week
-        } catch (_: Exception) {
+        val start = CourseRepository.parseFlexibleDate(startDate)
+        if (start == null) {
             _isSemesterStarted.value = true
-            1
+            return 1
         }
+        val today = todayLocalDate()
+        val startMonday = start.minusDays((start.dayOfWeek.isoDayNumber - 1).toLong())
+        _isSemesterStarted.value = today >= startMonday
+        // 刻意不 clamp 到学期范围：允许 0/负数（未开学）或 >totalWeeks（已结束）
+        return TeachingWeekReorganization.mapDate(
+            semesterStartDate = start,
+            date = today,
+            rules = repository.getTeachingWeekReorganizations(),
+        ).week.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
     }
 
     // 假期 = 超出总周数，或已过最后一个有课周

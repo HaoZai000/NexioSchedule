@@ -239,7 +239,6 @@ fun ShortcutMenu(
             .drawBehind {
                 val blurRadius = 16f * density.density
                 val cornerRadiusPx = 20f * density.density
-                // 跨平台阴影：compose Path + miuix expect/actual（原为 Paint+BlurMaskFilter+"#0A000000"）
                 val path = Path().apply {
                     addRoundRect(
                         RoundRect(

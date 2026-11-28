@@ -8,17 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-/**
- * [SchoolRepository] 的迁移等价性验证。
- *
- * 这次改动把它的文件访问从 `Context.filesDir` + `java.io.File` 换成了注入的 [AppFiles]，
- * **涉及真实数据落盘**，所以要验证的不是「能编译」，而是：
- * - 路径逐字未变（`repo/index/school_index.pb`、`repo/schools/resources`）
- * - 「本地不存在才从内置资源引导」的分支仍正确
- * - 引导后能解析出与直接解析同样的结果
- *
- * 用真实生产索引做夹具（与 SchoolIndexRealFileTest 同一份 78,911 字节快照）。
- */
+/** 用内置索引样本检查首次引导、缓存路径与学校查询。 */
 class SchoolRepositoryTest {
 
     private val indexAssetPath = "eduloader/school_index.pb"
@@ -57,7 +47,6 @@ class SchoolRepositoryTest {
         assertEquals(248, index.schools.size)
     }
 
-    /** 路径必须逐字不变：改了等于老用户本地已下载的索引读不出来。 */
     @Test
     fun `引导写入的路径与迁移前一致`() {
         val bytes = fixtureBytes()
@@ -79,7 +68,6 @@ class SchoolRepositoryTest {
         )
     }
 
-    /** 「本地已存在就不再读内置资源」是原实现的关键分支，必须仍成立。 */
     @Test
     fun `本地已有索引时不再读内置资源`() {
         val bytes = fixtureBytes()

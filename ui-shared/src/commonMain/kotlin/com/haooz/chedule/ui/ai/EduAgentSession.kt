@@ -330,7 +330,7 @@ internal class EduAgentSession {
 
             if (reply == null) {
                 endThinking(thinkingIndex, reasoning.toString(), turnSeconds, failed = true)
-                fail(streamError ?: "这一轮没有结果")
+                fail(streamError ?: "分析未返回结果")
                 return
             }
             if (reply.remaining != null) _state.update { it.copy(remaining = reply.remaining) }
@@ -400,12 +400,12 @@ internal class EduAgentSession {
                 return
             }
             if (scriptRuns >= EduAgentPrompts.MAX_SCRIPT_RUNS) {
-                fail("脚本已经跑了 $scriptRuns 次还没拿到可用课程，先停在这里。你可以补充信息后再试。")
+                fail("多次尝试后仍未获取到课表数据，可补充说明后重试")
                 return
             }
         }
 
-        fail("这一次分析了 $usedTurns 轮还没拿到课程，先停在这里。你可以补充信息后再试。")
+        fail("分析未获取到课表数据，可补充说明后重试")
     }
 
     /** 把排队的话插进对话，并在聊天流里标出来（用户此刻才看到自己那句话生效） */
@@ -460,7 +460,7 @@ internal class EduAgentSession {
                     (timeSlots == "unknown" && (!askedTimeSlots || userTurns == 0))
                 if (blocked) {
                     timeSlotGateBlocked = true
-                    val index = beginStep("执行适配脚本（先确认作息）")
+                    val index = beginStep("等待确认作息时间")
                     endStep(index, "还没确认作息，先问用户", failed = true)
                     return "脚本没有执行：先确认作息。timeSlots 必填（api/user/custom/unknown）；" +
                         "要用 unknown，必须先在对话里问过用户作息并拿到回答。" to null
@@ -563,7 +563,7 @@ internal class EduAgentSession {
                 val maxChars = AiEduAgentClient.argString(args, "maxChars").toIntOrNull() ?: 12_000
                 val index = beginStep(
                     when (action) {
-                        "read" -> "读取接口 ${id.ifBlank { "?" }}"
+                        "read" -> "读取页面数据"
                         "clear" -> "清空网络记录"
                         else -> "查看网络请求"
                     }
@@ -592,7 +592,7 @@ internal class EduAgentSession {
             }
 
             else -> {
-                val index = beginStep("未知工具 ${call.name}")
+                val index = beginStep("不支持的操作")
                 endStep(index, "不在允许的工具表里", failed = true)
                 "未知工具：${call.name}。可用工具只有 NET_LOG / RELOAD_PAGE / READ_PAGE / REQUEST / RUN_SCRIPT。" to null
             }

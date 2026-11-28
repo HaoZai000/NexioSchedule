@@ -33,9 +33,6 @@ internal fun shouldAdvanceForReorganizedWeekend(
     return !hasCoursesToday()
 }
 
-/**
- * ⚠ 原是 `AndroidViewModel(application)`，仅为拿 `Context` 调 `CourseReminderHelper.resolveDaySchedule(context, …)`，而那个 `context` 参数函数体根本没用（见 `DayScheduleResolver`）。提醒算法抠进 `:core` 后不再需要 `Application` → 退回普通 [ViewModel]，本文件得以进 `:ui-shared`。
- */
 class SettingsViewModel : ViewModel() {
 
     private val repository = CourseRepository()
@@ -120,7 +117,7 @@ class SettingsViewModel : ViewModel() {
 
     private fun isBeforeHolidayExclusionActive(date: LocalDate): Boolean {
         val exclusion = HolidayManager.loadBeforeCourseExclusion()
-        // 短路：Kotlin 实参急切求值，不挡这一下会让未开启该功能的用户每次白跑 loadAllByYear（SharedPreferences 全量解析 + 逐年 Gson 反序列化）。本方法在主线程 remember 的周末判定链路上，节次时间一改就重跑。
+        // 未开启时跳过节假日数据解析；周末判定在主线程执行。
         if (!exclusion.enabled || !exclusion.isValid()) return false
         return HolidayCourseExclusion.isEnabledBeforeHolidayDate(
             HolidayManager.loadAllByYear(),

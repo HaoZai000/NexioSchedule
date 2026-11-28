@@ -20,7 +20,7 @@ object PreferenceStr {
     val appMaterialEffect = L("应用材质效果", "App Material Effects")
     val materialLockedSummary =
         L("当前系统版本不支持模糊效果，已锁定为无材质", "Blur effects are not supported on this system version; locked to None")
-    val trueProgressiveBlur = L("真·渐进模糊", "True Progressive Blur")
+    val trueProgressiveBlur = L("渐进模糊", "Progressive Blur")
     val trueProgressiveBlurDisabled = L("无材质档下不可用", "Unavailable with No Material")
     val superIslandGlow = L("小米超级岛光效", "Xiaomi Super Island Glow")
     val superIslandGlowSummary =
@@ -31,7 +31,7 @@ object PreferenceStr {
     val schedule = L("课程表", "Schedule")
     val defaultHomepage = L("默认首页", "Default Homepage")
     val defaultHomepageSummary =
-        L("首次启动时默认显示的页面", "The page shown by default on first launch")
+        L("打开应用时默认显示的页面", "The page shown by default when opening the app")
     val predictiveBack = L("预测性返回动画", "Predictive Back Animation")
     val predictiveBackSummary =
         L("返回手势时页面跟随手指的动画效果", "The page follows your finger during the back gesture")
@@ -43,7 +43,7 @@ object PreferenceStr {
         L("返回桌面时，隐藏应用的最近任务卡片", "Hide the app's recent tasks card when returning to the home screen")
     val showWeather = L("显示天气", "Show Weather")
     val showWeatherSummary =
-        L("今日页与课表顶栏的天气显示", " Weather on the Today page and the schedule top bar")
+        L("今日页与课表顶栏的天气显示", "Weather on the Today page and schedule top bar")
 
     // 数据源
     val dataSources = L("数据源", "Data Sources")

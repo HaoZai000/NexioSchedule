@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.softglass.platform.isRenderEffectSupported
 
 /** 快照的源区域：指定了 [TransitionLayerSnapshot.bounds] 用 bounds，否则取整层尺寸。 */
@@ -78,7 +79,7 @@ class TransitionLayerSnapshot(
  */
 suspend fun TransitionLayerSnapshot.freezeSource() {
     if (frozen != null) return
-    frozen = runCatching { layer.toImageBitmap() }.getOrNull()
+    frozen = suspendRunCatching { layer.toImageBitmap() }.getOrNull()
 }
 
 /** 按 [contentScale] / [alignment] 布局快照，不分配、不光栅化位图。 */

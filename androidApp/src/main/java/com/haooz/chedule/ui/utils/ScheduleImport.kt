@@ -18,40 +18,20 @@ import com.haooz.chedule.data.school.ScriptRepository
 import com.haooz.chedule.i18n.AndroidMiscStr
 import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.i18n.L
 import com.haooz.chedule.ui.web.JS_PROMISE_BRIDGE
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-
-// ════════════════════════════════════════════════════════════════════════
-//  课表导入 —— 单文件全包
-//
-//  两条导入入口，都归于此：
-//  1. 分享口令导入   `parseShare*` 全套：把分享 JSON 解析成课表结构，
-//                   再写回 [CourseRepository]
-//  2. 第三方 App 导入 [ThirdPartyShareImporter]等：WakeUp / 星链等
-//                   App 的课表，通过无头 WebView 执行其脚本抓取数据
-//
-//  与 [ScheduleExport.kt] 成对：那边负责**产出**分享 JSON，这边负责**消费**。
-//  改分享格式字段名时**两个文件都要改**。
-//
-//  教务导入（正方/ajax 课表抓取）**不属本文件**，它是独立的数据源
-// （`EducationalImportActivity` + `data/school/`），实现方式完全不同。
-// ════════════════════════════════════════════════════════════════════════
-
-// ── 1. 分享数据解析（分享 JSON → 课表结构）────────────────────
-//
-// parseShare* 全家 2026-10-11 已迁 :ui-shared（同包名，本文件直接可见，无需 import）
-// —— 见 ui/utils/ShareScheduleCodec.kt。它们是纯 `Map<String, Any>` 校验，
-//   留在本文件会让「课表导入」页反向依赖 WebView/Gson，进不了 commonMain。
 
 /** 将分享口令写入系统剪贴板 */
 internal fun copyShareCodeToClipboard(context: Context, code: String) {
@@ -63,19 +43,7 @@ internal fun copyShareCodeToClipboard(context: Context, code: String) {
     }
 }
 
-// ── 2. 第三方 App 课表导入（WakeUp / 星链）─────────────────────
-
-/** WakeUp / 星链课表分享口令导入：原生请求 + 无界面脚本执行 */
-
 private const val TAG = "ThirdPartyShareImport"
-
-// 数据契约（ThirdPartyShareSource / Payload / Course / TimeSlot）2026-10-11 已迁
-// :ui-shared（同包名，本文件直接可见，无需 import）—— 见 ui/utils/ThirdPartyShare.kt。
-// 抓取器本体要无头 WebView + OkHttp + Gson，只能留在 Android 侧，由宿主注入给共享页。
-
-// ExtractedShareTools 已抽成独立文件并迁入 :ui-shared（同包名，这里直接可见，无需 import）。
-// 它只是一组常量，原先跟 WebView/Gson/Handler 挤在同一个文件里，
-// 会让平台中立的学校/适配器选择页反向依赖整个 Android 导入模块。
 
 /**
  * WakeUp 无界面导入桥。
@@ -157,8 +125,9 @@ class WakeUpHeadlessBridge(
                 onConfig(config?.semesterStartDate, config?.semesterTotalWeeks)
                 resolvePromise(promiseId, "true")
             }
-        } catch (_: Exception) {
-            resolvePromise(promiseId, "true")
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "WakeUp saveCourseConfig failed", e)
+            rejectPromise(promiseId, e.message ?: AndroidMiscStr.parseFailed())
         }
     }
 
@@ -179,8 +148,9 @@ class WakeUpHeadlessBridge(
                 onTimeSlots(mapped)
                 resolvePromise(promiseId, "true")
             }
-        } catch (_: Exception) {
-            resolvePromise(promiseId, "true")
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "WakeUp savePresetTimeSlots failed", e)
+            rejectPromise(promiseId, e.message ?: AndroidMiscStr.parseFailed())
         }
     }
 
@@ -309,13 +279,18 @@ object ThirdPartyShareImporter {
         source: ThirdPartyShareSource,
         rawInput: String,
     ): Result<ThirdPartySharePayload> = withContext(Dispatchers.IO) {
-        runCatching {
+        try {
             val code = extractShareKey(source, rawInput)
             if (code.isBlank()) throw IllegalArgumentException(BackupStr.enterInputN(source.inputLabel))
-            when (source) {
+            val payload = when (source) {
                 ThirdPartyShareSource.WakeUp -> importWakeUp(context, code)
                 ThirdPartyShareSource.StarLink -> importStarLink(code)
             }
+            Result.success(payload)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Result.failure(e)
         }
     }
 
@@ -443,7 +418,7 @@ object ThirdPartyShareImporter {
         }
 
         val mainHandler = Handler(Looper.getMainLooper())
-        return withTimeout(45_000L) {
+        return withTimeoutOrNull(45_000L) {
             var webView: WebView? = null
             val bridge = WakeUpHeadlessBridge(
                 shareKey = shareKey,
@@ -542,7 +517,7 @@ object ThirdPartyShareImporter {
                     }
                 }
             }
-        }
+        } ?: throw IllegalStateException(L("导入超时，请重试", "Import timed out. Please try again.")())
     }
 
     private suspend fun <T> runOnMain(block: () -> T): T {
@@ -562,6 +537,3 @@ object ThirdPartyShareImporter {
     // endregion
 
 }
-
-// mergeAndDistinctCourses 2026-10-13 已上提到 :ui-shared（同包名 ThirdPartyShare.kt，
-// 直接可见）—— iOS 的星链导入要用同一套合并规则，两边各写一份必然漂移。

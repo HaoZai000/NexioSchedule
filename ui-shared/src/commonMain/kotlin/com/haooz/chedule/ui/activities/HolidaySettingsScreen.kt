@@ -631,7 +631,9 @@ fun HolidaySettingsScreen(
                             title = HolidayStr.beforeExclusionTitle(),
                             checked = beforeCourseExclusion.enabled,
                             onCheckedChange = { enabled ->
-                                val updated = beforeCourseExclusion.copy(enabled = enabled)
+                                val current = HolidayManager.loadBeforeCourseExclusion()
+                                if (enabled == current.enabled) return@SwitchPreference
+                                val updated = current.copy(enabled = enabled)
                                 if (HolidayManager.saveBeforeCourseExclusion(updated)) {
                                     onHolidayDataChanged()
                                 }
@@ -665,7 +667,9 @@ fun HolidaySettingsScreen(
                             title = HolidayStr.endExclusionTitle(),
                             checked = endCourseExclusion.enabled,
                             onCheckedChange = { enabled ->
-                                val updated = endCourseExclusion.copy(enabled = enabled)
+                                val current = HolidayManager.loadEndCourseExclusion()
+                                if (enabled == current.enabled) return@SwitchPreference
+                                val updated = current.copy(enabled = enabled)
                                 if (HolidayManager.saveEndCourseExclusion(updated)) {
                                     onHolidayDataChanged()
                                 }

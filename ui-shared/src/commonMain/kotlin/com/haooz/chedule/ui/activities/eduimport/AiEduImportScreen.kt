@@ -313,7 +313,7 @@ fun AiEduImportScreen(
     val nativeChrome = LocalNativeDocumentChrome.current
     val nativeBarInset = (nativeChrome?.barInset ?: 0.0).dp
     val showNavigationActions = nativeChrome == null
-    // ⚠ 必须在组合期取好：SideEffect 的 lambda 不是 @Composable，读不了 MiuixTheme
+    // 在组合期读取主题色，供 SideEffect 更新宿主顶栏。
     val chromeTint = NexioTheme.colorScheme.primary.toArgb().toLong()
 
     var stage by remember { mutableStateOf(Stage.Web) }

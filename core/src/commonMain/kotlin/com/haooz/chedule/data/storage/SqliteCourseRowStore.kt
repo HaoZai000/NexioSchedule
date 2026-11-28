@@ -85,7 +85,7 @@ class SqliteCourseRowStore(private val database: NexioDatabase) : CourseRowStore
     }
 
     override fun bindingOf(scheduleId: String): Long? =
-        runCatching { q.selectScheduleBinding(scheduleId).executeAsOneOrNull() }.getOrNull()
+        q.selectScheduleBinding(scheduleId).executeAsOneOrNull()
 
     override fun setBinding(anchor: CourseRowAnchor) {
         database.transactionWithResult {
@@ -99,15 +99,13 @@ class SqliteCourseRowStore(private val database: NexioDatabase) : CourseRowStore
         q.selectAllScheduleBindings().executeAsList().associate { it.id to it.time_config_id }
 
     override fun settingsOf(scheduleId: String): ScheduleRowSettings? =
-        runCatching {
-            q.selectScheduleSettings(scheduleId).executeAsOneOrNull()?.let {
-                ScheduleRowSettings(
-                    currentWeek = it.current_week.toInt(),
-                    totalWeeks = it.total_weeks.toInt(),
-                    classStart = it.class_start,
-                )
-            }
-        }.getOrNull()
+        q.selectScheduleSettings(scheduleId).executeAsOneOrNull()?.let {
+            ScheduleRowSettings(
+                currentWeek = it.current_week.toInt(),
+                totalWeeks = it.total_weeks.toInt(),
+                classStart = it.class_start,
+            )
+        }
 
     override fun writeSettings(
         scheduleId: String,
@@ -144,9 +142,7 @@ class SqliteCourseRowStore(private val database: NexioDatabase) : CourseRowStore
      * 迁移本身是幂等的，重跑只多一次遍历，漏跑却是永久丢数据。
      */
     override fun isFullyMigrated(): Boolean =
-        runCatching {
-            q.readMeta(META_ENTITY_VERSION).executeAsOneOrNull()?.toIntOrNull()
-        }.getOrNull()
+        q.readMeta(META_ENTITY_VERSION).executeAsOneOrNull()?.toIntOrNull()
             ?.let { it >= ENTITY_MIGRATION_VERSION } ?: false
 
     override fun markFullyMigrated() {
@@ -156,14 +152,12 @@ class SqliteCourseRowStore(private val database: NexioDatabase) : CourseRowStore
     // ── 显示开关 ──────────────────────────────────────────────────────────────
 
     override fun displaySettingsOf(scheduleId: String): ScheduleDisplaySettings? =
-        runCatching {
-            q.selectScheduleDisplaySettings(scheduleId).executeAsOneOrNull()?.let {
-                ScheduleDisplaySettings(
-                    smartWeekend = it.smart_weekend != 0L,
-                    showNonCurrentWeek = it.show_non_current_week != 0L,
-                )
-            }
-        }.getOrNull()
+        q.selectScheduleDisplaySettings(scheduleId).executeAsOneOrNull()?.let {
+            ScheduleDisplaySettings(
+                smartWeekend = it.smart_weekend != 0L,
+                showNonCurrentWeek = it.show_non_current_week != 0L,
+            )
+        }
 
     override fun writeSmartWeekend(scheduleId: String, smart: Boolean) {
         q.updateSmartWeekend(if (smart) 1L else 0L, scheduleId)
@@ -176,7 +170,7 @@ class SqliteCourseRowStore(private val database: NexioDatabase) : CourseRowStore
     // ── 教学周重组规则 ────────────────────────────────────────────────────────
 
     override fun teachingWeekReorganizationsOf(scheduleId: String): String? =
-        runCatching { q.selectTeachingWeekReorganizations(scheduleId).executeAsOneOrNull() }.getOrNull()
+        q.selectTeachingWeekReorganizations(scheduleId).executeAsOneOrNull()
 
     override fun writeTeachingWeekReorganizations(scheduleId: String, payload: String) {
         q.upsertTeachingWeekReorganizations(scheduleId, payload)
@@ -185,12 +179,14 @@ class SqliteCourseRowStore(private val database: NexioDatabase) : CourseRowStore
     // ── 文件夹 ────────────────────────────────────────────────────────────────
 
     override fun folders(): List<StoredFolder> =
-        q.selectAllFolders().executeAsList().map {
+        q.selectAllFolders().executeAsList().map { row ->
             StoredFolder(
-                id = it.id,
-                name = it.name,
-                schedules = runCatching { decodeStringList(it.payload) }.getOrDefault(emptyList()),
-                sortOrder = it.sort_order.toInt(),
+                id = row.id,
+                name = row.name,
+                schedules = runCatching { decodeStringList(row.payload) }
+                    .onFailure { NexioLog.e(TAG, "文件夹内容解析失败：${row.id}", it) }
+                    .getOrThrow(),
+                sortOrder = row.sort_order.toInt(),
             )
         }
 

@@ -10,7 +10,6 @@ import javax.crypto.spec.OAEPParameterSpec
 import javax.crypto.spec.PSource
 import javax.crypto.spec.SecretKeySpec
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
@@ -83,6 +82,7 @@ class AiCryptoSessionTest {
 
         val sessionKey = serverOpenSessionKey(pair, envelope.ek)
         assertEquals(32, sessionKey.size, "会话密钥必须是 32 字节（AES-256）")
+        assertEquals(12, Base64.getDecoder().decode(envelope.iv).size, "IV 必须 12 字节")
         assertEquals(body, serverDecrypt(sessionKey, envelope.iv, envelope.ct))
     }
 
@@ -140,20 +140,5 @@ class AiCryptoSessionTest {
         val session = AiCryptoSession(AiServerKey.PUBLIC_KEY_PEM)
         assertTrue(session.wrappedKey.isNotEmpty())
         assertTrue(session.encrypt("{}").iv.isNotEmpty())
-    }
-
-    @Test
-    fun `信封字段都是 base64 且非空`() {
-        val pair = newKeyPair()
-        val envelope = AiCryptoSession(publicPem(pair)).encrypt("{}")
-        for (field in listOf(envelope.ek, envelope.iv, envelope.ct)) {
-            assertTrue(field.isNotEmpty())
-            // 只做一次往返解码，确保没有把 PEM 头之类的东西混进去
-            assertContentEquals(
-                Base64.getDecoder().decode(field),
-                Base64.getDecoder().decode(field),
-            )
-        }
-        assertEquals(12, Base64.getDecoder().decode(envelope.iv).size, "IV 必须 12 字节")
     }
 }

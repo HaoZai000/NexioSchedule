@@ -3,6 +3,7 @@ package com.haooz.chedule.data.ai
 import com.haooz.chedule.data.platform.HttpService
 import com.haooz.chedule.data.util.optString
 import com.haooz.chedule.data.util.parseJsonObject
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -58,6 +59,8 @@ internal suspend fun aiRoundTrip(http: HttpService, path: String, body: JsonObje
 
     val result = try {
         http.post(path, payload)
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         return AiResult.Error("网络请求失败：${e.describe()}")
     }

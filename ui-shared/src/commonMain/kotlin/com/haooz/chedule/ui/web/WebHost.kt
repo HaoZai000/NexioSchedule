@@ -8,14 +8,6 @@ import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.school.AdapterData
 
-// ════════════════════════════════════════════════════════════════════════
-//  网页内容宿主 —— 教务导入用的 WebView 的平台无关契约
-//
-//  ⚠ 按框架铁律切开：`WebViewScreen` 的外壳（顶栏 / 进度条 / 底部胶囊 / 三个对话框 / 目标课表选择）是纯 Compose，进 commonMain；网页本体（`android.webkit.WebView` + PixelCopy 采色 + `addJavascriptInterface` 桥）留宿主 —— iOS 要整体换 WKWebView，一行都复用不了。
-//
-//  与 todayAssistantCard 的槽位注入不同：那个只注入一段 UI，这里还要注入行为（前进后退 / 执行 JS / 切桌面模式），所以是「接口 + 工厂」而非纯 @Composable 槽位。
-// ════════════════════════════════════════════════════════════════════════
-
 /**
  * 宿主构造 [WebHost] 时需要的配置 —— 全部来自页面状态。
  *
@@ -39,7 +31,7 @@ class WebHostConfig(
      * Android 的 WebView 在 Compose 里走自己的布局，不使用这个值。
      */
     val contentBottomPadding: Dp = 0.dp,
-    /** 学校名（原生底部条要展示）；Android / iOS 用不到，默认空。 */
+    /** 原生底部条展示的学校名。 */
     val schoolName: String = "",
     /** 全部课表名（原生底部条的「执行导入」选择目标课表用）。 */
     val scheduleNames: List<String> = emptyList(),
@@ -60,7 +52,6 @@ class WebHostConfig(
  * ⚠ 宿主必须用 `rememberUpdatedState` 持有本对象：页面会随重组重建它，而 WebView 的回调是长生命周期对象，持旧闭包会写到过期的 state 上。
  */
 class WebHostEvents(
-    /** 页面标题 */
     val onTitle: (String) -> Unit = {},
     /** 加载进度 0f..1f */
     val onProgress: (Float) -> Unit = {},
@@ -82,9 +73,7 @@ class WebHostEvents(
     val onSingleSelection: (
         title: String, items: List<String>, defaultIndex: Int, onResult: (Int?) -> Unit,
     ) -> Unit = { _, _, _, _ -> },
-    /** 脚本导入完成，带回课程 */
     val onCoursesImported: (List<Course>) -> Unit = {},
-    /** 脚本走完全流程 —— 页面据此收尾并返回 */
     val onTaskCompleted: () -> Unit = {},
 )
 
@@ -99,8 +88,6 @@ interface WebHost {
     /** 渲染网页内容。页面负责给它正确的尺寸与层级（含 `contentTopPadding` 让位） */
     @Composable
     fun Content(modifier: Modifier)
-
-    // ⚠ 刻意没有 loadUrl / setDesktopMode setter：初始地址与桌面模式都由 [WebHostConfig] 驱动，宿主用 `LaunchedEffect(config.xxx)` 跟 —— 接口上再开一对 setter 就是两个真相源。
 
     fun reload()
 
@@ -126,7 +113,7 @@ interface WebHost {
      * 回传的也是那个字符串原文。平台侧「执行了但拿不到值」时回 null ——
      * 调用方要把它当成「这平台读不了页面」，而不是「页面是空的」。
      *
-     * 默认实现只执行不回传：桌面 / 鸿蒙暂不支持 AI 教务，走 [NoopWebHost] 也无从回传。
+     * 默认实现仅执行脚本，通过 null 表示无法读取结果。
      */
     fun evaluateJavascriptWithResult(js: String, onResult: (String?) -> Unit) {
         evaluateJavascript(js)
@@ -137,12 +124,7 @@ interface WebHost {
     fun setImportTableId(tableId: String)
 }
 
-/**
- * 空实现 —— 桌面/iOS 尚未提供网页宿主时使用。
- *
- * 只保证「点了不崩」：内容区留白，控制方法全部空转，`canGoBack` 恒 false
- *（于是返回键直接走页面的 `onBack`）。
- */
+/** 未提供网页宿主时显示空内容；返回键交由页面处理。 */
 object NoopWebHost : WebHost {
     @Composable
     override fun Content(modifier: Modifier) = Unit

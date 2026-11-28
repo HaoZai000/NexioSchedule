@@ -141,11 +141,11 @@ fun JsonObject.optBoolean(key: String, fallback: Boolean = false): Boolean {
 
 /** 对应 `optJSONObject(key)`：不是对象或不存在时返回 null。 */
 fun JsonObject.optJsonObject(key: String): JsonObject? =
-    raw(key)?.let { runCatching { it.jsonObject }.getOrNull() }
+    raw(key) as? JsonObject
 
 /** 对应 `optJSONArray(key)`：不是数组或不存在时返回 null。 */
 fun JsonObject.optJsonArray(key: String): JsonArray? =
-    raw(key)?.let { runCatching { it.jsonArray }.getOrNull() }
+    raw(key) as? JsonArray
 
 /** 对应 `has(key)`。 */
 fun JsonObject.hasKey(key: String): Boolean = containsKey(key)
@@ -157,11 +157,11 @@ fun JsonObject.isJsonNull(key: String): Boolean = raw(key) == null
 
 /** 对应 `optJSONObject(index)`。 */
 fun JsonArray.optJsonObject(index: Int): JsonObject? =
-    raw(index)?.let { runCatching { it.jsonObject }.getOrNull() }
+    raw(index) as? JsonObject
 
 /** 对应 `optJSONArray(index)`。 */
 fun JsonArray.optJsonArray(index: Int): JsonArray? =
-    raw(index)?.let { runCatching { it.jsonArray }.getOrNull() }
+    raw(index) as? JsonArray
 
 /** 对应 `optString(index)`。与对象侧一致：数字/布尔转文本，嵌套结构返回 JSON 文本。 */
 fun JsonArray.optString(index: Int, fallback: String = ""): String =

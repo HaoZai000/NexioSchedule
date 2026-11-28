@@ -4,6 +4,7 @@ import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.util.jsonObjectOf
 import kotlin.concurrent.Volatile
 import kotlin.time.Clock
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -108,6 +109,8 @@ object StatsReporter {
                 )
                 if (resp.isSuccessful) return true
                 last = IllegalStateException("HTTP ${resp.code}")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 last = e
                 NexioLog.w(TAG, "上报失败(第${attempt + 1}次): ${e.message}")

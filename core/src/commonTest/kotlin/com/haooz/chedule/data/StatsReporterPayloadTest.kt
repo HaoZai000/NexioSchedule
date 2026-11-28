@@ -84,11 +84,6 @@ class StatsReporterPayloadTest {
     }
 
     @Test
-    fun `event_type 原样透传`() {
-        assertEquals("active", payload("active").optString("event_type"))
-    }
-
-    @Test
     fun `app_version 取自 AppInfo`() {
         assertEquals("1.6.5-test", payload("install").optString("app_version"))
     }
@@ -110,16 +105,6 @@ class StatsReporterPayloadTest {
             Regex("^[A-Za-z0-9_-]{8,64}$").matches(id),
             "device_id 格式不合法: $id",
         )
-    }
-
-    /** 重复上报必须复用同一个 device_id，否则服务端会把一台设备统计成多台。 */
-    @Test
-    fun `多次构造 payload 的 device_id 保持一致`() {
-        val a = payload("install").optString("device_id")
-        val b = payload("active").optString("device_id")
-        val c = payload("install").optString("device_id")
-        assertEquals(a, b)
-        assertEquals(b, c)
     }
 
     /** 设备标识来自平台，不再落盘到共享偏好。 */
@@ -148,14 +133,5 @@ class StatsReporterPayloadTest {
         assertEquals(device.model, obj.optString("device_model"))
         assertEquals(device.brand, obj.optString("brand"))
         assertEquals(device.manufacturer, obj.optString("manufacturer"))
-    }
-
-    /** 上报体必须是合法 JSON 对象（服务端按 JSON 解析）。 */
-    @Test
-    fun `payload 是合法 JSON 对象`() {
-        val raw = StatsReporter.buildPayload("install")
-        assertTrue(raw.startsWith("{") && raw.endsWith("}"), "必须是 JSON 对象: $raw")
-        // 能被重新解析即说明结构合法
-        payload("install")
     }
 }

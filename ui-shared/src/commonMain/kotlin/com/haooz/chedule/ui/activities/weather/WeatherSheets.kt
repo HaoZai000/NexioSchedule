@@ -55,16 +55,6 @@ import com.haooz.nexioui.blurbottomsheet.LocalSheetContentBackdrop
 import com.haooz.nexioui.blurbottomsheet.LocalSheetTopBarMaterial
 import com.haooz.nexioui.theme.NexioTheme
 
-/**
- * 天气页的底部详情面板。
- *
- * 页面本身只留「一眼能看完」的一层：大温度、逐小时曲线、七天、几个入口。
- * 污染物的国标限值、某一天的风和紫外线、某一小时的全部读数 —— 这些属于
- * 「想知道才去看」的信息，塞回主页面只会把它变成长文档。所以做成面板，点哪儿看哪儿。
- *
- * ⚠ 外壳一律用应用统一的 `BlurBottomSheet`（不是自制的遮罩 + 滑入面板）：
- * 玻璃材质、圆角、把手、下拉关闭、预测性返回全在组件里，自己做一套只会两套手感打架。
- */
 internal sealed interface WeatherSheetTarget {
     /** 空气质量：头部那颗胶囊点开。 */
     data object Air : WeatherSheetTarget
@@ -72,13 +62,7 @@ internal sealed interface WeatherSheetTarget {
     /** 详细数据：点哪一格看哪一项的走势（逐时折线 + 逐日条形）。 */
     data class Metric(val kind: DetailMetric) : WeatherSheetTarget
 
-    /**
-     * 七天卡片底部的「查看更多信息」：把**数据源给的全部天**一次列出来。
-     *
-     * ⚠ 不再有"点某一天看那一天"的面板：7 行各点一次要开关 7 次，
-     * 想横向比较还得来回切；一次列完反而更快，也省掉一套单日模板。
-     * 同理不再有逐小时面板（点某一列没有任何反应）。
-     */
+    /** 显示数据源返回的所有天数，不受首页预览行数限制。 */
     data object Days : WeatherSheetTarget
 }
 
@@ -142,15 +126,7 @@ internal fun WeatherSheetHost(
     }
 }
 
-/**
- * 顶栏让位高度 = 组件标题栏的**写死高度**（手机 76 / 平板 74）。
- *
- * ⚠ 这里故意不照抄别处的 56 / 58dp：那套是按「第一块是卡片」算的 —— 58dp 时首屏还有
- * 18dp 压在标题栏底部渐变里（alpha≈0.5→0），卡片靠自己的顶内边距把这段吃掉，看不出来。
- * 天气面板的第一块是**裸的大读数**（没有卡片内边距兜着），18dp 进去就是数字上沿被削平、
- * 图标上半截发灰。所以整段让开：渐变尾声归零，第一行落在标题文字下方 ~25dp。
- * 组件标题栏高度改了，这两个数字必须跟着改。
- */
+// 首项是没有卡片内边距的读数，顶部留白须覆盖整个面板标题栏。
 private val SHEET_PHONE_TOP_BAR = 76.dp
 private val SHEET_TABLET_TOP_BAR = 74.dp
 
@@ -202,16 +178,7 @@ private fun sheetTitle(target: WeatherSheetTarget): String = when (target) {
 
 // ── 空气质量 ──────────────────────────────────────────────────────────
 
-/**
- * 空气面板：**读数 → 六项浓度 → 24 小时空气**，三段一张卡（读数那段不套卡，跟走势面板一致）。
- *
- * 内容上的取舍：
- * - 六项浓度**各自按国标判色**（一级限以内绿、二级限以内黄、超了橙），不是统一涂成
- *   当前 AQI 的颜色 —— 统一涂色的话，PM2.5 已经 90 了也会显示成绿色。
- * - 原来的 0~500 六段色阶条删掉了：42 落在第一格里，剩下八分之七全是空轨道，
- *   只占高度不给信息。趋势改由下面 24 小时那组柱子说。
- * - 浓度单位不逐格重复，收到脚注一行（六列里再塞 μg/m³ 会挤成两行）。
- */
+/** 各污染物按自身的浓度限值着色，而非沿用总体 AQI 的颜色。 */
 @Composable
 private fun AirSheetBody(snapshot: WeatherSnapshot) {
     val air = snapshot.air
@@ -414,16 +381,6 @@ private fun AqiBars(points: List<Pair<String, Int>>) {
 
 // ── 全部天的详情 ──────────────────────────────────────────────────────
 
-/**
- * 「查看更多信息」：把数据源给的**每一天**排成一条竖列，一天三行。
- *
- * 为什么不是"点一天看一天"：7 天要开关 7 次，中途想回头比一下就得再来一遍；
- * 一天三行（日期 + 温度跨度 / 天气 + 降水概率 / 其余读数）密而不挤，
- * 一屏能看三四天，滚动两下就到底。
- *
- * ⚠ 天数用 `snapshot.daily` 的**全长**，不截 7：卡片上只摆 7 行是版式决定，
- * 这里既然叫"全部"，源多给几天就该多列几天。
- */
 @Composable
 private fun AllDaysBody(snapshot: WeatherSnapshot) {
     val days = snapshot.daily
@@ -461,13 +418,6 @@ private fun AllDaysBody(snapshot: WeatherSnapshot) {
     }
 }
 
-/**
- * 一天两行（+ 一行小字读数）。
- *
- * ⚠ 字号只有两级：**15sp**（日期、天气、温度、降水概率）和 **12sp**（其余读数）。
- * 上一版在一天里塞了 15/14/13/12 四种字号，还让"月日"单独占一个 12sp 位，
- * 同一行里大小跳来跳去，看着就是"乱"。
- */
 @Composable
 private fun DayBlock(day: WeatherDay, index: Int, minTemp: Double, maxTemp: Double) {
     val secondary = NexioTheme.colorScheme.onSurfaceVariantSummary

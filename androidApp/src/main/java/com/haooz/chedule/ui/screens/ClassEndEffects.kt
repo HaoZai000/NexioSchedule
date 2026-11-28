@@ -26,10 +26,6 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
-// ClassEndEffectSettings（烟花 / 震动偏好）已迁到 :ui-shared 的同包同名文件
-// （ui-shared/src/commonMain/.../ClassEndEffectSettings.kt）：它只走 :core 的全局存储，
-// 原 Context 参数从未使用。本文件只留 Android 专有的震动与烟花绘制。
-
 /**
  * 烟花爆炸瞬间的短促震动。
  * 优先系统触感（清脆）；Vibrator one-shot 只作兜底。

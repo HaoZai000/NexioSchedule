@@ -192,7 +192,7 @@ object WearableScheduleSync {
                 NexioLog.w(TAG, "push skip ($reason): no node, queued")
                 pendingPush.set(true)
                 pendingScheduleName = scheduleName
-                deliver(onResult, false, "手环未连接，已排队等待重连后补推")
+                deliver(onResult, false, "手环未连接，重连后将自动同步")
                 return@execute
             }
             if (permissionGranted.get()) {
@@ -264,7 +264,7 @@ object WearableScheduleSync {
             // 上一次还没发完就记账重排，等它落地再补一次，避免连点「推送到手环」连发多包
             pendingPush.set(true)
             pendingScheduleName = scheduleName
-            deliver(onResult, false, "上一次推送还在进行，已排队，稍后自动补推")
+            deliver(onResult, false, "正在同步中，稍后将自动重试")
             return
         }
         try {
@@ -276,7 +276,7 @@ object WearableScheduleSync {
             val payloadBytes = payload.toByteArray(Charsets.UTF_8).size
             val api = messageApi ?: run {
                 releasePushSlot()
-                deliver(onResult, false, "手环消息通道不可用")
+                deliver(onResult, false, "无法连接手环同步服务")
                 return
             }
             api.sendMessage(id, payload.toByteArray(Charsets.UTF_8))
@@ -325,8 +325,7 @@ object WearableScheduleSync {
             deliver(
                 onResult,
                 false,
-                "课表数据 ${bytes / 1024} KB 超过单包上限 " +
-                    "${WatchPayload.MAX_PAYLOAD_BYTES / 1024} KB，请精简课程或调休后再推",
+                "课表数据过大（${bytes / 1024} KB，上限 ${WatchPayload.MAX_PAYLOAD_BYTES / 1024} KB），请精简课程后再同步",
             )
             return
         }
@@ -346,7 +345,7 @@ object WearableScheduleSync {
                 deliver(
                     onResult,
                     false,
-                    if (launched) "推送失败，已尝试唤起手环端，请稍候再看手环"
+                    if (launched) "同步失败，已尝试打开手环端 Nexio，请稍候查看"
                     else "推送失败$suffix，请在手环上打开 Nexio 后重试",
                 )
             }

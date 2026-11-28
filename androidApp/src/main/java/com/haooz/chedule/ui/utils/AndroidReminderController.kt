@@ -20,30 +20,12 @@ import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.shizuku.ShizukuManager
 
-/** 实况通知管理页 action（原页面 `Intent("android.settings.MANAGE_APP_PROMOTED_NOTIFICATIONS")`） */
 private const val ACTION_MANAGE_APP_PROMOTED_NOTIFICATIONS =
     "android.settings.MANAGE_APP_PROMOTED_NOTIFICATIONS"
 
 /**
- * [ReminderController] 的 Android 实现 —— 包装 `CourseReminderHelper` / `ClassDndHelper` /
- * `IslandNotificationHelper` / `ShizukuManager` 等全局单例，`AlarmManager` / `PowerManager`
- * 系统服务，以及权限弹窗与系统设置页跳转。
- *
- * 同 [AndroidDiagnosticRecorder] / [AndroidUpdateController] 的套路：单例方法都带 `context`，
- * 本层在构造时捕获宿主注入的 context，接口层保持无参 —— `:ui-shared` 的「课程提醒」页只依赖
- * 跨平台接口（commonMain 无 android / java import）。宿主（SettingsScreen 的 androidPane /
- * AppRouteContent 路由）在调用点创建本实例并注入：
- * `reminderController = remember { AndroidReminderController(context) }`。
- *
- * ## 设置页 / 权限的结果回调
- * 原页面用 `rememberLauncherForActivityResult`（每类请求一个 launcher + `rememberUpdatedState`
- * 回调）。这里改用 `ActivityResultRegistry.register(固定 key, 合同) { 走回调槽 }` ——
- * 非组合环境也能注册；**同 key 重复注册只会替换回调槽，不会抛「重复 key」**（见
- * ActivityResultRegistry.register 字节码：`keyToCallback.put`）；Activity 重建后用同 key 再注册
- * 还能接上恢复的挂起结果。回调槽在每次发起请求前更新，等价于原实现的最新回调语义。
- *
- * 拿不到 `ActivityResultRegistryOwner`（异常注入了 Application context 等）时降级：
- * 直接 `startActivity` 并立即回调，权限申请按「被拒绝」回调 —— 正常宿主（MainActivity）不会走到。
+ * 通过宿主 Activity 的结果注册表接收权限与设置页结果。设置页和权限请求各用一个固定 key，
+ * 回调在发起请求时更新。无注册表时直接启动设置页并立即回调，权限请求则按拒绝处理。
  */
 class AndroidReminderController(private val context: Context) : ReminderController {
 
@@ -122,7 +104,6 @@ class AndroidReminderController(private val context: Context) : ReminderControll
         return powerManager.isIgnoringBatteryOptimizations(context.packageName)
     }
 
-    /** 原页面 `android.os.Build.VERSION.SDK_INT >= 36`（实况通知设置页 API 36+ 才存在） */
     override val supportsPromotedNotifications: Boolean
         get() = Build.VERSION.SDK_INT >= 36
 
@@ -144,8 +125,7 @@ class AndroidReminderController(private val context: Context) : ReminderControll
         launchSettings(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS), onResult)
 
     override fun openPromotedNotificationSettings(onResult: () -> Unit) {
-        // 原实现逐字保留：首选「实况通知管理页」，打不开（ActivityNotFoundException 等）时
-        // 退回「应用通知设置」
+        // 部分设备没有实况通知管理页，改为打开应用通知设置。
         try {
             launchSettings(
                 Intent(ACTION_MANAGE_APP_PROMOTED_NOTIFICATIONS).apply { data = packageUri() },
@@ -168,7 +148,7 @@ class AndroidReminderController(private val context: Context) : ReminderControll
         )
 
     override fun openBatteryOptimizationSettings(onResult: () -> Unit) {
-        // 原实现逐字保留：首选「请求忽略电池优化」授权页，打不开时退回「电池优化白名单列表」
+        // 设备没有单应用授权页时，打开电池优化白名单列表。
         try {
             launchSettings(
                 Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -223,7 +203,6 @@ class AndroidReminderController(private val context: Context) : ReminderControll
     }
 }
 
-/** 从任意 Context 向外层找到宿主 Activity（同 WebViewScreen 的 findActivity 套路） */
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()

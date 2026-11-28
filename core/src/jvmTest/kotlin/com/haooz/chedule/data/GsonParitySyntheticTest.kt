@@ -1,16 +1,20 @@
 package com.haooz.chedule.data
 
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.haooz.chedule.data.backup.decodeCourses
 import com.haooz.chedule.data.backup.decodeLongList
 import com.haooz.chedule.data.backup.decodeScheduleFolders
 import com.haooz.chedule.data.backup.decodeStringList
+import com.haooz.chedule.data.backup.decodeTimeConfig
 import com.haooz.chedule.data.backup.encodeCourses
+import com.haooz.chedule.data.backup.encodeLongList
 import com.haooz.chedule.data.backup.encodeScheduleFolders
 import com.haooz.chedule.data.backup.encodeStringList
 import com.haooz.chedule.data.backup.encodeTimeConfig
 import com.haooz.chedule.data.backup.parseTimeConfigSnapshotOrNull
 import com.haooz.chedule.data.model.Course
+import com.haooz.chedule.data.model.SpecialBlock
 import com.haooz.chedule.data.model.TimeConfig
 import com.haooz.chedule.data.storage.ScheduleFolder
 import com.haooz.chedule.data.util.jsonToPlainValue
@@ -22,11 +26,7 @@ import kotlin.test.assertTrue
 /**
  * 用**本机现场生成**的 Gson 产物对拍 [ScheduleCodec]，不依赖任何外部备份文件。
  *
- * [ScheduleCodecGsonParityTest] 里 6 个「真实 …」用例依赖本机 Downloads 下的备份文件，
- * 不在仓库、CI 上也没有 —— 那些用例实际上是**静默自跳过**，从未真正跑过。本文件用等价
- * 数据把同一批断言补上，保证「Gson 写的老数据能被新解码器读回」这条红线随时可验证。
- *
- * 判据同那份：语义相等（按名字取值、数字归一为 Double），不是逐字相等 ——
+ * 判据：语义相等（按名字取值、数字归一为 Double），不是逐字相等 ——
  * release 构建会被 R8 重排字段顺序，字段顺序不是兼容契约。
  */
 class GsonParitySyntheticTest {
@@ -203,6 +203,131 @@ class GsonParitySyntheticTest {
         assertTrue(
             runCatching { decodeLongList("0,1,2") }.isFailure,
             "非 JSON 必须由调用方分支处理，codec 侧保持抛异常"
+        )
+    }
+
+    @Test
+    fun `Courses 的边界输入与 Gson 行为对齐`() {
+        // 空数组
+        assertTrue(decodeCourses("[]").isEmpty())
+        assertEquals(semantic("[]"), semantic(encodeCourses(emptyList())))
+        // 字面量 null：Gson 返回 null，调用点写的是 `?: emptyList()`
+        assertTrue(decodeCourses("null").isEmpty())
+        // 格式非法：Gson 抛 JsonSyntaxException；这里抛异常，由调用点的 try/catch 兜
+        assertTrue(runCatching { decodeCourses("not json") }.isFailure)
+        assertTrue(runCatching { decodeCourses("""{"a":1}""") }.isFailure)
+        assertTrue(
+            runCatching {
+                gson.fromJson<List<Course>>("not json", object : TypeToken<List<Course>>() {}.type)
+            }.isFailure,
+        )
+    }
+
+    @Test
+    fun `空文件夹数组与字面量 null`() {
+        assertTrue(decodeScheduleFolders("[]").isEmpty())
+        assertTrue(decodeScheduleFolders("null").isEmpty())
+        assertTrue(runCatching { decodeScheduleFolders("nope") }.isFailure)
+    }
+
+    @Test
+    fun `Long 列表与 Gson 一致`() {
+        val ids = listOf(1L, 4L, 8L, 1234567890123L)
+        val gsonJson = gson.toJson(ids)
+        val encoded = encodeLongList(ids)
+        assertEquals(semantic(gsonJson), semantic(encoded))
+        assertEquals(ids, decodeLongList(encoded))
+        assertEquals(semantic(gsonJson), semantic(encodeLongList(decodeLongList(gsonJson))))
+    }
+
+    /**
+     * ⚠ 这批最容易出错的地方：Gson 走 `UnsafeAllocator` 绕开构造器，
+     * **缺字段会让非空字段变 null**，`sanitize()` 正是靠这个兜底。
+     * 手写解码若图省事取 Kotlin 构造默认值（`morningSections = 4`），
+     * 就会跳过 `total <= 0 → 4/4/4` 的恢复分支。这个用例逐个字段钉死。
+     */
+    @Test
+    fun `缺字段时的恢复路径与 Gson 逐字对齐`() {
+        val cases = listOf(
+            """{}""",
+            """{"id":1}""",
+            """{"id":1,"name":null}""",
+            """{"id":1,"morningSections":3}""",
+            """{"id":1,"afternoonSections":0}""",
+            """{"id":1,"classDuration":0}""",
+            """{"id":1,"classDuration":-5}""",
+            """{"id":1,"shortBreak":-1}""",
+            """{"id":1,"sectionTimes":null}""",
+            """{"id":1,"sectionNames":null}""",
+            """{"id":1,"specialBlocks":null}""",
+            """{"id":1,"specialBlocks":[]}""",
+            """{"id":1,"routines":[]}""",
+            """{"id":1,"routines":[{"id":9}]}""",
+            """{"id":1,"routines":[{"id":9,"name":"夏","effectiveMonth":5,"effectiveDay":1}]}""",
+            """{"id":1,"specialBlocks":[{"id":2,"name":"早读"}]}""",
+            """{"id":1,"specialBlocks":[{"id":2,"name":"早读","items":[{"id":3,"name":"周一"}]}]}""",
+            """{"id":1,"routines":[{"id":9,"specialBlocks":null}]}""",
+            """{"id":1,"routines":[{"id":9,"specialBlocks":[]}]}""",
+        )
+        cases.forEach { json ->
+            val theirs = TimeConfig.sanitize(7L, gson.fromJson(json, TimeConfig::class.java))
+            val mine = TimeConfig.sanitize(7L, decodeTimeConfig(json))
+            assertEquals(theirs, mine, "输入: $json")
+        }
+    }
+
+    /**
+     * **一处有意的行为改进**（不是回归，单独钉住以免被误判成 bug）。
+     *
+     * `{"routines":null}` 这种 JSON：Gson 会把 null 塞进 `TimeConfig.routines`（非空类型），
+     * 随后 `TimeConfig.sanitize()` 内部的 `raw.copy(...)` 因为要复制 `routines` 而**直接 NPE**。
+     * 也就是说**现有实现遇到这种数据会崩**。
+     *
+     * 手写解码把「显式 null」与「字段缺失」都归一成 `emptyList()`，
+     * 于是能正常走完 sanitize —— 这是**更健壮**，且不会改变任何正常数据的语义。
+     */
+    @Test
+    fun `routines 显式为 null 时本实现比 Gson 更健壮（有意为之）`() {
+        val json = """{"id":1,"routines":null}"""
+        val theirs = runCatching { TimeConfig.sanitize(7L, gson.fromJson(json, TimeConfig::class.java)) }
+        val mine = runCatching { TimeConfig.sanitize(7L, decodeTimeConfig(json)) }
+
+        assertTrue(theirs.isFailure, "Gson 路径在这种数据上会 NPE（既有行为）")
+        assertTrue(mine.isSuccess, "本实现应当容忍它")
+        // 归一结果与「字段整个缺失」完全一致（sanitize 会补种一个默认作息，所以 routines 不为空）
+        assertEquals(
+            TimeConfig.sanitize(7L, gson.fromJson("""{"id":1}""", TimeConfig::class.java)),
+            mine.getOrThrow(),
+        )
+        assertEquals(1, mine.getOrThrow().routines.size, "应补种默认作息")
+    }
+
+    @Test
+    fun `SpecialBlock 的 items 为 null 时字段被省略`() {
+        // 旧数据里 items 缺失 = null（Gson 置 null，Kotlin 默认值不生效）
+        val block = SpecialBlock.fromRaw(mapOf("id" to 2.0, "name" to "早读"))!!
+        assertEquals(null, block.items)
+        val json = encodeTimeConfig(
+            TimeConfig(id = 1L, specialBlocks = listOf(block)),
+        )
+        assertTrue(!json.contains("\"items\""), "items 为 null 时不能写出该字段: $json")
+
+        val withItems = SpecialBlock.fromRaw(
+            mapOf("id" to 2.0, "name" to "早读", "items" to listOf(mapOf("id" to 3.0))),
+        )!!
+        val json2 = encodeTimeConfig(TimeConfig(id = 1L, specialBlocks = listOf(withItems)))
+        assertTrue(json2.contains("\"items\""), "items 非 null 时必须写出: $json2")
+        assertTrue(json2.contains("\"startTime\":\"08:00\""), "缺 startTime 时走 fromRaw 的兜底值")
+    }
+
+    @Test
+    fun `time_config 的非法输入与 Gson 行为对齐`() {
+        assertTrue(runCatching { decodeTimeConfig("not json") }.isFailure)
+        assertTrue(runCatching { decodeTimeConfig("[]") }.isFailure)
+        assertTrue(runCatching { decodeTimeConfig("null") }.isFailure)
+        assertTrue(runCatching { decodeTimeConfig("1") }.isFailure)
+        assertTrue(
+            runCatching { gson.fromJson("not json", TimeConfig::class.java) }.isFailure,
         )
     }
 }

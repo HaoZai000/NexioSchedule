@@ -7,9 +7,6 @@ import java.security.MessageDigest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
-/**
- * Android 侧平台实现。五条 `actual` 全部与迁移前逐字等价 —— 这里只做接线，不改行为。
- */
 
 actual fun <T> synchronizedOn(lock: Any, block: () -> T): T = synchronized(lock) { block() }
 
@@ -66,10 +63,7 @@ private fun sha256Hex(value: String): String {
 
 private const val HEX_DIGITS = "0123456789abcdef"
 
-/**
- * Toast 宿主。`:core` 不能反向依赖 `android.app.Application`，Context 由宿主注入
- * （同 `AppStorage.init` / `AppFiles.init` / `AppInfo.init`）。
- */
+/** Toast 使用宿主注入的 Context。 */
 private var toastHost: ((message: String, longDuration: Boolean) -> Unit)? = null
 
 /** 必须在 `Application.onCreate` 里调用一次，之后 [com.haooz.chedule.data.platform.showToast] 才弹得出来。 */

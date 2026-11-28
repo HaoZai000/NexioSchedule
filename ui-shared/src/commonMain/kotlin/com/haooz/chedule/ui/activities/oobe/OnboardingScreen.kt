@@ -82,6 +82,7 @@ import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.platform.PrivacyConsent
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.storage.AppStorage
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
@@ -886,7 +887,6 @@ private const val OobeFlipGrowStart = 0f
 /** U 型侧摆幅度（相对卡片宽度）。 */
 private const val OobeFlipDipRatio = 0.5f
 
-/** 卡片圆角（dp），与 miuix Card 一致。 */
 private const val OobeFlipCardCornerDp = 20f
 
 /** 第二段：翻转中上下的最大收缩量（dp），背面协议页专用，保持原值。 */
@@ -1552,7 +1552,7 @@ private object LottieJson {
 @Composable
 private fun HyperLottie(asset: String, modifier: Modifier = Modifier) {
     val json by produceState<String?>(initialValue = null, asset) {
-        value = runCatching { LottieJson.load(asset) }.getOrNull()
+        value = suspendRunCatching { LottieJson.load(asset) }.getOrNull()
     }
     val text = json ?: return
 

@@ -52,7 +52,7 @@ object HolidayStr {
     // ---- 节假日 / 调休工作日 ----
     val annualTitle = L("假期与调休", "Holidays & Adjusted Days")
     val annualDesc = L(
-        "• 假期日期不会发送课程提醒\n• 调休日按补课安排调度课程",
+        "• 假期日期不发送课程提醒\n• 调休日按对应补课安排显示课程",
         "• No course reminders are sent on holiday dates\n• Adjusted workdays follow the configured makeup classes",
     )
     val typeHolidayTag = L("假", "Off")
@@ -66,7 +66,7 @@ object HolidayStr {
     val emptyAnnualHint = L("本年度还没有假期或调休", "No holidays or adjusted days for this year")
     val emptyAnnualDesc = L(
         "一键导入法定节假日与补班安排",
-        "Import statutory holidays and makeup days in one tap, editable afterwards",
+        "Import statutory holidays and makeup days in one tap",
     )
     val importForYearN = L("导入 %d 年法定节假日", "Import %d statutory holidays")
     val syncingLabel = L("同步中…", "Syncing…")
@@ -76,10 +76,10 @@ object HolidayStr {
     val addWorkswap = L("添加调休工作日", "Add Adjusted Workday")
     val editHoliday = L("编辑节假日", "Edit Holiday")
     val editWorkswap = L("编辑调休工作日", "Edit Adjusted Workday")
-    val followCourseLabel = L("跟随课程", "Course to Follow")
+    val followCourseLabel = L("补课课程", "Classes to Follow")
     val followPrefillNote = L(
-        "已按假期末尾推算预填，请以学校通知为准，保存后生效",
-        "Pre-filled from the end of the holiday. Follow your school's official notice; takes effect after saving",
+        "已按假期日期预填，请以学校通知为准",
+        "Pre-filled from the holiday dates; adjust per your school's notice",
     )
     val makeupPending = L("待配置补班课程", "Makeup classes pending")
     val classOnN = L("上 %d月%d日 的课", "Class on %d/%d")
@@ -96,12 +96,12 @@ object HolidayStr {
     // ---- 校验 / 提示 ----
     val invalidDate = L("日期格式不正确", "Invalid date format")
     val endBeforeStart = L("结束日期不能早于开始日期", "End date cannot be earlier than start date")
-    val selectValidFollow = L("请明确选择有效的跟随周次和星期", "Please select a valid follow week and weekday")
+    val selectValidFollow = L("请选择有效的补课周次和星期", "Please select a valid week and weekday")
     val followWeekNoDate = L("该周次在当前课表下没有对应日期", "This week has no corresponding date in the current schedule")
-    val dataReadFailedSave = L("节假日数据无法读取，未覆盖原数据", "Holiday data could not be read; original data was not overwritten")
-    val dataReadFailedDelete = L("节假日数据无法读取，未删除原数据", "Holiday data could not be read; original data was not deleted")
-    val saveFailedUnchanged = L("保存失败，现有规则未更改", "Save failed; existing rules remain unchanged")
-    val deleteFailedUnchanged = L("删除失败，现有规则未更改", "Delete failed; existing rules remain unchanged")
+    val dataReadFailedSave = L("节假日数据读取失败，无法保存", "Couldn't read holiday data; save aborted")
+    val dataReadFailedDelete = L("节假日数据读取失败，无法删除", "Couldn't read holiday data; delete aborted")
+    val saveFailedUnchanged = L("保存失败", "Save failed")
+    val deleteFailedUnchanged = L("删除失败", "Delete failed")
     val noSectionsConfigured = L("当前课表尚未配置节次", "No sections configured in the current schedule")
     val sectionRangeChanged = L("当前课表节次范围已变化，请重新选择", "The section range of the current schedule has changed. Please select again")
     val noWeekToReorganize = L("当前课表没有可用的原始周次可重组", "No original week is available to reorganize in the current schedule")
@@ -112,8 +112,8 @@ object HolidayStr {
     // ---- 教学周重组 ----
     val reorgTitle = L("教学周重组", "Teaching Week Reorganization")
     val reorgDesc = L(
-        "• 长假可能带来教学周的重组，并引发后续教学周的顺延更改\n• 可在此进行教学周重组，后续教学周将重新分配计算",
-        "• Long breaks may reorganize teaching weeks and shift the following ones\n• Reorganize teaching weeks here; subsequent weeks will be recalculated",
+        "长假导致教学周调整时，可在此重新编排，后续教学周将自动顺延计算。",
+        "Reorganize teaching weeks after long breaks; subsequent weeks will adjust automatically.",
     )
     val reorgRuleN = L("重组规则 %d", "Rule %d")
     val originalWeekN = L("原始第%d周", "Original week %d")
@@ -142,12 +142,8 @@ object HolidayStr {
     // ---- 节假日课程排除 ----
     val exclusionTitle = L("节假日课程排除", "Holiday Course Exclusion")
     val exclusionDesc = L(
-        "• 假期前一天或最后一天的几节课不用上课\n" +
-            "• 可以将节假日前后的某几节课进行排除\n" +
-            "「假期前一天即使是调休上班日也会照常应用该规则」",
-        "• Some classes on the day before or the last day of a holiday can be skipped\n" +
-            "• Exclude specific sections around holidays\n" +
-            "“The rule also applies on the day before a holiday, even if it is an adjusted workday”",
+        "可排除假期前一天或最后一天的指定节次（假期前一天为调休上班日时同样生效）。",
+        "Exclude specific periods on the day before or the last day of a holiday (also applies if the day before is an adjusted workday).",
     )
     val beforeExclusionTitle = L("假期前日课程排除", "Exclude Courses on Day Before Holiday")
     val endExclusionTitle = L("假期末天课程排除", "Exclude Courses on Last Day of Holiday")

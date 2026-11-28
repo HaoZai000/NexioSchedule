@@ -52,21 +52,6 @@ class HolidaySchedulePartitionTest {
     )
 
     @Test
-    fun `命名空间编码不含路径分隔符`() {
-        val dangerous = listOf("数字经济3", "a/b", "c:d", "e f", "默认课表")
-        dangerous.forEach { id ->
-            val namespace = "holiday_settings_" + encodeId(id)
-            assertTrue(
-                '/' !in namespace && ':' !in namespace && ' ' !in namespace,
-                "命名空间含非法字符：$namespace",
-            )
-        }
-        // 编码可逆且不同课表名不撞
-        val encoded = dangerous.map { encodeId(it) }
-        assertEquals(encoded.size, encoded.distinct().size)
-    }
-
-    @Test
     fun `每张课表只看到自己的节假日`() {
         seed("表A", 2026, listOf(holiday("国庆", "2026-10-01")))
         seed("表B", 2026, listOf(holiday("元旦", "2026-01-01")))

@@ -9,11 +9,11 @@ object AiStr {
     val quotaUsed = L("今天已用 %d / %d 次", "%d of %d used today")
     val quotaRemaining = L("剩余 %d 次", "%d left")
     val quotaNote = L(
-        "每天 0 点重置；使用其它服务商不用免费额度",
+        "每日 0 点重置；使用自有服务商时不消耗免费额度",
         "Resets at midnight. Using your own provider does not consume free quota.",
     )
     val quotaLoading = L("正在读取额度…", "Loading quota…")
-    val quotaUnavailable = L("暂时拿不到额度信息", "Quota is unavailable right now")
+    val quotaUnavailable = L("暂无法获取额度信息", "Quota is unavailable right now")
     val retry = L("重试", "Retry")
     val serverDisabled = L("Nexio 免费 AI 暂未启用", "Nexio free AI is not enabled")
 
@@ -45,16 +45,16 @@ object AiStr {
     val testConnectionFailed = L("连接失败：%s", "Connection failed: %s")
 
     val features = L("功能入口", "Features")
-    val entryShrink = L("通知精简缩略语", "Shorten notification labels")
+    val entryShrink = L("通知名称精简", "Shorten notification labels")
     val entryShrinkSummary = L("AI 自动压缩课程名与上课地点", "Let AI shorten course names and locations")
     val entryEduImport = L("AI 教务导入", "AI academic import")
     val entryEduImportSummary = L(
-        "自动读取教务系统并生成导入脚本",
-        "Read the academic system and generate an import script",
+        "自动识别教务系统并导入课表",
+        "Automatically read your academic portal and import classes",
     )
     val entryTextImport = L("AI 文本导入", "AI text import")
     val entryTextImportSummary = L(
-        "用提示词把课表文本整理成导入格式",
-        "Turn schedule text into the import format with a prompt",
+        "通过 AI 整理课表文本并导入",
+        "Format schedule text with AI for import",
     )
 }

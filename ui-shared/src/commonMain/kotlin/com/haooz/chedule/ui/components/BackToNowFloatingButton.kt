@@ -154,7 +154,6 @@ fun BackToNowFloatingButton(
                 if (size.width <= inset * 2 || size.height <= inset * 2) return@drawBehind
                 val blurRadius = 10f * density
                 val radius = (size.height - inset * 2) / 2f
-                // 跨平台阴影：compose Path + miuix expect/actual（原为 Paint+BlurMaskFilter）
                 val path = Path().apply {
                     addRoundRect(
                         RoundRect(

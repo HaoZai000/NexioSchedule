@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.ai.AiEduScriptUploader
 import com.haooz.chedule.data.model.Course
+import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.i18n.AppLanguage
@@ -56,6 +57,7 @@ import com.haooz.chedule.ui.components.pageTopExtra
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.web.EduBridgeReject
 import com.haooz.chedule.ui.web.EduImportBridgeCore
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
@@ -89,6 +91,8 @@ import com.haooz.nexioui.overlaydialog.OverlayDialog
 import com.haooz.nexioui.theme.NexioTheme
 import com.haooz.nexioui.overscroll.overScrollVertical
 import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
+
+private const val TAG = "AiEduPreview"
 
 @Composable
 fun AiEduPreviewScreen(
@@ -477,21 +481,26 @@ private fun applyAgentDraft(
 ): Int {
     val bridge = EduImportBridgeCore(onCoursesImported = {}, onTaskCompleted = {})
     bridge.setImportTableId(null)
-    draft.configJson?.let { json ->
-        runCatching { bridge.handle("saveCourseConfig", listOf(json)) }
+    fun save(method: String, json: String?): Boolean {
+        if (json == null) return false
+        return try {
+            val result = bridge.handle(method, listOf(json))
+            if (result != "true") NexioLog.w(TAG, "$method returned $result instead of success")
+            result == "true"
+        } catch (e: EduBridgeReject) {
+            NexioLog.w(TAG, "$method rejected", e)
+            false
+        }
     }
-    draft.timeSlotsJson?.let { json ->
-        runCatching { bridge.handle("savePresetTimeSlots", listOf(json)) }
-    }
-    draft.comboJson?.let { json ->
-        runCatching { bridge.handle("saveComboSchedule", listOf(json)) }
-    }
+    val configSaved = save("saveCourseConfig", draft.configJson)
+    val timeSlotsSaved = save("savePresetTimeSlots", draft.timeSlotsJson)
+    val comboSaved = save("saveComboSchedule", draft.comboJson)
 
-    if (draft.timeSlotsJson != null) {
+    if (timeSlotsSaved) {
         applyPresetTimeSlots(settingsViewModel, scheduleViewModel, null)
     }
-    applyImportedScheduleConfig(courseViewModel, scheduleViewModel)
-    if (draft.comboJson != null) {
+    if (configSaved) applyImportedScheduleConfig(courseViewModel, scheduleViewModel)
+    if (comboSaved) {
         applyComboSchedule(settingsViewModel, courseViewModel, scheduleViewModel, null)
     }
 

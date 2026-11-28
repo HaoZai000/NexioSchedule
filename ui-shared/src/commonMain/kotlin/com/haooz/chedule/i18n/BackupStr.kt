@@ -62,9 +62,8 @@ object BackupStr {
     val overwriteRestore = L("覆盖恢复", "Overwrite & Restore")
     val confirmRestore = L("确定恢复", "Restore")
     val restoreFullSummaryN = L(
-        "「%s」\n这是全量备份，包含 %d 个课表。\n恢复会先清除现有全部课表与时间配置，再整体覆盖为备份内容，此操作不可撤销。",
-        "\"%s\"\nThis is a full backup containing %d schedules.\nRestoring will first clear all existing schedules and time settings, " +
-            "then overwrite everything with the backup content. This action cannot be undone.",
+        "「%s」\n全量备份，包含 %d 个课表。\n恢复将覆盖现有全部课表与时间配置，且不可撤销。",
+        "\"%s\"\nFull backup with %d schedules.\nRestoring will replace all current schedules and time settings. This cannot be undone.",
     )
     val restoreSingleSummaryN = L(
         "「%s」\n这是单课表备份，包含 %d 门课程。\n将新建课表「%s」（重名时自动编号），不影响现有课表。",
@@ -88,10 +87,10 @@ object BackupStr {
     val icsExport = L("ICS 格式导出", "Export as ICS")
     val icsExportSummary = L("导出课表为日程格式", "Export the schedule as a calendar file")
     val shareCodeExport = L("口令分享导出", "Share Code Export")
-    val shareCodeExportSummary = L("生成趣味口令与分享图片", "Generate a fun share code and image")
+    val shareCodeExportSummary = L("生成分享口令与图片", "Generate a share code and image")
     val shareExportConfirmSummaryN = L(
-        "将课表「%s」上传生成分享口令？\n口令有效期有限，过期后可重新生成",
-        "Upload schedule \"%s\" to generate a share code?\nThe code expires after a while; you can generate a new one anytime",
+        "将课表「%s」上传并生成分享口令？过期后可重新生成。",
+        "Upload schedule \"%s\" to generate a share code? You can generate a new one if it expires.",
     )
     val confirmShare = L("确认分享", "Share")
     val exportToWearable = L("导出到手环", "Export to Wearable")
@@ -112,7 +111,7 @@ object BackupStr {
     val watchSyncScanning = L("正在搜索附近的安卓手表…", "Searching for nearby Android watches…")
     val watchSyncEmpty = L(
         "没有找到安卓手表。请确认手表端已打开 Nexio 并停留在首页，且两边蓝牙都已开启。",
-        "No Android watch found. Make sure Nexio is open on the watch, and Bluetooth is on for both devices.",
+        "No Android watch found. Make sure Nexio is open on the watch home screen and Bluetooth is on for both devices.",
     )
     val watchSyncRescan = L("重新搜索", "Search again")
     val watchSyncSendAction = L("发送", "Send")
@@ -127,7 +126,7 @@ object BackupStr {
     // ---- 同步到日历 ----
 
     val syncToCalendar = L("同步到日历", "Sync to Calendar")
-    val syncToCalendarSummary = L("把课表逐节课写进系统日历", "Write every class into the system calendar")
+    val syncToCalendarSummary = L("将课程同步到系统日历", "Sync classes to the system calendar")
     val calendarSyncSuccessN = L("已同步 %d 节课到日历", "Synced %d classes to the calendar")
     val calendarPermissionDenied = L("未获得日历权限，无法同步", "Calendar permission is required to sync")
     val calendarNoWritable = L(
@@ -141,10 +140,10 @@ object BackupStr {
     val importMethods = L("导入方式", "Import Methods")
     val importSchedule = L("导入课表", "Import Schedule")
     val importScheduleConfirmSummaryN = L(
-        "是否导入课表「%s」？\n确定导入将创建一个新的课表",
-        "Import schedule \"%s\"?\nConfirming will create a new schedule",
+        "导入课表「%s」？将新建一个课表。",
+        "Import schedule \"%s\"? This will create a new schedule.",
     )
-    val importCreatesNewSchedule = L("确定导入将创建一个新的课表", "Confirming will create a new schedule")
+    val importCreatesNewSchedule = L("导入将新建一个课表", "Importing will create a new schedule")
     val confirmImport = L("确定导入", "Import")
     /** 导入弹窗内撞名时的说明：说清「谁被覆盖」，覆盖是不可逆的 */
     val importOverwriteSummaryN = L(
@@ -209,7 +208,7 @@ object BackupStr {
     val restoreFromFile = L("从文件恢复", "Restore from file")
     val backupFolder = L("备份文件夹", "Backup folder")
     val backupFolderAuthorizedN = L("已授权：%s", "Authorized: %s")
-    val backupFolderUnauthorizedN = L("未授权；备份仍保存到 %s，重装后需重新授权才能自动读取", "Not authorized; backups still go to %s. Re-authorize after reinstall to list them automatically")
+    val backupFolderUnauthorizedN = L("未授权（备份保存至 %s，重装后需授权才能自动读取）", "Not authorized (saved to %s; authorize after reinstall to read automatically)")
     val backupFolderAuthorized = L("备份文件夹已授权", "Backup folder authorized")
     val backupFolderDenied = L("未获得文件夹写入权限", "Folder write permission not granted")
     val restoreNow = L("立即恢复", "Restore now")
@@ -218,7 +217,7 @@ object BackupStr {
     val targetSection = L("备份到", "Back up to")
     val targetLocal = L("本机", "This device")
     val targetCloud = L("云端", "Cloud")
-    val targetBoth = L("两者都", "Both")
+    val targetBoth = L("本机与云端", "Both")
     val targetLocalHint = L("将写入本机存储", "Will be saved on this device")
     val targetCloudHint = L("将上传到 WebDAV", "Will be uploaded to WebDAV")
     val targetBothHint = L("将同时写入本机和 WebDAV", "Will be saved on this device and uploaded to WebDAV")
@@ -237,8 +236,8 @@ object BackupStr {
         "Full backup with %d schedules. Compared with current data: %d added, %d overwritten, %d removed.",
     )
     val fullRestoreWarning = L(
-        "恢复会先清除现有全部课表与时间配置，再整体覆盖为备份内容。",
-        "Restoring clears all current schedules and time settings, then overwrites them with the backup.",
+        "恢复将覆盖现有全部课表与时间配置。",
+        "Restoring will replace all current schedules and time settings.",
     )
     val snapshotNote = L("恢复前会先保存当前数据为本机备份。", "Current data will be saved as a local backup first.")
     val noSnapshotNote = L("未开启恢复前快照，恢复后不可撤销。", "No pre-restore snapshot is enabled; restoring cannot be undone.")

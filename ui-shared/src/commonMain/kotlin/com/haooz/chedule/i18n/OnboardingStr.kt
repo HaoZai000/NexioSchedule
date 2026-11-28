@@ -10,7 +10,7 @@ object OnboardingStr {
 
     val back = L("返回", "Back")
     val next = L("继续", "Continue")
-    val start = L("开始使用", "All set")
+    val start = L("开始使用", "Get started")
 
     // ---- 设置语言 ----
     val languageTitle = L("设置语言", "Set language")
@@ -34,8 +34,8 @@ object OnboardingStr {
     // ---- 位置服务 ----
     val locationTitle = L("位置服务", "Location services")
     val locationDesc = L(
-        "允许应用或网站使用设备当前的位置信息，提供基于位置的服务。",
-        "Allow apps and websites to use your device's location for location-based services.",
+        "允许本应用获取位置信息，用于显示当地天气。",
+        "Allow this app to use your device's location for local weather.",
     )
 
     // ---- 基础设置 ----
@@ -52,7 +52,7 @@ object OnboardingStr {
     // 这条 title 只作为该步骤的语义标题，不参与渲染。
     val finishTitle = L("Nexio课程表", "Nexio Schedule")
     val finishDesc = L(
-        "设置已完成，开始安排你的课程吧。",
+        "设置已完成，开始使用吧。",
         "You're all set. Start planning your classes.",
     )
 }

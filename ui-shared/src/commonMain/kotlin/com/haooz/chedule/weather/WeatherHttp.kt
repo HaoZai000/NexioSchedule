@@ -5,6 +5,7 @@ import com.haooz.chedule.data.platform.HttpService
 import com.haooz.chedule.data.platform.HttpTimeouts
 import com.haooz.chedule.data.platform.createHttpService
 import com.haooz.chedule.data.util.parseJsonObject
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -29,6 +30,8 @@ internal object WeatherHttp {
     suspend fun getText(url: String, headers: Map<String, String> = emptyMap()): String? = try {
         val result: HttpResult = client.get(url, headers + ("User-Agent" to UA), maxBytes = 2L * 1024 * 1024)
         if (result.isSuccessful && !result.truncated) result.text.takeIf { it.isNotBlank() } else null
+    } catch (e: CancellationException) {
+        throw e
     } catch (_: Exception) {
         null
     }

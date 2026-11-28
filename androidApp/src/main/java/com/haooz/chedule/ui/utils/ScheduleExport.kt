@@ -37,42 +37,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
-// ════════════════════════════════════════════════════════════════════════
-//  课表导出 —— 单文件全包（分享给其他 App / 分享口令）
-//
-//  一条完整的「把课表发出去」链路，全在此文件：
-//  1. [buildShareScheduleMap] 等    从 [CourseRepository] 组装分享 JSON
-//  2. [ShareCodeApi]                口令的创建与按口令取回（网络）
-//  3. [ShareImageGenerator]         口令卡片图片生成
-//  4. [performScheduleShare]        串起全流程：生成口令 → 复制剪贴板 → 出图 → 唤起分享
-//
-//  **导入侧不在这里** —— 分享数据的解析器（`parseShare*` 全套）归
-//  `ScheduleImport.kt`，两边成对改动时需同时看这两个文件。
-//
-//  共享的数据契约（分享 JSON 的字段名）也定义在导入文件，两边必须同步。
-//
-//  注意：备份/恢复（本地文件、WebDAV）**不属本文件**，见 `ScheduleBackup.kt`——
-//  那是另一套格式与生命周期。
-// ════════════════════════════════════════════════════════════════════════
-
-// ── 1. 分享数据组装（读取课表 → JSON）─────────────────────────
-//
-// buildShareScheduleMap / courseToShareMap / ShareCourseWeekModel 等 2026-10-11
-// 已迁 :ui-shared（同包名，本文件直接可见，无需 import）
-// —— 见 ui/utils/ShareScheduleCodec.kt。
-// 它们只碰 CourseRepository + Map<String, Any>；留在本文件会让共享页反向依赖
-// 本文件的 OkHttp / Gson / Bitmap（口令接口与出图都在这里）。
-
-// ── 2 & 3. 口令接口 + 分享卡片图片 ────────────────────────────
-
-/**
- * 课表分享口令接口。
- *
- * 创建（[createShare]）属**导出**链路，取回（[fetchShare]）属**导入**链路，
- * 但二者共用同一服务端地址与 OkHttp 客户端，拆开反而要多写一份连接池配置，
- * 故这个 object 整体留在本文件，导入侧（`ScheduleImport.kt`）直接调用
- * [fetchShare]，不重复定义。
- */
+/** 创建分享口令，或按口令取回课表。 */
 object ShareCodeApi {
     // 统一走域名 HTTPS；明文 3000 只保留给老版本兼容
     private const val BASE_URL = ApiEndpoints.SHARE

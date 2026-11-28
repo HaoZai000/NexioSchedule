@@ -192,7 +192,7 @@ class AndroidBackupFileController(private val context: Context) : BackupFileCont
             callback(null, null)
             return
         }
-        // 与原页面一致：SAF 读文件 + 8 MB 上限校验放 IO 线程，结果回主线程回调
+        // 在后台读取并校验大小，回主线程通知页面。
         Thread {
             val readResult = runCatching { readExternalBackupJson(context, uri) }
             val displayName = queryDisplayName(uri)
@@ -200,7 +200,6 @@ class AndroidBackupFileController(private val context: Context) : BackupFileCont
                 readResult.fold(
                     onSuccess = { json -> callback(json, displayName) },
                     onFailure = { e ->
-                        // 逐字保留原页面 beginRestore 失败分支的 toast 文案
                         showToast(BackupStr.unrecognizedBackupN(e.message ?: BackupStr.formatError()))
                         callback(null, null)
                     }
@@ -233,7 +232,6 @@ class AndroidBackupFileController(private val context: Context) : BackupFileCont
         }
         val dir = legacyWriteDir()
         if (!isUsableDir(dir)) {
-            // 逐字保留原页面的失败信息：页面 catch 后 toast「备份失败: <原因>」
             throw IllegalStateException(AndroidMiscStr.backupDirNotWritableN(dir.absolutePath))
         }
         File(dir, fileName).writeText(json, Charsets.UTF_8)
@@ -564,13 +562,7 @@ class AndroidBackupFileController(private val context: Context) : BackupFileCont
     }
 }
 
-/**
- * 有界读 UTF-8 文本（8 MB 上限）。
- *
- * 原来是 [AndroidBackupFileController] 的成员方法，2026-10-11 提到文件级：
- * 导入通道（`AndroidScheduleFileController`）也要读用户选的文件，
- * 同一个「超过 8 MB 直接失败」的约束不能一人写一份。
- */
+/** 读取 UTF-8 文本；在读取过程中检查大小，超过限制即失败。 */
 internal fun readBoundedUtf8(
     inputStream: InputStream,
     maxBytes: Long = MAX_BACKUP_PARSE_BYTES,
@@ -591,13 +583,6 @@ internal fun readBoundedUtf8(
     }
 }
 
-/**
- * 从任意 Context 向外层找到宿主 Activity（同 AndroidReminderController 的 findActivity 套路）。
- *
- * ⚠ 保持 `private`（文件级）：`AndroidReminderController.kt` 里也有一份同名扩展，
- * 改成 `internal` 会直接撞成 `Conflicting overloads` —— 这个包里的每个控制器
- * 各带一份自己的私有副本，是既定做法，别去「统一」它们。
- */
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()

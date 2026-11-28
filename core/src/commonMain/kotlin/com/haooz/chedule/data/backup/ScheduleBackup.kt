@@ -20,6 +20,7 @@ import com.haooz.chedule.data.util.parseJsonObject
 import com.haooz.chedule.data.util.toJsonElement
 import kotlin.concurrent.Volatile
 import kotlin.io.encoding.Base64
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -33,22 +34,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-
-// ════════════════════════════════════════════════════════════════════════
-//  课表备份 —— 单文件全包
-//
-//  1. [SyncManager]    手动备份/恢复：驱动 WebDAV 上传/下载，并暴露可观察状态
-//  2. [WebDavManager]  WebDAV：账号配置、上传、下载、远端文件列表、删除
-//
-//  两者共用 [CourseRepository.exportAllPreferences] / `importAllPreferences` 全量
-//  序列化入口，备份格式由它们决定；格式改动只需看那两处。
-//
-//  ⚠ 数据兼容红线：prefs 文件名 `webdav_config` 与原 4 个键名、备份 JSON 字段名逐字未变；
-//  `Authorization` / `Depth` 头 / 状态码分支（2xx / 401 / 403 / 404 / 405）/
-//  `MKCOL` 重试次数（2 次）与退避（1s、2s）保持原语义，超时 connect 10s / read 30s。
-//  目录请求统一补尾斜杠，并显式发送标准 PROPFIND 请求体（服务端兼容性所需）。
-//  唯一可观测差异：失败文案不含 reason phrase，为「服务器返回: <code>」。
-// ════════════════════════════════════════════════════════════════════════
 
 // ── 1. 同步管理器 ───────────────────────────────────────────
 
@@ -117,6 +102,9 @@ class SyncManager private constructor() {
                     NexioLog.e(TAG, "Backup failed: ${result.message}")
                 }
             }
+        } catch (e: CancellationException) {
+            _syncState.value = SyncOperationState.Idle
+            throw e
         } catch (e: Exception) {
             _syncState.value = SyncOperationState.Error("备份异常: ${e.message}")
             NexioLog.e(TAG, "Backup exception", e)
@@ -148,6 +136,9 @@ class SyncManager private constructor() {
                     NexioLog.e(TAG, "Restore failed: ${result.message}")
                 }
             }
+        } catch (e: CancellationException) {
+            _syncState.value = SyncOperationState.Idle
+            throw e
         } catch (e: Exception) {
             _syncState.value = SyncOperationState.Error("恢复异常: ${e.message}")
             NexioLog.e(TAG, "Restore exception", e)
@@ -163,19 +154,13 @@ class SyncManager private constructor() {
 
 // ── 2. WebDAV 备份 ───────────────────────────────────────────
 
-/** WebDAV 备份/恢复管理器 */
 class WebDavManager(
-    /** 恢复成功后通知平台侧刷新提醒（构造时注入，避免 `:core` 反向依赖 `:app`）。 */
+    /** 恢复成功后通知宿主刷新节假日相关提醒。 */
     private val onHolidayDataChanged: () -> Unit = {},
 ) {
 
     private val configPrefs = AppStorage.store("webdav_config")
 
-    /**
-     * ⚠ 超时与迁移前一致：connect 10s / read 30s；不设整体 callTimeout。
-     *
-     * `internal var` 是为了让测试注入假实现，锁住请求形状（WebDAV 无法本地起真服务器）。
-     */
     internal var http: HttpService = createHttpService(
         HttpTimeouts(connectSeconds = 10, readSeconds = 30),
     )
@@ -185,21 +170,15 @@ class WebDavManager(
         private const val KEY_SERVER_URL = "server_url"
         private const val KEY_USERNAME = "username"
         private const val KEY_PASSWORD = "password"
-        /** 新增键（2026-10-17 自定义路径）；老用户没这个键 → 走 [DEFAULT_REMOTE_PATH]。 */
         private const val KEY_REMOTE_PATH = "remote_path"
         private const val KEY_LAST_SYNC_TIME = "last_sync_time"
         private const val BACKUP_FILE_PREFIX = "backup_"
         private const val BACKUP_FILE_SUFFIX = ".json"
 
-        /** 从未设置过路径时的兜底值：迁移前的两级目录，保证老用户的云端备份还能读到。 */
+        /** 未设置远端路径时沿用此目录，以便找到已有备份。 */
         const val DEFAULT_REMOTE_PATH = "NexioSchedule/backups"
 
-        /**
-         * 标准 PROPFIND 请求体。
-         *
-         * ⚠ 早期实现不带 body：坚果云/Nextcloud 能接受，但 IIS、部分 NAS 会直接 400，
-         * 且无法拿到 `getlastmodified` 等属性。显式声明 `prop` 是兼容性最好的写法。
-         */
+        /** 显式请求文件属性，兼容要求 PROPFIND 请求体的服务器。 */
         private val PROPFIND_BODY = """
             <?xml version="1.0" encoding="utf-8"?>
             <d:propfind xmlns:d="DAV:">
@@ -319,13 +298,13 @@ class WebDavManager(
                         root.isSuccessful || root.code == 404 || root.code == 405 ->
                             Result.success("连接成功（目录将自动创建）")
                         root.code == 401 -> authFail
-                        // ⚠ reason phrase 在 HttpResult 里没有对应物，故省略
                         else -> Result.failure(Exception("服务器返回: ${root.code}"))
                     }
                 }
-                // ⚠ reason phrase 在 HttpResult 里没有对应物，故省略
                 else -> Result.failure(Exception("服务器返回: ${response.code}"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(Exception("连接失败: ${e.message}"))
         }
@@ -334,12 +313,11 @@ class WebDavManager(
     private suspend fun dirExists(url: String): Boolean =
         propfind(url, depth = "0").isSuccessful
 
-    /** @param retries 与迁移前一致（共 3 次尝试，退避 1s、2s）。 */
+    /** [retries] 不含首次尝试；默认两次重试分别等待 1 秒和 2 秒。 */
     private suspend fun mkcol(url: String, retries: Int = 2): Boolean {
         var lastCode = -1
         for (attempt in 0..retries) {
             if (attempt > 0) {
-                // 已在协程内，用 delay 而非阻塞 sleep
                 delay(1000L * attempt)
             }
             val response = http.request(
@@ -359,8 +337,7 @@ class WebDavManager(
     /**
      * 自顶向下逐级确保备份目录存在。
      *
-     * ⚠ 必须逐级：WebDAV 的 MKCOL **不递归**，父目录不存在时返回 409。迁移前只建两级
-     * 固定目录，自定义路径可以有任意层数，所以这里按段依次建。
+     * MKCOL 不递归创建父目录；缺少父目录时服务器会返回 409。
      *
      * @return 目录是否确认存在。**false 不是致命错误**：部分网盘禁 MKCOL 但允许 PUT，
      *   调用方仍应尝试写入，由写入结果决定成败。
@@ -426,6 +403,8 @@ class WebDavManager(
                     else "上传备份失败: ${response.code}，请确认备份路径存在且有写入权限"
                 )
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             NexioLog.e(TAG, "Backup exception", e)
             BackupResult.Error("备份异常: ${e.message}")
@@ -478,6 +457,8 @@ class WebDavManager(
                 response.code == 404 -> RestoreResult.Error("备份文件不存在")
                 else -> RestoreResult.Error("下载备份失败: ${response.code}")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             NexioLog.e(TAG, "Restore exception", e)
             RestoreResult.Error("恢复异常: ${e.message}")
@@ -505,6 +486,8 @@ class WebDavManager(
             @Suppress("UNCHECKED_CAST")
             val data = root["data"] as? Map<String, Any> ?: emptyMap()
             if (data.isEmpty()) Result.failure(Exception("备份数据为空")) else Result.success(data)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -521,6 +504,8 @@ class WebDavManager(
                 onHolidayDataChanged()
                 lastSyncTime = Clock.System.now().toEpochMilliseconds()
                 RestoreResult.Success(BackupInfo(backupId, "").backupTime)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 NexioLog.e(TAG, "Restore exception", e)
                 RestoreResult.Error("恢复异常: ${e.message}")
@@ -568,6 +553,8 @@ class WebDavManager(
                 }
             }
             Result.success(backups)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             NexioLog.e(TAG, "List backups exception", e)
             Result.failure(Exception("读取云端备份失败: ${e.message}"))
@@ -586,6 +573,8 @@ class WebDavManager(
             } else {
                 Result.failure(Exception("删除备份失败: ${response.code}"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(Exception("删除备份异常: ${e.message}"))
         }
@@ -705,7 +694,6 @@ internal fun <T> withValidatedFullScheduleBackup(
     return restore(holidayBackup)
 }
 
-/** 对应 Gson 的 `x?.isJsonPrimitive == true && x.asJsonPrimitive.isString && x.asString.isNotBlank()`。 */
 private fun JsonElement?.isNonBlankJsonString(): Boolean =
     this is JsonPrimitive && isString && content.isNotBlank()
 
@@ -713,7 +701,6 @@ private fun JsonElement?.isNonBlankJsonString(): Boolean =
 internal fun ensureEmptyScheduleCourseEntries(data: MutableMap<String, Any>, scheduleNames: List<String>) {
     scheduleNames.forEach { name ->
         val key = "schedule_${name}_courses"
-        // MutableMap.putIfAbsent 是 JVM 专有，等价展开
         if (!data.containsKey(key)) data[key] = "[]"
     }
 }
@@ -764,7 +751,6 @@ fun validateFullScheduleBackupStructure(data: Map<String, Any>): List<String> {
     if (data.containsKey("schedule_folders")) {
         val rawFolders = data["schedule_folders"] as? String
             ?: throw IllegalArgumentException("Invalid schedule folders in backup")
-        // kotlinx 的 JsonElement 用类型判断 + JsonPrimitive.isString 表达与原 Gson 相同的语义。
         val folders = runCatching { parseJsonElement(rawFolders) }.getOrNull()
         require(folders is JsonArray) { "Invalid schedule folder in backup" }
         folders.forEach { folder ->

@@ -174,7 +174,7 @@ object WatchPayload {
             runCatching {
                 buildOverridesJson(repository, sid, flatHolidays, windowFirst, windowLast, entriesByYear)
             }.onFailure {
-                NexioLog.w("WatchPayload", "overrides build fail, degrade to plain payload: ${it.message}")
+                NexioLog.w("WatchPayload", "overrides build failed; sending plain payload", it)
             }.getOrDefault(JSONArray())
         } else {
             JSONArray()
@@ -308,9 +308,7 @@ object WatchPayload {
                 NexioLog.w("WatchPayload", "overrides truncated at $MAX_OVERRIDE_DAYS days")
                 break
             }
-            val resolution = runCatching {
-                DayScheduleResolver.resolveDaySchedule(date, repository, entriesByYear)
-            }.getOrNull() ?: continue
+            val resolution = DayScheduleResolver.resolveDaySchedule(date, repository, entriesByYear)
             // effective(date) 只是扫一遍作息列表挑方案，逐日调用开销可忽略
             arr.put(
                 renderOverride(
@@ -370,8 +368,7 @@ object WatchPayload {
     private fun holidayNameForDate(
         entriesByYear: Map<Int, List<HolidayEntry>>,
         date: LocalDate,
-    ): String = runCatching { HolidayEntries.entriesForDate(entriesByYear, date) }
-        .getOrDefault(emptyList())
+    ): String = HolidayEntries.entriesForDate(entriesByYear, date)
         .firstOrNull { it.name.isNotBlank() }?.name
         ?: ""
 

@@ -3,6 +3,7 @@ package com.haooz.chedule.data.platform
 import com.haooz.chedule.data.storage.AppStorage
 import com.haooz.chedule.data.util.optString
 import com.haooz.chedule.data.util.parseJsonObject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 
 data class Notice(val id: String, val title: String, val content: String)
@@ -29,6 +30,8 @@ object NoticeFetcher {
             val id = json.optString("id")
             if (id.isBlank()) return@withContext null
             Notice(id, json.optString("title"), json.optString("content"))
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             null
         }

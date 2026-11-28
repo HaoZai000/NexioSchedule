@@ -83,12 +83,11 @@ fun TabletSwitchSchedulePane(
     viewModel: CourseViewModel,
     scheduleViewModel: ScheduleViewModel,
     settingsViewModel: SettingsViewModel,
-    /** 分享执行：由 Android 宿主注入（ScheduleExport.performScheduleShare 是 Android 专有）；
-     *  内嵌编辑模式的底栏「分享」按钮会渲染，须转发给左栏 SwitchScheduleScreen */
+    /** 内嵌编辑模式的分享操作由左栏转发给宿主。 */
     onShareSchedule: (scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit = { _, _ -> },
-    /** 分享前置检查（课表是否为空）：宿主注入（buildShareScheduleMap 依赖 Gson=R2，留在宿主） */
+    /** 分享前检查课表是否为空。 */
     isScheduleShareable: (scheduleName: String) -> Boolean = { true },
-    /** 保存学期课表图片：宿主注入；`null` 时右栏不显示下载按钮（非 Android 宿主） */
+    /** 为 null 时右栏不显示保存图片按钮。 */
     onSaveScheduleImage: ((ImageBitmap) -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()

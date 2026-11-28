@@ -4,6 +4,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toPixelMap
 import com.haooz.chedule.data.platform.AppFiles
+import com.haooz.chedule.data.platform.NexioLog
+import kotlinx.coroutines.CancellationException
 
 /**
  * 壁纸后端能力 —— 平台实现需提供四项能力。
@@ -70,6 +72,7 @@ interface WallpaperBackend {
  * 否则存量用户壁纸静默丢失。后缀 `.webp` 仅为名字，解码按内容识别格式而非扩展名。
  */
 object WallpaperStore {
+    private const val TAG = "WallpaperStore"
 
     /** 壁纸文件名；数据兼容契约，勿改。 */
     const val FILE_NAME = "appearance_wallpaper.webp"
@@ -150,7 +153,8 @@ object WallpaperStore {
         if (!file.exists()) return null
         val bytes = try {
             file.readBytes()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "Failed to read wallpaper", e)
             return null
         }
         val decoded = be.decode(bytes) ?: return null
@@ -177,7 +181,10 @@ object WallpaperStore {
             AppFiles.root.resolve(FILE_NAME).writeBytes(bytes)
             cached = scaled
             true
-        } catch (_: Exception) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "Failed to save wallpaper", e)
             false
         }
     }
@@ -186,9 +193,10 @@ object WallpaperStore {
     fun clear() {
         cached = null
         try {
-            AppFiles.root.resolve(FILE_NAME).delete()
-        } catch (_: Exception) {
-            // 删除失败不影响内存态已清；下次 load 会再试
+            val file = AppFiles.root.resolve(FILE_NAME)
+            if (!file.delete() && file.exists()) NexioLog.w(TAG, "Failed to delete wallpaper")
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "Failed to delete wallpaper", e)
         }
     }
 
@@ -230,7 +238,8 @@ object WallpaperStore {
                 }
             }
             (sum / (GRID * GRID)) >= 128
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "Failed to measure wallpaper lightness", e)
             null
         }
     }

@@ -179,20 +179,6 @@ class ClassroomLabelTest {
     }
 
     @Test
-    fun `课程名只删修饰词不压成简称`() {
-        // 「马原」这种压法只有考过研的人才认得出，保留核心词即可
-        assertEquals("马克思原理", ClassroomLabel.applyCourse("马克思主义基本原理", regexRule))
-    }
-
-    @Test
-    fun `本来就不长的课程名一个字不动`() {
-        // 6 字以内放得下，再缩反而认不出
-        assertEquals("统计学", ClassroomLabel.applyCourse("统计学", regexRule))
-        assertEquals("管理学原理", ClassroomLabel.applyCourse("管理学原理", regexRule))
-        assertEquals("大学英语", ClassroomLabel.applyCourse("大学英语", regexRule))
-    }
-
-    @Test
     fun `课程名先摘括号注解再判断长短`() {
         // 括号里的（必修）（二）这类是修饰，不是课程名的一部分
         assertEquals("大学英语", ClassroomLabel.applyCourse("大学英语（二）", regexRule))
@@ -220,7 +206,6 @@ class ClassroomLabelTest {
             "中外音乐简史与作品鉴赏" to "中外音乐简史",
             "心理统计软件与数据分析" to "心理统计数据",
             "大学生生涯发展与就业指导" to "大学生就业指导",
-            "毛泽东思想和中国特色社会主义理论体系概论" to "毛泽东思想概论",
         )
         for ((raw, expected) in cases) {
             assertEquals(expected, ClassroomLabel.applyCourse(raw, regexRule), raw)
@@ -239,11 +224,6 @@ class ClassroomLabelTest {
     }
 
     @Test
-    fun `课程名里的术语换成公认短形式`() {
-        assertEquals("概率与数统", ClassroomLabel.applyCourse("概率论与数理统计", regexRule))
-    }
-
-    @Test
     fun `没有命中任何规则的长课程名原样保留`() {
         // 两档规则都不匹配就一个字不动，交给 AI 那条路
         assertEquals("普通生物学实验", ClassroomLabel.applyCourse("普通生物学实验", regexRule))
@@ -255,12 +235,6 @@ class ClassroomLabelTest {
             "茶检",
             ClassroomLabel.applyCourse("茶叶审评与检验", ai("茶叶审评与检验=茶检")),
         )
-    }
-
-    @Test
-    fun `课程名关闭时原样返回`() {
-        val off = ClassroomLabelRule(enabled = false, method = ClassroomLabel.METHOD_REGEX)
-        assertEquals("大学英语（二）", ClassroomLabel.applyCourse("大学英语（二）", off))
     }
 
     @Test

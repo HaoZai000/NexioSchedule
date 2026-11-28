@@ -54,22 +54,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * 子页路由 → 页面的映射表。
- *
- * 这是**唯一**需要知道「哪个路由对应哪个 Screen」的地方 —— 宿主只负责创建
- * [AppRouter]、渲染 [AppNavHost]，不关心具体有哪些页面。
- *
- * 本文件留在 androidApp：页面壳多已迁到 `:ui-shared`，这里只剩映射与 Android 能力装配。
- * 两模块**共享包名**，靠「无同名顶层符号」维持，新增页面时先确认另一侧没有同名文件。
- */
+/** 将子页路由映射为页面，并为共享页面提供 Android 平台能力。 */
 @Composable
 fun AppRouteContent(
     router: AppRouter,
     route: AppRoute,
 ) {
     when (route) {
-        // 设置二级页（原主 pager 第三页）
         AppRoute.Settings -> SettingsRoute(
             router = router,
             settingsPane = { args -> AndroidSettingsPane(args) },
@@ -123,7 +114,6 @@ fun AppRouteContent(
                 onSetTaskExcludedFromRecents = { hidden ->
                     MainActivity.setTaskExcludedFromRecents(context, hidden)
                 },
-                // 偏好设置页改主题 → 系统栏跟着刷新（原来在 Activity 的 setContent 里）
                 onThemeDarkChanged = { activity?.applyThemeAwareSystemBars() },
             )
         }
@@ -311,7 +301,6 @@ private fun AndroidBackupAndMigrationRoute(
         scheduleFileController = remember { AndroidScheduleFileController(context) },
         // WebDAV 恢复后的提醒重排
         onHolidayDataChanged = { CourseReminderHelper.onHolidayDataChanged(context) },
-        // 分享口令取回（OkHttp + Gson）
         onFetchShareCode = { code ->
             ShareCodeApi.fetchShare(code).map {
                 ShareCodeFetchResult(
@@ -321,7 +310,6 @@ private fun AndroidBackupAndMigrationRoute(
                 )
             }
         },
-        // 第三方口令抓取（无头 WebView + OkHttp + Gson）
         onImportThirdParty = { source, code ->
             ThirdPartyShareImporter.import(context, source, code)
         },
@@ -343,26 +331,14 @@ private fun AndroidBackupAndMigrationRoute(
     )
 }
 
-/**
- * 是否处于自由小窗 / 分屏。
- *
- * 原来由每个 Activity 自己的 `onMultiWindowModeChanged` 维护（该回调 API 35 起废弃且无等价替代）。
- * 单宿主之后子页拿不到自己的 Activity 回调，统一读**宿主** [MainActivity] 的 Compose 状态 ——
- * 它由宿主的同一个回调驱动，语义不变。
- */
+/** 子页从宿主读取小窗状态，以便在分屏切换时重组。 */
 @Composable
 private fun isInFreeformWindow(): Boolean {
     val activity = LocalActivity.current as? MainActivity ?: return false
     return activity.isInFreeformWindow
 }
 
-/**
- * 关于页（原来内联在 AboutActivity 的 1200 行，已抽到 `:ui-shared` commonMain 的 `AboutScreen.kt`）。
- *
- * 平台专有的一半留在宿主：版本号 / 应用名 / **裁边后的应用图标**（`packageManager` +
- * AdaptiveIcon 透明边裁剪，Compose 没有跨平台等价物）/ `finishAffinity` / 诊断录制器。
- * 其余（路由跳转、子页面导航）走 `:ui-shared` 的 [com.haooz.chedule.ui.navigation.AboutRoute]。
- */
+/** 为关于页提供安装包信息、应用图标与诊断录制器。 */
 @Composable
 private fun AndroidAboutRoute(router: AppRouter) {
     val context = LocalContext.current
@@ -371,7 +347,6 @@ private fun AndroidAboutRoute(router: AppRouter) {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
     }
     // 应用图标：drawable → Bitmap → 裁掉 AdaptiveIcon 四周透明边 → ImageBitmap
-    // （裁边逻辑原在 AboutScreen.cropBitmapToOpaque，随迁移到 ui-shared 已删除，宿主在此复刻）
     val aboutIcon = remember {
         runCatching { context.packageManager.getApplicationIcon(context.packageName) }
             .getOrNull()
@@ -420,12 +395,6 @@ private fun AndroidAboutRoute(router: AppRouter) {
     )
 }
 
-/**
- * 教务导入（学校 / 适配器选择，原 `EducationalImportActivity` 并入单 Activity 路由）。
- *
- * 进入路由即 `startUpdateIfNeeded()`（原 `onCreate` 时机）；自由窗口判定经
- * [isInFreeformWindow] 读宿主 MainActivity；系统栏 / configChanges 由 Manifest 覆盖。
- */
 @Composable
 private fun AndroidEducationalImportRoute(router: AppRouter) {
     com.haooz.chedule.ui.navigation.EducationalImportRoute(

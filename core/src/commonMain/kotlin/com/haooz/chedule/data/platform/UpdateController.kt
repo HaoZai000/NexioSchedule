@@ -1,8 +1,7 @@
 package com.haooz.chedule.data.platform
 
 /**
- * 应用更新控制器。Android 实现是 `AndroidUpdateController`，桌面/iOS 用 [NoopUpdateController]；
- * 本地安装包用绝对路径字符串表示（commonMain 没有 `java.io.File`）。
+ * 应用更新控制器；本地安装包以绝对路径表示。
  *
  * ⚠ [checkForUpdate] / [hasValidApk] / [resolveApkUrl] 是阻塞 IO，调用方需用 `withContext(ioDispatcher)`
  * 包住；[downloadApk] 是 suspend，实现内部自行切调度器。
@@ -80,7 +79,6 @@ data class UpdateRelease(
     val apkSize: Long? = null,
 )
 
-/** 桌面/iOS 的空实现：检查恒 `(false, null)`，无本地包，解析不到下载地址。 */
 object NoopUpdateController : UpdateController {
     override val currentVersion: String get() = "未知"
     override fun checkForUpdate(source: String, channel: String): Pair<Boolean, UpdateRelease?> =
@@ -106,8 +104,6 @@ object NoopUpdateController : UpdateController {
         onFinished: (() -> Unit)?,
     ) {}
 }
-
-// 版本比较独立成文件：纯字符串逻辑、无平台 API，供 `:ui-shared`（`UpdateDialog`）共用。
 
 /**
  * 解析版本号为数字序列。

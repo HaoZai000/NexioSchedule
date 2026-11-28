@@ -61,6 +61,7 @@ import com.haooz.chedule.data.platform.createHttpService
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.storage.AppStorage
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ReminderStr
@@ -223,7 +224,6 @@ private fun ClassroomPreviewRow(
     }
 }
 
-/** 两位补零（原 `%02d`；commonMain 没有字符串格式化器，用 padStart 等价实现） */
 private fun pad2(n: Int): String = n.toString().padStart(2, '0')
 
 /** `HH:mm` 两位补零（原 `%02d:%02d`） */
@@ -247,7 +247,6 @@ fun CourseReminderScreen(
     settingsViewModel: SettingsViewModel = settingsViewModel(),
     scrollBehavior: SharedScrollBehavior? = null,
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
-    /** 提醒控制器（Android = AndroidReminderController 包装）；桌面/iOS 用 NoopReminderController */
     reminderController: ReminderController = NoopReminderController,
     /** 本平台没有对应系统概念的权限行，默认全部展示（Android/iOS 行为不变） */
     hiddenPermissionRows: Set<ReminderPermissionRow> = emptySet(),
@@ -399,7 +398,6 @@ fun CourseReminderScreen(
     }
     var permissionRefreshKey by remember { mutableIntStateOf(0) }
     // 电池优化 / 自启动设置页返回：重读「已忽略电池优化」并触发权限刷新
-    // （原 batteryOptLauncher 与 autoStartLauncher 的回调逐字相同，合并为一个）
     val onBatterySettingsResult: () -> Unit = {
         isIgnoringBattery = reminderController.isIgnoringBatteryOptimizations()
         permissionRefreshKey++
@@ -407,12 +405,14 @@ fun CourseReminderScreen(
     var canPostPromoted by remember { mutableStateOf(false) }
     var canScheduleExactAlarms by remember { mutableStateOf(true) }
     var dndPermissionGranted by remember { mutableStateOf(false) }
+    var dndPermissionPending by remember { mutableStateOf(false) }
     var notificationGranted by remember { mutableStateOf(false) }
     // 勿扰授权页返回：重读勿扰权限 → 触发权限刷新 → 已授权且总开关开着则重启提醒服务。
     // rememberUpdatedState：回调在从系统设置返回时才触发，保证拿到最新组合的 masterEnabled
     // （对齐原 rememberLauncherForActivityResult 的 rememberUpdatedState 回调语义；
     //  调用点必须传 { onDndPermissionResult() }，让读取发生在结果返回时）
     val onDndPermissionResult by rememberUpdatedState<() -> Unit> {
+        dndPermissionPending = false
         dndPermissionGranted = reminderController.isDndPermissionGranted()
         rlog("permission_dnd_result", "granted=$dndPermissionGranted")
         permissionRefreshKey++
@@ -473,7 +473,6 @@ fun CourseReminderScreen(
     }
 
     var pendingPermissionAction by remember { mutableStateOf<Boolean?>(null) }
-    // 通知权限弹窗返回（body 只读状态持有者，逐字保留原 launcher 回调逻辑）
     val onNotificationPermissionResult: (Boolean) -> Unit = { granted ->
         rlog("permission_notification_result", "granted=$granted pending=$pendingPermissionAction")
         notificationGranted = granted
@@ -499,6 +498,13 @@ fun CourseReminderScreen(
             pendingPermissionAction = null
             rlog("permission_notification_denied")
             showToast(ReminderStr.notificationPermissionRequired())
+        }
+    }
+
+    // 先记下请求，再启动授权；即使平台同步回调，两次同值开关事件也只启动一次。
+    LaunchedEffect(pendingPermissionAction) {
+        if (pendingPermissionAction != null) {
+            reminderController.requestNotificationPermission(onNotificationPermissionResult)
         }
     }
 
@@ -552,11 +558,12 @@ fun CourseReminderScreen(
                                 title = ReminderStr.enableReminders(),
                                 checked = masterEnabled,
                                 onCheckedChange = {
+                                    val currentMasterEnabled = settingsViewModel.preClassReminder.value || settingsViewModel.nextDayReminder.value
+                                    if (it == currentMasterEnabled || pendingPermissionAction != null) return@SwitchPreference
                                     val hasPermission = reminderController.hasNotificationPermission()
                                     if (!hasPermission) {
                                         rlog("master_switch_permission_blocked", "want=$it")
                                         pendingPermissionAction = it
-                                        reminderController.requestNotificationPermission(onNotificationPermissionResult)
                                         return@SwitchPreference
                                     }
                                     rlog("master_switch", "on=$it")
@@ -590,11 +597,11 @@ fun CourseReminderScreen(
                                 checked = preClassReminder,
                                 enabled = masterEnabled,
                                 onCheckedChange = {
+                                    if (it == settingsViewModel.preClassReminder.value || pendingPermissionAction != null) return@SwitchPreference
                                     val hasPermission = reminderController.hasNotificationPermission()
                                     if (!hasPermission) {
                                         rlog("preclass_permission_blocked", "want=$it")
                                         pendingPermissionAction = it
-                                        reminderController.requestNotificationPermission(onNotificationPermissionResult)
                                         return@SwitchPreference
                                     }
                                     rlog("preclass_switch", "on=$it")
@@ -669,11 +676,11 @@ fun CourseReminderScreen(
                                 checked = nextDayReminder,
                                 enabled = masterEnabled,
                                 onCheckedChange = {
+                                    if (it == settingsViewModel.nextDayReminder.value || pendingPermissionAction != null) return@SwitchPreference
                                     val hasPermission = reminderController.hasNotificationPermission()
                                     if (!hasPermission) {
                                         rlog("nextday_permission_blocked", "want=$it")
                                         pendingPermissionAction = it
-                                        reminderController.requestNotificationPermission(onNotificationPermissionResult)
                                         return@SwitchPreference
                                     }
                                     rlog("nextday_switch", "on=$it")
@@ -710,6 +717,7 @@ fun CourseReminderScreen(
                                 checked = inClassEnabled,
                                 enabled = masterEnabled,
                                 onCheckedChange = {
+                                    if (it == inClassEnabled) return@SwitchPreference
                                     rlog("inclass_switch", "on=$it")
                                     inClassEnabled = it
                                     reminderPrefs.edit { putBoolean(ReminderController.KEY_IN_CLASS, it) }
@@ -753,9 +761,11 @@ fun CourseReminderScreen(
                                 // 仅受总开关约束：无权限时仍可点开，会跳到授权卡片引导
                                 enabled = masterEnabled,
                                 onCheckedChange = { enable ->
+                                    if (enable == settingsViewModel.classDndEnabled.value || dndPermissionPending) return@SwitchPreference
                                     rlog("dnd_switch", "on=$enable perm=$dndPermissionGranted")
                                     settingsViewModel.setClassDndEnabled(enable)
                                     if (enable && !reminderController.isDndPermissionGranted()) {
+                                        dndPermissionPending = true
                                         rlog("dnd_permission_launch")
                                         reminderController.openNotificationAccessSettings { onDndPermissionResult() }
                                     }
@@ -835,6 +845,7 @@ fun CourseReminderScreen(
                                     },
                                     checked = islandNotification,
                                     onCheckedChange = {
+                                        if (it == settingsViewModel.islandNotification.value) return@SwitchPreference
                                         rlog("island_switch", "on=$it hyper=$isHyperIsland")
                                         settingsViewModel.setIslandNotification(it)
                                     }
@@ -1191,7 +1202,7 @@ fun CourseReminderScreen(
                                                         )
                                                         aiShrinking = true
                                                         scope.launch {
-                                                            val outcome = runCatching {
+                                                            val outcome = suspendRunCatching {
                                                                 AiClient(createHttpService(AI_TIMEOUTS))
                                                                     .shrinkLabels(
                                                                         classrooms = previewClassrooms.take(60),
@@ -1322,7 +1333,6 @@ fun CourseReminderScreen(
                                             rlog("permission_promoted_click", "granted=$canPostPromoted")
                                             if (!canPostPromoted) {
                                                 rlog("permission_promoted_launch")
-                                                // 首选「实况通知管理页」、失败退回「应用通知设置」的兜底在 Android 包装层内逐字保留
                                                 reminderController.openPromotedNotificationSettings(onPromotedSettingsResult)
                                             }
                                         }
@@ -1373,7 +1383,6 @@ fun CourseReminderScreen(
                                         rlog("permission_battery_click", "ignoring=$isIgnoringBattery")
                                         if (!isIgnoringBattery) {
                                             rlog("permission_battery_launch")
-                                            // 首选「请求忽略电池优化」、失败退回「白名单列表」的兜底在 Android 包装层内逐字保留
                                             reminderController.openBatteryOptimizationSettings(onBatterySettingsResult)
                                         }
                                     }

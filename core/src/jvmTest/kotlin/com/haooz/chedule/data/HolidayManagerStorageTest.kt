@@ -14,24 +14,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * `HolidayManager` 的**存量数据兼容回归**。
- *
- * ## 为什么必须有这份测试
- *
- * `HolidayManager` 从 `:app` 下沉 `:core` 时换掉了三样东西，每一样都能静默毁掉用户数据：
- *
- * | 换掉 | 风险 |
- * |---|---|
- * | `SharedPreferences` → `KeyValueStore` | 偏好文件名 / 键名写错 → 用户数据读不出来 |
- * | `org.json` → `JsonSupport` | 类型判断语义变了 → 合法数据被判为非法，**整行被丢弃** |
- * | Gson → `JsonSupport` | 备份里的条目行解析语义变了 → 导入备份丢数据 |
- *
- * 这里用**真实的存量串**（迁移前 org.json 写出来的那种）做 round-trip：
- * 读得进来 + 原样写得回去。
- *
- * ⚠ 本文件不入库（用户长期要求）。
- */
+/** 用固定 JSON 样本验证节假日条目的存储与备份兼容性。 */
 class HolidayManagerStorageTest {
 
     private lateinit var store: InMemoryKeyValueStore
@@ -48,10 +31,7 @@ class HolidayManagerStorageTest {
 
     // ── 落盘格式 ────────────────────────────────
 
-    /**
-     * 基准字面量 = 迁移前 org.json 的产出形状：
-     * 紧凑无空格、字段按插入顺序、数字不带小数点、空串就是 `""`。
-     */
+    // 存储格式使用紧凑 JSON；样本也校验字段顺序和整数表示。
     private val holidayRow2026 =
         """{"date":"2026-10-01","endDate":"2026-10-08","name":"国庆节","type":0,""" +
             """"followDate":"","followWeek":-1,"followWeekday":-1,"custom":false}"""
@@ -117,13 +97,12 @@ class HolidayManagerStorageTest {
         freshStore(mapOf("entries_2026" to "[$holidayRow2026,$workSwapRow2026]"))
         val loaded = HolidayManager.load(2026)
         assertTrue(HolidayManager.save(2026, loaded))
-        // 原实现写盘前 `entries.sortedBy { it.date }`，所以 09-20 会排到 10-01 前面 —— 这是
-        // 迁移前就有的行为，不是本次改动引入的。行内容本身逐字未变。
+        // 写入时按日期排序，行内容保持不变。
         assertEquals("[$workSwapRow2026,$holidayRow2026]", store.getString("entries_2026", ""))
         assertEquals(loaded.toSet(), HolidayManager.load(2026).toSet())
     }
 
-    // ── 解析的容错语义（org.json 的 opt 判定）──────
+    // ── 存储条目的校验 ──
 
     @Test
     fun `缺字段或类型不符的行被丢弃而不是整批失败`() {
@@ -132,7 +111,7 @@ class HolidayManagerStorageTest {
             """{"date":"2026-01-01","endDate":"","name":"元旦","type":0}""",
             // 缺 name
             """{"date":"2026-01-02","endDate":"","type":0}""",
-            // name 不是字符串（org.json 的 opt(key) as? String 会失败）
+            // name 不是字符串
             """{"date":"2026-01-03","endDate":"","name":123,"type":0}""",
             // type 不是整数
             """{"date":"2026-01-04","endDate":"","name":"x","type":"0"}""",
@@ -190,8 +169,7 @@ class HolidayManagerStorageTest {
                 "version" to 123L,
             ),
         )
-        // ⚠ `entries_20261` **是**合法键：原实现的判据是「去掉前缀后能 toInt 且 toString 回来一模一样」，
-        // 20261 满足。这里如实锁住，避免有人"顺手修正"成 4 位数而改变存量行为。
+        // 年份后缀按十进制整数往返校验，不限于四位。
         assertEquals(setOf(2025, 2026, 20261), HolidayManager.loadAllByYear().keys)
     }
 
@@ -354,6 +332,18 @@ class HolidayManagerStorageTest {
         assertTrue(HolidayManager.parseApiResponse("""{"year":2026}""").isEmpty())
         assertTrue(HolidayManager.parseApiResponse("not json").isEmpty())
         assertTrue(HolidayManager.parseApiResponse("[]").isEmpty())
+    }
+
+    @Test
+    fun `严格解析区分无节假日与无效响应`() {
+        for ((source, emptyResponse) in listOf(
+            HolidayManager.SOURCE_HOLIDAY_CALENDAR to """{"dates":[]}""",
+            HolidayManager.SOURCE_APIHUBS to """{"data":{"list":[]}}""",
+        )) {
+            HolidayManager.setHolidaySource(source)
+            assertTrue(HolidayManager.parseSourceResponseOrThrow(emptyResponse).isEmpty())
+            assertFailsWith<IllegalArgumentException> { HolidayManager.parseSourceResponseOrThrow("{}") }
+        }
     }
 
     @Test

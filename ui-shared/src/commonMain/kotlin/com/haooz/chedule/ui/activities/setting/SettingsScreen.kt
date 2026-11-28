@@ -131,13 +131,8 @@ internal fun parseDate(dateStr: String): Triple<Int, Int, Int> {
     }
 }
 
-internal fun getDaysInMonth(year: Int, month: Int): Int {
-    return try {
-        LocalDate(year, month, 1).lengthOfMonth()
-    } catch (_: Exception) {
-        31
-    }
-}
+internal fun getDaysInMonth(year: Int, month: Int): Int =
+    if (month in 1..12) LocalDate(year, month, 1).lengthOfMonth() else 31
 
 /** 带图标的设置入口行：[expanded] 非空为展开项，空为二级页入口；[summary] 为空时只画标题。 */
 @Composable

@@ -426,13 +426,15 @@ object CourseReminderHelper {
                     pendingIntent
                 )
                 return
-            } catch (_: SecurityException) {
+            } catch (e: SecurityException) {
+                NexioLog.w(TAG, "Course boundary alarm denied; trying inexact alarm", e)
             }
         }
         // 未授予精准闹钟权限（或调用被拒）：退回非精准闹钟，保证提醒仍会触发（时间可能有少量偏差）
         try {
             alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            NexioLog.e(TAG, "Failed to schedule course boundary alarm at $triggerAt", e)
         }
     }
 
@@ -453,12 +455,14 @@ object CourseReminderHelper {
                     pendingIntent
                 )
                 return
-            } catch (_: SecurityException) {
+            } catch (e: SecurityException) {
+                NexioLog.w(TAG, "Exact reminder alarm denied; trying inexact alarm", e)
             }
         }
         try {
             alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            NexioLog.e(TAG, "Failed to schedule reminder alarm at $triggerAt", e)
         }
     }
 
@@ -519,7 +523,11 @@ object CourseReminderHelper {
             }
             // 全量重排 + 写 SP，放后台线程，别占主线程
             Thread {
-                runCatching { doStartReminderService(app, CourseRepository(), fromCoalesced = true) }
+                try {
+                    doStartReminderService(app, CourseRepository(), fromCoalesced = true)
+                } catch (e: Exception) {
+                    NexioLog.e(TAG, "Coalesced reminder service start failed", e)
+                }
             }.apply {
                 isDaemon = true
                 name = "reminder-coalesced"
@@ -683,11 +691,16 @@ object CourseReminderHelper {
         val fallbackStartTime = prefs.getString("startTime", "").orEmpty()
         val fallbackCustom = prefs.getBoolean("custom_time", false)
         // 尽量从当前课表取回教师/地点/自定义时间标记，让重发出来的岛与正常路径一致
-        val course = runCatching { getTodayCourses(context) }.getOrDefault(emptyList())
-            .firstOrNull { candidate ->
-                candidate.name == courseName &&
-                    hasSameLocalMinute(getCourseStartTime(candidate, repository), startMillis)
-            }
+        val todayCourses = try {
+            getTodayCourses(context)
+        } catch (e: Exception) {
+            NexioLog.e(TAG, "Failed to load today's courses for island notification", e)
+            emptyList()
+        }
+        val course = todayCourses.firstOrNull { candidate ->
+            candidate.name == courseName &&
+                hasSameLocalMinute(getCourseStartTime(candidate, repository), startMillis)
+        }
         val classroom = course?.classroom ?: fallbackClassroom
         val section = course?.getTimeDisplayText() ?: fallbackSection
         val startTime = course?.let { getCourseStartTime(it, repository) } ?: fallbackStartTime
@@ -1393,9 +1406,7 @@ object CourseReminderHelper {
         classroom: String,
         section: String,
     ): Boolean {
-        val date = runCatching {
-            localDateTimeAt(startMillis).date
-        }.getOrNull() ?: return false
+        val date = localDateTimeAt(startMillis).date
         val resolution = resolveDaySchedule(context, date, repository)
         return resolution.courses.any { course ->
             course.name == courseName &&

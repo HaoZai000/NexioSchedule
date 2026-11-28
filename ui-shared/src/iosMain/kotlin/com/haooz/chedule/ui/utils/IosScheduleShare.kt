@@ -42,28 +42,16 @@ import platform.UIKit.UIPasteboard
 import platform.UIKit.UIPopoverPresentationController
 import platform.UIKit.popoverPresentationController
 
-/**
- * iOS 的「分享课表」全流程（对应 Android `ScheduleExport.performScheduleShare`）。
- *
- * 流程：共享层读课表 → 序列化成 JSON → POST 口令服务（共享 `HttpService` = NSURLSession）
- * → 口令复制到剪贴板（`UIPasteboard`）→ 模板图绘口令 → PNG → `UIActivityViewController` 分享。
- *
- * 上传 + JSON 是跨平台的，但 Android 现有 `ShareCodeApi` 还在用 OkHttp + JSONObject；
- * 为 Android 零回归，这里仅 iOS 侧重写、复用共享网络与 JSON 层，不动 Android 那份。
- *
- * 出图必须用 skia：iOS 没有 `android.graphics`，在模板 1417×1417、口令框 (121,600)-(1296,775)
- * 上绘字，常量与 Android `ShareImageGenerator` 逐字一致，保证两端观感一致。
- */
+/** 创建分享口令，复制到剪贴板，并通过系统分享面板发送口令卡片。 */
 object IosScheduleShare {
 
     private const val BASE_URL = ApiEndpoints.SHARE
 
-    // 与 Android ShareCodeApi 的连接池配置对齐
     private val http: HttpService by lazy {
         createHttpService(HttpTimeouts(connectSeconds = 12, readSeconds = 20, callSeconds = 30))
     }
 
-    // ── 模板常量：与 Android ShareImageGenerator 逐字一致 ──
+    // 口令框坐标使用模板图的像素坐标系。
     private const val TEMPLATE_ASSET = "drawable/share_card_template.png"
     private const val CODE_BOX_LEFT = 121f
     private const val CODE_BOX_TOP = 600f
@@ -119,7 +107,7 @@ object IosScheduleShare {
         }
     }
 
-    /** 上传课表创建分享口令；失败返回带原文案原因的 failure（与 Android 同一套文案） */
+    /** 返回分享口令和以分钟计的有效期。 */
     private suspend fun createShare(
         scheduleName: String,
         scheduleJson: String,
@@ -143,7 +131,7 @@ object IosScheduleShare {
                 if (code.isBlank()) {
                     return@withContext Result.failure(IllegalStateException(L("服务器未返回口令", "The server did not return a share code")()))
                 }
-                // 有效期以服务端 expires_in 为准（与 Android 同口径），别再写死 30 分钟
+                // 服务端有效期以秒计，向上取整为分钟。
                 val validMinutes = ((parsed?.optInt("expires_in", 1800) ?: 1800) + 59) / 60
                 Result.success(code to validMinutes.coerceAtLeast(1))
             } catch (e: Exception) {
@@ -176,7 +164,6 @@ object IosScheduleShare {
         val canvas = Canvas(bitmap)
         canvas.drawImage(template, 0f, 0f)
 
-        // 与 Android 同一套尺寸推算：先按框高给上限，再按字数收缩，下限 36
         val boxWidth = CODE_BOX_RIGHT - CODE_BOX_LEFT
         val boxHeight = CODE_BOX_BOTTOM - CODE_BOX_TOP
         val centerX = (CODE_BOX_LEFT + CODE_BOX_RIGHT) / 2f
@@ -201,7 +188,6 @@ object IosScheduleShare {
         return Image.makeFromBitmap(bitmap).encodeToData()?.bytes
     }
 
-    /** PNG 字节 → UIImage → 系统分享面板；文本与 Android 的分享文案逐字一致 */
     private fun presentShareSheet(
         png: ByteArray,
         code: String,
