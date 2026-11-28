@@ -407,12 +407,14 @@ fun CourseReminderScreen(
     var canPostPromoted by remember { mutableStateOf(false) }
     var canScheduleExactAlarms by remember { mutableStateOf(true) }
     var dndPermissionGranted by remember { mutableStateOf(false) }
+    var dndPermissionPending by remember { mutableStateOf(false) }
     var notificationGranted by remember { mutableStateOf(false) }
     // 勿扰授权页返回：重读勿扰权限 → 触发权限刷新 → 已授权且总开关开着则重启提醒服务。
     // rememberUpdatedState：回调在从系统设置返回时才触发，保证拿到最新组合的 masterEnabled
     // （对齐原 rememberLauncherForActivityResult 的 rememberUpdatedState 回调语义；
     //  调用点必须传 { onDndPermissionResult() }，让读取发生在结果返回时）
     val onDndPermissionResult by rememberUpdatedState<() -> Unit> {
+        dndPermissionPending = false
         dndPermissionGranted = reminderController.isDndPermissionGranted()
         rlog("permission_dnd_result", "granted=$dndPermissionGranted")
         permissionRefreshKey++
@@ -502,6 +504,13 @@ fun CourseReminderScreen(
         }
     }
 
+    // 先记下请求，再启动授权；即使平台同步回调，两次同值开关事件也只启动一次。
+    LaunchedEffect(pendingPermissionAction) {
+        if (pendingPermissionAction != null) {
+            reminderController.requestNotificationPermission(onNotificationPermissionResult)
+        }
+    }
+
     val backgroundColor = NexioTheme.colorScheme.surface
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
         containerColor = Color.Transparent,
@@ -552,11 +561,12 @@ fun CourseReminderScreen(
                                 title = ReminderStr.enableReminders(),
                                 checked = masterEnabled,
                                 onCheckedChange = {
+                                    val currentMasterEnabled = settingsViewModel.preClassReminder.value || settingsViewModel.nextDayReminder.value
+                                    if (it == currentMasterEnabled || pendingPermissionAction != null) return@SwitchPreference
                                     val hasPermission = reminderController.hasNotificationPermission()
                                     if (!hasPermission) {
                                         rlog("master_switch_permission_blocked", "want=$it")
                                         pendingPermissionAction = it
-                                        reminderController.requestNotificationPermission(onNotificationPermissionResult)
                                         return@SwitchPreference
                                     }
                                     rlog("master_switch", "on=$it")
@@ -590,11 +600,11 @@ fun CourseReminderScreen(
                                 checked = preClassReminder,
                                 enabled = masterEnabled,
                                 onCheckedChange = {
+                                    if (it == settingsViewModel.preClassReminder.value || pendingPermissionAction != null) return@SwitchPreference
                                     val hasPermission = reminderController.hasNotificationPermission()
                                     if (!hasPermission) {
                                         rlog("preclass_permission_blocked", "want=$it")
                                         pendingPermissionAction = it
-                                        reminderController.requestNotificationPermission(onNotificationPermissionResult)
                                         return@SwitchPreference
                                     }
                                     rlog("preclass_switch", "on=$it")
@@ -669,11 +679,11 @@ fun CourseReminderScreen(
                                 checked = nextDayReminder,
                                 enabled = masterEnabled,
                                 onCheckedChange = {
+                                    if (it == settingsViewModel.nextDayReminder.value || pendingPermissionAction != null) return@SwitchPreference
                                     val hasPermission = reminderController.hasNotificationPermission()
                                     if (!hasPermission) {
                                         rlog("nextday_permission_blocked", "want=$it")
                                         pendingPermissionAction = it
-                                        reminderController.requestNotificationPermission(onNotificationPermissionResult)
                                         return@SwitchPreference
                                     }
                                     rlog("nextday_switch", "on=$it")
@@ -710,6 +720,7 @@ fun CourseReminderScreen(
                                 checked = inClassEnabled,
                                 enabled = masterEnabled,
                                 onCheckedChange = {
+                                    if (it == inClassEnabled) return@SwitchPreference
                                     rlog("inclass_switch", "on=$it")
                                     inClassEnabled = it
                                     reminderPrefs.edit { putBoolean(ReminderController.KEY_IN_CLASS, it) }
@@ -753,9 +764,11 @@ fun CourseReminderScreen(
                                 // 仅受总开关约束：无权限时仍可点开，会跳到授权卡片引导
                                 enabled = masterEnabled,
                                 onCheckedChange = { enable ->
+                                    if (enable == settingsViewModel.classDndEnabled.value || dndPermissionPending) return@SwitchPreference
                                     rlog("dnd_switch", "on=$enable perm=$dndPermissionGranted")
                                     settingsViewModel.setClassDndEnabled(enable)
                                     if (enable && !reminderController.isDndPermissionGranted()) {
+                                        dndPermissionPending = true
                                         rlog("dnd_permission_launch")
                                         reminderController.openNotificationAccessSettings { onDndPermissionResult() }
                                     }
@@ -835,6 +848,7 @@ fun CourseReminderScreen(
                                     },
                                     checked = islandNotification,
                                     onCheckedChange = {
+                                        if (it == settingsViewModel.islandNotification.value) return@SwitchPreference
                                         rlog("island_switch", "on=$it hyper=$isHyperIsland")
                                         settingsViewModel.setIslandNotification(it)
                                     }

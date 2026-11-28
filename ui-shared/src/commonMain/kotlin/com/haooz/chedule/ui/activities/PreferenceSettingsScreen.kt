@@ -330,6 +330,7 @@ fun PreferenceSettingsScreen(
                                 checked = trueProgressiveBlurEnabled,
                                 enabled = effectiveMaterialLevel != AppMaterialSettings.NONE,
                                 onCheckedChange = { enabled ->
+                                    if (enabled == trueProgressiveBlurEnabled) return@SwitchPreference
                                     FeatureLog.preference("true_progressive_blur=$enabled")
                                     trueProgressiveBlurEnabled = enabled
                                     AppMaterialSettings.applyTrueProgressiveBlur(enabled)
@@ -447,6 +448,7 @@ fun PreferenceSettingsScreen(
                                     summary = PreferenceStr.hideFromRecentsSummary(),
                                     checked = hideBackground,
                                     onCheckedChange = {
+                                        if (it == hideBackground) return@SwitchPreference
                                         hideBackground = it
                                         appPrefs.edit { putBoolean("hide_background", it) }
                                         onSetTaskExcludedFromRecents(it)
