@@ -261,7 +261,10 @@ fun TimeRoutine.toJsonMap(): Map<String, Any?> = mapOf(
     "quickTimeEnabled" to quickTimeEnabled,
     "classDuration" to classDuration,
     "shortBreak" to shortBreak,
-    "longBreakEnabled" to longBreakEnabled,
+    "longBreakEnabled" to (longBreakMorningEnabled || longBreakAfternoonEnabled || longBreakEveningEnabled),
+    "longBreakMorningEnabled" to longBreakMorningEnabled,
+    "longBreakAfternoonEnabled" to longBreakAfternoonEnabled,
+    "longBreakEveningEnabled" to longBreakEveningEnabled,
     "longBreakMorning" to longBreakMorning,
     "longBreakAfternoon" to longBreakAfternoon,
     "longBreakEvening" to longBreakEvening,
@@ -289,7 +292,10 @@ fun TimeConfig.toJsonMap(): Map<String, Any?> = mapOf(
     "quickTimeEnabled" to quickTimeEnabled,
     "classDuration" to classDuration,
     "shortBreak" to shortBreak,
-    "longBreakEnabled" to longBreakEnabled,
+    "longBreakEnabled" to (longBreakMorningEnabled || longBreakAfternoonEnabled || longBreakEveningEnabled),
+    "longBreakMorningEnabled" to longBreakMorningEnabled,
+    "longBreakAfternoonEnabled" to longBreakAfternoonEnabled,
+    "longBreakEveningEnabled" to longBreakEveningEnabled,
     "longBreakMorning" to longBreakMorning,
     "longBreakAfternoon" to longBreakAfternoon,
     "longBreakEvening" to longBreakEvening,
@@ -315,6 +321,7 @@ fun TimeConfig.toJsonMap(): Map<String, Any?> = mapOf(
 fun timeConfigFromJsonMap(map: Map<*, *>): TimeConfig {
     // 以 TimeConfig() 作底，再只覆盖 JSON 里出现过的字段
     val base = TimeConfig()
+    val legacyEnabled = map.bool("longBreakEnabled", base.longBreakEnabled)
     return base.copy(
         id = map.long("id", base.id),
         // 非空类型 + JSON 里显式 null → Gson 会塞 null；这里直接给底值，sanitize 后结果相同
@@ -325,7 +332,10 @@ fun timeConfigFromJsonMap(map: Map<*, *>): TimeConfig {
         quickTimeEnabled = map.bool("quickTimeEnabled", base.quickTimeEnabled),
         classDuration = map.int("classDuration", base.classDuration),
         shortBreak = map.int("shortBreak", base.shortBreak),
-        longBreakEnabled = map.bool("longBreakEnabled", base.longBreakEnabled),
+        longBreakEnabled = legacyEnabled,
+        longBreakMorningEnabled = map.bool("longBreakMorningEnabled", legacyEnabled),
+        longBreakAfternoonEnabled = map.bool("longBreakAfternoonEnabled", legacyEnabled),
+        longBreakEveningEnabled = map.bool("longBreakEveningEnabled", legacyEnabled),
         longBreakMorning = map.int("longBreakMorning", base.longBreakMorning),
         longBreakAfternoon = map.int("longBreakAfternoon", base.longBreakAfternoon),
         longBreakEvening = map.int("longBreakEvening", base.longBreakEvening),

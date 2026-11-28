@@ -1,8 +1,12 @@
 package com.haooz.chedule.data
 
+import com.haooz.chedule.data.backup.decodeTimeConfig
+import com.haooz.chedule.data.backup.encodeTimeConfig
 import com.haooz.chedule.data.model.TimeConfig
+import com.haooz.chedule.data.model.TimeRoutine
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * [TimeConfig.sanitize] 对大课间（longBreak）的夹取。
@@ -13,6 +17,39 @@ import kotlin.test.assertEquals
  * 所以下限是 0 而不是正数。
  */
 class TimeConfigSanitizeLongBreakTest {
+
+    @Test
+    fun `quick times use the enabled break for each period`() {
+        val config = TimeConfig(
+            quickTimeEnabled = true,
+            longBreakMorningEnabled = true,
+            longBreakAfternoonEnabled = false,
+            longBreakEveningEnabled = true,
+            longBreakEvening = 30,
+        )
+        assertEquals("10:00-10:45", config.getPeriodTimes("morning")[3])
+        assertEquals("15:50-16:35", config.getPeriodTimes("afternoon")[3])
+        assertEquals("20:40-21:25", config.getPeriodTimes("evening")[3])
+    }
+
+    @Test
+    fun `legacy flag enables all periods in configs and routines`() {
+        val config = decodeTimeConfig("""{"longBreakEnabled":true,"routines":[{"longBreakEnabled":true}]}""")
+        val routine = config.routines.single()
+        assertTrue(config.longBreakMorningEnabled && config.longBreakAfternoonEnabled && config.longBreakEveningEnabled)
+        assertTrue(routine.longBreakMorningEnabled && routine.longBreakAfternoonEnabled && routine.longBreakEveningEnabled)
+    }
+
+    @Test
+    fun `mixed period flags round trip and export an aggregate legacy flag`() {
+        val routine = TimeRoutine(longBreakMorningEnabled = true, longBreakEveningEnabled = true)
+        val config = TimeConfig(longBreakAfternoonEnabled = true, routines = listOf(routine))
+        val restored = decodeTimeConfig(encodeTimeConfig(config))
+        assertEquals(
+            config.copy(longBreakEnabled = true, routines = listOf(routine.copy(longBreakEnabled = true))),
+            restored,
+        )
+    }
 
     private fun sanitize(
         morning: Int = 20,

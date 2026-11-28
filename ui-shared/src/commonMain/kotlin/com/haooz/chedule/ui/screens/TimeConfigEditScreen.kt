@@ -97,7 +97,7 @@ import com.haooz.nexioui.textfield.TextField
 import com.haooz.nexioui.numberpicker.NumberPicker
 import com.haooz.nexioui.scaffold.Scaffold
 import com.haooz.nexioui.smalltitle.SmallTitle
-import com.haooz.nexioui.switch.Switch
+import com.haooz.nexioui.switchpreference.SwitchPreference
 import com.haooz.nexioui.button.FlatTextButton
 import com.haooz.nexioui.icon.NexioIcons
 import com.haooz.nexioui.icon.extended.Close
@@ -246,7 +246,9 @@ fun TimeConfigEditScreen(
     var quickExpanded by remember(timeConfig) { mutableStateOf(timeConfig.quickTimeEnabled) }
     var classDuration by remember(timeConfig) { mutableIntStateOf(timeConfig.classDuration) }
     var shortBreak by remember(timeConfig) { mutableIntStateOf(timeConfig.shortBreak) }
-    var longBreakEnabled by remember(timeConfig) { mutableStateOf(timeConfig.longBreakEnabled) }
+    var longBreakMorningEnabled by remember(timeConfig) { mutableStateOf(timeConfig.longBreakMorningEnabled) }
+    var longBreakAfternoonEnabled by remember(timeConfig) { mutableStateOf(timeConfig.longBreakAfternoonEnabled) }
+    var longBreakEveningEnabled by remember(timeConfig) { mutableStateOf(timeConfig.longBreakEveningEnabled) }
     var longBreakMorning by remember(timeConfig) { mutableIntStateOf(timeConfig.longBreakMorning) }
     var longBreakAfternoon by remember(timeConfig) { mutableIntStateOf(timeConfig.longBreakAfternoon) }
     var longBreakEvening by remember(timeConfig) { mutableIntStateOf(timeConfig.longBreakEvening) }
@@ -465,7 +467,10 @@ fun TimeConfigEditScreen(
             quickTimeEnabled = false,
             classDuration = classDuration,
             shortBreak = shortBreak,
-            longBreakEnabled = longBreakEnabled,
+            longBreakEnabled = longBreakMorningEnabled || longBreakAfternoonEnabled || longBreakEveningEnabled,
+            longBreakMorningEnabled = longBreakMorningEnabled,
+            longBreakAfternoonEnabled = longBreakAfternoonEnabled,
+            longBreakEveningEnabled = longBreakEveningEnabled,
             longBreakMorning = longBreakMorning,
             longBreakAfternoon = longBreakAfternoon,
             longBreakEvening = longBreakEvening,
@@ -738,25 +743,11 @@ fun TimeConfigEditScreen(
                                         insideMargin = PaddingValues(0.dp)
                                     ) {
                                         Column(modifier = Modifier.fillMaxWidth()) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth()
-                                                    .clickable {
-                                                        quickExpanded = !quickExpanded
-                                                    }
-                                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    TimeEditStr.quickTimeSettings(),
-                                                    fontSize = 17.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = NexioTheme.colorScheme.onSurface
-                                                )
-                                                Switch(
-                                                    checked = quickExpanded,
-                                                    onCheckedChange = { quickExpanded = it })
-                                            }
+                                            SwitchPreference(
+                                                title = TimeEditStr.quickTimeSettings(),
+                                                checked = quickExpanded,
+                                                onCheckedChange = { quickExpanded = it },
+                                            )
                                             CardExpand(visible = quickExpanded) {
                                                 Column(modifier = Modifier.fillMaxWidth()) {
                                                     ArrowPreference(
@@ -794,89 +785,80 @@ fun TimeConfigEditScreen(
                                                         },
                                                         holdDownState = showQuickItemDialog && quickEditType == "short_break"
                                                     )
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth()
-                                                            .clickable {
-                                                                longBreakEnabled = !longBreakEnabled
-                                                            }.padding(
-                                                                horizontal = 16.dp,
-                                                                vertical = 14.dp
-                                                            ),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Text(
-                                                            TimeEditStr.longBreakTitle(),
-                                                            fontSize = 17.sp,
-                                                            fontWeight = FontWeight.Medium,
-                                                            color = NexioTheme.colorScheme.onSurface
+                                                    SwitchPreference(
+                                                        title = TimeEditStr.longBreakMorningTitle(),
+                                                        checked = longBreakMorningEnabled,
+                                                        onCheckedChange = { longBreakMorningEnabled = it },
+                                                    )
+                                                    CardExpand(visible = longBreakMorningEnabled) {
+                                                        ArrowPreference(
+                                                            title = TimeEditStr.longBreakMorningSetting(),
+                                                            endActions = {
+                                                                Text(
+                                                                    TimeEditStr.afterSectionMinutesN(longBreakMorningSection, longBreakMorning),
+                                                                    fontSize = 14.5.sp,
+                                                                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
+                                                                    textAlign = TextAlign.End,
+                                                                )
+                                                            },
+                                                            onClick = {
+                                                                quickEditType = "long_morning"
+                                                                quickTempSection = longBreakMorningSection
+                                                                quickTempValue = longBreakMorning
+                                                                showQuickItemDialog = true
+                                                            },
+                                                            holdDownState = showQuickItemDialog && quickEditType == "long_morning",
                                                         )
-                                                        Switch(
-                                                            checked = longBreakEnabled,
-                                                            onCheckedChange = {
-                                                                longBreakEnabled = it
-                                                            })
                                                     }
-                                                    CardExpand(visible = longBreakEnabled) {
-                                                        Column {
-                                                            ArrowPreference(
-                                                                title = TimeEditStr.longBreakMorningTitle(),
-                                                                endActions = {
-                                                                    Text(
-                                                                        TimeEditStr.afterSectionMinutesN(longBreakMorningSection, longBreakMorning),
-                                                                        fontSize = 14.5.sp,
-                                                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
-                                                                        textAlign = TextAlign.End,
-                                                                    )
-                                                                },
-                                                                onClick = {
-                                                                    quickEditType =
-                                                                        "long_morning"; quickTempSection =
-                                                                    longBreakMorningSection; quickTempValue =
-                                                                    longBreakMorning; showQuickItemDialog =
-                                                                    true
-                                                                },
-                                                                holdDownState = showQuickItemDialog && quickEditType == "long_morning"
-                                                            )
-                                                            ArrowPreference(
-                                                                title = TimeEditStr.longBreakAfternoonTitle(),
-                                                                endActions = {
-                                                                    Text(
-                                                                        TimeEditStr.afterSectionMinutesN(longBreakAfternoonSection, longBreakAfternoon),
-                                                                        fontSize = 14.5.sp,
-                                                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
-                                                                        textAlign = TextAlign.End,
-                                                                    )
-                                                                },
-                                                                onClick = {
-                                                                    quickEditType =
-                                                                        "long_afternoon"; quickTempSection =
-                                                                    longBreakAfternoonSection; quickTempValue =
-                                                                    longBreakAfternoon; showQuickItemDialog =
-                                                                    true
-                                                                },
-                                                                holdDownState = showQuickItemDialog && quickEditType == "long_afternoon"
-                                                            )
-                                                            ArrowPreference(
-                                                                title = TimeEditStr.longBreakEveningTitle(),
-                                                                endActions = {
-                                                                    Text(
-                                                                        TimeEditStr.afterSectionMinutesN(longBreakEveningSection, longBreakEvening),
-                                                                        fontSize = 14.5.sp,
-                                                                        color = NexioTheme.colorScheme.onSurfaceVariantActions,
-                                                                        textAlign = TextAlign.End,
-                                                                    )
-                                                                },
-                                                                onClick = {
-                                                                    quickEditType =
-                                                                        "long_evening"; quickTempSection =
-                                                                    longBreakEveningSection; quickTempValue =
-                                                                    longBreakEvening; showQuickItemDialog =
-                                                                    true
-                                                                },
-                                                                holdDownState = showQuickItemDialog && quickEditType == "long_evening"
-                                                            )
-                                                        }
+                                                    SwitchPreference(
+                                                        title = TimeEditStr.longBreakAfternoonTitle(),
+                                                        checked = longBreakAfternoonEnabled,
+                                                        onCheckedChange = { longBreakAfternoonEnabled = it },
+                                                    )
+                                                    CardExpand(visible = longBreakAfternoonEnabled) {
+                                                        ArrowPreference(
+                                                            title = TimeEditStr.longBreakAfternoonSetting(),
+                                                            endActions = {
+                                                                Text(
+                                                                    TimeEditStr.afterSectionMinutesN(longBreakAfternoonSection, longBreakAfternoon),
+                                                                    fontSize = 14.5.sp,
+                                                                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
+                                                                    textAlign = TextAlign.End,
+                                                                )
+                                                            },
+                                                            onClick = {
+                                                                quickEditType = "long_afternoon"
+                                                                quickTempSection = longBreakAfternoonSection
+                                                                quickTempValue = longBreakAfternoon
+                                                                showQuickItemDialog = true
+                                                            },
+                                                            holdDownState = showQuickItemDialog && quickEditType == "long_afternoon",
+                                                        )
+                                                    }
+                                                    SwitchPreference(
+                                                        title = TimeEditStr.longBreakEveningTitle(),
+                                                        checked = longBreakEveningEnabled,
+                                                        onCheckedChange = { longBreakEveningEnabled = it },
+                                                    )
+                                                    CardExpand(visible = longBreakEveningEnabled) {
+                                                        ArrowPreference(
+                                                            title = TimeEditStr.longBreakEveningSetting(),
+                                                            endActions = {
+                                                                Text(
+                                                                    TimeEditStr.afterSectionMinutesN(longBreakEveningSection, longBreakEvening),
+                                                                    fontSize = 14.5.sp,
+                                                                    color = NexioTheme.colorScheme.onSurfaceVariantActions,
+                                                                    textAlign = TextAlign.End,
+                                                                )
+                                                            },
+                                                            onClick = {
+                                                                quickEditType = "long_evening"
+                                                                quickTempSection = longBreakEveningSection
+                                                                quickTempValue = longBreakEvening
+                                                                showQuickItemDialog = true
+                                                            },
+                                                            holdDownState = showQuickItemDialog && quickEditType == "long_evening",
+                                                        )
                                                     }
                                                     ArrowPreference(
                                                         title = TimeEditStr.morningStartTitle(),
@@ -951,17 +933,11 @@ fun TimeConfigEditScreen(
                                                                 HapticFeedbackType.Confirm
                                                             )
                                                             val lbM =
-                                                                if (longBreakEnabled) longBreakMorning else shortBreak
+                                                                if (longBreakMorningEnabled) longBreakMorning else shortBreak
                                                             val lbA =
-                                                                if (longBreakEnabled) longBreakAfternoon else shortBreak
+                                                                if (longBreakAfternoonEnabled) longBreakAfternoon else shortBreak
                                                             val lbE =
-                                                                if (longBreakEnabled) longBreakEvening else shortBreak
-                                                            val lbsM =
-                                                                if (longBreakEnabled) longBreakMorningSection else 2
-                                                            val lbsA =
-                                                                if (longBreakEnabled) longBreakAfternoonSection else 2
-                                                            val lbsE =
-                                                                if (longBreakEnabled) longBreakEveningSection else 2
+                                                                if (longBreakEveningEnabled) longBreakEvening else shortBreak
                                                             morningTimes =
                                                                 Course.calculatePeriodTimes(
                                                                     morningSections,
@@ -970,7 +946,7 @@ fun TimeConfigEditScreen(
                                                                     classDuration,
                                                                     shortBreak,
                                                                     lbM,
-                                                                    lbsM
+                                                                    longBreakMorningSection
                                                                 )
                                                             afternoonTimes =
                                                                 Course.calculatePeriodTimes(
@@ -980,7 +956,7 @@ fun TimeConfigEditScreen(
                                                                     classDuration,
                                                                     shortBreak,
                                                                     lbA,
-                                                                    lbsA
+                                                                    longBreakAfternoonSection
                                                                 )
                                                             eveningTimes =
                                                                 Course.calculatePeriodTimes(
@@ -990,7 +966,7 @@ fun TimeConfigEditScreen(
                                                                     classDuration,
                                                                     shortBreak,
                                                                     lbE,
-                                                                    lbsE
+                                                                    longBreakEveningSection
                                                                 )
                                                             showToast(TimeEditStr.timeApplied())
                                                         },

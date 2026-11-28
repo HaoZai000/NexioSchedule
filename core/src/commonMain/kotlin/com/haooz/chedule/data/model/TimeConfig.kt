@@ -24,6 +24,9 @@ data class TimeRoutine(
     val shortBreak: Int = 10,
 
     val longBreakEnabled: Boolean = false,
+    val longBreakMorningEnabled: Boolean = longBreakEnabled,
+    val longBreakAfternoonEnabled: Boolean = longBreakEnabled,
+    val longBreakEveningEnabled: Boolean = longBreakEnabled,
     val longBreakMorning: Int = 20,
     val longBreakAfternoon: Int = 20,
     val longBreakEvening: Int = 20,
@@ -95,6 +98,9 @@ data class TimeRoutine(
                 classDuration = if (raw.classDuration > 0) raw.classDuration else 45,
                 shortBreak = if (raw.shortBreak >= 0) raw.shortBreak else 10,
                 longBreakEnabled = raw.longBreakEnabled,
+                longBreakMorningEnabled = raw.longBreakMorningEnabled,
+                longBreakAfternoonEnabled = raw.longBreakAfternoonEnabled,
+                longBreakEveningEnabled = raw.longBreakEveningEnabled,
                 longBreakMorning = raw.longBreakMorning,
                 longBreakAfternoon = raw.longBreakAfternoon,
                 longBreakEvening = raw.longBreakEvening,
@@ -117,6 +123,7 @@ data class TimeRoutine(
             )
 
             is Map<*, *> -> {
+                val legacyEnabled = raw["longBreakEnabled"] as? Boolean ?: false
                 val sectionTimes = stringMap(raw["sectionTimes"])
                 val sectionNames = stringMap(raw["sectionNames"])
                 val blocks = (raw["specialBlocks"] as? List<*>)?.mapNotNull { SpecialBlock.fromRaw(it) }
@@ -131,7 +138,10 @@ data class TimeRoutine(
                     quickTimeEnabled = raw["quickTimeEnabled"] as? Boolean ?: false,
                     classDuration = (raw["classDuration"] as? Number)?.toInt()?.takeIf { it > 0 } ?: 45,
                     shortBreak = (raw["shortBreak"] as? Number)?.toInt()?.takeIf { it >= 0 } ?: 10,
-                    longBreakEnabled = raw["longBreakEnabled"] as? Boolean ?: false,
+                    longBreakEnabled = legacyEnabled,
+                    longBreakMorningEnabled = raw["longBreakMorningEnabled"] as? Boolean ?: legacyEnabled,
+                    longBreakAfternoonEnabled = raw["longBreakAfternoonEnabled"] as? Boolean ?: legacyEnabled,
+                    longBreakEveningEnabled = raw["longBreakEveningEnabled"] as? Boolean ?: legacyEnabled,
                     longBreakMorning = (raw["longBreakMorning"] as? Number)?.toInt() ?: 20,
                     longBreakAfternoon = (raw["longBreakAfternoon"] as? Number)?.toInt() ?: 20,
                     longBreakEvening = (raw["longBreakEvening"] as? Number)?.toInt() ?: 20,
@@ -241,6 +251,9 @@ data class TimeConfig(
     val shortBreak: Int = 10,
 
     val longBreakEnabled: Boolean = false,
+    val longBreakMorningEnabled: Boolean = longBreakEnabled,
+    val longBreakAfternoonEnabled: Boolean = longBreakEnabled,
+    val longBreakEveningEnabled: Boolean = longBreakEnabled,
     val longBreakMorning: Int = 20,
     val longBreakAfternoon: Int = 20,
     val longBreakEvening: Int = 20,
@@ -311,6 +324,9 @@ data class TimeConfig(
             classDuration = classDuration,
             shortBreak = shortBreak,
             longBreakEnabled = longBreakEnabled,
+            longBreakMorningEnabled = longBreakMorningEnabled,
+            longBreakAfternoonEnabled = longBreakAfternoonEnabled,
+            longBreakEveningEnabled = longBreakEveningEnabled,
             longBreakMorning = longBreakMorning,
             longBreakAfternoon = longBreakAfternoon,
             longBreakEvening = longBreakEvening,
@@ -347,6 +363,9 @@ data class TimeConfig(
             classDuration = r.classDuration,
             shortBreak = r.shortBreak,
             longBreakEnabled = r.longBreakEnabled,
+            longBreakMorningEnabled = r.longBreakMorningEnabled,
+            longBreakAfternoonEnabled = r.longBreakAfternoonEnabled,
+            longBreakEveningEnabled = r.longBreakEveningEnabled,
             longBreakMorning = r.longBreakMorning,
             longBreakAfternoon = r.longBreakAfternoon,
             longBreakEvening = r.longBreakEvening,
@@ -383,6 +402,9 @@ data class TimeConfig(
             classDuration = source.classDuration,
             shortBreak = source.shortBreak,
             longBreakEnabled = source.longBreakEnabled,
+            longBreakMorningEnabled = source.longBreakMorningEnabled,
+            longBreakAfternoonEnabled = source.longBreakAfternoonEnabled,
+            longBreakEveningEnabled = source.longBreakEveningEnabled,
             longBreakMorning = source.longBreakMorning,
             longBreakAfternoon = source.longBreakAfternoon,
             longBreakEvening = source.longBreakEvening,
@@ -405,6 +427,9 @@ data class TimeConfig(
             classDuration = source.classDuration,
             shortBreak = source.shortBreak,
             longBreakEnabled = source.longBreakEnabled,
+            longBreakMorningEnabled = source.longBreakMorningEnabled,
+            longBreakAfternoonEnabled = source.longBreakAfternoonEnabled,
+            longBreakEveningEnabled = source.longBreakEveningEnabled,
             longBreakMorning = source.longBreakMorning,
             longBreakAfternoon = source.longBreakAfternoon,
             longBreakEvening = source.longBreakEvening,
@@ -427,6 +452,9 @@ data class TimeConfig(
             classDuration = updated.classDuration,
             shortBreak = updated.shortBreak,
             longBreakEnabled = updated.longBreakEnabled,
+            longBreakMorningEnabled = updated.longBreakMorningEnabled,
+            longBreakAfternoonEnabled = updated.longBreakAfternoonEnabled,
+            longBreakEveningEnabled = updated.longBreakEveningEnabled,
             longBreakMorning = updated.longBreakMorning,
             longBreakAfternoon = updated.longBreakAfternoon,
             longBreakEvening = updated.longBreakEvening,
@@ -460,6 +488,9 @@ data class TimeConfig(
                     classDuration = classDuration,
                     shortBreak = shortBreak,
                     longBreakEnabled = longBreakEnabled,
+                    longBreakMorningEnabled = longBreakMorningEnabled,
+                    longBreakAfternoonEnabled = longBreakAfternoonEnabled,
+                    longBreakEveningEnabled = longBreakEveningEnabled,
                     longBreakMorning = longBreakMorning,
                     longBreakAfternoon = longBreakAfternoon,
                     longBreakEvening = longBreakEvening,
@@ -503,6 +534,9 @@ data class TimeConfig(
             classDuration = seed.classDuration,
             shortBreak = seed.shortBreak,
             longBreakEnabled = seed.longBreakEnabled,
+            longBreakMorningEnabled = seed.longBreakMorningEnabled,
+            longBreakAfternoonEnabled = seed.longBreakAfternoonEnabled,
+            longBreakEveningEnabled = seed.longBreakEveningEnabled,
             longBreakMorning = seed.longBreakMorning,
             longBreakAfternoon = seed.longBreakAfternoon,
             longBreakEvening = seed.longBreakEvening,
@@ -573,6 +607,9 @@ data class TimeConfig(
             classDuration = stored.classDuration,
             shortBreak = stored.shortBreak,
             longBreakEnabled = stored.longBreakEnabled,
+            longBreakMorningEnabled = stored.longBreakMorningEnabled,
+            longBreakAfternoonEnabled = stored.longBreakAfternoonEnabled,
+            longBreakEveningEnabled = stored.longBreakEveningEnabled,
             longBreakMorning = stored.longBreakMorning,
             longBreakAfternoon = stored.longBreakAfternoon,
             longBreakEvening = stored.longBreakEvening,
@@ -636,9 +673,9 @@ data class TimeConfig(
         }
 
         val longBreak = when (period) {
-            "morning" -> longBreakMorning
-            "afternoon" -> longBreakAfternoon
-            "evening" -> longBreakEvening
+            "morning" -> if (longBreakMorningEnabled) longBreakMorning else shortBreak
+            "afternoon" -> if (longBreakAfternoonEnabled) longBreakAfternoon else shortBreak
+            "evening" -> if (longBreakEveningEnabled) longBreakEvening else shortBreak
             else -> 0
         }
         val longBreakSection = when (period) {
@@ -654,7 +691,7 @@ data class TimeConfig(
             startMinute = startMinute,
             classDuration = classDuration,
             shortBreak = shortBreak,
-            longBreak = if (longBreakEnabled) longBreak else shortBreak,
+            longBreak = longBreak,
             longBreakSection = longBreakSection
         )
     }
