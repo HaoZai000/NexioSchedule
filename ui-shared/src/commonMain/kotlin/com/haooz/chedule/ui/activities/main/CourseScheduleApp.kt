@@ -54,6 +54,10 @@ import com.haooz.chedule.data.model.TeachingWeekReorganization
 import com.haooz.chedule.data.platform.UpdateController
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.repo.CourseRepository
+import com.haooz.chedule.data.sync.kingosoft.KingosoftScheduleSyncer
+import com.haooz.chedule.data.util.suspendRunCatching
+import com.haooz.chedule.i18n.SettingsStr
+import com.haooz.chedule.ui.screens.KingosoftSyncMessage
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.LanguageStore
 import com.haooz.chedule.ui.activities.oobe.OnboardingFlow
@@ -365,6 +369,8 @@ fun CourseScheduleApp(
         }
 
         // ── 5. 副作用：云同步 / 生命周期刷新 ───────────────────────────────────
+        var syncError by remember(privacyConsented) { mutableStateOf<String?>(null) }
+        KingosoftSyncMessage(syncError, overlayGlassBackdrop) { syncError = null }
         LaunchedEffect(privacyConsented) {
             if (!privacyConsented) return@LaunchedEffect
             val syncManager = SyncManager.getInstance()
@@ -376,6 +382,15 @@ fun CourseScheduleApp(
                 viewModel.refreshEssentialData()
                 viewModel.reloadCourses()
                 settingsViewModel.refreshSettings()
+            }
+            suspendRunCatching {
+                withContext(ioDispatcher) {
+                    KingosoftScheduleSyncer.syncIfDue(repository.getCurrentScheduleId(), repository)
+                }
+            }.onSuccess { outcome ->
+                if (outcome?.hasChanges == true) viewModel.reloadCourses()
+            }.onFailure { error ->
+                syncError = SettingsStr.kingosoftSyncFailed(error.message ?: error.toString())
             }
         }
 

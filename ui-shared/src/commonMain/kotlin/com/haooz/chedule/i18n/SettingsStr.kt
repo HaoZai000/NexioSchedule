@@ -105,6 +105,32 @@ object SettingsStr {
         "1. Touch and hold an empty area of the Home Screen\n2. Choose “Widgets” under “All apps”\n3. Find “Nexio Schedule” and add it",
     )
 
+    // ---- 青果 / 喜鹊儿 ----
+    val kingosoftSync = L("青果 / 喜鹊儿同步", "Kingosoft / Xiqueer sync")
+    val kingosoftImportTitle = L("青果 / 喜鹊儿直连同步", "Kingosoft / Xiqueer Direct Sync")
+    val kingosoftImportSubtitle = L("直接拉取整学期课表，支持启动时自动同步", "Fetch full-term schedule directly with optional startup sync")
+    val kingosoftImportNow = L("导入并同步", "Import & Sync")
+    val kingosoftConfig = L("同步配置", "Sync settings")
+    val kingosoftBaseUrl = L("教务系统地址", "Academic system URL")
+    val kingosoftKey = L("加密密钥", "Encryption key")
+    val kingosoftKeepKey = L("新密钥（留空保留原密钥）", "New key (leave blank to keep the current key)")
+    val kingosoftUserId = L("学号 / 工号", "Student or staff ID")
+    val kingosoftUserType = L("用户类型", "User type")
+    val kingosoftAutoSync = L("启动时自动同步", "Sync on startup")
+    val kingosoftSyncNow = L("立即同步课表", "Sync schedule now")
+    val kingosoftSyncing = L("同步中…", "Syncing…")
+    val kingosoftNeverSynced = L("尚未同步", "Not synced yet")
+    val kingosoftSyncFailed = L("同步失败：%s", "Sync failed: %s")
+    val kingosoftUnbind = L("解除同步绑定", "Unbind sync")
+    val kingosoftUnbindSummary = L("保留现有课程，仅移除同步配置", "Keep current courses and remove sync settings")
+    val kingosoftHelpTitle = L("如何获取配置", "How to get settings")
+    val kingosoftHelpSteps = L(
+        "1. 在已 Root 设备上安装并登录「喜鹊儿」App。\n2. 电脑连接 ADB，复制下方命令在终端运行。\n3. 将输出的 4 项依次填入即可。",
+        "1. Install and sign in to Xiqueer on a rooted device.\n2. Connect ADB on your computer and run the copied command.\n3. Paste the 4 printed fields here.",
+    )
+    val kingosoftCopyAdbCommand = L("复制 ADB 命令", "Copy ADB command")
+    val kingosoftCommandCopied = L("已复制命令", "Command copied")
+
     // ---- WebDAV ----
     val backingUp = L("备份中…", "Backing up…")
     val backupToCloud = L("同步到云端", "Sync to Cloud")
