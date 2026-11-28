@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.ui.components.text.miuix.Text
 import com.haooz.chedule.ui.utils.screenWidthDp
@@ -107,7 +108,7 @@ fun WatchSyncSheet(
         lastSentName = ""
         targets = emptyList()
         scanning = true
-        scope.launch { applyScanResult(runCatching { controller.scan() }) }
+        scope.launch { applyScanResult(suspendRunCatching { controller.scan() }) }
     }
 
     LaunchedEffect(show) {
@@ -121,7 +122,7 @@ fun WatchSyncSheet(
         sendingTarget = null
         targets = emptyList()
         scanning = true
-        applyScanResult(runCatching { controller.scan() })
+        applyScanResult(suspendRunCatching { controller.scan() })
     }
 
     val content: @Composable () -> Unit = {

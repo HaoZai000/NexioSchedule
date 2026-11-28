@@ -6,6 +6,7 @@ import com.haooz.chedule.data.util.optJsonArray
 import com.haooz.chedule.data.util.optJsonObject
 import com.haooz.chedule.data.util.optString
 import com.haooz.chedule.data.util.parseJsonObject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 
@@ -42,6 +43,8 @@ object AppreciationFetcher {
                 val json = parseJsonObject(resp.text)
                 val items = json.optJsonArray("records").toItems()
                 AppreciationsPage(items = items, hasMore = json.optBoolean("has_more"))
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 AppreciationsPage(emptyList(), false, failed = true)
             }
@@ -55,6 +58,8 @@ object AppreciationFetcher {
                 if (!resp.isSuccessful) return@withContext emptyList()
                 val json = parseJsonObject(resp.text)
                 json.optJsonArray("records").toItems()
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 emptyList()
             }

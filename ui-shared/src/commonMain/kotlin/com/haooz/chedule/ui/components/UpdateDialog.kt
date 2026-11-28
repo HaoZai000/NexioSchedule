@@ -40,6 +40,7 @@ import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.components.text.miuix.Text as Text
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -189,6 +190,8 @@ fun UpdateDialog(
                 downloadComplete = true
                 isDownloading = false
                 hasDownloadedApk = true
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 isDownloading = false
                 downloadComplete = false

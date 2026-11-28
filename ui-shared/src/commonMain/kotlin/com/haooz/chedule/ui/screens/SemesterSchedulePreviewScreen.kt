@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.platform.showToast
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.SwitchStr
 import com.haooz.nexioui.iconbutton.IconButton
@@ -540,7 +541,7 @@ private fun SchedulePosterExporter(
             latestOnFailed()
             return@LaunchedEffect
         }
-        val bitmap = runCatching { captureLayer.toImageBitmap() }.getOrNull()
+        val bitmap = suspendRunCatching { captureLayer.toImageBitmap() }.getOrNull()
         if (bitmap != null) latestOnCaptured(bitmap) else latestOnFailed()
     }
 }

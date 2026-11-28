@@ -357,6 +357,18 @@ class HolidayManagerStorageTest {
     }
 
     @Test
+    fun `严格解析区分无节假日与无效响应`() {
+        for ((source, emptyResponse) in listOf(
+            HolidayManager.SOURCE_HOLIDAY_CALENDAR to """{"dates":[]}""",
+            HolidayManager.SOURCE_APIHUBS to """{"data":{"list":[]}}""",
+        )) {
+            HolidayManager.setHolidaySource(source)
+            assertTrue(HolidayManager.parseSourceResponseOrThrow(emptyResponse).isEmpty())
+            assertFailsWith<IllegalArgumentException> { HolidayManager.parseSourceResponseOrThrow("{}") }
+        }
+    }
+
+    @Test
     fun `apihubs 响应只认 recess 与 overtime 两个字段`() {
         val json = """
             {"code":0,"data":{"list":[

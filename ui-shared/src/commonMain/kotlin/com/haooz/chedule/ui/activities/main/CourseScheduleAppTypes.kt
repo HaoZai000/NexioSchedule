@@ -31,6 +31,8 @@ import kotlin.concurrent.Volatile
 import kotlin.math.abs
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import com.haooz.nexioui.topappbar.SharedScrollBehavior
 
 /**
@@ -252,7 +254,7 @@ internal suspend fun PageSwitchState.jumpToPageSmoothly(
     }
 
     // 停止吸附与越界回弹
-    runCatching { cancel() }
+    cancel()
 
     if (neighbor == null) {
         snapTo(if (delta > 0) dest - 1 else dest + 1)
@@ -263,14 +265,14 @@ internal suspend fun PageSwitchState.jumpToPageSmoothly(
     // 借位：相邻那页先变成目标页并组合出来（空等一帧），再滑一页过去
     val virtualPage = (currentPage + if (delta > 0) 1 else -1).coerceIn(0, lastPage)
     neighbor.borrow(virtualPage, dest)
-    runCatching { withFrameNanos { } }
     try {
+        withFrameNanos { }
         animateTo(virtualPage)
         // 正常走完才把落点换成真身：借位内容与真身逐像素相同，看不出切换。
-        runCatching { adoptBorrowedPage(dest) }
+        adoptBorrowedPage(dest)
     } catch (c: CancellationException) {
         // 打断时把借位页换成真身页。
-        runCatching { adoptBorrowedPage(dest) }
+        withContext(NonCancellable) { adoptBorrowedPage(dest) }
         throw c
     } finally {
         // 还原借位页。

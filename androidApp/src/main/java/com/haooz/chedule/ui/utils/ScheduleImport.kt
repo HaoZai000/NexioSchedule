@@ -18,16 +18,18 @@ import com.haooz.chedule.data.school.ScriptRepository
 import com.haooz.chedule.i18n.AndroidMiscStr
 import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.i18n.L
 import com.haooz.chedule.ui.web.JS_PROMISE_BRIDGE
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -309,13 +311,18 @@ object ThirdPartyShareImporter {
         source: ThirdPartyShareSource,
         rawInput: String,
     ): Result<ThirdPartySharePayload> = withContext(Dispatchers.IO) {
-        runCatching {
+        try {
             val code = extractShareKey(source, rawInput)
             if (code.isBlank()) throw IllegalArgumentException(BackupStr.enterInputN(source.inputLabel))
-            when (source) {
+            val payload = when (source) {
                 ThirdPartyShareSource.WakeUp -> importWakeUp(context, code)
                 ThirdPartyShareSource.StarLink -> importStarLink(code)
             }
+            Result.success(payload)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Result.failure(e)
         }
     }
 
@@ -443,7 +450,7 @@ object ThirdPartyShareImporter {
         }
 
         val mainHandler = Handler(Looper.getMainLooper())
-        return withTimeout(45_000L) {
+        return withTimeoutOrNull(45_000L) {
             var webView: WebView? = null
             val bridge = WakeUpHeadlessBridge(
                 shareKey = shareKey,
@@ -542,7 +549,7 @@ object ThirdPartyShareImporter {
                     }
                 }
             }
-        }
+        } ?: throw IllegalStateException(L("导入超时，请重试", "Import timed out. Please try again.")())
     }
 
     private suspend fun <T> runOnMain(block: () -> T): T {

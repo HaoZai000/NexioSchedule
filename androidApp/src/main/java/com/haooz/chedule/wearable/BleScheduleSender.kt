@@ -22,6 +22,7 @@ import android.os.ParcelUuid
 import androidx.core.content.ContextCompat
 import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.repo.CourseRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -147,7 +148,7 @@ class BleScheduleSender(private val context: Context) {
      */
     suspend fun send(device: WatchDevice, scheduleName: String): Result<Unit> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            try {
                 val repo = CourseRepository.getInstance()
                 val json = WatchPayload.buildFullJson(repo, appContext, scheduleName)
                 val bytes = json.toByteArray(Charsets.UTF_8)
@@ -155,7 +156,11 @@ class BleScheduleSender(private val context: Context) {
                     throw IllegalStateException("课表为空，无法导出")
                 }
                 NexioLog.i(TAG, "payload ${bytes.size}B -> ${device.address}")
-                writeFramed(device, bytes)
+                Result.success(writeFramed(device, bytes))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                Result.failure(e)
             }
         }
 

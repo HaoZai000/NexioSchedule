@@ -12,7 +12,11 @@ import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.school.ScriptRepository
 import com.haooz.chedule.data.util.jsonToPlainValue
 import com.haooz.chedule.data.util.parseJsonObject
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.i18n.L
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
@@ -58,7 +62,7 @@ object ShareCodeImport {
      */
     suspend fun fetchShareCode(rawCode: String): Result<ShareCodeFetchResult> =
         withContext(ioDispatcher) {
-            runCatching {
+            suspendRunCatching {
                 val trimmed = rawCode.trim()
                 if (trimmed.isBlank()) throw IllegalArgumentException(L("请输入口令", "Please enter a share code")())
                 val url = "$SHARE_BASE_URL?code=${encodeQuery(trimmed)}"
@@ -94,22 +98,28 @@ object ShareCodeImport {
     /**
      * 按来源分发。WakeUp 走无头 WKWebView 跑适配脚本，星链是纯 HTTP。
      *
-     * 总超时 45s 与 Android `importWakeUp` 的 `withTimeout(45_000L)` 对齐 ——
+     * 总超时 45s 与 Android `importWakeUp` 对齐 ——
      * 星链本来就有自己的连接/读超时，这里只是兜底，别再往上加。
      */
     suspend fun importThirdParty(
         source: ThirdPartyShareSource,
         rawInput: String,
     ): Result<ThirdPartySharePayload> =
-        runCatching {
-            withTimeout(45_000L) {
-                val code = extractShareKey(source, rawInput)
-                if (code.isBlank()) throw IllegalArgumentException(L("请输入%s", "Please enter %s")(source.inputLabel))
-                when (source) {
-                    ThirdPartyShareSource.WakeUp -> importWakeUp(code)
-                    ThirdPartyShareSource.StarLink -> importStarLink(code)
+        try {
+            suspendRunCatching {
+                withTimeout(45_000L) {
+                    val code = extractShareKey(source, rawInput)
+                    if (code.isBlank()) throw IllegalArgumentException(L("请输入%s", "Please enter %s")(source.inputLabel))
+                    when (source) {
+                        ThirdPartyShareSource.WakeUp -> importWakeUp(code)
+                        ThirdPartyShareSource.StarLink -> importStarLink(code)
+                    }
                 }
             }
+        } catch (e: TimeoutCancellationException) {
+            // 只将导入本身的超时报告给用户，调用方的超时仍是取消。
+            currentCoroutineContext().ensureActive()
+            Result.failure(IllegalStateException(L("导入超时，请重试", "Import timed out. Please try again.")(), e))
         }
 
     // ── 2a. 星链（原生 HTTP + JSON）──────────────────────────────────

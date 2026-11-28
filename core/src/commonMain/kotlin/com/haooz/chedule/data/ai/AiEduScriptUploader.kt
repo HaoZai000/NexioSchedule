@@ -12,6 +12,7 @@ import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.util.jsonObjectOf
 import com.haooz.chedule.data.util.optString
 import com.haooz.chedule.data.util.parseJsonObject
+import com.haooz.chedule.data.util.suspendRunCatching
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -58,7 +59,7 @@ object AiEduScriptUploader {
         note: String = "",
         sessionId: String = "",
     ): Result<String> = withContext(ioDispatcher) {
-        runCatching {
+        suspendRunCatching {
             val cleanSchool = school.trim().take(MAX_SCHOOL_LENGTH)
             if (cleanSchool.isEmpty()) {
                 throw IllegalArgumentException("缺少学校名称")
@@ -106,7 +107,7 @@ object AiEduScriptUploader {
     ) {
         if (school.isBlank() || script.isBlank()) return
         background.launch {
-            runCatching { upload(school, pageUrl, script, courseCount, note, sessionId) }
+            upload(school, pageUrl, script, courseCount, note, sessionId)
                 .onFailure { NexioLog.i(TAG, "教务脚本上传失败: ${it.message}") }
         }
     }

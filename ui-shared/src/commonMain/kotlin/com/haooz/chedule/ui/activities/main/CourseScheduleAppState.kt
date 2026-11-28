@@ -45,6 +45,7 @@ import com.haooz.chedule.data.holiday.TeachingWeekReorganizationRule
 import com.haooz.chedule.data.model.Course
 import com.haooz.chedule.data.platform.UpdateController
 import com.haooz.chedule.data.repo.CourseRepository
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.ui.activities.classschedule.ScheduleGridGeometry
 import com.haooz.chedule.ui.activities.classschedule.ScheduleViewMode
@@ -724,6 +725,8 @@ class CourseScheduleAppState {
         } catch (_: OutOfMemoryError) {
             FeatureLog.t("主页", "main_snapshot_oom")
             null
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             null
         }
@@ -1607,7 +1610,7 @@ class CourseScheduleAppState {
             // 卡片快照先冻结成位图
             val cardSnapshot = detailSnapshot
             if (cardSource != null && cardSnapshot != null) {
-                runCatching { cardSource.layer.toImageBitmap() }.getOrNull()
+                suspendRunCatching { cardSource.layer.toImageBitmap() }.getOrNull()
                     ?.let { cardSnapshot.frozen = it }
             }
             // 详情页先按「起点卡态」上屏

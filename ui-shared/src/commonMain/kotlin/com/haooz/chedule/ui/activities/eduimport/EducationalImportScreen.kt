@@ -60,6 +60,7 @@ import com.haooz.chedule.data.util.optJsonArray
 import com.haooz.chedule.data.util.optString
 import com.haooz.chedule.data.util.parseJsonArray
 import com.haooz.chedule.data.util.parseJsonObject
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.ui.utils.AppMaterialSettings
@@ -79,6 +80,7 @@ import com.haooz.softglass.backdrop.backdrops.rememberLayerBackdrop
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
 import kotlin.time.Clock
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -769,12 +771,14 @@ object EduImportUpdater {
                         ScriptRepository(ScriptRepository.getRepoUrl()).updateAll(onLog = { })
                     }
                     val aiDock = async {
-                        runCatching { AiDockRepository.shared.updateIndex() }.getOrDefault(-1)
+                        suspendRunCatching { AiDockRepository.shared.updateIndex() }.getOrDefault(-1)
                     }
                     scripts.await()
                     aiDock.await()
                 }
                 prefs.edit { putLong(KEY_LAST_UPDATE_TIME, Clock.System.now().toEpochMilliseconds()) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 NexioLog.e(TAG, ImportStr.logUpdateFailed(e.message))
             } finally {
@@ -795,7 +799,7 @@ object EduImportUpdater {
                         ScriptRepository(ScriptRepository.getRepoUrl()).updateAll(onLog = { })
                     }
                     val aiDock = async {
-                        runCatching { AiDockRepository.shared.updateIndex() }.getOrDefault(-1)
+                        suspendRunCatching { AiDockRepository.shared.updateIndex() }.getOrDefault(-1)
                     }
                     maxOf(scripts.await(), aiDock.await())
                 }
@@ -811,6 +815,8 @@ object EduImportUpdater {
                     val prefs = AppStorage.store(PREFS_NAME)
                     prefs.edit { putLong(KEY_LAST_UPDATE_TIME, Clock.System.now().toEpochMilliseconds()) }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 NexioLog.e(TAG, ImportStr.logManualUpdateFailed(e.message))
                 withContext(Dispatchers.Main) { showToast(ImportStr.updateFailed()) }

@@ -61,6 +61,7 @@ import com.haooz.chedule.data.platform.createHttpService
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.storage.AppStorage
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.ReminderStr
@@ -1205,7 +1206,7 @@ fun CourseReminderScreen(
                                                         )
                                                         aiShrinking = true
                                                         scope.launch {
-                                                            val outcome = runCatching {
+                                                            val outcome = suspendRunCatching {
                                                                 AiClient(createHttpService(AI_TIMEOUTS))
                                                                     .shrinkLabels(
                                                                         classrooms = previewClassrooms.take(60),

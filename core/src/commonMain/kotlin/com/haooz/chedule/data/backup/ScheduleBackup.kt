@@ -20,6 +20,7 @@ import com.haooz.chedule.data.util.parseJsonObject
 import com.haooz.chedule.data.util.toJsonElement
 import kotlin.concurrent.Volatile
 import kotlin.io.encoding.Base64
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -117,6 +118,9 @@ class SyncManager private constructor() {
                     NexioLog.e(TAG, "Backup failed: ${result.message}")
                 }
             }
+        } catch (e: CancellationException) {
+            _syncState.value = SyncOperationState.Idle
+            throw e
         } catch (e: Exception) {
             _syncState.value = SyncOperationState.Error("备份异常: ${e.message}")
             NexioLog.e(TAG, "Backup exception", e)
@@ -148,6 +152,9 @@ class SyncManager private constructor() {
                     NexioLog.e(TAG, "Restore failed: ${result.message}")
                 }
             }
+        } catch (e: CancellationException) {
+            _syncState.value = SyncOperationState.Idle
+            throw e
         } catch (e: Exception) {
             _syncState.value = SyncOperationState.Error("恢复异常: ${e.message}")
             NexioLog.e(TAG, "Restore exception", e)
@@ -326,6 +333,8 @@ class WebDavManager(
                 // ⚠ reason phrase 在 HttpResult 里没有对应物，故省略
                 else -> Result.failure(Exception("服务器返回: ${response.code}"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(Exception("连接失败: ${e.message}"))
         }
@@ -426,6 +435,8 @@ class WebDavManager(
                     else "上传备份失败: ${response.code}，请确认备份路径存在且有写入权限"
                 )
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             NexioLog.e(TAG, "Backup exception", e)
             BackupResult.Error("备份异常: ${e.message}")
@@ -478,6 +489,8 @@ class WebDavManager(
                 response.code == 404 -> RestoreResult.Error("备份文件不存在")
                 else -> RestoreResult.Error("下载备份失败: ${response.code}")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             NexioLog.e(TAG, "Restore exception", e)
             RestoreResult.Error("恢复异常: ${e.message}")
@@ -505,6 +518,8 @@ class WebDavManager(
             @Suppress("UNCHECKED_CAST")
             val data = root["data"] as? Map<String, Any> ?: emptyMap()
             if (data.isEmpty()) Result.failure(Exception("备份数据为空")) else Result.success(data)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -521,6 +536,8 @@ class WebDavManager(
                 onHolidayDataChanged()
                 lastSyncTime = Clock.System.now().toEpochMilliseconds()
                 RestoreResult.Success(BackupInfo(backupId, "").backupTime)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 NexioLog.e(TAG, "Restore exception", e)
                 RestoreResult.Error("恢复异常: ${e.message}")
@@ -568,6 +585,8 @@ class WebDavManager(
                 }
             }
             Result.success(backups)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             NexioLog.e(TAG, "List backups exception", e)
             Result.failure(Exception("读取云端备份失败: ${e.message}"))
@@ -586,6 +605,8 @@ class WebDavManager(
             } else {
                 Result.failure(Exception("删除备份失败: ${response.code}"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(Exception("删除备份异常: ${e.message}"))
         }

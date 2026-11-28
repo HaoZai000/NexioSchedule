@@ -78,6 +78,7 @@ import com.haooz.chedule.data.model.TimeConfig
 import com.haooz.chedule.data.platform.DiagnosticRecorder
 import com.haooz.chedule.data.platform.FeedbackKind
 import com.haooz.chedule.data.platform.HttpTimeouts
+import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.platform.NoopDiagnosticRecorder
 import com.haooz.chedule.data.platform.NoopReminderController
 import com.haooz.chedule.data.platform.NoopUpdateController
@@ -87,6 +88,7 @@ import com.haooz.chedule.data.platform.createHttpService
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.data.util.todayLocalDate
 import com.haooz.chedule.i18n.BackupStr
 import com.haooz.chedule.i18n.ChromeStr
@@ -1229,18 +1231,25 @@ fun HolidaySettingsRoute(
         if (loading) return
         loading = true
         scope.launch {
-            val result = runCatching {
-                val response = withContext(ioDispatcher) {
-                    http.get(HolidayManager.sourceUrlFor(targetYear))
+            try {
+                val result = suspendRunCatching {
+                    withContext(ioDispatcher) {
+                        val response = http.get(HolidayManager.sourceUrlFor(targetYear))
+                        check(response.isSuccessful) { "HTTP ${response.code}" }
+                        HolidayManager.parseSourceResponseOrThrow(response.text)
+                    }
+                }.getOrElse {
+                    NexioLog.w("HolidaySettingsRoute", "获取 $targetYear 年节假日失败", it)
+                    return@launch
                 }
-                HolidayManager.parseSourceResponse(response.text)
-            }.getOrDefault(emptyList())
-            val merged = HolidayManager.mergeApiEntries(targetYear, result)
-            if (targetYear == year) reload()
-            loading = false
-            if (merged && result.isNotEmpty()) {
-                // API 合并同样要重排提醒并刷小部件，不能只改本地 SP
-                onHolidayDataChanged()
+                val merged = HolidayManager.mergeApiEntries(targetYear, result)
+                if (targetYear == year) reload()
+                if (merged && result.isNotEmpty()) {
+                    // API 合并同样要重排提醒并刷小部件，不能只改本地 SP
+                    onHolidayDataChanged()
+                }
+            } finally {
+                loading = false
             }
         }
     }

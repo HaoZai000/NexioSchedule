@@ -133,6 +133,7 @@ import com.haooz.softglass.glass.applySoftGlass
 import com.haooz.softglass.platform.isRenderEffectSupported
 import com.haooz.softglass.shape.ContinuousCapsule
 import com.haooz.softglass.shape.ContinuousRoundedRectangle
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -793,6 +794,8 @@ fun UpdateSettingsScreen(
                                             downloadedFile = file
                                             downloadComplete = true
                                             isDownloading = false
+                                        } catch (e: CancellationException) {
+                                            throw e
                                         } catch (e: Exception) {
                                             showToast(AboutStr.downloadFailedN(e.message))
                                             isDownloading = false

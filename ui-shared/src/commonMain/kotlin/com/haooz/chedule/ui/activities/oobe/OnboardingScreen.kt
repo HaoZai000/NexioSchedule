@@ -82,6 +82,7 @@ import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.platform.PrivacyConsent
 import com.haooz.chedule.data.repo.CourseRepository
 import com.haooz.chedule.data.storage.AppStorage
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
@@ -1552,7 +1553,7 @@ private object LottieJson {
 @Composable
 private fun HyperLottie(asset: String, modifier: Modifier = Modifier) {
     val json by produceState<String?>(initialValue = null, asset) {
-        value = runCatching { LottieJson.load(asset) }.getOrNull()
+        value = suspendRunCatching { LottieJson.load(asset) }.getOrNull()
     }
     val text = json ?: return
 

@@ -13,9 +13,11 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 
 /**
@@ -226,6 +228,14 @@ class DataFetcherLogicTest {
     }
 
     // ─────────────── StatsReporter ───────────────
+
+    @Test
+    fun `取消上报不再重试`() = runTest {
+        val http = RecordingHttp(listOf({ throw CancellationException("cancel report") }, ok("{}")))
+        StatsReporter.http = http
+        assertFailsWith<CancellationException> { StatsReporter.postWithRetry("{}") }
+        assertEquals(1, http.urls.size)
+    }
 
     @Test
     fun `上报首次成功即返回 true`() = runTest {

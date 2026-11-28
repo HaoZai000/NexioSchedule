@@ -52,6 +52,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.data.repo.CourseRepository
+import com.haooz.chedule.data.util.suspendRunCatching
 import com.haooz.chedule.i18n.ChromeStr
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.ui.activities.SwitchScheduleScreen
@@ -1007,7 +1008,7 @@ internal fun BoxScope.CourseScheduleAppOverlayLayers(
                                                 val bmp = if (cardW <= 0 || cardH <= 0) {
                                                     null
                                                 } else {
-                                                    runCatching {
+                                                    suspendRunCatching {
                                                         // 只把**卡片那一块**录进一张卡片大小的小图层，再转位图
                                                         retainedSwitchCardScratchLayer.record(
                                                             density,

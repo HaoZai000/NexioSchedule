@@ -2,6 +2,8 @@ package com.haooz.chedule.weather
 
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.storage.AppStorage
+import com.haooz.chedule.data.util.suspendRunCatching
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,20 +48,20 @@ object WeatherRepository {
         // 区县码只有小米能反查（它按经纬度给回 weathercn:101010100），
         // 所以「中国天气网」这一路天然依赖它 —— 单飞模式下也照样先查一次。
         val needsArea = source == Source.FUSION || source == Source.WEATHERCN || source == Source.XIAOMI
-        val locatedDeferred = if (needsArea) async { runCatching { XiaomiWeather.locate(place) }.getOrNull() } else null
+        val locatedDeferred = if (needsArea) async { suspendRunCatching { XiaomiWeather.locate(place) }.getOrNull() } else null
 
         val omDeferred = if (source == Source.FUSION || source == Source.OPEN_METEO) {
-            async { runCatching { OpenMeteoWeather.fetch(place, nowEpochSec) }.getOrNull() }
+            async { suspendRunCatching { OpenMeteoWeather.fetch(place, nowEpochSec) }.getOrNull() }
         } else null
 
         val located = locatedDeferred?.await()
         val areaId = located?.areaId
 
         val xiaomiDeferred = if ((source == Source.FUSION || source == Source.XIAOMI) && located != null) {
-            async { runCatching { XiaomiWeather.fetch(place, located) }.getOrNull() }
+            async { suspendRunCatching { XiaomiWeather.fetch(place, located) }.getOrNull() }
         } else null
         val wcnDeferred = if ((source == Source.FUSION || source == Source.WEATHERCN) && areaId != null) {
-            async { runCatching { WeatherCnWeather.fetch(areaId) }.getOrNull() }
+            async { suspendRunCatching { WeatherCnWeather.fetch(areaId) }.getOrNull() }
         } else null
 
         val collected = listOfNotNull(
@@ -226,6 +228,8 @@ object WeatherStore {
                     _failed.value = true
                 }
                 result
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 lastAttemptAtMs = Clock.System.now().toEpochMilliseconds()
                 lastAttemptOk = false

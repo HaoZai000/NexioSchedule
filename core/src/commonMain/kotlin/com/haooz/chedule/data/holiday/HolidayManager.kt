@@ -901,8 +901,10 @@ object HolidayManager {
             .getOrNull()
             ?.takeIf { it.toString() == value }
 
-    fun parseApiResponse(json: String): List<HolidayEntry> = runCatching {
-        // 缺键/类型不对时抛 → 整体返回空列表
+    fun parseApiResponse(json: String): List<HolidayEntry> =
+        runCatching { parseApiResponseOrThrow(json) }.getOrDefault(emptyList())
+
+    private fun parseApiResponseOrThrow(json: String): List<HolidayEntry> {
         val dates = parseJsonObject(json).optJsonArray("dates")
             ?: throw IllegalArgumentException("Invalid holiday response")
         val result = mutableListOf<HolidayEntry>()
@@ -923,8 +925,8 @@ object HolidayManager {
                 )
             }
         }
-        mergeConsecutive(result)
-    }.getOrDefault(emptyList())
+        return mergeConsecutive(result)
+    }
 
     internal fun mergeConsecutive(entries: List<HolidayEntry>): List<HolidayEntry> {
         val sorted = entries.sortedBy { it.date }
@@ -975,13 +977,20 @@ object HolidayManager {
         if (holidaySource() == SOURCE_HOLIDAY_CALENDAR) parseApiResponse(json)
         else parseApiHubsResponse(json)
 
+    fun parseSourceResponseOrThrow(json: String): List<HolidayEntry> =
+        if (holidaySource() == SOURCE_HOLIDAY_CALENDAR) parseApiResponseOrThrow(json)
+        else parseApiHubsResponseOrThrow(json)
+
     /**
      * APIHubs 全年响应 → 条目列表（一次请求即全年）。
      *
      * ⚠ 只能用 holiday_recess / holiday_overtime 判定：该源会把圣诞、感恩节等一堆
      * **不放假**的日子也标成「节日当天」，按名字或 holiday_today 导入会多出假假期。
      */
-    fun parseApiHubsResponse(json: String): List<HolidayEntry> = runCatching {
+    fun parseApiHubsResponse(json: String): List<HolidayEntry> =
+        runCatching { parseApiHubsResponseOrThrow(json) }.getOrDefault(emptyList())
+
+    private fun parseApiHubsResponseOrThrow(json: String): List<HolidayEntry> {
         val rows = parseJsonObject(json).optJsonObject("data")?.optJsonArray("list")
             ?: throw IllegalArgumentException("Invalid holiday response")
         val result = mutableListOf<HolidayEntry>()
@@ -1002,8 +1011,8 @@ object HolidayManager {
                 )
             }
         }
-        mergeConsecutive(result)
-    }.getOrDefault(emptyList())
+        return mergeConsecutive(result)
+    }
 
     /** 20261010 → 2026-10-10；只认 8 位纯数字 */
     internal fun formatCompactDate(value: String): String? {
