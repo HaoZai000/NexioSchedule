@@ -214,7 +214,7 @@ class BleScheduleSender(private val context: Context) {
         // 必须显式指定 LE 传输：默认传输在部分机型（OPPO Watch X2 实测）会先尝试
         // 经典蓝牙 BR/EDR 链路，导致 GATT 连接一直超时；TRANSPORT_LE 直连低功耗链路。
         val gatt = remote.connectGatt(appContext, false, callback, BluetoothDevice.TRANSPORT_LE)
-            ?: throw IllegalStateException("无法建立 GATT 连接")
+            ?: throw IllegalStateException("无法连接手表蓝牙")
 
         try {
             val ok = withTimeoutOrNull(CONNECT_TIMEOUT_MS) { connected.await() } ?: false
@@ -222,12 +222,12 @@ class BleScheduleSender(private val context: Context) {
 
             val mtu = withTimeoutOrNull(OP_TIMEOUT_MS) { mtuReady.await() } ?: MIN_MTU
             val discovered = withTimeoutOrNull(OP_TIMEOUT_MS) { servicesReady.await() } ?: false
-            if (!discovered) throw IllegalStateException("未发现手表的课表服务")
+            if (!discovered) throw IllegalStateException("未找到手表端 Nexio 服务")
 
             val service = gatt.getService(SERVICE_UUID)
-                ?: throw IllegalStateException("手表未提供课表服务，请确认手表端版本")
+                ?: throw IllegalStateException("手表端未开启课表同步服务，请确认版本")
             val characteristic = service.getCharacteristic(CHAR_UUID)
-                ?: throw IllegalStateException("手表未提供课表特征")
+                ?: throw IllegalStateException("手表端同步接口不兼容，请更新手表端应用")
 
             val framed = ByteBuffer.allocate(bytes.size + 4)
                 .putInt(bytes.size)
@@ -250,10 +250,10 @@ class BleScheduleSender(private val context: Context) {
                     @Suppress("DEPRECATION")
                     gatt.writeCharacteristic(characteristic)
                 }.getOrDefault(false)
-                if (!queued) throw IllegalStateException("写入被系统拒绝（第 ${index + 1} 片）")
+                if (!queued) throw IllegalStateException("蓝牙发送失败，请重试")
 
                 val chunkOk = withTimeoutOrNull(OP_TIMEOUT_MS) { written.await() } ?: false
-                if (!chunkOk) throw IllegalStateException("传输中断（第 ${index + 1} 片）")
+                if (!chunkOk) throw IllegalStateException("蓝牙传输中断，请保持手表靠近并重试")
 
                 offset += len
                 index++

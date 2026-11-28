@@ -620,7 +620,7 @@ object McpLocalServer {
                     "${targetStart ?: course.startSection}-${targetEnd ?: course.endSection}"
             }
             weeksArg?.let { changes += "周次 ${weeksText(activeWeeks(course))} → ${weeksText(it)}" }
-            weekType?.let { changes += "周类型 → $it" }
+            weekType?.let { changes += "单双周 → ${when (it) { 1 -> "单周"; 2 -> "双周"; else -> "全周" }}" }
             location?.let { changes += "地点 ${course.classroom.ifBlank { "空" }} → $it" }
             teacher?.let { changes += "教师 ${course.teacher.ifBlank { "空" }} → $it" }
             note?.let { changes += "备注已更新" }
@@ -763,8 +763,7 @@ object McpLocalServer {
         }
 
         val summary = "停掉 $date（第 $week 周）的" +
-            matches.joinToString("、") { "《${it.name.ifBlank { "特殊课程" }}》" } +
-            "：从这些课程的周次里去掉第 $week 周"
+            matches.joinToString("、") { "《${it.name.ifBlank { "特殊课程" }}》" }
 
         return WritePlan(summary) {
             val ids = matches.map { it.id }.toSet()
