@@ -79,8 +79,8 @@ object SchedStr {
     val scriptDownloadFailed = L("脚本下载失败：%s", "Failed to download script: %s")
     val selectScheduleToImport = L("选择要导入的课表", "Select a schedule to import")
     val importTargetHint = L(
-        "导入的课程将写入所选课表，当前课表不会受影响",
-        "Imported courses will be written to the selected schedule; the current one is not affected"
+        "课程将导入到所选课表",
+        "Courses will be imported into the selected schedule"
     )
     val currentTag = L("当前", "Current")
 }

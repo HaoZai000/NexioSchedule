@@ -73,7 +73,7 @@ object TimeEditStr {
     val timeOverlapWarningTitle = L("时间重叠（可继续保存）", "Time Overlap (Save Anyway)")
     val overlapWarningBody = L(
         "特殊课程会排在该时段之前，确认无误可继续保存",
-        "Special blocks will be laid out before the overlapping periods. Save anyway if everything looks right",
+        "Special blocks will appear before the overlapping periods. Save anyway if that looks right",
     )
     val backToEdit = L("返回修改", "Go Back to Edit")
     val saveAnyway = L("仍然保存", "Save Anyway")

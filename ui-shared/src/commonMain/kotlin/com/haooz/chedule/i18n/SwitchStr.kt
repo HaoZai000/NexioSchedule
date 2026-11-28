@@ -34,7 +34,7 @@ object SwitchStr {
     // —— 分享确认 ——
     val shareScheduleTitle = L("分享课表", "Share Schedule")
     val shareConfirmSummary =
-        L("将课表「%s」上传生成分享口令？\n口令有效期有限，过期后可重新生成", "Upload schedule \"%s\" to generate a share code?\nThe code expires after a while; you can generate a new one anytime")
+        L("将课表「%s」上传并生成分享口令？过期后可重新生成。", "Upload schedule \"%s\" to generate a share code? You can generate a new one if it expires.")
     val confirmShare = L("确认分享", "Share")
 
     // —— 删除 / 解散确认 ——
@@ -55,7 +55,7 @@ object SwitchStr {
     // —— 移动到 ——
     val moveTo = L("移动到", "Move To")
     val moveSelectedCount = L("已选中 %d 个课表", "%d schedules selected")
-    val moveToRoot = L("移出文件夹，回到根目录", "Remove from folder and move to root")
+    val moveToRoot = L("移出文件夹", "Remove from folder")
 
     // —— 课程管理 ——
     val courseManage = L("课程管理", "Course Management")
@@ -77,7 +77,7 @@ object SwitchStr {
         "确定要删除课程「%s」吗？\n此操作不可撤销。",
         "Delete course \"%s\"?\nThis action cannot be undone."
     )
-    val sectionCountN = L("%d 节", "%dP")
+    val sectionCountN = L("%d 节", "%d periods")
     val tapToSetTime = L("点击设置时间", "Tap to set time")
     val selectCourseHint = L("请选择左侧课程", "Select a course on the left")
 

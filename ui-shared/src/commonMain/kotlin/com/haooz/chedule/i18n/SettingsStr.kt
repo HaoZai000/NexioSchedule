@@ -51,8 +51,8 @@ object SettingsStr {
     val shiftModeSummary = L("同时对比多个课表的排班情况", "Compare shifts across multiple schedules at once")
     val enterShiftMode = L("进入排班模式", "Enter Shift Mode")
     val enterShiftModeSummary = L(
-        "将切换到排班课表模式，可同时对比多个课表的排班情况。确定进入？",
-        "Switch to shift schedule mode to compare shifts across multiple schedules at once. Continue?",
+        "切换到排班模式，同时对比多个课表？",
+        "Switch to shift mode to compare multiple schedules side by side?",
     )
     val exitShiftMode = L("退出排班模式", "Exit Shift Mode")
 
@@ -63,10 +63,10 @@ object SettingsStr {
 
     // ---- 开启新学期 ----
     val newSemester = L("开启新学期", "Start New Semester")
-    val newSemesterSummary = L("复用当前课表设置，创建空课程的新课表", "Create an empty schedule reusing current settings")
+    val newSemesterSummary = L("沿用当前设置，新建空白课表", "Create a blank schedule reusing current settings")
     val newSemesterDialogSummary = L(
-        "将复用当前课表的所有设置数据，创建一个清空课程的新课表",
-        "Reuses all settings from the current schedule to create a new one with no courses",
+        "将沿用当前课表的全部设置，新建一个空白课表。",
+        "Reuses all current schedule settings to create a new blank schedule.",
     )
     val newScheduleNameLabel = L("新课表名称", "New Schedule Name")
     val create = L("创建", "Create")

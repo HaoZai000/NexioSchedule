@@ -12,12 +12,12 @@ object WeatherStr {
     val title = L("天气", "Weather")
     val updatedAt = L("更新于 %s", "Updated %s")
     val refreshing = L("正在刷新", "Refreshing")
-    val tapRefresh = L("点一下重新拉取", "Tap to refresh")
+    val tapRefresh = L("点击刷新", "Tap to refresh")
     val loading = L("正在获取天气…", "Loading weather…")
-    val failed = L("天气没拿到", "No weather data")
-    val failedHint = L("网络或数据源抽风了，再试一次", "Network or the source hiccuped. Try again")
+    val failed = L("天气获取失败", "Couldn't load weather")
+    val failedHint = L("网络或天气服务暂时不可用，请重试", "Network or weather service unavailable. Please try again")
     val retry = L("重试", "Retry")
-    val emptyHint = L("还没有天气数据，回今日页下拉一次", "No data yet. Refresh on the Today page")
+    val emptyHint = L("暂无天气数据，可在今日页下拉刷新", "No weather data yet. Pull to refresh on the Today page")
     val noDataField = L("—", "—")
 
     // ── 实况 ──
@@ -108,7 +108,7 @@ object WeatherStr {
     /** 紫外线一句话（MIUI 口径：档位 + 该怎么做）。 */
     fun uvCaption(uv: Int?): String = when {
         uv == null -> ""
-        uv <= 2 -> L("较弱，无需防晒", "Low, no sunscreen")()
+        uv <= 2 -> L("较弱，无需防晒", "Low, no sunscreen needed")()
         uv <= 5 -> L("中等，建议防晒", "Moderate, use sunscreen")()
         uv <= 7 -> L("较强，注意防晒", "High, protect your skin")()
         uv <= 10 -> L("很强，尽量避开正午", "Very high, avoid midday")()
@@ -166,8 +166,8 @@ object WeatherStr {
     // ── 趋势面板 ──
     val trendHourlyTitle = L("未来 24 小时", "Next 24 hours")
     val trendDailyTitle = L("未来 7 天预报", "7-day forecast")
-    val trendEmpty = L("数据源只给了当前读数，没有逐时 / 逐日预报", "Only a current reading is available")
-    val trendTapHint = L("点开看走势", "Tap for the trend")
+    val trendEmpty = L("暂无逐时与未来预报", "Hourly and daily forecasts unavailable")
+    val trendTapHint = L("查看趋势", "View trend")
     val daylight = L("日照", "Daylight")
 
     fun trendRange(high: String, low: String): String = L("最高 %s · 最低 %s", "High %s · Low %s")(high, low)
@@ -186,7 +186,7 @@ object WeatherStr {
     val primaryPollutantFormat = L("首要污染物 %s", "Main pollutant %s")
 
     fun primaryPollutantValue(name: String): String = primaryPollutantFormat(name)
-    val aqiMissing = L("数据源没有给 AQI，只列浓度", "No AQI from sources; concentrations only")
+    val aqiMissing = L("暂无 AQI 指数，仅显示污染物浓度", "AQI unavailable; showing concentrations only")
 
     // ── 底部详情面板 ──
     val daytime = L("白天", "Day")
@@ -196,9 +196,9 @@ object WeatherStr {
     fun monthDay(month: Int, day: Int): String = L("%d月%d日", "%d/%d")(month, day)
 
     // ── 其它 ──
-    val emptyIndices = L("这个位置的生活指数暂时没有", "No life indices for this location")
-    val multiSourceNote = L("多家源加权融合，温度取中位数", "Weighted blend; temperature is a weighted median")
-    val singleSourceNote = L("单一数据源，未融合", "Single source, not blended")
+    val emptyIndices = L("暂无该位置的生活指数", "No life indices for this location")
+    val multiSourceNote = L("综合多数据源计算结果", "Blended from multiple sources")
+    val singleSourceNote = L("单一数据源", "Single source")
 
     // ── 设置页：数据源选项 ──
     val sourceFusion = L("多源融合（推荐）", "Multi-source blend (recommended)")

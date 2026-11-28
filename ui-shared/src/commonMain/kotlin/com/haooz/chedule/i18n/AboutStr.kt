@@ -51,16 +51,16 @@ object AboutStr {
 
     val diagRecording = L("功能日志录制", "Diagnostic Log Recording")
     val recordingRemaining = L(
-        "录制中… 剩余 %s \n正在记入日志，崩溃/被杀自动结束",
-        "Recording… %s left \nLogging in progress, ends automatically on crash or kill"
+        "录制中… 剩余 %s\n正在记录日志，异常退出时自动保存",
+        "Recording… %s left\nLogging in progress; saves automatically if the app closes"
     )
     val diagCrashSaved = L(
         "检测到崩溃，日志已自动保存，可直接分享",
         "Crash detected. The log has been saved automatically and is ready to share"
     )
     val diagKilled = L(
-        "上次进程被杀，已自动结束录制，可分享",
-        "The process was killed last time. Recording ended automatically and is ready to share"
+        "上次录制因应用退出已自动结束，可直接分享",
+        "Recording ended automatically when the app closed and is ready to share"
     )
     val diagTimeout = L(
         "录制已达 30 分钟上限，可分享",
@@ -68,8 +68,8 @@ object AboutStr {
     )
     val diagEnded = L("录制已结束，可分享给开发者", "Recording finished. You can share it with the developer")
     val diagIdleHint = L(
-        "点击开始录制后请复现问题，结束后点分享。\n日志仅存本机，需你主动分享才会离开设备",
-        "Tap Start Recording, reproduce the issue, then tap Share when done.\nThe log stays on this device and only leaves it when you share it"
+        "点击开始录制后复现问题，结束后可分享日志。日志仅保存在本机。",
+        "Tap Start Recording, reproduce the issue, then tap Share. Logs stay on your device until you share them."
     )
     val diagStart = L("开始录制", "Start Recording")
     val diagStop = L("结束录制", "Stop Recording")
@@ -105,7 +105,7 @@ object AboutStr {
     val heroChecking = L("检查中…", "Checking…")
 
     /** 更新页版本卡背面：新版本没有写更新说明时的占位 */
-    val updateHasNoNotes = L("这个版本没有附更新说明", "This release has no notes")
+    val updateHasNoNotes = L("该版本暂无更新说明", "No release notes for this version")
 
     /** 更新页版本卡背面：跳转完整更新日志。 */
     val viewFullChangelog = L("查看全部更新日志", "View Full Changelog")
@@ -175,10 +175,10 @@ object AboutStr {
     val totalSponsorship = L("累计赞助", "Total Donations")
     val anonymous = L("匿名", "Anonymous")
     val donateQr = L("赞赏码", "Donation QR Code")
-    val donateHeroTitle = L("名字留在这一页", "Your name belongs on this page")
+    val donateHeroTitle = L("感谢支持", "Thank You for Supporting")
     val donateHeroSubtitle = L(
-        "课表一直免费，服务器和域名不是。你的每一份支持，都会变成下一次更新。",
-        "The schedule is free; servers and domains aren't. Every bit of support becomes the next update."
+        "Nexio 课程表免费开源，您的支持将用于服务器、域名与持续维护。",
+        "Nexio Schedule is free and open source. Your support helps cover server costs and ongoing maintenance."
     )
     val donateScanAction = L("微信扫码 · 金额随意", "Scan with WeChat · Any amount")
     val donateScanHint = L(
@@ -189,7 +189,7 @@ object AboutStr {
     val supportUpdated = L("持续更新", "Updated regularly")
     val supportOpenSlot = L("虚位以待", "Open spot")
     val donationEmpty = L("还没有公开的捐赠记录", "No public donations yet")
-    val donationLoadFailed = L("名单暂时没拉下来", "Couldn't load the list")
+    val donationLoadFailed = L("赞助名单加载失败", "Couldn't load the supporter list")
 
     // ---- 小组件使用引导 ----
 
@@ -200,8 +200,8 @@ object AboutStr {
     )
     val featureTomorrowTitle = L("明日课程提前预览", "Preview Tomorrow's Courses")
     val featureTomorrowDesc = L(
-        "开启次日课程提醒后，智能显示明日课程",
-        "Smartly shows tomorrow's courses once the next-day course reminder is enabled"
+        "开启次日课程提醒后，自动预览明日课程",
+        "Automatically previews tomorrow's classes when next-day reminders are enabled"
     )
     val featureOngoingTitle = L("进行中课程高亮", "Ongoing Course Highlight")
     val featureOngoingDescIos = L("突出显示正在上课的课程和结束时间", "Highlights the current course and its end time")
@@ -210,7 +210,7 @@ object AboutStr {
         "Highlights the current course with the time remaining"
     )
     val featureStatusTitle = L("智能显示状态", "Smart Status Display")
-    val featureStatusDesc = L("智能提醒今日课程当前状态", "Smartly indicates the current status of today's courses")
+    val featureStatusDesc = L("实时显示今日课程状态", "Shows the live status of today's classes")
     val featureAppearanceTitle = L("跟随桌面外观", "Follow Home Screen Appearance")
     val featureAppearanceDesc = L(
         "支持浅色、深色与系统着色外观",

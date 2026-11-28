@@ -17,13 +17,13 @@ object ImportStr {
         L("已识别节次配置：上午%d节 · 下午%d节 · 晚上%d节", "Section config identified: %d morning · %d afternoon · %d evening periods")
     val withTimesSuffix = L("（含上课时间，导入时自动应用）", " (with class times, applied automatically on import)")
     val autoApplySuffix = L("（导入时自动应用）", " (applied automatically on import)")
-    val warningsCountN = L("提示 %d 条", "%d tips")
+    val warningsCountN = L("提示 %d 条", "%d warnings")
     val warningDetails = L("提示详情", "Details")
     val usageGuide = L("使用说明", "Instructions")
     val copyPrompt = L("复制提示词", "Copy prompt")
-    val promptCopied = L("提示词已复制到剪切板", "Prompt copied to clipboard")
+    val promptCopied = L("提示词已复制到剪贴板", "Prompt copied to clipboard")
     val promptUsageHint = L(
-        "请将以下提示词发送给 AI ，再将 AI 返回的文本粘贴到上方输入框。",
+        "请将以下提示词发送给 AI，再将 AI 返回的文本粘贴到上方输入框。",
         "Send the prompt below to the AI, then paste its response into the input box above."
     )
 
@@ -99,7 +99,7 @@ Reply strictly in this format and do not add any other text."""
     val appendDialogTitle = L("增量添加到当前课表？", "Append to the current schedule?")
     val overwriteDialogTitle = L("导入并覆盖当前课表？", "Import and overwrite the current schedule?")
     val appendSummaryCombined = L("当前课表 %d 门 + 新增 %d 门 → 共 %d 门", "Current %d + new %d → %d in total")
-    val appendKeepExisting = L("\n保留现有课程，不覆盖", "\nExisting courses are kept, nothing is overwritten")
+    val appendKeepExisting = L("\n现有课程将保留", "\nExisting courses will be kept")
     val totalCoursesN = L("共 %d 门课程", "%d courses in total")
     val replaceSummary = L("当前课表 %d 门 → 新课表 %d 门", "Current %d courses → new %d courses")
     val applySectionConfigInfo =
@@ -219,22 +219,20 @@ Reply strictly in this format and do not add any other text."""
     val aiEduContinue = L("继续AI教务导入", "Continue with AI import")
     val aiEduResumeHint = L("已收起对话，点这里继续", "Chat hidden, tap to resume")
     val aiEduStop = L("停止", "Stop")
-    val aiEduFailed = L("这次没成", "Didn't work this time")
+    val aiEduFailed = L("导入未成功", "Import failed")
     val aiEduParseFailed = L("课程数据解析失败", "Failed to parse course data")
     val aiEduReplyHint = L("补充缺失的信息", "Add the missing information")
     val aiEduSend = L("发送", "Send")
-    val aiEduNeedUrl = L("先填一个教务系统地址", "Enter your academic system address first")
+    val aiEduNeedUrl = L("请先填写教务系统地址", "Please enter your academic system address")
     val aiEduUrlHint = L(
-        "填写学校教务导入地址后打开教务系统，登录教务系统后进入课表页面再点击开始分析\n" +
-            "AI自动开始分析页面与接口，撰写脚本",
-        "Enter your school's academic system address and open it, sign in, go to the timetable page, " +
-            "then tap Analyze.\nAI then reads the page and APIs and writes the adapter script.",
+        "输入教务系统地址并打开，登录进入课表页后点击「开始分析」，AI 将自动解析课表。",
+        "Enter your school's academic system address, sign in, open the timetable page, and tap Analyze. AI will parse your schedule automatically.",
     )
     val aiEduUrlLabel = L("教务系统地址", "Academic system address")
     val aiEduOpen = L("打开", "Open")
     val aiEduEntrySubtitle = L(
-        "AI自动开始分析页面与接口，撰写脚本",
-        "AI reads the page and APIs and writes the adapter script",
+        "AI 自动识别教务页面并导入课表",
+        "Let AI read your academic portal and import the schedule",
     )
 
     // ── AI 教务导入：三个阶段（网页 / 对话 / 预览） ──
@@ -253,9 +251,9 @@ Reply strictly in this format and do not add any other text."""
     val aiEduExpand = L("展开", "Expand")
     val aiEduCollapse = L("收起", "Collapse")
 
-    val aiEduQueuedNote = L("%d 条补充已排队，下一个动作前送达", "%d queued, sent before the next step")
-    val aiEduSteer = L("引导", "Steer")
-    val aiEduSteerHint = L("补充要求（下一步前送达）", "Add guidance (sent before the next step)")
+    val aiEduQueuedNote = L("已加入 %d 条补充，将在下一步生效", "%d note(s) queued for the next step")
+    val aiEduSteer = L("补充说明", "Note")
+    val aiEduSteerHint = L("补充说明（下一步生效）", "Add a note (applied on the next step)")
 
     val aiEduPreviewActionN = L("查看预览（%d 门课）", "Preview %d courses")
     val aiEduPreviewTitle = L("导入预览", "Import preview")
@@ -282,8 +280,8 @@ Reply strictly in this format and do not add any other text."""
         L("「%s」现有 %d 门 → 导入 %d 门", "\"%s\" has %d courses → import %d")(name, existing, incoming)
     val aiEduSchoolLabel = L("学校名称", "School name")
     val aiEduSchoolHint = L(
-        "导入后会把这次生成的脚本上传到服务器，同类教务系统的同学可以直接复用",
-        "The script will be uploaded so others on the same system can reuse it",
+        "导入成功后将分享适配规则，方便同校或同类教务系统的同学直接导入",
+        "After import, the adapter will be shared so others on the same system can reuse it",
     )
     val aiEduCollapseSheet = L("收起", "Collapse")
     val aiEduBackToChat = L("返回对话", "Back to chat")
@@ -291,14 +289,14 @@ Reply strictly in this format and do not add any other text."""
     // ── AI 教务导入：脚本历史 ──
     val aiEduHistory = L("历史", "History")
     val aiEduHistoryTitle = L("AI 教务导入历史", "AI Import History")
-    val aiEduHistoryEmpty = L("还没有 AI 生成过脚本", "No AI-generated scripts yet")
+    val aiEduHistoryEmpty = L("暂无 AI 导入记录", "No AI import records yet")
     val aiEduHistoryEmptyHint = L(
-        "完成一次 AI 教务导入后，每个脚本都会留在这里",
-        "Every script from an AI import will be kept here",
+        "完成 AI 教务导入后，生成的适配脚本会保存在这里",
+        "Scripts from your AI imports will be saved here",
     )
     val aiEduHistoryViewScript = L("查看脚本", "View script")
     val aiEduHistoryHideScript = L("收起脚本", "Hide script")
     val aiEduHistorySuccess = L("成功 · %d 门课", "OK · %d courses")
-    val aiEduHistoryFailed = L("未跑通", "Failed")
+    val aiEduHistoryFailed = L("失败", "Failed")
     val aiEduHistoryNoNote = L("没有说明", "No note")
 }
