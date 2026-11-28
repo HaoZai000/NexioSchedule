@@ -339,7 +339,6 @@ internal fun WelcomeArrow(
     onClick: (() -> Unit)? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    // 与 miuix Card 的 PressFeedbackType.Sink 同一份实现：缩到 0.94、spring(0.8, 600) 复原
     val sinkFeedback = remember { SinkFeedback() }
     BoxWithConstraints(modifier = modifier) {
         Image(

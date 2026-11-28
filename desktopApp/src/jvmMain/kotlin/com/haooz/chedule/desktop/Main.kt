@@ -1,5 +1,3 @@
-// Nexio课程表 - 桌面客户端入口（Compose Multiplatform Desktop / JVM）：验证 KMP 迁移成果，与 :androidApp 共用 :ui-shared / :core；本模块不参与 Android 的 --offline 红线。
-// 平台中立性：本模块是平台宿主（同 :androidApp），commonMain 规则不适用，但经它编译的 :ui-shared / :core 代码必须过 checkKmpPurity。
 package com.haooz.chedule.desktop
 
 import androidx.compose.foundation.layout.Arrangement
@@ -57,12 +55,8 @@ import com.haooz.nexioui.scaffold.Scaffold
 import com.haooz.nexioui.topappbar.SharedScrollBehavior
 import com.haooz.nexioui.theme.NexioTheme
 
-/**
- * 桌面端当前阶段的形态：迁移验证壳。每迁入一批页面就多一批可点开的真实页面，作为「迁移可用、可以跑」的直接证据；全部迁完后由正式路由（AppRouter）替换。
- */
 fun main() {
-    // ── 启动注入（对应 Android 的 NexioApplication.onCreate 的四个 init）──────────
-    // 1. 存储：与 Android / iOS 同一个 nexio.db（键值表 + 课程行表同库同事务）
+    // 键值表和课程行表共用数据库，以便在同一事务中更新。
     val dataDir = File(
         System.getProperty("user.home"),
         ".nexio-chedule",   // 桌面数据目录；Android 的 17 个偏好名原样沿用为命名空间
@@ -76,10 +70,9 @@ fun main() {
     // 语言镜像尽早就位：core 数据类的显示变体（DisplayLang）依赖它；与 CourseScheduleApp 里的恢复同值
     com.haooz.chedule.i18n.AppLanguage.init(com.haooz.chedule.i18n.LanguageStore.load())
 
-    // 2. 版本号：桌面读不到 PackageManager，直接给（上报的 app_version 用）
     AppInfo.init("1.6.4-desktop")
 
-    // 3. 文件系统 + 内置资源：root 指向应用数据目录；readAsset 从 classpath 读（Android 读 assets，桌面读 resources，同一契约、平台各自实现）
+    // 内置资源从 classpath 读取，下载的文件保存在桌面数据目录。
     AppFiles.init(
         root = FileAppFile(dataDir),
         readAsset = { path ->
@@ -89,7 +82,6 @@ fun main() {
         },
     )
 
-    // 4. 材质档位：与 Android（NexioApplication）同步从 app_preferences 载入；不调则玻璃/模糊材质停在默认档，桌面验证材质效果失真
     AppMaterialSettings.load()
 
     application {
@@ -105,10 +97,7 @@ fun main() {
     }
 }
 
-/**
- * 页面栈（极简：首页 + 若干详情页，够当前验证阶段用）。
- * ⚠ 与 `:ui-shared` 的 `AppRoute` 是两份路由知识：本壳未包 AppRoute，因 SchoolSelection（桌面无 WebView 导入，直接暴露选校页）与 AddCourse（弹窗演示）本就无对应路由，且路由→内容映射带着 Android 触点搬不动。代价：Android 侧增改路由时这里不告警，每迁一批页面记得补入口，正式路由替换后本注释删除。
- */
+/** 桌面首页的入口，与共享页面路由分开维护。 */
 private enum class DesktopPage {
     Home,
     Changelog,
@@ -156,7 +145,6 @@ private fun DesktopShell() {
             if (page == DesktopPage.Home) {
                 HomeContent(onOpen = { page = it })
             } else {
-                // 与 Android 路由页同一脚手架（DocumentPageScaffold：折叠大标题顶栏 + 液态玻璃圆形返回按钮 + 采样层），正是「多平台视觉一致性」的验证点——同一份组件代码在桌面渲染。
                 PageContainer(
                     title = page.displayTitle(),
                     onBack = { page = DesktopPage.Home },
@@ -195,7 +183,6 @@ private fun DesktopShell() {
                             onConfirm = { page = DesktopPage.Home },
                             onDelete = { },
                         )
-                        // 桌面小部件介绍页。onRequestWidgetRefresh 是 Android 专有能力（AppWidget + RemoteViews），桌面端无小组件，宿主给空实现，页面本体照常渲染。
                         DesktopPage.WidgetIntro -> WidgetIntroScreen(
                             scrollBehavior = scrollBehavior,
                             onRequestWidgetRefresh = { },
@@ -239,9 +226,6 @@ private fun DesktopShell() {
     }
 }
 
-/**
- * 首页：列出**已迁入 :ui-shared 的页面**。每个入口渲染的都是与 Android 端完全相同的一份代码（同一个 composable 函数）——点开能显示，就证明这批迁移在第二个平台上真实可用。
- */
 @Composable
 private fun HomeContent(onOpen: (DesktopPage) -> Unit) {
     Column(
@@ -274,18 +258,13 @@ private fun HomeContent(onOpen: (DesktopPage) -> Unit) {
     }
 }
 
-/**
- * 详情页容器：与 Android 路由页共用 [DocumentPageScaffold]（折叠大标题 + 玻璃返回按钮 + 采样层）。
- */
 @Composable
 private fun PageContainer(
     title: String,
     onBack: () -> Unit,
     content: @Composable (SharedScrollBehavior?) -> Unit,
 ) {
-    // 共享页面普遍用 `viewModel()` 自取 ViewModel，而桌面端没有 Android 的 Activity/Fragment 提供 ViewModelStoreOwner —— 不补一个会直接崩：
-    //   UnsupportedOperationException: `Factory.create(String, CreationExtras)` is not implemented
-    // 这里给每个页面发一个独立 store，离开页面时 clear（等价于页面销毁）。
+    // 共享页面从当前 owner 获取 ViewModel；离开详情页时清理该页的 store。
     val owner = remember { DesktopViewModelStoreOwner() }
     DisposableEffect(Unit) {
         onDispose { owner.viewModelStore.clear() }
@@ -300,7 +279,6 @@ private fun PageContainer(
     }
 }
 
-/** 桌面端最小的 [ViewModelStoreOwner]：一个页面一个 store，不做跨页面共享。 */
 private class DesktopViewModelStoreOwner : ViewModelStoreOwner {
     override val viewModelStore: ViewModelStore = ViewModelStore()
 }

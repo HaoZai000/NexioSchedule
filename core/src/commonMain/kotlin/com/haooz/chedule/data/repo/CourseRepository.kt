@@ -683,11 +683,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         )
     }
 
-    /**
-     * 锚点里的作息 payload。`ensureAnchors` 只在行不存在时才真的写它，但每次保存课程都会把
-     * 整份作息重新序列化一遍（含作息方案与节次时间），纯属白跑。
-     * 按实例缓存：配置被替换成新对象时自然重编码。
-     */
+    /** 按配置对象的身份缓存锚点 JSON，避免每次保存课程都重新编码作息。 */
     private fun encodeTimeConfigCached(config: TimeConfig): String {
         encodedTimeConfigCache[config.id]?.let { cached ->
             if (cached.config === config) return cached.json
@@ -700,13 +696,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         return json
     }
 
-    /**
-     * 课表行上的设置值。**行是唯一真相**，不存在就返回 null，不回看 prefs。
-     *
-     * 以前这里还有一次「首次访问 prefs → 行」的同步：迁移把 prefs 副本删掉之后，
-     * 它只会把行里的正确值覆盖成默认值 —— 恢复备份后设置被重置就是这么来的。
-     * 现在搬数据只发生在 [migrateLegacyEntitiesOnce] 里。
-     */
+    /** 设置以课表行为准，缺行时返回 null；prefs 只由 [migrateLegacyEntitiesOnce] 导入。 */
     private fun rowSettingsOf(scheduleId: String): ScheduleRowSettings? {
         scheduleSettingsCache[scheduleId]?.let { return it }
         val rows = CourseStorage.rows ?: return null
@@ -726,22 +716,12 @@ class CourseRepository private constructor() : PeriodTimeSource {
             .isSuccess
     }
 
-    /**
-     * 行不存在（新表 / 从没写过课程）时补建锚点行，让「只写开关」这类操作也有行可落。
-     *
-     * 只建行，不从 prefs 补值：prefs 里那几块在迁移成功后就删了，能从 prefs 补到值
-     * 说明迁移没跑完 —— 那是「下次启动重跑迁移」的事，不是每次写都去猜。
-     */
+    /** 即使还没有课程，也为该课表的设置创建锚点行。 */
     private fun ensureScheduleRow(rows: CourseRowStore, scheduleId: String) {
         createScheduleRowIfAbsent(rows, scheduleId)
     }
 
-    /**
-     * 写行上的三个设置值，返回是否写成功。
-     *
-     * 只写行。prefs 里的同名字段是迁移源，迁移成功后就删了 —— 再写一份只会变成
-     * 会过期的第二真相，还要额外维护「谁是真相」的标记。
-     */
+    /** 只更新行表中的设置，不回写旧 prefs 键。 */
     private fun writeRowSettings(
         scheduleId: String,
         currentWeek: Int? = null,
@@ -785,7 +765,6 @@ class CourseRepository private constructor() : PeriodTimeSource {
         return "$SCHEDULE_KEY_PREFIX${scheduleId}_"
     }
 
-    // USELESS_ELVIS：Gson 反序列化后非空字段仍可能是 null
     @Suppress(
         "SENSELESS_COMPARISON",
         "ELVIS_ALWAYS_NULL",
@@ -805,9 +784,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
             json.contains("\"id\"")
     }
 
-    /** UnsafeAllocator 使旧 JSON 缺失字段为 null，无条件重建以拿到默认值 */
-    // USELESS_ELVIS / ELVIS_ALWAYS_NULL：字段声明为非空 String，但 UnsafeAllocator 真的会给 null，
-    // 这里的 ?: 是自愈数据的关键，不能删。与 TimeConfig.sanitize / TimeRoutine.fromRaw 同一处理。
+    /** 重建课程以规范化缺失字段和备注；新增持久化字段也需在此复制。 */
     @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS", "ELVIS_ALWAYS_NULL")
     private fun sanitizeCourses(courses: List<Course>): List<Course> {
         return courses.map { course ->
@@ -829,10 +806,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
                 isCustomTime = course.isCustomTime,
                 customStartTime = course.customStartTime,
                 customEndTime = course.customEndTime,
-                // ⚠ 这里用显式构造（UnsafeAllocator 会给出 null 字段），新增字段必须一起补 ——
-                //   漏了就等于每次读盘都把该字段抹掉，表现为「重启后备注/新字段全丢」。
                 note = (course.note ?: "").trim().truncateNote(),
-                // 备注长度/空值在这里再收一次口：盘上的数据可能来自旧版本或手工改过的备份
                 weekNotes = (course.weekNotes ?: emptyMap())
                     .mapValues { it.value.trim().truncateNote() }
                     .filterValues { it.isNotEmpty() },
@@ -842,15 +816,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
 
     fun getAllCourses(): List<Course> = getCoursesForSchedule(getCurrentScheduleId())
 
-    /**
-     * 保存整个课表的课程列表。调用点都是「读全量 → 改内存 → 存全量」，签名保持不变；
-     * 差分在存储层做，改一门课只写一行。
-     *
-     * **写失败就抛**，不落 JSON 副本、不更新内存缓存：以前这里有「行写失败 → 把整表 encode 成
-     * `schedule_{名}_courses` → 清导入标记」的抢救路径，等于给同一次写入造第二真相，
-     * 而且它和真正的迁移源长得一模一样（读路径无法分辨「待迁移」和「抢救副本」）。
-     * 现在库写不进去就说明库坏了，让调用方看见异常，比「界面显示已保存、重启全丢」诚实。
-     */
+    /** 首次保存整表，之后按差分写入。行表写入失败会抛异常，不更新缓存或写入 JSON 副本。 */
     fun saveCourses(courses: List<Course>, notify: Boolean = true) {
         val scheduleId = getCurrentScheduleId()
         val normalized = courses.normalizeScheduleId(scheduleId)
@@ -1279,12 +1245,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         markScheduleSettingsChanged(scheduleId)
     }
 
-    /**
-     * 重组规则的原始 JSON，只从表读。
-     *
-     * 读和**备份导出**共用这一个口子 —— 导出曾经自己拼 prefs 键，迁移把键删掉之后
-     * 备份里就悄悄少了这一块，恢复时整份规则消失。
-     */
+    /** 页面读取和备份导出共用行表中的重组规则 JSON。 */
     private fun teachingWeekReorganizationsRawOf(scheduleId: String): String? =
         CourseStorage.rows?.let { rows ->
             runCatching { rows.teachingWeekReorganizationsOf(scheduleId) }.getOrNull()
@@ -1989,12 +1950,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         return resolveLegacyCurrentTimeConfigId()
     }
 
-    /**
-     * 这张课表绑定的配置。未绑定返回 null。
-     *
-     * 只读 `schedule.time_config_id`。prefs 的 `schedule_time_config_{名}` 是迁移源，
-     * 迁移成功后就删了 —— 再回看它就是读一份会过期的旧值。
-     */
+    /** 从课表行读取绑定的作息配置；未绑定或配置不存在时返回 null。 */
     private fun boundTimeConfigIdOrNull(scheduleId: String): Long? {
         val snapshot = bindingSnapshot
         // 按 id 集合校验：删配置后旧缓存自动判成未绑定，无需手动失效
@@ -2161,12 +2117,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         return ids
     }
 
-    /**
-     * 表 → 内存缓存，进程内一次。
-     *
-     * 不再做「首次访问把 prefs 同步进表」：那一步在迁移里做完了，
-     * 留着它只会在恢复备份后拿空 prefs 覆盖正确的行。
-     */
+    /** 从行表填充进程内的作息缓存，不从 prefs 回填。 */
     private fun hydrateTimeConfigs() {
         if (timeConfigsHydrated) return
         val rows = CourseStorage.rows ?: return
@@ -2593,10 +2544,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         return result
     }
 
-    /**
-     * 一次写入完整配置（旧实现 20+ setter 造成多次磁盘提交）。
-     * savePeriodTimes 会静默关掉 quickTimeEnabled，这里显式保持关闭以对齐历史行为。
-     */
+    /** 一次写入完整的作息配置，同时关闭快速时间模式。 */
     private fun applyTimeConfigToSchedule(config: TimeConfig) {
         val scheduleId = getCurrentScheduleId()
         val configId = ensureScheduleTimeConfigId(scheduleId)
@@ -2626,7 +2574,6 @@ class CourseRepository private constructor() : PeriodTimeSource {
                 morningSections = config.morningSections,
                     afternoonSections = config.afternoonSections,
                     eveningSections = config.eveningSections,
-                    // 与旧 savePeriodTimes 一致：应用配置时快速时间保持关闭
                     quickTimeEnabled = false,
                     classDuration = config.classDuration,
                     shortBreak = config.shortBreak,

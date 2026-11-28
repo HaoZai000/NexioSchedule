@@ -22,30 +22,14 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 
-/**
- * 两条**纯网络**课表导入：本站分享口令 + 星链课表分享码。
- *
- * 对应 Android `ShareCodeApi.fetchShare` 与 `ThirdPartyShareImporter.importStarLink`；
- * Android 那两份还在用 OkHttp + Gson + JSONObject，为零回归不去动它们，
- * 这里复用共享 [HttpService] 与 JSON 层重抄逻辑。
- *
- * WakeUp 那条要跑**无头 WebView**（云端适配脚本），各平台实现不同，由 [wakeUpRunner] 注入。
- *
- * ⚠ **接口地址与字段名与服务端是契约**，逐字不能改（改了 Android 也一起坏）。
- */
+/** 本站口令与星链分享码通过 HTTP 导入；WakeUp 适配脚本由 [wakeUpRunner] 执行。 */
 object ShareCodeImport {
 
-    /**
-     * WakeUp 导入的无头浏览器实现，参数是 `(shareKey, 适配脚本)`。
-     *
-     * iOS 用 WKWebView（`IosWakeUpImport`）、Android 用 WebView；null = 该平台不支持。
-     */
+    /** 宿主提供的无界面脚本执行器；为 null 时不支持 WakeUp 导入。 */
     var wakeUpRunner: (suspend (shareKey: String, script: String) -> ThirdPartySharePayload)? = null
 
-    /** 本站口令服务；与 Android `ShareCodeApi.BASE_URL` / `IosScheduleShare` 逐字一致 */
     private const val SHARE_BASE_URL = ApiEndpoints.SHARE
 
-    /** 星链课表；与 Android `ThirdPartyShareImporter` 的 StarLink 分支逐字一致 */
     private const val STARLINK_BASE_URL = "https://api.starlinkkb.cn/share/curriculum/"
 
     private val http: HttpService by lazy {
@@ -54,12 +38,7 @@ object ShareCodeImport {
 
     // ── 1. 本站分享口令取回 ──────────────────────────────────────────
 
-    /**
-     * 按口令取回分享的课表。
-     *
-     * 错误文案与 Android 逐字对齐（页面直接 `showToast(e.message)`）：空口令 → 「请输入口令」，
-     * 404 → 「口令不存在或已过期」，其余 HTTP 失败先取服务端的 `error` 字段。
-     */
+    /** HTTP 错误优先返回服务端消息；404 且无消息时提示口令不存在或已过期。 */
     suspend fun fetchShareCode(rawCode: String): Result<ShareCodeFetchResult> =
         withContext(ioDispatcher) {
             suspendRunCatching {
@@ -95,12 +74,7 @@ object ShareCodeImport {
 
     // ── 2. 第三方（WakeUp / 星链）口令导入 ───────────────────────────
 
-    /**
-     * 按来源分发。WakeUp 走无头 WKWebView 跑适配脚本，星链是纯 HTTP。
-     *
-     * 总超时 45s 与 Android `importWakeUp` 对齐 ——
-     * 星链本来就有自己的连接/读超时，这里只是兜底，别再往上加。
-     */
+    /** 整次导入共用一个超时，包括下载和执行 WakeUp 适配脚本。 */
     suspend fun importThirdParty(
         source: ThirdPartyShareSource,
         rawInput: String,
@@ -178,8 +152,6 @@ object ShareCodeImport {
         }
 
     private fun minutesToTime(minutes: Int): String {
-        // ⚠ Kotlin/Native 没有 `String.format`（`"%02d".format` 直接 Unresolved），
-        // 手写补零 —— 别改成 String.format，编译不过。
         return "${(minutes / 60).pad2()}:${(minutes % 60).pad2()}"
     }
 
@@ -198,14 +170,7 @@ object ShareCodeImport {
         return runner(code, script)
     }
 
-    // ── 口令清洗（与 Android 的正则逐字一致）──────────────────────────
-
-    /**
-     * 从用户粘贴的一整段分享文案里抠出口令。
-     *
-     * 用户粘的通常不是裸口令，而是「你的分享口令为：XXXX」这种整段话（星链甚至带
-     * 「输入：」前缀），所以两个来源各有一套兜底正则 —— 与 Android 逐字一致，别改。
-     */
+    /** 从粘贴的分享文案中按来源提取口令，也接受裸口令。 */
     fun extractShareKey(source: ThirdPartyShareSource, raw: String): String {
         val text = raw.trim()
         if (text.isEmpty()) return ""
@@ -237,19 +202,11 @@ object ShareCodeImport {
 
     // ── URL 编码 ────────────────────────────────────────────────────
 
-    /** 口令里可能带中文/符号，拼进 query 前必须转义（等价 Android 的 `URLEncoder.encode`） */
     private fun encodeQuery(value: String): String = percentEncode(value)
 
-    /** 路径段转义（口令理论上不含 `/`，但仍按最严的来） */
     private fun encodePath(value: String): String = percentEncode(value)
 
-    /**
-     * RFC 3986 百分号编码。
-     *
-     * ⚠ 没用 `NSString.stringByAddingPercentEncodingWithAllowedCharacters`：Kotlin/Native
-     * 里 String 不直接暴露 NSString 的方法（要 `as NSString` 桥一层，多一处易错点），
-     * 这里十几个字符的活手写更稳；只保留 unreserved 集，其余按 UTF-8 字节逐个转义。
-     */
+    /** 保留 RFC 3986 的非保留字符，其余按 UTF-8 字节作百分号编码。 */
     private fun percentEncode(value: String): String {
         val hex = "0123456789ABCDEF"
         val out = StringBuilder(value.length)
@@ -297,7 +254,6 @@ private fun JsonObject.asCourseJson(): StarLinkCourseJson {
 private fun JsonObject.intOrNull(key: String): Int? =
     optString(key).takeIf { it.isNotBlank() }?.toIntOrNull()
 
-/** `JsonArray?` → `JsonArray`，省得每个调用点写 `?: emptyList()`。 */
 private fun JsonArray?.orEmpty(): JsonArray = this ?: JsonArray(emptyList())
 
 /** 数组元素按文本读（数字 primitive 的 `content` 就是数字串）再转 Int，取不到的跳过。 */

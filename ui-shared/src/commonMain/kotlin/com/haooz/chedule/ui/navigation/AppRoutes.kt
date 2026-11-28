@@ -226,7 +226,7 @@ import com.haooz.chedule.ui.utils.PredictiveBackAnimation
 /**
  * 路由宿主的跨平台部分：路由跳转、状态接线、Updater 订阅，平台能力一律参数注入。
  *
- * ⚠ 本文件不能改名 `AppRouteContent.kt`：`:androidApp` 同包已有一个同名文件，两边会生成同一 facade 类 `AppRouteContentKt`，编译期静默通过，但 D8/R8 打 dex 时同名 class 冲突只留一个，本文件路由全部 `NoSuchMethodError`，Android/iOS 都闪退。往 `:ui-shared` 加文件前先查 `:androidApp` 同包有无同名 `.kt`；Android 侧同名包装加 `Android` 前缀（如 `AndroidWebHost`）。
+ * 文件名需与 androidApp 同包的 AppRouteContent.kt 不同，避免生成相同的 JVM 文件外观类。
  */
 
 // ── 路由间共用的结构件 ──
@@ -324,7 +324,7 @@ private fun RefreshTopBarAction(
 /**
  * 教务导入路由（学校 / 适配器选择）。
  *
- * @param isInFreeformWindow Android 读 `Activity.isInMultiWindowMode`；桌面/iOS 没有自由窗口概念，传 false。
+ * @param isInFreeformWindow 宿主窗口是否使用小窗布局。
  */
 @Composable
 fun EducationalImportRoute(
@@ -460,7 +460,6 @@ fun AboutRoute(
     )
 }
 
-/** 更新日志路由。 */
 @Composable
 fun ChangelogRoute(router: AppRouter) {
     // 更新日志常从设置搜索直接跳进来，在 pad 右栏局部栈里是栈底二级页，
@@ -475,7 +474,6 @@ fun ChangelogRoute(router: AppRouter) {
     }
 }
 
-/** 开源协议路由。 */
 @Composable
 fun LicenseRoute(router: AppRouter) {
     DocumentRoute(title = ChromeStr.openSourceLicenses(), router = router) { scrollBehavior ->
@@ -483,7 +481,6 @@ fun LicenseRoute(router: AppRouter) {
     }
 }
 
-/** 隐私政策路由。 */
 @Composable
 fun PrivacyPolicyRoute(router: AppRouter) {
     DocumentRoute(title = ChromeStr.privacyPolicy(), router = router) { scrollBehavior ->
@@ -491,7 +488,6 @@ fun PrivacyPolicyRoute(router: AppRouter) {
     }
 }
 
-/** 问题反馈路由。 */
 @Composable
 fun CommunicationRoute(router: AppRouter) {
     DocumentPageScaffold(title = ChromeStr.communityFeedback(), onBack = { router.popBack() }) { scrollBehavior, _ ->
@@ -503,7 +499,6 @@ fun CommunicationRoute(router: AppRouter) {
     }
 }
 
-/** 应用内反馈路由。 */
 @Composable
 fun FeedbackRoute(router: AppRouter) {
     val state = rememberFeedbackFormState()
@@ -558,7 +553,6 @@ fun FeedbackRoute(router: AppRouter) {
     }
 }
 
-/** 我的反馈路由。 */
 @Composable
 fun FeedbackHistoryRoute(router: AppRouter) {
     DocumentPageScaffold(
@@ -574,7 +568,6 @@ fun FeedbackHistoryRoute(router: AppRouter) {
     }
 }
 
-/** 开发进度路由。 */
 @Composable
 fun FeedbackRoadmapRoute(router: AppRouter) {
     var roadmapFilter by remember { mutableStateOf<FeedbackKind?>(null) }
@@ -616,7 +609,6 @@ fun FeedbackRoadmapRoute(router: AppRouter) {
     }
 }
 
-/** 捐赠支持路由。 */
 @Composable
 fun AppreciateAuthorRoute(router: AppRouter) {
     DocumentRoute(title = ChromeStr.donate(), router = router) { scrollBehavior ->
@@ -754,7 +746,6 @@ fun SettingsRoute(
     }
 }
 
-/** 课程表。 */
 @Composable
 fun ScheduleSettingsRoute(router: AppRouter) {
     ScheduleSettingsScreen(router = router)
@@ -763,8 +754,6 @@ fun ScheduleSettingsRoute(router: AppRouter) {
 /**
  * 应用个性化路由。四个平台能力全部参数注入：定位权限检查 / 天气缓存清空 /
  * 最近任务卡片隐藏 / 主题切换后的系统栏刷新。
- *
- * Android 从 `ContextCompat` / `MainActivity` 取；桌面/iOS 用默认值（前三项空/false，后一项无系统栏概念）。
  */
 @Composable
 fun PreferenceSettingsRoute(
@@ -797,11 +786,6 @@ fun PreferenceSettingsRoute(
     }
 }
 
-/**
- * 更新路由。
- *
- * @param updateController Android 注入 `AndroidUpdateController(context)`（检查/下载/APK 安装）；桌面/iOS 用默认 [NoopUpdateController]。
- */
 @Composable
 fun UpdateSettingsRoute(
     router: AppRouter,
@@ -1199,10 +1183,9 @@ fun AiImportRoute(
 }
 
 /**
- * 节假日与调休路由。网络拉取统一走 `:core` 的 [createHttpService]（iOS 是 NSURLSession，
- * 桌面是 OkHttp），协程调度用 [ioDispatcher]。
+ * 节假日数据通过 [createHttpService] 拉取。
  *
- * @param onHolidayDataChanged 节假日数据变更后的平台副作用（重排提醒/刷小部件），Android 宿主注入。
+ * @param onHolidayDataChanged 数据变更后由宿主重排提醒或刷新小部件。
  */
 @Composable
 fun HolidaySettingsRoute(
@@ -1328,17 +1311,13 @@ fun HolidaySettingsRoute(
 /**
  * 桌面小部件引导路由。
  *
- * @param onRequestWidgetRefresh Android 注入 `WidgetUpdateCache` 清缓存 + 刷新已安装小部件；桌面/iOS 无 AppWidget 概念，默认空实现。
- * ⚠ 弹窗「添加到桌面」文案是 Android 措辞；iOS 若做 WidgetKit 需提成参数（现在走不到这一页）。
+ * @param onRequestWidgetRefresh 小部件设置变更后通知宿主刷新已安装的小部件。
  */
 @Composable
 fun WidgetIntroRoute(
     router: AppRouter,
     onRequestWidgetRefresh: () -> Unit = {},
-    /**
-     * 拉起系统选图器给组件换壁纸。Android 注入真实能力（相册）；
-     * 桌面/iOS 没有对应组件能力，默认空实现 —— 按钮点了没反应，但页面照常渲染。
-     */
+    /** 由宿主选择壁纸；回调参数为预览所需的像素宽高。 */
     onPickWidgetWallpaper: (widthPx: Int, heightPx: Int, onPicked: (ImageBitmap?) -> Unit) -> Unit =
         { _, _, _ -> },
     /** 「自定义」入口（换壁纸浮层）开关：鸿蒙的卡片是 ArkTS 渲染，改不了这份预览 */
@@ -1490,9 +1469,9 @@ fun McpServiceRoute(
 /**
  * 课程提醒路由。
  *
- * @param reminderController Android 注入 `AndroidReminderController(context)`（闹钟 / 电池优化 / 权限 / 系统设置页跳转）；桌面/iOS 用 [NoopReminderController]。
+ * @param reminderController 宿主提供的提醒与权限控制器。
  * @param testActionLabel 底部测试按钮文案，Android 按设备能力在「测试小米超级岛」/「测试实时活动」间切换后传入。
- * @param onSendTestNotification **传 null 表示这一端没有测试能力 → 不渲染按钮**，别给一个点了没反应的按钮。
+ * @param onSendTestNotification 为 null 时不显示测试按钮。
  */
 @Composable
 fun CourseReminderRoute(
@@ -1587,9 +1566,7 @@ fun WebDavSettingsRoute(
  * 课表导入 / 导出（共用 [BackupAndMigrationScreen]，只差 [mode]）。
  *
  * [switchableModes] 非空时启用「导入导出」胶囊切换页；留空为单模式页。
- * 入口必须走路由，不能是独立 Activity。
- *
- * @param scheduleFileController Android 注入 `AndroidScheduleFileController(context)`；iOS/桌面用 [NoopScheduleFileController]（点导入会提示不可用）。
+ * @param scheduleFileController 由宿主提供文件选择与保存能力。
  */
 @Composable
 fun BackupAndMigrationRoute(
@@ -1702,7 +1679,7 @@ private fun modeTabLabel(mode: ScheduleDataManageMode): String = when (mode) {
  * 比普通文档页多一层结构：外层 `Box` 做「背景模糊」动画；
  * ⚠ 二级编辑页 [TimeConfigEditScreen] 必须渲染在 [DocumentPageScaffold] 外面，否则会被顶栏裁掉。
  *
- * @param isInFreeformWindow Android 读宿主 `MainActivity` 的 Compose 状态（子页拿不到自己的 Activity 回调）；桌面/iOS 没有这个概念，传 false。
+ * @param isInFreeformWindow 宿主窗口是否使用小窗布局。
  */
 @Composable
 fun CourseTimeSettingsRoute(
@@ -1717,7 +1694,6 @@ fun CourseTimeSettingsRoute(
     // 与课程管理页同口径读 Compose 容器尺寸，跨平台一致
     val screenWidth = windowInfo.containerSize.width.toFloat()
     val screenHeight = windowInfo.containerSize.height.toFloat()
-    // 圆角：Android 读系统真实圆角（自由小窗固定 20dp）；iOS/桌面返回 0 = 不裁切
     val screenCornerRadius = rememberScreenCornerRadiiPx()
 
     var currentPage by remember { mutableStateOf("select") }
@@ -2034,7 +2010,6 @@ fun CourseManageRoute(
 
     val managePageBlurRadius = remember { Animatable(0f) }
 
-    // 圆角：Android 读系统真实圆角（自由小窗固定 20dp）；iOS/桌面返回 0 = 不裁切
     val screenCornerRadius = rememberScreenCornerRadiiPx()
 
     // 二级编辑页独立采样源；快捷菜单采课程管理页的内容层（空层渲染不出材质）

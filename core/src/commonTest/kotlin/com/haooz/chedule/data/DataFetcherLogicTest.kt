@@ -20,13 +20,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 
-/**
- * 三个数据对象的**网络逻辑**验证。
- *
- * 迁移前这些 object 直接自建 OkHttpClient，没有任何注入点，导致「公告解析与已读去重」
- * 「分页参数拼装」「上报重试与 install-once」这些有实际分支的逻辑零覆盖。
- * 现在 `http` 是 `internal var`，可以注入 [RecordingHttp] 离线覆盖。
- */
+/** 用脚本化 HTTP 响应验证公告去重、分页请求和上报重试。 */
 class DataFetcherLogicTest {
 
     /** 记录请求并按脚本依次返回响应的假实现。 */
@@ -152,7 +146,6 @@ class DataFetcherLogicTest {
 
     // ─────────────── AppreciationFetcher ───────────────
 
-    /** 分页参数必须拼进 URL（迁移前用 HttpUrl.newBuilder()）。 */
     @Test
     fun `捐赠分页参数正确拼入 URL`() = runTest {
         val http = RecordingHttp(listOf(ok("""{"records":[],"has_more":false}""")))

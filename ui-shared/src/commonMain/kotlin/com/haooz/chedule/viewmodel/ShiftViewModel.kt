@@ -10,11 +10,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * 排班模式状态。
- *
- * 2026-10-10 由 `AndroidViewModel` 改为普通 [ViewModel]：原 `application` 参数类体内从未使用（无一处 `getApplication()`），只是 AndroidViewModel 的模板。去掉后 Android 侧 `viewModel()` 默认工厂仍能直接构造（无参），宿主无需改动。
- */
 class ShiftViewModel : ViewModel() {
 
     private val repository = CourseRepository()

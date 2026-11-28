@@ -6,9 +6,6 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
-/**
- * 桌面（JVM）侧平台实现。桌面定位是「迁移验证壳」：能真跑库与网络，不追求平台观感。
- */
 
 actual fun <T> synchronizedOn(lock: Any, block: () -> T): T = synchronized(lock) { block() }
 
@@ -85,7 +82,7 @@ private fun sha256Hex(value: String): String {
 
 private const val HEX_DIGITS = "0123456789abcdef"
 
-/** 没有系统提示条，落到日志；将来要弹窗只改这一个函数，调用方不动。 */
+/** 桌面提示写入日志。 */
 actual fun showToast(message: String, longDuration: Boolean) {
     NexioLog.i(TAG, message)
 }

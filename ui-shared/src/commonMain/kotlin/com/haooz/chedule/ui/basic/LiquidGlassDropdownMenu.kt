@@ -112,10 +112,7 @@ private val ButtonDiameter = 42.dp
 private val PanelWidth = 200.dp
 private val PanelCornerRadius = 25.dp
 
-/**
- * 面板外投射阴影档位。⚠️ ListPopup.kt 的 popupPanelShadow 有一份**同值副本**
- * （那边是 miuix 通用组件，不反向依赖 app 层），调整时两处必须同步，否则两种弹窗阴影深浅不一。
- */
+// 阴影颜色、半径和外扩距离与列表弹窗保持一致。
 private val ShadowColorLight = Color(0x1A000000)
 private val ShadowColorDark = Color(0x2E000000)
 private const val ShadowBlur = 12f

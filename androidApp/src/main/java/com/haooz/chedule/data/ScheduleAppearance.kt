@@ -19,23 +19,7 @@ import com.haooz.chedule.data.storage.getStringOrNull
 import java.io.File
 import java.io.FileOutputStream
 
-// ════════════════════════════════════════════════════════════════════════
-//  课表外观（Android 宿主侧）：启动初始化 + 老数据迁移 + 壁纸文件 I/O。
-//  参数读写已下沉 :core 的 AppearanceStore；独立 `appearance_settings` 文件存储，
-//  不与课程数据混存，也不进全量备份。
-// ════════════════════════════════════════════════════════════════════════
-
-/** 卡片内容对齐方式 / 文字配色 / 透镜折射强度：已下沉 :core（同包名 CardTextColor.kt） */
-
-/**
- * 1.5.2 老外观快照的解析结构（**仅迁移用**）。
- *
- * 字段名 = 旧 JSON 键名，逐字不能改；解析出来只做一件事：用 Gson 重新序列化进新文件
- * （[ScheduleAppearance.migrateLegacyAppearanceIfNeeded]）。参数语义与默认值都在共享层
- * `AppearanceStyle` / `AppearanceConfig`，这里不参与取值，所以不提供 safe getter。
- *
- * 枚举字段声明为可空：Gson UnsafeAllocator 使 Kotlin 默认值不生效。
- */
+/** 仅用于读取 1.5.2 外观快照；字段名对应旧 JSON 键，缺失的可选配置保持为空。 */
 data class CombinationStyle(
     val offsetX: Float = 0f,
     val offsetY: Float = 0f,
@@ -76,7 +60,7 @@ data class CombinationStyle(
             "wallpaperBlur"
         )
 
-        /** 至少命中一个已知字段名才采信；键名对不上 Gson 会停在 Java 默认值（如 cardHeight=0 → 课表空白），判为不可用由调用方恢复默认。 */
+        /** 只有含已知字段的快照才可用于恢复。 */
         fun parseSnapshotOrNull(gson: Gson, json: String): CombinationStyle? {
             val obj = runCatching { gson.fromJson(json, JsonObject::class.java) }.getOrNull() ?: return null
             if (obj.keySet().none { it in FIELD_NAMES }) return null
@@ -85,19 +69,9 @@ data class CombinationStyle(
     }
 }
 
-/**
- * 外观存储（Android 宿主侧）。
- *
- * 参数读写已全部下沉到共享层 `AppearanceStore`（`:core`），页面直接调它 —— 这里只剩
- * Android 独有的三件事：**启动初始化 + 1.5.2 老数据迁移**、**壁纸文件 I/O（降采样/LruCache/像素缓存）**、
- * 给 `WallpaperStore` 用的路径与屏幕指标。
- * 迁移用 [CombinationStyle] 解析旧 JSON，所以那个类留着；别再加转发 getter/setter，加了也没人调。
- *
- * 只有一个键：[FILE_STYLE_KEY]（参数 JSON 快照）+ 一个壁纸文件。没有 id 维度。
- */
+/** 迁移旧外观设置并管理壁纸文件；外观参数存放在独立偏好中，不随课表备份。 */
 object ScheduleAppearance {
 
-    // 这两个常量已下沉 :core（CourseRepository 判外观键要用，:core 不能反向依赖 :app）；此处 const 转发取值同源不抄错。
     /** 独立 prefs 文件名 */
     const val FILE = AppearancePrefs.FILE
 
@@ -113,10 +87,7 @@ object ScheduleAppearance {
      */
     private const val WALLPAPER_RAW_CACHE = "appearance_wallpaper.pixels"
 
-    /**
-     * 供 [WallpaperStore] 复用同一落盘目录。
-     * ⚠ 必须与此处 loadWallpaper/saveWallpaper 内部 `File(appContext.filesDir, …)` 逐字一致，否则存量壁纸静默丢失。
-     */
+    /** 与壁纸读写共用同一路径，供 [WallpaperStore] 访问已有文件。 */
     fun appFilesDir(): java.io.File = appContext.filesDir
 
     /** 屏幕显示指标 —— 供 [WallpaperStore] 计算壁纸目标分辨率（长边/短边）。 */

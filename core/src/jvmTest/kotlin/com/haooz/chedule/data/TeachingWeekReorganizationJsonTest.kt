@@ -10,26 +10,11 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * `TeachingWeekReorganization.encode/decode` 的**持久化格式回归**。
- *
- * 这两个函数原来用 **Gson**，下沉 `:core` 时换成了 `JsonSupport`
- * （kotlinx-serialization），而**它们的输出会落盘、会进备份文件** ——
- * 换 JSON 库等于换持久化格式，属于数据兼容红线。
- *
- * ## 基准是怎么来的（不是猜的）
- *
- * 字面量是用**真实的 Gson 2.11.0** 跑 `toJson(toBackupValue(...))` 打出来的，逐字抄进来。
- * 所以这些断言等于「新旧实现在同一份输入上输出完全一致」的机械证明。
- *
- * ⚠ 本文件不入库（用户长期要求）。
- */
+/** 对固定的备份 JSON 样本验证编解码、字段类型和往返稳定性。 */
 class TeachingWeekReorganizationJsonTest {
 
     private fun rule(a: Int, b: Int, c: Int, d: Int, e: Int, f: Int) =
         TeachingWeekReorganizationRule(a, b, c, d, e, f)
-
-    // ── 基准：Gson 2.11.0 的真实输出 ──
 
     private val gsonBaselineOneRule =
         """{"schema_version":1,"rules":[{"firstOriginalWeek":4,"firstStartWeekday":1,""" +
@@ -100,7 +85,7 @@ class TeachingWeekReorganizationJsonTest {
                 20,
             )
         }
-        // 字符串形式的数字：Gson 的 Map<String,Any> 会给出 String，readInteger 拒绝 → 同样失败
+        // 规则要求 JSON 数字，不接受引号包裹的数字。
         assertFailsWith<IllegalArgumentException> {
             TeachingWeekReorganization.decode(
                 """{"schema_version":"1","rules":[]}""",
@@ -117,7 +102,6 @@ class TeachingWeekReorganizationJsonTest {
             ),
         ) as Map<*, *>
 
-        // Gson 的 ObjectTypeAdapter 把 NUMBER 一律读成 Double
         assertEquals(1.0, plain["n"])
         assertTrue(plain["n"] is Double, "数字必须是 Double（与 Gson 一致）")
         assertEquals("2", plain["s"])

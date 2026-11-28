@@ -33,7 +33,7 @@ class DateExtEquivalenceTest {
                 add(LocalDate(year, month, 28))
             }
         }
-        // 逐日扫 2026 全年（闰年相邻年），确保月末/跨月没有一天算错
+        // 连续采样全年，覆盖每个月末与跨月边界。
         var d = LocalDate(2026, 1, 1)
         while (d <= LocalDate(2026, 12, 31)) {
             add(d)

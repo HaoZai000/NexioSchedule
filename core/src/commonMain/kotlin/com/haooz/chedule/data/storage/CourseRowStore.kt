@@ -145,8 +145,7 @@ interface CourseRowStore {
 /**
  * [CourseRowStore] 的注册点，启动时装一次。
  *
- * 只有「这个平台根本没有行表」（桌面 / iOS / 测试）才返回 null；注册过但拿不到就抛，
- * 不做静默降级。
+ * 未注册或提供方返回 null 时没有行存储；提供方抛出的异常向调用方传播。
  */
 object CourseStorage {
 

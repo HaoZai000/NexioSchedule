@@ -42,7 +42,7 @@ import com.haooz.nexioui.navigationback.rememberNavigationBack
  * 直接下层 `-NAV_PARALLAX×p×W`、黑幕 `NAV_BG_DIM×p`；push 0→1 与 pop 1→0 共用同一公式，
  * 打断续播与手势跟手都依赖这一点。
  *
- * 返回手势走 `:miuix` 的 [rememberNavigationBack]（Android 实现基于 navigationevent，skiko 为空实现）。
+ * [rememberNavigationBack] 提供返回事件及手势进度。
  *
  * @param mainTransition 主界面（常驻底座）的首层进度；它不在此容器内，视差只能由宿主施加。
  * @param transitionState 外置的栈顶进度持有者，缺省内部自建。鸿蒙宿主用它逐帧读取进度。
@@ -147,8 +147,7 @@ fun AppNavHost(
     }
 
     // ── 预测性返回 ─────────────────────────────────────────────────────────────
-    // handler 与 backProgress 必须取自同一个 rememberNavigationBack：拆成两处各自
-    // remember 会编译通过但跟手动画永远不动（miuix fork 踩过）。
+    // handler 与 backProgress 必须来自同一个 rememberNavigationBack，否则手势进度不会驱动动画。
     back.handler(
         enabled = router.hasOverlay,
         onBackCompleted = { router.popBack() },

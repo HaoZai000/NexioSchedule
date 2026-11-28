@@ -85,9 +85,6 @@ private val DefaultCollapseExtra = DpSize(14.dp, 10.dp)
 
 /**
  * A [BasicComponent] wrapper that opens an [OverlayDropdownPopup] for a single [DropdownEntry].
- *
- * When [summary] is null, the text of the currently selected [top.yukonga.miuix.kmp.basic.DropdownItem]
- * is shown automatically.
  */
 @Composable
 fun OverlayDropdownMenu(

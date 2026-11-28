@@ -219,8 +219,7 @@ fun CourseManageScreen(
                         }
                 }
 
-                // 课程按名称聚合，名称用中文拼音排（原来是 Unicode 码点排，中文完全没有顺序感）；
-                // 组内按时段排，保证「代表性课程」（取 first）与卡片上的时段摘要稳定
+                // 课程名按拼音排序；组内按时段排序，使代表课程与时段摘要稳定。
                 val groupedCourses = remember(courses, sectionTimes) {
                     courses.groupBy { it.name }
                         .map { (name, list) ->
@@ -312,10 +311,7 @@ fun CourseManageScreen(
                             // 莫奈取色下同名课稳定映射到主/次/第三色系，非莫奈时就是课程自定义色。
                             // 不接的话同一门课在课表页和管理页会两个颜色。
                             val courseColors = rememberCourseColors(representative, isDark)
-                            // 卡片摘要里的时段：courseList 已排好序，去重后逐条交给卡片自己排成小标签，
-                            // 不再拼成一长串顿号连接（原来挤在两行里既读不出条数也读不出边界）。
-                            //判定「已排时间」用 hasScheduledTime 而不是 startSection > 0，
-                            // 否则自定义时间的课（节次号为 0）会被整条滤掉、摘要变空
+                            // 自定义时间的节次号可能为 0，须用 hasScheduledTime 判断是否已排课。
                             val daySections = courseList
                                 .filter { CourseSorting.hasScheduledTime(it) }
                                 .distinctBy { "${it.dayOfWeek}_${it.startSection}_${it.endSection}_${it.customStartTime}_${it.customEndTime}" }
@@ -684,11 +680,6 @@ fun CourseManageScreen(
     }
 }
 
-/**
- * 卡片排版参数：原来正文 11~12sp 太细、且没有显式 lineHeight（中文字体默认 leading 偏大），
- * 再叠上散落的 8/4/2/4dp Spacer，观感就是「字小、行松、全是纯文本」。
- * 现在统一：标题 16/22sp，正文 13/18sp，标签 11.5/15sp，组间距 10/4/8dp 三档。
- */
 private val MANAGE_CARD_TITLE_SIZE = 16.sp
 private val MANAGE_CARD_TITLE_LINE = 22.sp
 private val MANAGE_CARD_BODY_SIZE = 13.sp
@@ -697,10 +688,7 @@ private val MANAGE_CARD_CHIP_SIZE = 11.5.sp
 private val MANAGE_CARD_CHIP_LINE = 15.sp
 /** 时段标签最多铺 4 枚，再多折叠成「+N」 */
 private const val MANAGE_CARD_MAX_CHIPS = 4
-/**
- * 卡片内所有「课程色淡底」标记（时段标签、标题行「N 节」徽标）共用的一份 alpha。
- * 两处原来是各自写的常量，暗色下标签 0.24 / 徽标 0.28，看起来不是一个体系 —— 统一成一份。
- */
+// 时段标签与节数徽标共用课程色底的透明度。
 private val MANAGE_CARD_TINT_LIGHT = 0.15f
 private val MANAGE_CARD_TINT_DARK = 0.18f
 
@@ -735,7 +723,6 @@ private fun CourseMetaRow(
     }
 }
 
-/** 单个时段标签：原来一长串顿号连接改成可数的小块，一眼能看出有几段。 */
 @Composable
 private fun SectionChip(
     text: String,
@@ -825,7 +812,6 @@ private fun CourseManageCard(
             modifier = Modifier.fillMaxWidth()
         ) {
         Column {
-            // 标题行：课程色竖条 + 课程名（原来 8dp 色块独占一行，白占 16dp 高度）
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier

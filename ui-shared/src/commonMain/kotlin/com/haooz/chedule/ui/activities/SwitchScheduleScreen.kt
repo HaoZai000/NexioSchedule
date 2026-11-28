@@ -205,11 +205,10 @@ fun SwitchScheduleScreen(
     initialScheduleSummaries: Map<String, String>? = null,
     /** 平板左栏内嵌：无卡片形变、无返回关闭，标题由外层分栏绘制 */
     embedded: Boolean = false,
-    /** 分享执行：由 Android 宿主注入（ScheduleExport.performScheduleShare 是 Android 专有） */
     onShareSchedule: (scheduleName: String, onSharingChanged: (Boolean) -> Unit) -> Unit = { _, _ -> },
-    /** 分享前置检查（课表是否为空）：宿主注入（buildShareScheduleMap 依赖 Gson=R2，留在宿主） */
+    /** 分享前检查课表是否为空。 */
     isScheduleShareable: (scheduleName: String) -> Boolean = { true },
-    /** 保存学期课表图片：宿主注入；`null` 时预览界面不显示下载按钮（非 Android 宿主） */
+    /** 为 null 时预览界面不显示保存图片按钮。 */
     onSaveScheduleImage: ((ImageBitmap) -> Unit)? = null,
     /** 内嵌时由外部指定内容顶距，替代按整屏状态栏+折叠标题推算 */
     contentTopPadding: androidx.compose.ui.unit.Dp? = null,

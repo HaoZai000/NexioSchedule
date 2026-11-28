@@ -8,8 +8,7 @@ import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 
 /*
- * 侧栏 / 顶栏切换这一对图标：直接来自设计稿导出的 vector（viewport 44），
- * 路径逐字保留，不用 Miuix 那边语义相近的 Sidebar 图标。
+ * 侧栏与顶栏切换图标使用设计稿的 44 × 44 视口。
  *
  * fillType 按源文件：展开为侧栏那份没写 = nonZero，折叠为顶栏那份写了 = evenOdd。
  */
@@ -19,11 +18,7 @@ private const val NAV_ICON_VIEWPORT = 44f
 /** 图形中心（设计稿画布是 44，内容只有 11~33 那一段，直接铺会显得很小） */
 private const val NAV_ICON_CENTER = NAV_ICON_VIEWPORT / 2f
 
-/**
- * 内容放大系数。设计稿里图形只占画布中间约一半（11~33 / 44），
- * 按原样塞进 26dp 只会画出 13dp 的视觉体量；1.7 让内容占到 26dp 里的 ~22dp，
- * 描边粗细也刚好回到 Miuix 图标那一档。
- */
+/** 放大画布中部的有效路径，使其在 26dp 图标内占约 22dp。 */
 private const val NAV_ICON_SCALE = 1.7f
 
 private fun navIcon(name: String, pathData: String, fillType: PathFillType): ImageVector =

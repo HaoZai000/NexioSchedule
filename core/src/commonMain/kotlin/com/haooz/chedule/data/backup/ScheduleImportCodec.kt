@@ -4,29 +4,15 @@ import com.haooz.chedule.data.util.jsonToPlainValue
 import com.haooz.chedule.data.util.parseJsonObject
 
 /**
- * 「导入课表」JSON 解析 —— 跨平台（kotlinx-serialization）实现。
- *
- * ## 兼容性红线
- * **落盘/输入 JSON 格式一个字节都不改**，只把「Gson 库调用」换成 `JsonSupport` 的
- * `parseJsonObject` + `jsonToPlainValue`。后者的 plain 值类型（String/Double/Boolean/
- * LinkedHashMap/List/null）与 Gson `Map<String,Any>` 的 plain 值**逐类一致**，
- * 故下游 `applyScheduleData` 消费 Map 值的逻辑（`as? Number`/`as? String`/`as? List`）不受影响。
- * round-trip 回归见 `core/src/jvmTest/.../ScheduleImportCodecTest.kt`（真实备份夹具）。
- */
-
-/**
  * 解析「导入课表」粘贴的 JSON 文本。
  *
  * 返回 `Triple(是否成功, 提示消息, 课表数据 Map)`；数据供后续 `applyScheduleData` 写入。
- * 三类输入的判别逻辑与迁移前逐字一致：
  *  - 含 `semester_settings` / `teaching_week_reorganizations` → 本地单课表备份（走错入口，拒绝）
  *  - 含 `settings` / `courses` → 课表数据（其中「拾光格式」再经 [parseShiguangScheduleJson] 归一化）
  *  - 其他 → 无效格式
  */
 fun parseFullScheduleJson(text: String): Triple<Boolean, String, Map<String, Any>?> {
     try {
-        // Gson().fromJson(text, TypeToken<Map<String,Any>>) → parseJsonObject + jsonToPlainValue
-        // （plain 值类型与 Gson 的 Map<String,Any> 一致）
         @Suppress("UNCHECKED_CAST")
         val data = jsonToPlainValue(parseJsonObject(text)) as Map<String, Any>
 
@@ -48,7 +34,7 @@ fun parseFullScheduleJson(text: String): Triple<Boolean, String, Map<String, Any
     }
 }
 
-// 拾光格式 { courses, timeSlots, config } → 内部通用课表 map（纯逻辑，与 JSON 库无关）
+// 将拾光的 courses、timeSlots 和 config 转换成内部课表格式。
 private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, String, Map<String, Any>?> {
     try {
         @Suppress("UNCHECKED_CAST")

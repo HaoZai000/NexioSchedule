@@ -65,12 +65,7 @@ data class AppThemeColors(
     val colorScheme: NexioColorScheme,
 )
 
-/**
- * 解析页面 / 弹窗作用域的主题配色。
- *
- * 非动态取色时直接使用 NexioUI 的亮 / 暗色板；动态取色时把平台 Monet 色板
- * 映射成 [NexioColorScheme]，映射规则与旧实现保持一致。
- */
+/** 使用亮暗主题色板，或将平台提供的 Monet 颜色映射为 [NexioColorScheme]。 */
 @Composable
 fun rememberAppThemeColors(
     isDark: Boolean? = null,
@@ -95,7 +90,6 @@ fun rememberAppThemeColors(
     }
 }
 
-/** 在一处局部作用域里切换 NexioUI 主题（替代原先按 controller 包一层 MiuixTheme）。 */
 @Composable
 fun AppNexioTheme(
     colors: AppThemeColors,
@@ -207,8 +201,7 @@ fun CourseScheduleTheme(
     ) {
         AppNexioTheme(colors) {
             MaterialTheme(colorScheme = materialColors) {
-                // MaterialTheme 会把 LocalIndication 换成 M3 水波纹；主题内再覆盖回
-                // NexioIndication，保证 Modifier.clickable 与 miuix 时期一样是整块淡色反馈。
+                // 在 MaterialTheme 内覆盖水波纹，让 clickable 使用整块淡色反馈。
                 val indicationColor = NexioTheme.colorScheme.onBackground
                 val indication = remember(indicationColor) { NexioIndication(color = indicationColor) }
                 CompositionLocalProvider(
@@ -223,8 +216,6 @@ fun CourseScheduleTheme(
 }
 
 // ── Monet 色板 → NexioColorScheme ──────────────────────────────────────
-// 动态取色时 Material3 只给基础角色，其余语义色按旧实现的规则推导，
-// 保证开启 / 关闭 Monet 时控件观感一致。
 
 /** 前景色叠在背景色上并返回不透明结果。 */
 private fun opaqueOver(fg: Color, bg: Color): Color {

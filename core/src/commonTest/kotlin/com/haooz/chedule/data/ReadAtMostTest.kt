@@ -6,16 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * [readAtMost] 的边界验证。
- *
- * 这是迁移时**新写**的公共逻辑（原来只存在于 `ScriptRepository` 内部，用
- * `byteStream()` + `ByteArrayOutputStream` 手写），守着「异常大响应不要 OOM」这道闸，
- * 所以 off-by-one 不能靠读代码确认。
- *
- * 契约：只在读取过程中停手；超限时返回已读到字节（最多 maxBytes）并置 truncated，
- * **不抛异常**；`maxBytes <= 0` 视为不限制（返回空 + 未截断，调用方本就不该这么用）。
- */
+/** 校验流式读取的截断边界：恰好到上限不算截断，超限时只保留上限内的字节。 */
 class ReadAtMostTest {
 
     /** 把一段字节切成固定大小的块，模拟网络流。 */

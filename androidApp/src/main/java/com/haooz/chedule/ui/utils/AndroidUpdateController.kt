@@ -6,24 +6,11 @@ import com.haooz.chedule.data.platform.UpdateRelease
 import com.haooz.chedule.i18n.CommonStr
 import java.io.File
 
-/**
- * [UpdateController] 的 Android 实现 —— 包装全局单例 [UpdateChecker] / [UpdateInstaller]。
- *
- * 同 [AndroidDiagnosticRecorder] 的套路：两个包装对象的方法都带 `context`，
- * 本层在构造时捕获宿主注入的 context，接口层保持无参（`:ui-shared` 的「应用更新」页
- * 只依赖跨平台接口，commonMain 里没有 android / java import）。
- * 宿主（AppRouteContent / SettingsScreen 的 androidPane）在调用点创建本实例并注入：
- * `updateController = remember { AndroidUpdateController(context) }`。
- *
- * 数据类转换：`UpdateChecker.GiteeRelease`（internal 嵌套类，不能跨模块引用）
- * ↔ `:core` 的 [UpdateRelease]，字段一一对应。
- * APK 句柄：接口层用绝对路径 String，这里与 `java.io.File` 互转。
- */
+/** 将发布信息转换为 [UpdateRelease]，在安装器与共享接口之间转换 APK 文件路径。 */
 class AndroidUpdateController(private val context: Context) : UpdateController {
 
     override val currentVersion: String
         get() = try {
-            // 原页面在 remember 里现取：packageManager 版本号取不到时显示「未知」
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: CommonStr.unknown()
         } catch (_: Exception) {
             CommonStr.unknown()

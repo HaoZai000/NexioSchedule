@@ -133,11 +133,7 @@ import com.haooz.nexioui.overscroll.overScrollVertical
 import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 
-/**
- * [TodayScreen.todayAssistantCard] 槽位的数据载体（页面算好传给宿主渲染）。
- * 今日助手卡依赖 Android 天气栈（Gson / 定位 / Geocoder），留在 `:androidApp` 的 `TodayAssistant.kt`；
- * 本页只负责打包数据，渲染 lambda 由宿主注入。
- */
+/** 宿主渲染今日助手卡所需的课程与显示设置。 */
 class TodayAssistantCardData(
     val courses: List<Course>,
     val tomorrowCourses: List<Course>,
@@ -1707,10 +1703,7 @@ private fun CourseItemWithClick(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            // ⚠ 无壁纸时必须用 surfaceContainer，不能用 background：外层 BlurCard 此时退化成
-            //   miuix `Card()`，卡片色正是 surfaceContainer（Card.kt defaultColors）。内置方案下
-            //   两者恰好相等（#FFFFFF / #242424），莫奈下才分家：background 取 tone 98/6、
-            //   surfaceContainer 取 tone 94/12，差 4 个明度阶，写错会偏色。
+            // 无玻璃表面时跟随外层卡片的 surfaceContainer；动态配色下它与 background 不同。
             .then(if (hasGlass) Modifier else Modifier.background(NexioTheme.colorScheme.surfaceContainer))
             .clickable {
                 openTodayCourse(course, pageWeek, onCourseClick)

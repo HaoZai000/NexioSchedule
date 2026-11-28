@@ -11,27 +11,11 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * [com.haooz.chedule.data.appearance.AppearanceStyleCodec] 与 **真实 Gson** 的差分基准（数据兼容红线的直接证明）。
- *
- * 存量用户 `appearance_settings` 里的外观快照是 `Gson().toJson(CombinationStyle)`
- * 写的（键名 = 字段名，枚举存 ordinal，null 字段跳过）。读写换成 [com.haooz.chedule.data.appearance.AppearanceStyleCodec]
- * （kotlinx-serialization 手写映射）后**输出必须与 Gson 一致**，光靠手写字面量不够，
- * 所以拉真实 Gson 对拍。
- *
- * 对拍口径：
- * 1. **读**：手写金样 JSON（**枚举 = ordinal**，模拟真实存量数据）逐字段断言
- * 2. **写**：encode → decode round-trip 必须逐字段相等；枚举落盘为 ordinal 数字
- * 3. **坏数据**：键名全对不上 / 空 JSON 判 null（不静默把默认值当用户设置）
- */
+/** 通过固定的旧格式样本检查读取兼容性，并验证枚举编码与快照往返。 */
 class AppearanceStyleCodecTest {
 
 
-    /**
-     * 真实存量数据的形态：枚举是 **ordinal（数字）**，不是 name。
-     * Gson 默认按 name 序列化枚举，但本项目存量数据当年存的就是 ordinal
-     * （见 CardAppearance.kt 顶部「落盘格式 = ordinal」），这里以存量为准。
-     */
+    /** 此样本以数字 ordinal 保存枚举，而不是枚举名称。 */
     private val legacyJson = """
         {"offsetX":12.5,"offsetY":-30.25,"scale":1.8,
          "offsetRefW":1080.0,"offsetRefH":2400.0,
@@ -75,14 +59,12 @@ class AppearanceStyleCodecTest {
 
     @Test
     fun `null 字段（用户没调过的）读回为 null 而非默认值`() {
-        // 真实场景：老用户只动过部分设置，未动过的字段 Gson 直接跳过
         // 存量数据里枚举是数字，字符串值视为「无该字段」→ null（safe getter 兜默认）
         val json = """{"cardBlur":7.0,"cardTextColor":"SOLID"}"""
         val decoded = AppearanceStyleCodec.decodeOrNull(json)
         assertNotNull(decoded)
         assertEquals(7f, decoded.cardBlur)
         assertNull(decoded.cardTextColor)
-        // 没动过的字段：为 null（Gson 语义），不是默认值
         assertNull(decoded.cardSurfaceAlpha)
         assertNull(decoded.wallpaperIsLight)
         assertNull(decoded.cardContentAlignment)
@@ -126,7 +108,6 @@ class AppearanceStyleCodecTest {
 
     @Test
     fun `键名全对不上的 JSON 判不可用`() {
-        // 这是「cardHeight 被误写成别的名字 → 网格整页静默空白」那次教训的防线
         assertNull(AppearanceStyleCodec.decodeOrNull("""{"foo":1,"bar":2}"""))
         assertNull(AppearanceStyleCodec.decodeOrNull("not a json"))
         assertNull(AppearanceStyleCodec.decodeOrNull(""))
@@ -134,23 +115,18 @@ class AppearanceStyleCodecTest {
 
     @Test
     fun `空对象仍判可用（全部回落默认值）`() {
-        // Gson 对 "{}" 会产出全默认 CombinationStyle —— 老版本就这么处理的，保持一致。
-        // 注意 parseSnapshotOrNull 的判断是「至少命中一个已知字段」，空对象不命中 → null。
-        // 这里固化**旧行为**：空对象判 null，由调用方重测光恢复默认。
+        // 空对象没有已知字段，不可作为外观快照。
         assertNull(AppearanceStyleCodec.decodeOrNull("{}"))
     }
 
     @Test
     fun `非字符串的枚举值不炸`() {
-        // Gson 遇到类型不匹配会抛 JsonSyntaxException（上层 runCatching 兜底）；
-        // codec 这里直接给 null 字段，语义等价（safe getter 兜默认值）
         val decoded = AppearanceStyleCodec.decodeOrNull(
             """{"cardBlur":5.0,"cardTextColor":123}"""
         )
         assertNotNull(decoded)
         assertEquals(5f, decoded.cardBlur)
-        // ⚠ fromOrdinal 越界走 getOrElse 兜**默认值**（不抛异常）——
-        //   这是 CardAppearance.kt 的既有行为，固化它
+        // 越界 ordinal 回退到默认枚举值。
         assertEquals(CardTextColor.COLORFUL, decoded.cardTextColor)
     }
 }

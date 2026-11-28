@@ -4,7 +4,7 @@ import com.haooz.chedule.data.util.jsonToPlainValue
 import com.haooz.chedule.data.util.parseJsonObject
 
 /**
- * 本地备份文件的读写能力。Android 实现是 `AndroidBackupFileController`，桌面/iOS 用 [NoopBackupFileController]。
+ * 管理本地备份目录及其中的文件。
  * 备份 JSON 的序列化见 `BackupCodec.kt`，本接口只管文件在哪、怎么读写。
  *
  * ⚠ [listBackups] / [saveBackupFile] / [readBackupFile] / [deleteBackupFile] 是阻塞 IO，调用方需用
@@ -64,7 +64,6 @@ interface BackupFileController {
 data class BackupFileInfo(
     /** 平台不透明句柄（Android 旧目录 = 绝对路径，SAF 目录 = content URI）；传回控制器做读/删 */
     val id: String,
-    /** 文件名（含 .json 后缀，作为列表 key 与删除弹窗文案） */
     val fileName: String,
     /** 「全部备份」/「单独课表」 */
     val type: String,
@@ -74,9 +73,7 @@ data class BackupFileInfo(
     val scheduleCount: Int,
     /** 由文件名时间戳解析出的展示时间（解析不出为「未知时间」） */
     val timestamp: String,
-    /** 人类可读的文件大小（B / KB / MB） */
     val size: String,
-    /** 是否全量备份（文件名以「全部备份」开头） */
     val isFullBackup: Boolean,
 )
 
@@ -130,7 +127,6 @@ fun parseBackupFileBaseName(baseName: String): Pair<String?, Boolean> {
     return scheduleName to false
 }
 
-/** 桌面/iOS 的空实现：恒为「无备份文件」。 */
 object NoopBackupFileController : BackupFileController {
     override fun listBackups(): List<BackupFileInfo> = emptyList()
 

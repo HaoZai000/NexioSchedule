@@ -152,7 +152,7 @@ object AppMaterialSettings {
     fun cardSurfaceAlpha(base: Float): Float =
         if (isLiquidTier()) (base - LIQUID_CARD_SURFACE_ALPHA_DROP).coerceAtLeast(0f) else base
 
-    /** 柔光玻璃档的底色 alpha 降幅，[glassSurfaceAlpha] 与 :miuix 下发都用它。 */
+    /** 柔光玻璃档的底色透明度降幅。 */
     fun glassSurfaceAlphaDrop(isLight: Boolean): Float {
         val tuning = materialLevel().tuning()
         return if (isLight) tuning.surfaceAlphaDropLight else tuning.surfaceAlphaDropDark

@@ -224,7 +224,6 @@ private fun ClassroomPreviewRow(
     }
 }
 
-/** 两位补零（原 `%02d`；commonMain 没有字符串格式化器，用 padStart 等价实现） */
 private fun pad2(n: Int): String = n.toString().padStart(2, '0')
 
 /** `HH:mm` 两位补零（原 `%02d:%02d`） */
@@ -248,7 +247,6 @@ fun CourseReminderScreen(
     settingsViewModel: SettingsViewModel = settingsViewModel(),
     scrollBehavior: SharedScrollBehavior? = null,
     liquidGlassBackdrop: com.haooz.softglass.backdrop.GlassBackdrop? = null,
-    /** 提醒控制器（Android = AndroidReminderController 包装）；桌面/iOS 用 NoopReminderController */
     reminderController: ReminderController = NoopReminderController,
     /** 本平台没有对应系统概念的权限行，默认全部展示（Android/iOS 行为不变） */
     hiddenPermissionRows: Set<ReminderPermissionRow> = emptySet(),
@@ -400,7 +398,6 @@ fun CourseReminderScreen(
     }
     var permissionRefreshKey by remember { mutableIntStateOf(0) }
     // 电池优化 / 自启动设置页返回：重读「已忽略电池优化」并触发权限刷新
-    // （原 batteryOptLauncher 与 autoStartLauncher 的回调逐字相同，合并为一个）
     val onBatterySettingsResult: () -> Unit = {
         isIgnoringBattery = reminderController.isIgnoringBatteryOptimizations()
         permissionRefreshKey++
@@ -476,7 +473,6 @@ fun CourseReminderScreen(
     }
 
     var pendingPermissionAction by remember { mutableStateOf<Boolean?>(null) }
-    // 通知权限弹窗返回（body 只读状态持有者，逐字保留原 launcher 回调逻辑）
     val onNotificationPermissionResult: (Boolean) -> Unit = { granted ->
         rlog("permission_notification_result", "granted=$granted pending=$pendingPermissionAction")
         notificationGranted = granted
@@ -1337,7 +1333,6 @@ fun CourseReminderScreen(
                                             rlog("permission_promoted_click", "granted=$canPostPromoted")
                                             if (!canPostPromoted) {
                                                 rlog("permission_promoted_launch")
-                                                // 首选「实况通知管理页」、失败退回「应用通知设置」的兜底在 Android 包装层内逐字保留
                                                 reminderController.openPromotedNotificationSettings(onPromotedSettingsResult)
                                             }
                                         }
@@ -1388,7 +1383,6 @@ fun CourseReminderScreen(
                                         rlog("permission_battery_click", "ignoring=$isIgnoringBattery")
                                         if (!isIgnoringBattery) {
                                             rlog("permission_battery_launch")
-                                            // 首选「请求忽略电池优化」、失败退回「白名单列表」的兜底在 Android 包装层内逐字保留
                                             reminderController.openBatteryOptimizationSettings(onBatterySettingsResult)
                                         }
                                     }

@@ -48,21 +48,6 @@ import com.haooz.nexioui.card.CardDefaults
 import com.haooz.nexioui.theme.NexioTheme
 import com.haooz.nexioui.card.PressFeedbackType
 
-/**
- * 「详细数据」：一张一张独立的正方形卡，一行两张
- *
- * 红线：
- * 1. **只画源里真有的东西**。三家源覆盖不同，缺的项整张卡不出现（不是显示 "—"）。
- *    `detailMetrics` 是唯一的准入清单。
- * 2. **降水 / 云量不在这里**：这两项对"今天穿什么、带不带伞"没有增量信息，
- *    逐时/逐日里已经能看到，摆进正方形卡只是占位置。
- *    露点例外：它是"闷不闷"的直接判据（比湿度准），所以占第 8 格，让 2×4 不留空位。
- * 3. 卡是**正方形**且跟页面其它卡同级（不再包一层大卡）：两列宽度由 weight 均分，
- *    高度靠 `aspectRatio(1f)` 跟着宽度走 —— 写死高度的话，平板/折叠屏一宽就变形。
- * 4. 字号只有四档：标题 13 / 读数 30 / 单位 13 / 说明 13。
- */
-
-/** 详细数据里的每一项。顺序即渲染顺序。 */
 internal enum class DetailMetric { Uv, Humidity, Dew, FeelsLike, Wind, Pressure, Visibility, Sun }
 
 /** 一格读数：已经渲染成给用户看的字符串，单位单独存（大字号值 + 小字号单位）。 */
@@ -76,7 +61,6 @@ internal data class MetricReading(
 private val CARD_PAD = 16.dp
 private val CARD_GAP = 10.dp
 
-/** 四档字号（红线 4 的唯一来源，别在下面另写裸数字）。 */
 private val TITLE_SP = 13.sp
 private val VALUE_SP = 30.sp
 private val UNIT_SP = 13.sp
@@ -94,7 +78,7 @@ internal fun DetailMetric.name(): String = when (this) {
     DetailMetric.Sun -> WeatherStr.sunriseSunset()
 }
 
-/** 有哪些项值得占一格。缺数据就不占 —— 这是页面「看不到横杠」的唯一保证。 */
+/** 只列出数据源有读数的指标，顺序即卡片顺序。 */
 internal fun detailMetrics(snapshot: WeatherSnapshot): List<DetailMetric> {
     val now = snapshot.now
     val today = snapshot.daily.firstOrNull()
@@ -225,13 +209,7 @@ private fun MetricTileView(
 
 // ── 卡片外壳 ──────────────────────────────────────────────────────────
 
-/**
- * 一张正方形卡：标题 + 内容。
- *
- * 保留 Miuix 的 `Card(onClick=)` 只是为了按下反馈（Sink）与无障碍语义：底色换成透明，
- * 表面的半透明玻璃、描边和顶部反光交给 [weatherGlassSurface]，和页面其它卡是同一套材质。
- * 高度交给 [aspectRatio]，不要写死 dp。
- */
+/** 透明卡片提供按压反馈和点击语义；[weatherGlassSurface] 绘制玻璃表面。 */
 @Composable
 private fun Tile(
     title: String,
@@ -260,7 +238,6 @@ private fun Tile(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        // 标题与下面的读数之间留 6dp（原来 2dp，字贴得太紧）
         Spacer(Modifier.height(6.dp))
         content()
     }
@@ -487,8 +464,7 @@ private fun WindDial(deg: Int?) {
 
             val head = 11.dp.toPx()
             val wing = 5.5.dp.toPx()
-            // ⚠ 杆只画到箭头根部往里 55% 处。画到尖端的话，2dp 粗的**圆头帽**会顶出
-            // 三角形顶点 1dp，远看就是"尖头和那根杠糊在一起"（上一版就这样）。
+            // 缩短针身，避免圆头线帽伸出三角箭尖。
             val shaftEnd = Offset(tip.x - ux * head * 0.55f, tip.y - uy * head * 0.55f)
             // 中心圆是半透明的，针身不能整根穿过去。两段各停在圆边外 1.5dp：
             // 留出圆头帽的 1dp 半径，针头不会探进玻璃圆里显出白杠。
@@ -508,8 +484,6 @@ private fun WindDial(deg: Int?) {
             }
             drawPath(path, ink)
 
-            // 来向端：实心点。它必须落在针尾上（上一版只有这颗点、没有针尾，
-            // 点孤零零挂在刻度环上，就是"箭头断了"的来源）
             drawCircle(ink, radius = 3.2.dp.toPx(), center = tail)
         }
         // 中心玻璃圆：不再遮针（针已在圆边断开），只负责给数字托一层底
@@ -559,8 +533,6 @@ private fun PressureTile(
     val hint = NexioTheme.colorScheme.onSurfaceVariantSummary
     Tile(reading.label, onClick, modifier) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            // 表盘直径 = 内容区的短边（标题吃掉 19dp 之后剩下的整块地）。
-            // 上一版写死 100dp，174dp 的方卡里四边各空 20dp —— 环又细又小、数字挤在中间。
             val r = minOf(maxWidth, maxHeight) / 2 - 2.dp
             // 弧线端点（±45°）在盒内的水平位置离圆心 r·cos45°，两个词就从那里再往里缩一点；
             // 竖直方向直接贴底 —— 端点本来就在盒子下部，贴底就是"紧挨着端点下方"。

@@ -15,19 +15,7 @@ import com.haooz.chedule.data.platform.showToast
 import com.haooz.chedule.i18n.AndroidMiscStr
 import com.haooz.chedule.i18n.ImportStr
 
-/**
- * [ScheduleFileController] 的 Android 实现 —— 包装「导入选文件读内容」与
- * 「导出另存为到用户选的位置」两条 SAF 通道
- * （`ActivityResultContracts.OpenDocument` / `CreateDocument` + `contentResolver`）。
- *
- * 套路与 [AndroidBackupFileController] 完全一致：构造时捕获 context，接口层无参；
- * SAF 结果回调靠 ActivityResultRegistry 的固定 key 注册（Activity 重建后能接上
- * 恢复的挂起结果），读文件放后台线程、回调回主线程。
- *
- * 原实现直接写在 `BackupAndMigrationScreen` 里（`rememberLauncherForActivityResult`），
- * 2026-10-11 随该页迁入 `:ui-shared` 一起抽到这里。失败文案逐字保留：
- * `导出成功` / `导出失败: <原因>` / `导入失败: <原因>`。
- */
+/** 通过 SAF 打开或另存课表文件。使用固定 key 注册选择器，在后台读文件并回主线程交付结果。 */
 class AndroidScheduleFileController(private val context: Context) : ScheduleFileController {
 
     /** 宿主 Activity（SAF 结果回调依赖它；LocalContext 在正常宿主里就是 MainActivity） */
@@ -130,7 +118,7 @@ class AndroidScheduleFileController(private val context: Context) : ScheduleFile
         val content = pendingContent
         pendingContent = null
         if (uri == null || content == null) {
-            // 用户取消：不给失败提示（原 CreateDocument 取消时也是静默）
+            // 用户取消不提示错误。
             return
         }
         Thread {
@@ -155,13 +143,6 @@ class AndroidScheduleFileController(private val context: Context) : ScheduleFile
     }
 }
 
-/**
- * 从任意 Context 向外层找到宿主 Activity（同 AndroidBackupFileController /
- * AndroidReminderController 的套路）。
- *
- * ⚠ 必须 `private`：这个包里每个控制器都各带一份同名私有扩展，
- * 改成 `internal` 会撞成 `Conflicting overloads`。
- */
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()

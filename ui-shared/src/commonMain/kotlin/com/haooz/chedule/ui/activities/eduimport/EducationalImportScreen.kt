@@ -412,7 +412,6 @@ internal fun applyPresetTimeSlots(
     val prefs = AppStorage.store("edu_import_prefs")
     val timeSlotsJson = prefs.getStringOrNull("preset_time_slots") ?: return
     try {
-        // Gson 运行时反射在 Kotlin/Native 不存在，改用 JsonElement 逐字段读（缺键/类型不对走默认值）。
         val timeSlots = parseJsonArray(timeSlotsJson).mapNotNull { element ->
             (element as? JsonObject)?.let { slot ->
                 PresetTimeSlot(
@@ -595,7 +594,6 @@ internal fun applyComboSchedule(
     val prefs = AppStorage.store("edu_import_prefs")
     val comboJson = prefs.getStringOrNull("combo_schedule") ?: return
     try {
-        // Gson 运行时反射换成 common JsonElement 的逐字段读取。
         val combo = parseJsonObject(comboJson)
         val comboName = combo.optString("name")
         val items = combo.optJsonArray("publicSchedules")?.mapNotNull { element ->
@@ -712,7 +710,7 @@ private data class PresetTimeSlot(
     val endTime: String,
 )
 
-/** Preserve Gson's nullable String fields: absent / explicit JSON null → null; otherwise optString text. */
+/** 缺键或显式 null 返回 null，其余值按文本读取。 */
 private fun JsonObject.optionalString(key: String): String? =
     if (hasKey(key) && !isJsonNull(key)) optString(key) else null
 
@@ -734,11 +732,7 @@ private data class ComboTimeSlotImportModel(
     val endTime: String? = null
 )
 
-/**
- * 教务脚本索引的后台更新器。⚠ 逻辑与迁移前逐字保留，勿改。
- * - [startUpdateIfNeeded]：进入页面时调用，距上次成功更新 ≥7 天才动
- * - [forceUpdate]：顶栏「更新」按钮，结果 Toast 给用户
- */
+/** 进入页面时按七天间隔检查脚本索引，也支持手动更新。 */
 object EduImportUpdater {
 
     private const val TAG = "EduImport"
@@ -809,7 +803,6 @@ object EduImportUpdater {
                     -1 -> ImportStr.updateFailedNoNetwork()
                     else -> ImportStr.updateFailed()
                 }
-                // Toast 必须回主线程（Main 是 kotlinx-coroutines 的跨平台 dispatcher）。⚠ 与迁移前逐字一致，勿改。
                 withContext(Dispatchers.Main) { showToast(msg) }
                 if (result >= 0) {
                     val prefs = AppStorage.store(PREFS_NAME)

@@ -887,7 +887,6 @@ private const val OobeFlipGrowStart = 0f
 /** U 型侧摆幅度（相对卡片宽度）。 */
 private const val OobeFlipDipRatio = 0.5f
 
-/** 卡片圆角（dp），与 miuix Card 一致。 */
 private const val OobeFlipCardCornerDp = 20f
 
 /** 第二段：翻转中上下的最大收缩量（dp），背面协议页专用，保持原值。 */

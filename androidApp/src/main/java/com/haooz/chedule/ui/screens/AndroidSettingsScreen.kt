@@ -42,10 +42,7 @@ fun AndroidSettingsPane(args: com.haooz.chedule.ui.activities.main.SettingsPaneA
     )
 }
 
-/**
- * 本文件只做一件事：把测试通知 / 小部件刷新 / 节假日拉取这几个平台副作用装配好，
- * 通过注入参数交给共享页。
- */
+/** 为设置页提供通知测试、小部件刷新和节假日数据等 Android 能力。 */
 @Composable
 fun AndroidSettingsScreen(
     viewModel: CourseViewModel,
@@ -64,7 +61,6 @@ fun AndroidSettingsScreen(
     showUpdateSettings: Boolean = true,
 ) {
     val context = LocalContext.current
-    // 提醒页「测试通知」按钮文案需要超级岛开关（原共享页内联逻辑随迁回宿主）
     val islandNotification by settingsViewModel.islandNotification.collectAsState()
 
     SettingsScreen(
@@ -80,7 +76,6 @@ fun AndroidSettingsScreen(
         settingsScrollBehavior = settingsScrollBehavior,
         liquidGlassBackdrop = liquidGlassBackdrop,
         searchState = searchState,
-        // 提醒页底部「测试通知」：原平板页覆盖层 onClick（FeatureLog + 超级岛/实时活动 + toast）逐字迁入
         onSendTestNotification = {
             val islandEnabled = islandNotification &&
                     IslandNotificationHelper.isIslandSupported(context)
@@ -108,7 +103,6 @@ fun AndroidSettingsScreen(
             WidgetUpdateCache.updateInstalledWidgets(context)
         },
         onHolidayDataChanged = { CourseReminderHelper.onHolidayDataChanged(context) },
-        // 节假日 API 拉取：原平板页内联 HttpURLConnection（10s 超时）+ parseSourceResponse 逐字迁入
         fetchHolidayEntries = { year ->
             val conn = URL(
                 HolidayManager.sourceUrlFor(year)

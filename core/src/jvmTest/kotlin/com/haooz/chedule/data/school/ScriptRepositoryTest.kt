@@ -12,17 +12,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 
-/**
- * [ScriptRepository] 迁移等价性验证：验证的不是「能编译」，而是**分支行为没变**。
- *
- * - 防盗链跟随（`isGiteeAntiHotlinkPage` / `extractGiteeSignedUrl` / `remoteBase` 的 `.git` 处理）
- * - 版本比较的三个分支（更新 / 相同 / 更旧）
- * - 协议版本闸门
- * - 8MB 上限（原来靠 `byteStream()` 边读边计数，现在下推到 `HttpService.get(maxBytes)`）
- * - 偏好文件名与键名**逐字未变**（改了等于用户的仓库地址丢失）
- *
- * 用真实生产索引（78,911 字节）做夹具；「旧版本」「高协议版本」用**等长原地补丁**构造。
- */
+/** 用固定索引与模拟 HTTP 响应验证更新、下载上限和缓存回退。 */
 class ScriptRepositoryTest {
 
     private val prefsName = "edu_import_prefs"
@@ -210,7 +200,7 @@ class ScriptRepositoryTest {
         assertEquals(-1, repo(fake).updateAll(onLog = {}))
     }
 
-    /** 体积大于 1024 的 HTML 不算防盗链页（原判定就是这样），会被当成索引解析失败。 */
+    /** 超过 1024 字节的 HTML 不识别为签名跳转页，而是按索引解析失败处理。 */
     @Test
     fun `超过 1KB 的 HTML 不按防盗链处理`() = runBlocking {
         freshEnv()
@@ -239,7 +229,6 @@ class ScriptRepositoryTest {
     @Test
     fun `超出大小上限视为失败`() = runBlocking {
         freshEnv()
-        // truncated = true 对应原来 readLimitedBytes 返回 null
         val fake = FakeHttp(listOf(HttpResult(200, fixture(), truncated = true)))
         assertEquals(-1, repo(fake).updateAll(onLog = {}))
     }
@@ -260,7 +249,7 @@ class ScriptRepositoryTest {
         assertEquals(listOf(8L * 1024 * 1024), fake.maxBytesSeen)
     }
 
-    // ─────────────── 路径与偏好（数据安全红线）───────────────
+    // ── 缓存路径与仓库地址偏好 ──
 
     @Test
     fun `索引落盘路径逐字未变`() = runBlocking {
@@ -283,7 +272,6 @@ class ScriptRepositoryTest {
         ScriptRepository.setRepoUrl("https://example.com/foo.git")
         assertEquals("https://example.com/foo.git", ScriptRepository.getRepoUrl())
 
-        // 直接检查存储层，确认名字与键没有被改名
         val store = AppStorage.store(prefsName)
         assertEquals(
             "https://example.com/foo.git",

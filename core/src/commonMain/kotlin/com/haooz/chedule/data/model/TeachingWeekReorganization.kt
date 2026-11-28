@@ -15,15 +15,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.isoDayNumber
 
-// ── 节假日与调休 · 调休改周规则 ──────────────────────────
-// 纯日期映射 + 严格持久化编解码，不持有任何 Android 类型。
-
-/**
- * Pure date mapping and strict persistence codec for teaching-week reorganizations.
- *
- * 配套的 [TeachingWeekReorganizationRule] / [TeachingWeekPosition] 在 `HolidayTypes.kt`：
- * 纯 Int/Long 结构，不碰任何平台 API。
- */
+/** 教学周重组规则的日期映射与持久化校验。 */
 object TeachingWeekReorganization {
     const val SCHEMA_VERSION = 1
     private const val SCHEMA_VERSION_KEY = "schema_version"
@@ -187,8 +179,6 @@ object TeachingWeekReorganization {
         // Current-week alignment can legitimately shift a candidate before original week one.
         // Reorganization rules begin at week one, so such positions retain the linear baseline.
         if (teachingWeek < 1L) {
-            // Math.subtractExact 是 JVM 专有（Kotlin/Native 没有），改用溢出返回 null 的
-            // subtractExactOrNull —— 与原来「抛异常被 runCatching 吃掉」等价。
             return subtractExactOrNull(teachingWeek, 1L)?.let {
                 runCatching { monday.plusWeeks(it).plusDays((weekday - 1).toLong()) }.getOrNull()
             }
@@ -317,27 +307,14 @@ object TeachingWeekReorganization {
         return null
     }
 
-    /**
-     * 序列化为备份用的 JSON 串。
-     *
-     * ⚠ **持久化格式**（存 prefs / 进备份文件），输出必须与迁移前 Gson 的产出**逐字一致**：
-     * 键顺序 = 插入顺序，无空白，数字不带小数点 —— 已用真实 Gson 产出对拍
-     * （见 `TeachingWeekReorganizationJsonTest`）。
-     */
+    /** 校验后写为紧凑的备份 JSON，保留字段顺序与整数表示。 */
     fun encode(rules: List<TeachingWeekReorganizationRule>, totalWeeks: Int): String {
         val error = validationError(rules, totalWeeks)
         require(error == null) { error!! }
         return toJsonElement(toBackupValue(rules)).toString()
     }
 
-    /**
-     * 反序列化。JSON 非法 / 顶层不是对象时抛 `IllegalArgumentException`
-     * （Gson 抛 `JsonSyntaxException`，原实现外面套了 `runCatching` 转成同一个异常）。
-     *
-     * 迁移前 Gson 把 JSON 解成「嵌套 `LinkedHashMap` + `Double` 数字」，
-     * [fromBackupValue] 就是照那个形状写的；这里用 [parseJsonObject] + [jsonToPlainValue]
-     * 还原出同样形状，因此 `fromBackupValue` 一行都不用改。
-     */
+    /** JSON 不是对象或规则无效时抛出 [IllegalArgumentException]。 */
     fun decode(raw: String, totalWeeks: Int): List<TeachingWeekReorganizationRule> {
         val data = runCatching { parseJsonObject(raw) }
             .getOrNull()

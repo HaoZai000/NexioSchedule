@@ -1,9 +1,6 @@
 /**
  * 全局文字组件：签名与 Material3 / NexioUI 的 Text 一致，
  * 文字被改写时叠加模糊聚焦过渡（见 [com.haooz.chedule.ui.components.text.TextMotionBox]）。
- *
- * ⚠ 刻意的包名设计：本文件在 `text.miuix` 子包里，函数**就叫** `Text`，
- * 调用点 import 本包即可拿到带过渡的版本。
  */
 package com.haooz.chedule.ui.components.text.miuix
 
