@@ -159,8 +159,9 @@ class WakeUpHeadlessBridge(
                 onConfig(config?.semesterStartDate, config?.semesterTotalWeeks)
                 resolvePromise(promiseId, "true")
             }
-        } catch (_: Exception) {
-            resolvePromise(promiseId, "true")
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "WakeUp saveCourseConfig failed", e)
+            rejectPromise(promiseId, e.message ?: AndroidMiscStr.parseFailed())
         }
     }
 
@@ -181,8 +182,9 @@ class WakeUpHeadlessBridge(
                 onTimeSlots(mapped)
                 resolvePromise(promiseId, "true")
             }
-        } catch (_: Exception) {
-            resolvePromise(promiseId, "true")
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "WakeUp savePresetTimeSlots failed", e)
+            rejectPromise(promiseId, e.message ?: AndroidMiscStr.parseFailed())
         }
     }
 

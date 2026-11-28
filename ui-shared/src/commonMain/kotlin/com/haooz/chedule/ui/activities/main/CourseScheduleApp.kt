@@ -106,7 +106,6 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.LocalDate
 import com.haooz.nexioui.window.isTabletWidth
 import com.haooz.nexioui.topappbar.rememberSharedScrollBehavior
 import com.haooz.nexioui.theme.NexioTheme
@@ -613,15 +612,8 @@ fun CourseScheduleApp(
                 .filter { it in 6..7 }
         }
         weekDates = remember(currentViewingWeek, classStartTime, teachingWeekRules) {
-            try {
-                TeachingWeekReorganization.datesForTeachingWeek(
-                    LocalDate.parse(classStartTime.replace("/", "-")),
-                    currentViewingWeek,
-                    teachingWeekRules,
-                )
-            } catch (_: Exception) {
-                emptyList()
-            }
+            val start = CourseRepository.parseFlexibleDate(classStartTime) ?: return@remember emptyList()
+            TeachingWeekReorganization.datesForTeachingWeek(start, currentViewingWeek, teachingWeekRules)
         }
 
         // 详情页逐帧复用的图层与卡片快照图层（跨组合存活）。

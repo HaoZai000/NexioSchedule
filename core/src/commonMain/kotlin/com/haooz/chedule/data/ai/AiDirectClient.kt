@@ -359,13 +359,11 @@ internal class AiDirectClient(private val http: HttpService) {
     }
 
     private fun isMimoEndpoint(baseUrl: String): Boolean {
-        val host = runCatching {
-            baseUrl.trim()
-                .substringAfter("://", "")
-                .substringBefore('/')
-                .substringBefore(':')
-                .lowercase()
-        }.getOrDefault("")
+        val host = baseUrl.trim()
+            .substringAfter("://", "")
+            .substringBefore('/')
+            .substringBefore(':')
+            .lowercase()
         return host == "xiaomimimo.com" || host.endsWith(".xiaomimimo.com")
     }
 

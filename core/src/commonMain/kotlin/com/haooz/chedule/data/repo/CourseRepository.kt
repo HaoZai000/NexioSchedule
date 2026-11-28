@@ -295,7 +295,8 @@ class CourseRepository private constructor() : PeriodTimeSource {
         for (listener in courseChangedListeners) {
             try {
                 listener(action, courseId)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                NexioLog.w(TAG, "courseChangedListener failed: action=$action courseId=$courseId", e)
             }
         }
     }
@@ -1300,11 +1301,14 @@ class CourseRepository private constructor() : PeriodTimeSource {
         val rules = if (raw == null) {
             emptyList()
         } else {
-            runCatching {
+            try {
                 // Keep a syntactically valid saved rule visible if total_weeks was later reduced;
                 // the editor can then explain/fix it instead of silently hiding the user's data.
                 TeachingWeekReorganization.decode(raw, Int.MAX_VALUE)
-            }.getOrDefault(emptyList())
+            } catch (e: IllegalArgumentException) {
+                NexioLog.e(TAG, "教学周重组规则解析失败：schedule=$scheduleId", e)
+                emptyList()
+            }
         }
         synchronizedOn(cacheLock) {
             reorganizationCache =
@@ -1356,13 +1360,10 @@ class CourseRepository private constructor() : PeriodTimeSource {
             return false
         }
         val normalized = rules.sortedBy { it.firstOriginalWeek }
-        val raw = runCatching {
-            TeachingWeekReorganization.encode(
-                normalized,
-                if (allowExistingOutOfRangeRules || preserveOutOfRangeRules) Int.MAX_VALUE
-                else totalWeeks,
-            )
-        }.getOrNull() ?: return false
+        val raw = TeachingWeekReorganization.encode(
+            normalized,
+            if (allowExistingOutOfRangeRules || preserveOutOfRangeRules) Int.MAX_VALUE else totalWeeks,
+        )
         if (!writeTeachingWeekReorganizationsRaw(scheduleId, raw)) return false
         markScheduleSettingsChanged(scheduleId, "teaching_week_reorganizations")
         return true
@@ -1378,8 +1379,7 @@ class CourseRepository private constructor() : PeriodTimeSource {
         if (index < 0) return false
         rules.removeAt(index)
         if (TeachingWeekReorganization.validationError(rules, Int.MAX_VALUE) != null) return false
-        val raw = runCatching { TeachingWeekReorganization.encode(rules, Int.MAX_VALUE) }
-            .getOrNull() ?: return false
+        val raw = TeachingWeekReorganization.encode(rules, Int.MAX_VALUE)
         if (!writeTeachingWeekReorganizationsRaw(scheduleId, raw)) return false
         markScheduleSettingsChanged(scheduleId, "teaching_week_reorganizations")
         return true
@@ -2126,10 +2126,11 @@ class CourseRepository private constructor() : PeriodTimeSource {
 
     fun getShiftSelectedSchedules(): List<String> {
         val json = prefs.getStringOrNull(KEY_SHIFT_SELECTED_SCHEDULES)
+        if (json.isNullOrBlank()) return emptyList()
         return try {
-            if (json.isNullOrBlank()) emptyList()
-            else runCatching { decodeStringList(json) }.getOrNull() ?: emptyList()
-        } catch (_: Exception) {
+            decodeStringList(json)
+        } catch (e: IllegalArgumentException) {
+            NexioLog.e(TAG, "轮班课表列表解析失败", e)
             emptyList()
         }
     }

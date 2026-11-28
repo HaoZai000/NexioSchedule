@@ -8,7 +8,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
 import com.haooz.chedule.data.appearance.ThemeMode
 import com.haooz.chedule.data.platform.AppFiles
+import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.storage.AppStorage
+import kotlinx.coroutines.CancellationException
 
 /**
  * 小部件壁纸。
@@ -20,6 +22,7 @@ import com.haooz.chedule.data.storage.AppStorage
  * 种类名是稳定的数据契约。
  */
 object WidgetWallpaperStore {
+    private const val TAG = "WidgetWallpaperStore"
 
     /** 壁纸槽位（数据契约）：今日 4×2 / 今明 4×2 / 2×2。 */
     const val KEY_TODAY = "today"
@@ -52,7 +55,8 @@ object WidgetWallpaperStore {
     /** 是否已经有壁纸（只看磁盘，不解码）。 */
     fun exists(key: String): Boolean = try {
         fileFor(key).exists()
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        NexioLog.w(TAG, "Failed to check widget wallpaper: key=$key", e)
         false
     }
 
@@ -72,7 +76,8 @@ object WidgetWallpaperStore {
         if (!file.exists()) return null
         val bytes = try {
             file.readBytes()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "Failed to read widget wallpaper: key=$key", e)
             return null
         }
         val decoded = backend.decodeBytes(bytes) ?: return null
@@ -101,7 +106,10 @@ object WidgetWallpaperStore {
             cache[key] = scaled
             revision++
             true
-        } catch (_: Exception) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "Failed to save widget wallpaper: key=$key", e)
             false
         }
     }
@@ -110,9 +118,10 @@ object WidgetWallpaperStore {
     fun clear(key: String) {
         cache.remove(key)
         try {
-            fileFor(key).delete()
-        } catch (_: Exception) {
-            // 删不掉也把内存态清掉，下次 load 会再试
+            val file = fileFor(key)
+            if (!file.delete() && file.exists()) NexioLog.w(TAG, "Failed to delete widget wallpaper: key=$key")
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "Failed to delete widget wallpaper: key=$key", e)
         }
         revision++
     }

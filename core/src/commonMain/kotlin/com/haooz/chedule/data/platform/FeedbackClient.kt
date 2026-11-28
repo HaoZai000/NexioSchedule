@@ -293,4 +293,4 @@ private fun encodeQuery(raw: String): String {
 
 /** kotlinx JsonElement → JsonObject，非对象返回 null（服务端字段缺失时不至于整条丢掉） */
 private fun kotlinx.serialization.json.JsonElement.asObjectOrNull(): JsonObject? =
-    runCatching { this as JsonObject }.getOrNull()
+    this as? JsonObject

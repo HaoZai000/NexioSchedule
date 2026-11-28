@@ -291,22 +291,20 @@ class CourseViewModel : ViewModel() {
 
     // 周次 = (今天 - 开学周一) / 7 + 1；开学周一为开始上课日期所在周的周一
     private fun calculateCurrentWeekFromDate(startDate: String): Int {
-        return try {
-            val today = todayLocalDate()
-            val start = LocalDate.parse(startDate.replace("/", "-"))
-            val startMonday = start.minusDays((start.dayOfWeek.isoDayNumber - 1).toLong())
-            _isSemesterStarted.value = today >= startMonday
-            val week = TeachingWeekReorganization.mapDate(
-                semesterStartDate = start,
-                date = today,
-                rules = repository.getTeachingWeekReorganizations(),
-            ).week.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
-            // 刻意不 clamp：允许 0/负数（未开学）或 >totalWeeks（已结束）
-            week
-        } catch (_: Exception) {
+        val start = CourseRepository.parseFlexibleDate(startDate)
+        if (start == null) {
             _isSemesterStarted.value = true
-            1
+            return 1
         }
+        val today = todayLocalDate()
+        val startMonday = start.minusDays((start.dayOfWeek.isoDayNumber - 1).toLong())
+        _isSemesterStarted.value = today >= startMonday
+        // 刻意不 clamp 到学期范围：允许 0/负数（未开学）或 >totalWeeks（已结束）
+        return TeachingWeekReorganization.mapDate(
+            semesterStartDate = start,
+            date = today,
+            rules = repository.getTeachingWeekReorganizations(),
+        ).week.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
     }
 
     // 假期 = 超出总周数，或已过最后一个有课周

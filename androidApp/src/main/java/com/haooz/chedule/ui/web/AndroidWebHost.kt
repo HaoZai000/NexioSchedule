@@ -279,8 +279,9 @@ fun rememberAndroidWebHost(
                 } else {
                     pixelCopyInFlight.set(false)
                 }
-            } catch (_: Throwable) {
+            } catch (e: Exception) {
                 pixelCopyInFlight.set(false)
+                NexioLog.w("AndroidWebHost", "PixelCopy request failed", e)
             }
         }
     }

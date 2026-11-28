@@ -224,7 +224,7 @@ object HolidayManager {
     fun notifyScheduleSwitched() {
         migrateToSchedulePartitionsOnce()
         val target = AppStorage.store(namespaceFor(currentScheduleId()))
-        val prev = runCatching { target.getLong(KEY_VERSION, 0L) }.getOrDefault(0L)
+        val prev = target.getLong(KEY_VERSION, 0L)
         val next = maxOf(Clock.System.now().toEpochMilliseconds(), prev + 1L)
         target.edit { putLong(KEY_VERSION, next) }
         _dataRevision.value = next
@@ -258,7 +258,12 @@ object HolidayManager {
         // KeyValueStore 无可空默认值，先判存在；缺键 → 空列表
         if (!store.contains(key)) return emptyList()
         val raw = store.getString(key, "")
-        val array = runCatching { parseJsonArray(raw) }.getOrNull() ?: return emptyList()
+        val array = try {
+            parseJsonArray(raw)
+        } catch (e: Exception) {
+            NexioLog.e("HolidayManager", "节假日数据解析失败：year=$year", e)
+            return emptyList()
+        }
         return readEntriesSafely(array.size) { index ->
             // 元素不是对象时抛，被 readEntriesSafely 的 runCatching 吃掉 → 跳过该行
             parseStoredEntry(array[index] as? JsonObject ?: error("Invalid holiday entry"))
@@ -279,7 +284,7 @@ object HolidayManager {
     /** 加载所有有存量条目的年份，保留存储年份用于课表查找。按「存储实例 + 版本号」缓存。 */
     fun loadAllByYear(): Map<Int, List<HolidayEntry>> = synchronizedOn(lock) {
         val store = store()
-        val version = runCatching { store.getLong(KEY_VERSION, 0L) }.getOrDefault(0L)
+        val version = store.getLong(KEY_VERSION, 0L)
         allByYearSnapshot
             ?.takeIf { it.store === store && it.version == version }
             ?.let { return@synchronizedOn it.entries }
@@ -324,14 +329,9 @@ object HolidayManager {
         synchronizedOn(lock) { loadEndCourseExclusion(store()) }
 
     internal fun loadEndCourseExclusion(store: KeyValueStore): HolidayEndCourseExclusion {
-        val enabled = runCatching { store.getBoolean(KEY_EXCLUSION_ENABLED, false) }
-            .getOrDefault(false)
-        val startSection = runCatching {
-            store.getInt(KEY_EXCLUSION_START_SECTION, 1)
-        }.getOrDefault(1)
-        val endSection = runCatching {
-            store.getInt(KEY_EXCLUSION_END_SECTION, 1)
-        }.getOrDefault(1)
+        val enabled = store.getBoolean(KEY_EXCLUSION_ENABLED, false)
+        val startSection = store.getInt(KEY_EXCLUSION_START_SECTION, 1)
+        val endSection = store.getInt(KEY_EXCLUSION_END_SECTION, 1)
         return HolidayEndCourseExclusion(enabled, startSection, endSection)
             .takeIf(HolidayEndCourseExclusion::isValid)
             ?: HolidayEndCourseExclusion()
@@ -342,7 +342,7 @@ object HolidayManager {
 
     internal fun saveEndCourseExclusion(store: KeyValueStore, value: HolidayEndCourseExclusion): Boolean {
         if (!value.isValid()) return false
-        val previousVersion = runCatching { store.getLong(KEY_VERSION, 0L) }.getOrDefault(0L)
+        val previousVersion = store.getLong(KEY_VERSION, 0L)
         val newVersion = maxOf(Clock.System.now().toEpochMilliseconds(), previousVersion + 1L)
         store.edit {
             putBoolean(KEY_EXCLUSION_ENABLED, value.enabled)
@@ -358,14 +358,9 @@ object HolidayManager {
         synchronizedOn(lock) { loadBeforeCourseExclusion(store()) }
 
     internal fun loadBeforeCourseExclusion(store: KeyValueStore): HolidayBeforeCourseExclusion {
-        val enabled = runCatching { store.getBoolean(KEY_BEFORE_EXCLUSION_ENABLED, false) }
-            .getOrDefault(false)
-        val startSection = runCatching {
-            store.getInt(KEY_BEFORE_EXCLUSION_START_SECTION, 1)
-        }.getOrDefault(1)
-        val endSection = runCatching {
-            store.getInt(KEY_BEFORE_EXCLUSION_END_SECTION, 1)
-        }.getOrDefault(1)
+        val enabled = store.getBoolean(KEY_BEFORE_EXCLUSION_ENABLED, false)
+        val startSection = store.getInt(KEY_BEFORE_EXCLUSION_START_SECTION, 1)
+        val endSection = store.getInt(KEY_BEFORE_EXCLUSION_END_SECTION, 1)
         return HolidayBeforeCourseExclusion(enabled, startSection, endSection)
             .takeIf(HolidayBeforeCourseExclusion::isValid)
             ?: HolidayBeforeCourseExclusion()
@@ -379,7 +374,7 @@ object HolidayManager {
         value: HolidayBeforeCourseExclusion,
     ): Boolean {
         if (!value.isValid()) return false
-        val previousVersion = runCatching { store.getLong(KEY_VERSION, 0L) }.getOrDefault(0L)
+        val previousVersion = store.getLong(KEY_VERSION, 0L)
         val newVersion = maxOf(Clock.System.now().toEpochMilliseconds(), previousVersion + 1L)
         store.edit {
             putBoolean(KEY_BEFORE_EXCLUSION_ENABLED, value.enabled)
@@ -482,7 +477,7 @@ object HolidayManager {
         require(data.beforeExclusion.isValid()) {
             "Invalid holiday before-course exclusion section range"
         }
-        val previousVersion = runCatching { store.getLong(KEY_VERSION, 0L) }.getOrDefault(0L)
+        val previousVersion = store.getLong(KEY_VERSION, 0L)
         val newVersion = maxOf(Clock.System.now().toEpochMilliseconds(), previousVersion + 1L)
         store.edit {
             store.all().keys.filter { it.startsWith(KEY_PREFIX) }.forEach(::remove)
@@ -1124,8 +1119,7 @@ object HolidayManager {
         val suggestionInput = allEntries.map {
             if (it in legacy) it.copy(followWeek = -1, followWeekday = -1) else it
         }
-        val suggested = runCatching { suggestWorkSwapFollowTargets(suggestionInput) }
-            .getOrDefault(suggestionInput)
+        val suggested = suggestWorkSwapFollowTargets(suggestionInput)
             .associateBy { it.date }
         val years = byYear.filterValues { entries ->
             entries.any { it in legacy }

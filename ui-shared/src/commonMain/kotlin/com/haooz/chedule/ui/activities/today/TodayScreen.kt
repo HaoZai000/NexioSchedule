@@ -238,14 +238,6 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
         }
     }
 
-    fun parseTime(timeStr: String): LocalTime? {
-        return try {
-            parseHourMinute(timeStr)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     val timeRange = if (course.hasValidCustomTime()) {
         "${course.customStartTime} - ${course.customEndTime}"
     } else {
@@ -261,8 +253,8 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
     } else {
         sectionTimes[course.endSection]?.split("-")?.lastOrNull() ?: ""
     }
-    val startTime = parseTime(startTimeStr)
-    val endTime = parseTime(endTimeStr)
+    val startTime = parseHourMinute(startTimeStr)
+    val endTime = parseHourMinute(endTimeStr)
 
     val initialStatus = remember(pageDate, startTime, endTime) {
         val today = todayLocalDate()
@@ -812,10 +804,7 @@ fun TodayScreen(
                                     }
 
                                     effectiveCourses.mapNotNull { course ->
-                                        course.getEffectiveEndTime(sectionTimes)?.let { endTime ->
-                                            runCatching { parseHourMinute(endTime) }
-                                                .getOrNull()
-                                        }
+                                        course.getEffectiveEndTime(sectionTimes)?.let(::parseHourMinute)
                                     }.maxOrNull()
                                 }
                             },
@@ -1083,11 +1072,8 @@ fun TodayScreen(
                         textStyle = NexioTheme.textStyles.title2,
                         modifier = Modifier.weight(1f)
                     )
-                    val maxDay = try {
-                        LocalDate(datePickerYear, datePickerMonth + 1, 1).lengthOfMonth()
-                    } catch (_: Exception) {
-                        31
-                    }
+                    val month = datePickerMonth + 1
+                    val maxDay = if (month in 1..12) LocalDate(datePickerYear, month, 1).lengthOfMonth() else 31
                     val clampedDay = datePickerDay.coerceIn(1, maxDay)
                     if (clampedDay != datePickerDay) datePickerDay = clampedDay
                     NumberPicker(
@@ -1218,14 +1204,6 @@ private enum class QuoteScene {
     AFTER_ALL,
 }
 
-private fun parseQuoteTime(timeStr: String): LocalTime? {
-    return try {
-        parseHourMinute(timeStr)
-    } catch (_: Exception) {
-        null
-    }
-}
-
 private fun ceilQuoteMinutes(from: LocalTime, to: LocalTime): Int {
     // 跨午夜课（23:00-00:30）在课中时 to(00:30) < from(23:50)，按次日结束回卷
     val remain = millisBetween(from, to, allowRollover = true)
@@ -1243,8 +1221,8 @@ private fun buildQuoteRanges(
     sectionTimes: Map<Int, String>
 ): List<QuoteTimeRange> {
     return courses.mapNotNull { course ->
-        val start = parseQuoteTime(course.getEffectiveStartTime(sectionTimes) ?: return@mapNotNull null)
-        val end = parseQuoteTime(course.getEffectiveEndTime(sectionTimes) ?: return@mapNotNull null)
+        val start = parseHourMinute(course.getEffectiveStartTime(sectionTimes) ?: return@mapNotNull null)
+        val end = parseHourMinute(course.getEffectiveEndTime(sectionTimes) ?: return@mapNotNull null)
         if (start == null || end == null) return@mapNotNull null
         // 起止相同仍是脏数据；跨午夜课（end < start）保留，由 coursePeriodOngoing
         // 按「start→午夜」段判定，晚课时段的引言不再永远匹配不到

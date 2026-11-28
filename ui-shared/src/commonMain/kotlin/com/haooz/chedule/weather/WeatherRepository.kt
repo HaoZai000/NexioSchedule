@@ -1,7 +1,9 @@
 package com.haooz.chedule.weather
 
+import com.haooz.chedule.data.platform.NexioLog
 import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.storage.AppStorage
+import com.haooz.chedule.data.storage.KeyValueStore
 import com.haooz.chedule.data.util.suspendRunCatching
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -85,6 +87,7 @@ object WeatherRepository {
  * 4. 打开应用时缓存已过期 → 立刻重拉；没过期 → 直接用缓存
  */
 object WeatherStore {
+    private const val TAG = "WeatherStore"
 
     /** 缓存有效期：超过这个时长才算「过期」，才允许联网。 */
     const val CACHE_TTL_MS: Long = 15 * 60 * 1000L
@@ -134,12 +137,12 @@ object WeatherStore {
     private var lastAttemptAtMs = 0L
     private var lastAttemptOk = true
 
-    /** 落盘快照只还原一次；没还原成功（存储未就绪）也不反复重试。 */
+    /** 快照成功还原或确认没有可用缓存后置位；存储失败时下次访问重试。 */
     private var restored = false
 
     init {
         // 对象第一次被引用时就还原：卡片要立刻有数据
-        runCatching { ensureRestored() }
+        ensureRestored()
     }
 
     /** 设置页改源 / 手动刷新时置零，下次进来重拉（落盘缓存一并作废）。 */
@@ -149,7 +152,13 @@ object WeatherStore {
         lastAttemptOk = true
         _snapshot.value = null
         _failed.value = false
-        clearPersisted()
+        if (AppStorage.isReady) {
+            try {
+                clearPersisted(AppStorage.store(PREFS))
+            } catch (e: Exception) {
+                NexioLog.w(TAG, "Failed to clear weather cache", e)
+            }
+        }
         // 宿主的前台循环以它当 key：不 +1 的话循环还在睡，作废后要等下一次 tick 才动
         _refreshToken.value += 1
     }
@@ -261,29 +270,33 @@ object WeatherStore {
         // 存储还没初始化（对象被提前访问）就先不动手：下次访问再来一次，
         // 一旦置位就再也不试了 —— 那时候缓存还没进内存，等于白白丢掉一次落盘数据
         if (!AppStorage.isReady) return
-        restored = true
-        runCatching {
-            val prefs = AppStorage.store(PREFS)
-            val raw = prefs.getString(KEY_SNAPSHOT, "")
-            val at = prefs.getLong(KEY_LOADED_AT, 0L)
-            if (raw.isEmpty() || at <= 0L) return@runCatching
-            val now = Clock.System.now().toEpochMilliseconds()
-            if (now - at > CACHE_MAX_AGE_MS) {
-                clearPersisted()
-                return@runCatching
-            }
-            val cached = decodeWeatherSnapshot(raw) ?: return@runCatching
-            _snapshot.value = cached
-            loadedAtMs = at
-            lastAttemptAtMs = at
-            lastAttemptOk = true
-            source = WeatherRepository.Source.from(prefs.getString(KEY_SOURCE, ""))
-            prefs.getString(KEY_PLACE, "").split(',').let { parts ->
-                val lat = parts.getOrNull(0)?.toDoubleOrNull()
-                val lng = parts.getOrNull(1)?.toDoubleOrNull()
-                if (lat != null && lng != null) place = WeatherPlace(latitude = lat, longitude = lng)
-            }
+        try {
+            restoreSnapshot(AppStorage.store(PREFS))
+            restored = true
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "Failed to restore weather cache", e)
         }
+    }
+
+    private fun restoreSnapshot(prefs: KeyValueStore) {
+        val raw = prefs.getString(KEY_SNAPSHOT, "")
+        val at = prefs.getLong(KEY_LOADED_AT, 0L)
+        if (raw.isEmpty() || at <= 0L) return
+        if (Clock.System.now().toEpochMilliseconds() - at > CACHE_MAX_AGE_MS) {
+            clearPersisted(prefs)
+            return
+        }
+        val cached = requireNotNull(decodeWeatherSnapshot(raw)) { "Unreadable weather cache" }
+        val cachedSource = WeatherRepository.Source.from(prefs.getString(KEY_SOURCE, ""))
+        val parts = prefs.getString(KEY_PLACE, "").split(',')
+        val lat = parts.getOrNull(0)?.toDoubleOrNull()
+        val lng = parts.getOrNull(1)?.toDoubleOrNull()
+        if (lat != null && lng != null) place = WeatherPlace(latitude = lat, longitude = lng)
+        source = cachedSource
+        loadedAtMs = at
+        lastAttemptAtMs = at
+        lastAttemptOk = true
+        _snapshot.value = cached
     }
 
     private fun persist(
@@ -292,26 +305,25 @@ object WeatherStore {
         source: WeatherRepository.Source,
     ) {
         if (!AppStorage.isReady) return
-        runCatching {
-            val raw = encodeWeatherSnapshot(snapshot)
+        val raw = encodeWeatherSnapshot(snapshot)
+        try {
             AppStorage.store(PREFS).edit {
                 putString(KEY_SNAPSHOT, raw)
                 putLong(KEY_LOADED_AT, loadedAtMs)
                 putString(KEY_PLACE, "${place.latitude},${place.longitude}")
                 putString(KEY_SOURCE, source.key)
             }
+        } catch (e: Exception) {
+            NexioLog.w(TAG, "Failed to persist weather cache", e)
         }
     }
 
-    private fun clearPersisted() {
-        if (!AppStorage.isReady) return
-        runCatching {
-            AppStorage.store(PREFS).edit {
-                remove(KEY_SNAPSHOT)
-                remove(KEY_LOADED_AT)
-                remove(KEY_PLACE)
-                remove(KEY_SOURCE)
-            }
+    private fun clearPersisted(prefs: KeyValueStore) {
+        prefs.edit {
+            remove(KEY_SNAPSHOT)
+            remove(KEY_LOADED_AT)
+            remove(KEY_PLACE)
+            remove(KEY_SOURCE)
         }
     }
 }

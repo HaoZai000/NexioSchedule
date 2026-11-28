@@ -60,6 +60,7 @@ import com.haooz.chedule.data.model.SpecialBlock
 import com.haooz.chedule.data.model.TimeConfig
 import com.haooz.chedule.data.model.TimeRoutine
 import com.haooz.chedule.data.platform.showToast
+import com.haooz.chedule.data.util.parseHourMinute
 import com.haooz.chedule.i18n.AppLanguage
 import com.haooz.chedule.i18n.CommonStr
 import com.haooz.chedule.i18n.CourseEditStr
@@ -116,28 +117,16 @@ import com.haooz.nexioui.overscroll.overScrollVertical
 import com.haooz.nexioui.scrollhaptic.scrollEndHaptic
 
 private fun parseTimeRange(timeStr: String): Pair<Pair<Int, Int>, Pair<Int, Int>> {
-    return try {
-        val parts = timeStr.split("-")
-        val startParts = parts[0].split(":")
-        val endParts = parts[1].split(":")
-        Pair(
-            Pair(startParts[0].toInt(), startParts[1].toInt()),
-            Pair(endParts[0].toInt(), endParts[1].toInt())
-        )
-    } catch (_: Exception) {
-        Pair(Pair(8, 0), Pair(8, 45))
-    }
+    val parts = timeStr.split('-', limit = 2)
+    val start = parseHourMinute(parts[0])
+    val end = parts.getOrNull(1)?.let(::parseHourMinute)
+    if (start == null || end == null) return (8 to 0) to (8 to 45)
+    return (start.hour to start.minute) to (end.hour to end.minute)
 }
 
 /** 解析 "HH:mm" 为 (小时, 分钟)，解析失败返回 (8, 0) */
-private fun parseTimeHm(time: String): Pair<Int, Int> {
-    return try {
-        val parts = time.split(":")
-        Pair(parts[0].toInt(), parts[1].toInt())
-    } catch (_: Exception) {
-        Pair(8, 0)
-    }
-}
+private fun parseTimeHm(time: String): Pair<Int, Int> =
+    parseHourMinute(time)?.let { it.hour to it.minute } ?: (8 to 0)
 
 /** 格式化 (小时, 分钟) 为 "HH:mm"（跨平台替代 String.format("%02d:%02d")，见 checkKmpPurity） */
 private fun formatHhMm(hour: Int, minute: Int): String =
@@ -170,24 +159,11 @@ private fun specialBlockSummary(block: SpecialBlock): String {
 }
 
 /** 解析 "HH:mm" → 分钟数；解析失败返回 null（不猜默认值，猜错会静默改时间） */
-private fun parseHhMmToMinutes(time: String?): Int? {
-    if (time.isNullOrBlank()) return null
-    val parts = time.split(":")
-    if (parts.size != 2) return null
-    val h = parts[0].toIntOrNull() ?: return null
-    val m = parts[1].toIntOrNull() ?: return null
-    return h * 60 + m
-}
+private fun parseHhMmToMinutes(time: String?): Int? =
+    time?.let(::parseHourMinute)?.let { it.hour * 60 + it.minute }
 
 // 解析失败返回 Int.MAX_VALUE，使无法解析的条目排序时落在末尾
-private fun parseTimeToMinutesForSort(time: String): Int {
-    return try {
-        val parts = time.split(":")
-        if (parts.size == 2) parts[0].toInt() * 60 + parts[1].toInt() else Int.MAX_VALUE
-    } catch (_: Exception) {
-        Int.MAX_VALUE
-    }
-}
+private fun parseTimeToMinutesForSort(time: String): Int = parseHhMmToMinutes(time) ?: Int.MAX_VALUE
 
 // 按开始时间（其次结束时间、再次名称）排序，避免插入顺序导致"午休排在午餐之前"等错乱
 private fun sortSpecialBlocksByTime(blocks: List<SpecialBlock>): List<SpecialBlock> {

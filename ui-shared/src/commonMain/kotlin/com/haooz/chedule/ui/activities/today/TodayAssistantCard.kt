@@ -179,13 +179,6 @@ private fun CourseRuleBar(percent: Int?) {
     )
 }
 
-private fun parseTime(timeStr: String): LocalTime? {
-    return try {
-        parseHourMinute(timeStr)
-    } catch (_: Exception) {
-        null
-    }
-}
 data class WeatherData(
     val temperature: Float = Float.NaN,
     val weatherType: String = "",
@@ -201,8 +194,8 @@ data class WeatherData(
     fun isNight(): Boolean {
         if (sunset.isBlank() || sunrise.isBlank()) return false
         val now = nowLocalTime()
-        val sunsetTime = parseTime(sunset.substringAfter("T")) ?: return false
-        val sunriseTime = parseTime(sunrise.substringAfter("T")) ?: return false
+        val sunsetTime = parseHourMinute(sunset.substringAfter("T")) ?: return false
+        val sunriseTime = parseHourMinute(sunrise.substringAfter("T")) ?: return false
         return now > sunsetTime || now < sunriseTime
     }
 }
@@ -296,8 +289,8 @@ private fun buildCourseTimeRanges(
     val ranges = courses.mapNotNull { course ->
         val startStr = course.getEffectiveStartTime(sectionTimes) ?: return@mapNotNull null
         val endStr = course.getEffectiveEndTime(sectionTimes) ?: return@mapNotNull null
-        val start = parseTime(startStr) ?: return@mapNotNull null
-        val end = parseTime(endStr) ?: return@mapNotNull null
+        val start = parseHourMinute(startStr) ?: return@mapNotNull null
+        val end = parseHourMinute(endStr) ?: return@mapNotNull null
         CourseTimeRange(course, start, end)
     }
     return if (sortByStart) ranges.sortedBy { it.start } else ranges

@@ -92,7 +92,7 @@ fun parseHourMinute(value: String): LocalTime? {
     val hour = parts[0].toIntOrNull() ?: return null
     val minute = parts[1].toIntOrNull() ?: return null
     if (hour !in 0..23 || minute !in 0..59) return null
-    return runCatching { LocalTime(hour, minute) }.getOrNull()
+    return LocalTime(hour, minute)
 }
 
 /**
