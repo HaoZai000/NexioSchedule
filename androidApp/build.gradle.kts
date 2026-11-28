@@ -103,7 +103,7 @@ dependencies {
 
     implementation(project(":ui-shared"))
 
-    implementation("com.github.HaoZai000.SoftGlass:softglass:0.1.3")
+    implementation("com.github.HaoZai000.SoftGlass:softglass:0.1.4")
 
     // 小米穿戴（手表 interconnect）
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))

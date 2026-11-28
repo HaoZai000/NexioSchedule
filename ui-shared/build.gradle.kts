@@ -69,9 +69,9 @@ kotlin {
             // 开机引导播放小米原版 Lottie 素材
             implementation(libs.compottie)
             // 柔光玻璃档位与材质口径
-            api("com.github.HaoZai000.SoftGlass:softglass:0.1.3")
-            // NexioUI 通用控件与图标
-            api("com.github.HaoZai000.NexioUI:nexioui:0.1.1")
+            api("com.github.HaoZai000.SoftGlass:softglass:0.1.4")
+            // 0.1.2 标签已更正，JitPack 仍缓存修复前的 b18a2ca9，故按现标签提交固定版本。
+            api("com.github.HaoZai000.NexioUI:nexioui:3fa6c2fb")
             // 数据层与跨平台抽象
             api(project(":core"))
             // 课程色板要做 Hct 换算
