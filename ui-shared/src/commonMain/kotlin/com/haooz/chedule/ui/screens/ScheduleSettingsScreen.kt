@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -25,8 +27,18 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.data.platform.ioDispatcher
 import com.haooz.chedule.data.platform.showToast
+import com.haooz.chedule.data.sync.kingosoft.KingosoftScheduleSyncer
+import com.haooz.chedule.data.sync.kingosoft.KingosoftSyncConfig
+import com.haooz.chedule.data.sync.kingosoft.KingosoftSyncStore
+import com.haooz.chedule.data.util.formatDateTimeMinute
+import com.haooz.chedule.data.util.localDateTimeAt
+import com.haooz.chedule.data.util.suspendRunCatching
+import com.haooz.softglass.backdrop.GlassBackdrop
+import kotlinx.coroutines.withContext
 import com.haooz.chedule.data.repo.CourseRepository
+import com.haooz.chedule.i18n.L
 import com.haooz.chedule.i18n.ImportStr
 import com.haooz.chedule.i18n.TimeCfgStr
 import com.haooz.chedule.i18n.orDefaultName
@@ -39,6 +51,8 @@ import com.haooz.chedule.ui.components.DocumentPageScaffold
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.navigation.AppRoute
 import com.haooz.chedule.ui.navigation.AppRouter
+import com.haooz.chedule.ui.activities.eduimport.KingosoftConfigFields
+import com.haooz.chedule.ui.activities.eduimport.withStoredKey
 import com.haooz.chedule.ui.activities.setting.getDaysInMonth
 import com.haooz.chedule.ui.activities.setting.parseDate
 import com.haooz.chedule.ui.utils.FeatureLog
@@ -93,6 +107,13 @@ fun ScheduleSettingsScreen(router: AppRouter) {
     val coroutineScope = rememberCoroutineScope()
 
     val timeRepository = remember { CourseRepository() }
+    val scheduleId by scheduleViewModel.currentScheduleName.collectAsState()
+    val syncRevision by KingosoftSyncStore.revision.collectAsState()
+    val syncConfig = remember(scheduleId, syncRevision) { KingosoftSyncStore.getConfig(scheduleId) }
+    val activeSync by KingosoftScheduleSyncer.activeSchedule.collectAsState()
+    var manualSyncPending by remember { mutableStateOf(false) }
+    var showKingosoftConfig by remember(scheduleId) { mutableStateOf(false) }
+    var syncMessage by remember(scheduleId) { mutableStateOf<String?>(null) }
     // 走「可写」入口：未绑定的课表先补绑，否则保存会把节次写进它回退到的那套配置
     var timeConfig by remember { mutableStateOf(timeRepository.getWritableCurrentTimeConfig().ensureRoutine()) }
     var showSectionPicker by remember { mutableStateOf(false) }
@@ -293,7 +314,40 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                     }
                 }
 
-                item(key = "other") {
+                item(key = "other:$scheduleId") {
+                    CardExpand(visible = syncConfig.isComplete) {
+                        Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                            KingosoftSyncCard(
+                                scheduleId = scheduleId,
+                                config = syncConfig,
+                                revision = syncRevision,
+                                syncing = manualSyncPending || activeSync == scheduleId,
+                                editing = showKingosoftConfig,
+                                onEditConfig = { showKingosoftConfig = true },
+                                onMessage = { syncMessage = it },
+                                onSync = {
+                                    if (!manualSyncPending) {
+                                        manualSyncPending = true
+                                        val target = scheduleId
+                                        coroutineScope.launch {
+                                            try {
+                                                suspendRunCatching {
+                                                    withContext(ioDispatcher) { KingosoftScheduleSyncer.sync(target, timeRepository) }
+                                                }.onSuccess { outcome ->
+                                                    viewModel.reloadCourses()
+                                                    syncMessage = outcome.summary
+                                                }.onFailure {
+                                                    syncMessage = SettingsStr.kingosoftSyncFailed(it.message ?: it.toString())
+                                                }
+                                            } finally {
+                                                manualSyncPending = false
+                                            }
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
                     SmallTitle(text = CommonStr.other())
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -323,6 +377,22 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                 }
             }
 
+            KingosoftConfigDialog(
+                show = showKingosoftConfig && syncConfig.isComplete,
+                initial = syncConfig,
+                backdrop = dialogBackdrop,
+                syncing = manualSyncPending || activeSync == scheduleId,
+                onDismiss = { showKingosoftConfig = false },
+                onSave = { next ->
+                    KingosoftSyncStore.saveConfig(scheduleId, next)
+                    showKingosoftConfig = false
+                },
+                onUnbind = {
+                    showKingosoftConfig = false
+                    KingosoftSyncStore.deleteConfig(scheduleId)
+                },
+            )
+            KingosoftSyncMessage(syncMessage, dialogBackdrop) { syncMessage = null }
             OverlayDialog(
                 title = TimeCfgStr.sectionCountDialogTitle(),
                 show = showSectionPicker,
@@ -688,5 +758,127 @@ fun ScheduleSettingsScreen(router: AppRouter) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun KingosoftSyncCard(
+    scheduleId: String, config: KingosoftSyncConfig, revision: Int, syncing: Boolean,
+    editing: Boolean, onEditConfig: () -> Unit, onMessage: (String) -> Unit, onSync: () -> Unit,
+) {
+    val store = KingosoftSyncStore
+    // 解绑会同时清空配置和同步记录；退场期间沿用卡片最后显示的版本。
+    var lastBound by remember(scheduleId) { mutableStateOf(config to revision) }
+    if (config.isComplete) lastBound = config to revision
+    val (lastBoundConfig, lastBoundRevision) = lastBound
+    val history = remember(scheduleId, lastBoundRevision) {
+        val at = store.lastSyncAtMillis(scheduleId)
+        if (at == 0L) null else "${localDateTimeAt(at).formatDateTimeMinute()} · ${store.lastSyncSummary(scheduleId)}"
+    }
+    SmallTitle(text = SettingsStr.kingosoftSync())
+    Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        Column {
+            ArrowPreference(
+                title = SettingsStr.kingosoftConfig(),
+                summary = "${lastBoundConfig.userId} · ${lastBoundConfig.jwBaseUrl}",
+                enabled = config.isComplete && !syncing,
+                holdDownState = editing,
+                onClick = onEditConfig,
+            )
+            SwitchPreference(
+                title = SettingsStr.kingosoftAutoSync(),
+                checked = lastBoundConfig.autoSyncEnabled,
+                enabled = config.isComplete && !syncing,
+                onCheckedChange = { checked ->
+                    val current = store.getConfig(scheduleId)
+                    if (checked == current.autoSyncEnabled) return@SwitchPreference
+                    runCatching { store.saveConfig(scheduleId, current.copy(autoSyncEnabled = checked)) }
+                        .onFailure { onMessage(it.message ?: it.toString()) }
+                },
+            )
+            ArrowPreference(
+                title = SettingsStr.kingosoftSyncNow(),
+                summary = if (syncing) SettingsStr.kingosoftSyncing() else history ?: SettingsStr.kingosoftNeverSynced(),
+                enabled = config.isComplete && !syncing,
+                onClick = onSync,
+            )
+        }
+    }
+}
+
+private val confirmUnbindLabel = L("解除绑定", "Unbind")
+
+@Composable
+private fun KingosoftConfigDialog(
+    show: Boolean, initial: KingosoftSyncConfig, backdrop: GlassBackdrop?, syncing: Boolean,
+    onDismiss: () -> Unit, onSave: (KingosoftSyncConfig) -> Unit, onUnbind: () -> Unit,
+) {
+    // 常驻挂载以保留 OverlayDialog 预测返回与关闭退场动画；打开时重置草稿，不把已存密钥回填到界面。
+    var lastInitial by remember { mutableStateOf(initial) }
+    var draft by remember { mutableStateOf(initial.copy(encrptKey = "")) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var confirmingUnbind by remember { mutableStateOf(false) }
+    LaunchedEffect(show) {
+        if (show) {
+            lastInitial = initial
+            draft = initial.copy(encrptKey = "")
+            error = null
+            confirmingUnbind = false
+        } else {
+            confirmingUnbind = false
+        }
+    }
+    OverlayDialog(
+        title = SettingsStr.kingosoftConfig(),
+        show = show && !confirmingUnbind,
+        liquidGlassBackdrop = backdrop,
+        onDismissRequest = onDismiss,
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            KingosoftConfigFields(draft, hasStoredKey = lastInitial.encrptKey.isNotEmpty(), enabled = true) { draft = it }
+            error?.let { Text(text = it) }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FlatTextButton(text = CommonStr.cancel(), onClick = onDismiss, modifier = Modifier.weight(1f))
+                FlatTextButton(text = CommonStr.save(), modifier = Modifier.weight(1f), colors = ButtonDefaults.textButtonColorsPrimary(),
+                    onClick = {
+                        val next = draft.withStoredKey(lastInitial)
+                        runCatching { onSave(next) }.onFailure { error = it.message ?: it.toString() }
+                    },
+                )
+            }
+            FlatTextButton(
+                text = SettingsStr.kingosoftUnbind(),
+                enabled = !syncing,
+                onClick = { confirmingUnbind = true },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+    OverlayDialog(
+        title = SettingsStr.kingosoftUnbind(),
+        summary = SettingsStr.kingosoftUnbindSummary(),
+        show = show && confirmingUnbind,
+        liquidGlassBackdrop = backdrop,
+        onDismissRequest = { confirmingUnbind = false },
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlatTextButton(text = CommonStr.cancel(), onClick = { confirmingUnbind = false }, modifier = Modifier.weight(1f))
+            FlatTextButton(text = confirmUnbindLabel(), enabled = !syncing, onClick = onUnbind, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+internal fun KingosoftSyncMessage(message: String?, backdrop: GlassBackdrop?, onDismiss: () -> Unit) {
+    var lastMessage by remember { mutableStateOf("") }
+    if (message != null) lastMessage = message
+    OverlayDialog(
+        title = SettingsStr.kingosoftSync(),
+        summary = lastMessage,
+        show = message != null,
+        liquidGlassBackdrop = backdrop,
+        onDismissRequest = onDismiss,
+    ) {
+        FlatTextButton(text = CommonStr.ok(), onClick = onDismiss, modifier = Modifier.fillMaxWidth())
     }
 }

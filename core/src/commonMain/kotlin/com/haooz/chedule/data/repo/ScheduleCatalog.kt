@@ -23,6 +23,7 @@ import com.haooz.chedule.data.storage.KeyValueStore
 import com.haooz.chedule.data.storage.ScheduleFolder
 import com.haooz.chedule.data.storage.StoredFolder
 import com.haooz.chedule.data.storage.getStringOrNull
+import com.haooz.chedule.data.sync.kingosoft.KingosoftSyncStore
 import com.haooz.chedule.data.util.formatSlashDate
 import com.haooz.chedule.data.util.todayLocalDate
 import kotlin.concurrent.Volatile
@@ -244,6 +245,7 @@ internal class ScheduleCatalog(private val host: Host) {
         }
         // 刚绕过 setter 直接改了 prefs
         host.invalidateAllCaches()
+        KingosoftSyncStore.onScheduleDeleted(name)
         HolidayManager.onScheduleDeleted(name)
         if (getCurrentScheduleId() == name) setCurrentScheduleId(names.first())
         else HolidayManager.notifyScheduleSwitched()
@@ -283,6 +285,7 @@ internal class ScheduleCatalog(private val host: Host) {
                 }
             }
             host.invalidateAllCaches()
+            KingosoftSyncStore.onScheduleRenamed(oldName, newName)
             HolidayManager.onScheduleRenamed(oldName, newName)
             HolidayManager.notifyScheduleSwitched()
         }

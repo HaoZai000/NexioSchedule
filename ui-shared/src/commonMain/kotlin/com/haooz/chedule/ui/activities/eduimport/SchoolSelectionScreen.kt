@@ -47,6 +47,8 @@ import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
 import com.haooz.chedule.i18n.ImportStr
+import com.haooz.chedule.i18n.SettingsStr
+import com.haooz.chedule.ui.screens.KingosoftSyncMessage
 import com.haooz.chedule.ui.components.text.material.Text as Text
 import com.haooz.chedule.ui.utils.ExtractedShareTools
 import com.haooz.chedule.ui.utils.screenWidthDp
@@ -83,6 +85,9 @@ fun SchoolSelectionScreen(
     val schoolRepository = remember { SchoolRepository() }
 
     var selectedSchool by remember { mutableStateOf<SchoolData?>(null) }
+
+    var showKingosoftImport by remember { mutableStateOf(false) }
+    var syncMessage by remember { mutableStateOf<String?>(null) }
 
     val allSchools = remember(dataVersion) { schoolRepository.getSchools() }
 
@@ -141,6 +146,12 @@ fun SchoolSelectionScreen(
     Column(
         modifier = modifier.fillMaxSize().background(NexioTheme.colorScheme.surface)
     ) {
+        // The built-in tool does not depend on a downloaded or matching school adapter.
+        if (selectedTab == 1 && filteredSchools.isEmpty()) {
+            Box(Modifier.padding(top = topContentPadding, start = tabletHorizontalPadding, end = tabletHorizontalPadding)) {
+                KingosoftImportEntryCard(onClick = { showKingosoftImport = true })
+            }
+        }
         when {
             filteredSchools.isEmpty() && !isUpdating -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -179,7 +190,7 @@ fun SchoolSelectionScreen(
 
                 val letterIndexMap = remember(groupedSchools) {
                     val map = mutableMapOf<String, Int>()
-                    // 从 1 起：列表第 0 项是「AI 教务导入」入口，字母条跳转要跳过它
+                    // 从 1 起：列表第 0 项是当前 Tab 的导入入口，字母条跳转要跳过它
                     var itemIndex = AI_ENTRY_ITEM_COUNT
                     groupedSchools.entries.forEachIndexed { index, (letter, schools) ->
                         if (index > 0) itemIndex++
@@ -241,8 +252,9 @@ fun SchoolSelectionScreen(
                     ) {
                         val groupedEntries = groupedSchools.entries.toList()
                         item(key = "ai_edu_entry") {
-                            if (selectedTab == 0) {
-                                AiEduImportEntryCard(onClick = onOpenAiImport)
+                            when (selectedTab) {
+                                0 -> AiEduImportEntryCard(onClick = onOpenAiImport)
+                                1 -> KingosoftImportEntryCard(onClick = { showKingosoftImport = true })
                             }
                         }
                         groupedEntries.forEachIndexed { index, (letter, schools) ->
@@ -446,6 +458,14 @@ fun SchoolSelectionScreen(
         }
     }
 
+    KingosoftImportBottomSheet(
+        show = showKingosoftImport,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = { showKingosoftImport = false },
+        onImported = { syncMessage = it },
+    )
+    KingosoftSyncMessage(syncMessage, liquidGlassBackdrop) { syncMessage = null }
+
     // 适配器选择底部弹窗（常驻组合，show 控制开合以播放动画）
     AdapterSelectionBottomSheet(
         show = selectedSchool != null,
@@ -459,7 +479,7 @@ fun SchoolSelectionScreen(
     )
 }
 
-/** 列表顶部「AI 教务导入」入口占掉的自选项数（字母条与搜索跳转的索引都要跳过它）。 */
+/** 列表顶部导入入口占掉的项数（字母条与搜索跳转的索引都要跳过它）。 */
 private const val AI_ENTRY_ITEM_COUNT = 1
 
 /**
@@ -470,6 +490,16 @@ private const val AI_ENTRY_ITEM_COUNT = 1
  */
 @Composable
 private fun AiEduImportEntryCard(onClick: () -> Unit) {
+    ImportEntryCard(ImportStr.aiEduImportTitle(), ImportStr.aiEduEntrySubtitle(), onClick)
+}
+
+@Composable
+private fun KingosoftImportEntryCard(onClick: () -> Unit) {
+    ImportEntryCard(SettingsStr.kingosoftImportTitle(), SettingsStr.kingosoftImportSubtitle(), onClick)
+}
+
+@Composable
+private fun ImportEntryCard(title: String, subtitle: String, onClick: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     // 主题蓝淡底 + 主题蓝文字：与下面「按学校找适配」的行区分开，深浅色与动态取色都跟随主题
     val primary = NexioTheme.colorScheme.primary
@@ -491,13 +521,13 @@ private fun AiEduImportEntryCard(onClick: () -> Unit) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = ImportStr.aiEduImportTitle(),
+                    text = title,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
                     color = titleColor
                 )
                 Text(
-                    text = ImportStr.aiEduEntrySubtitle(),
+                    text = subtitle,
                     fontSize = 13.sp,
                     color = subColor,
                     modifier = Modifier.padding(top = 3.dp)
